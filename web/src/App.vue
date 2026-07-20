@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { connectRealtime, fetchNodes } from './api'
-import type { PublicNode, RealtimeEvent } from './types'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { connectRealtime, fetchHistory, fetchNodes } from './api'
+import type { HistoryRange, HistoryResponse, PublicNode, RealtimeEvent } from './types'
 
 type Theme = 'light' | 'dark'
 
@@ -11,10 +11,19 @@ const loading = ref(true)
 const error = ref('')
 const connected = ref(false)
 const now = ref(new Date())
+const chartNode = ref<PublicNode>()
+const chartRange = ref<HistoryRange>('1h')
+const chartLoading = ref(false)
+const chartError = ref('')
+const resourceChartElement = ref<HTMLElement>()
+const latencyChartElement = ref<HTMLElement>()
+const historyRanges: HistoryRange[] = ['1h', '12h', '1d', '3d', '7d', '30d']
 const initialTheme = localStorage.getItem('myprobe-theme') as Theme | null
 const theme = ref<Theme>(initialTheme ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
 let disconnect: (() => void) | undefined
 let clock: number | undefined
+let resourceChart: any
+let latencyChart: any
 
 const sortedNodes = computed(() => [...nodes.value].sort((a, b) => a.node.sort_order - b.node.sort_order || a.node.name.localeCompare(b.node.name)))
 const tags = computed(() => {
@@ -62,6 +71,7 @@ function toggleTheme() {
   theme.value = theme.value === 'light' ? 'dark' : 'light'
   document.documentElement.dataset.theme = theme.value
   localStorage.setItem('myprobe-theme', theme.value)
+  if (chartNode.value) void loadHistory()
 }
 
 function aggregate(item: PublicNode) {
@@ -145,6 +155,91 @@ function latencyText(success?: boolean, latency?: number, errorClass?: string) {
   return `${latency < 10 ? latency.toFixed(2) : latency.toFixed(1)} ms`
 }
 
+async function openHistory(item: PublicNode) {
+  chartNode.value = item
+  chartRange.value = '1h'
+  await nextTick()
+  await loadHistory()
+}
+
+async function loadHistory() {
+  if (!chartNode.value) return
+  chartLoading.value = true
+  chartError.value = ''
+  try {
+    const history = await fetchHistory(chartNode.value.node.id, chartRange.value)
+    await nextTick()
+    await renderHistory(history)
+  } catch {
+    chartError.value = '暂时无法读取历史数据'
+  } finally {
+    chartLoading.value = false
+  }
+}
+
+async function renderHistory(history: HistoryResponse) {
+  if (!resourceChartElement.value || !latencyChartElement.value) return
+  const { default: echarts } = await import('./charting')
+  resourceChart?.dispose()
+  latencyChart?.dispose()
+  resourceChart = echarts.init(resourceChartElement.value)
+  latencyChart = echarts.init(latencyChartElement.value)
+  const styles = getComputedStyle(document.documentElement)
+  const text = styles.getPropertyValue('--muted').trim()
+  const border = styles.getPropertyValue('--border').trim()
+  const blue = styles.getPropertyValue('--blue').trim()
+  const cyan = styles.getPropertyValue('--cyan').trim()
+  const green = styles.getPropertyValue('--green').trim()
+  const orange = styles.getPropertyValue('--orange').trim()
+  const purple = styles.getPropertyValue('--purple').trim()
+  const common = {
+    animationDuration: 300,
+    textStyle: { color: text, fontFamily: 'inherit' },
+    tooltip: { trigger: 'axis', backgroundColor: styles.getPropertyValue('--surface-strong').trim(), borderColor: border, textStyle: { color: styles.getPropertyValue('--text').trim() } },
+    legend: { top: 0, textStyle: { color: text } },
+    grid: { left: 44, right: 48, top: 38, bottom: 28 },
+    xAxis: { type: 'time', splitNumber: 4, axisLine: { lineStyle: { color: border } }, axisLabel: { color: text, fontSize: 9, hideOverlap: true } },
+  }
+  resourceChart.setOption({
+    ...common,
+    yAxis: [
+      { type: 'value', min: 0, max: 100, axisLabel: { color: text, formatter: '{value}%' }, splitLine: { lineStyle: { color: border } } },
+      { type: 'value', min: 0, axisLabel: { color: text, formatter: (value: number) => formatBytes(value, '/s') }, splitLine: { show: false } },
+    ],
+    series: [
+      { name: 'CPU', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map((p) => [p.time, p.cpu_percent]), lineStyle: { color: blue }, itemStyle: { color: blue } },
+      { name: '内存', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map((p) => [p.time, p.memory_percent]), lineStyle: { color: cyan }, itemStyle: { color: cyan } },
+      { name: '硬盘', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map((p) => [p.time, p.disk_percent]), lineStyle: { color: purple }, itemStyle: { color: purple } },
+      { name: '上传', type: 'line', yAxisIndex: 1, showSymbol: false, data: history.metrics.map((p) => [p.time, p.tx_bytes_per_second]), lineStyle: { color: orange }, itemStyle: { color: orange } },
+      { name: '下载', type: 'line', yAxisIndex: 1, showSymbol: false, data: history.metrics.map((p) => [p.time, p.rx_bytes_per_second]), lineStyle: { color: green }, itemStyle: { color: green } },
+    ],
+  })
+  const targets = new Map<string, { name: string; points: Array<[string, number | null]> }>()
+  for (const point of history.latency) {
+    const target = targets.get(point.target_id) ?? { name: `${point.kind === 'tcping' ? 'TCP' : 'Ping'} · ${point.name}`, points: [] }
+    target.points.push([point.time, point.latency_ms ?? null])
+    targets.set(point.target_id, target)
+  }
+  latencyChart.setOption({
+    ...common,
+    yAxis: { type: 'value', min: 0, axisLabel: { color: text, formatter: '{value} ms' }, splitLine: { lineStyle: { color: border } } },
+    series: [...targets.values()].map((target) => ({ name: target.name, type: 'line', connectNulls: false, showSymbol: false, smooth: true, data: target.points })),
+  })
+}
+
+function closeHistory() {
+  chartNode.value = undefined
+  resourceChart?.dispose()
+  latencyChart?.dispose()
+  resourceChart = undefined
+  latencyChart = undefined
+}
+
+function resizeCharts() {
+  resourceChart?.resize()
+  latencyChart?.resize()
+}
+
 onMounted(() => {
   document.documentElement.dataset.theme = theme.value
   void load()
@@ -153,11 +248,15 @@ onMounted(() => {
     localStorage.setItem('myprobe-nodes', JSON.stringify(nodes.value))
   }, (state) => { connected.value = state })
   clock = window.setInterval(() => { now.value = new Date() }, 1000)
+  window.addEventListener('resize', resizeCharts)
 })
 
 onBeforeUnmount(() => {
   disconnect?.()
   if (clock !== undefined) window.clearInterval(clock)
+  window.removeEventListener('resize', resizeCharts)
+  resourceChart?.dispose()
+  latencyChart?.dispose()
 })
 </script>
 
@@ -279,11 +378,34 @@ onBeforeUnmount(() => {
 
           <footer>
             <span>{{ item.report?.cpu.model || '尚未连接' }}</span>
+            <button type="button" @click="openHistory(item)">历史图表</button>
             <time>{{ item.report?.captured_at ? `更新 ${new Date(item.report.captured_at).toLocaleTimeString('zh-CN', { hour12: false })}` : '无数据' }}</time>
           </footer>
         </article>
       </section>
     </main>
+
+    <div v-if="chartNode" class="chart-overlay" @click.self="closeHistory">
+      <section class="chart-dialog" role="dialog" aria-modal="true" :aria-label="`${chartNode.node.name} 历史图表`">
+        <header>
+          <div><small>节点历史</small><strong>{{ chartNode.node.name }}</strong></div>
+          <button type="button" aria-label="关闭历史图表" @click="closeHistory">×</button>
+        </header>
+        <nav class="range-switch" aria-label="历史时间范围">
+          <button v-for="item in historyRanges" :key="item" type="button" :class="{ active: chartRange === item }" @click="chartRange = item; loadHistory()">{{ item }}</button>
+        </nav>
+        <p v-if="chartError" class="chart-message error">{{ chartError }}</p>
+        <p v-else-if="chartLoading" class="chart-message">正在读取并聚合历史数据…</p>
+        <div class="chart-block">
+          <h3>资源与实时速率</h3>
+          <div ref="resourceChartElement" class="chart-canvas"></div>
+        </div>
+        <div class="chart-block">
+          <h3>Ping / TCPing 延迟</h3>
+          <div ref="latencyChartElement" class="chart-canvas"></div>
+        </div>
+      </section>
+    </div>
 
     <footer class="site-footer">© {{ now.getFullYear() }} MyProbe · 自托管服务器监控</footer>
   </div>

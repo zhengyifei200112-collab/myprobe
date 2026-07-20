@@ -68,6 +68,7 @@ func (s *Server) routes() {
 
 	public := s.router.Group("/api/v1/public")
 	public.GET("/nodes", s.publicNodes)
+	public.GET("/nodes/:nodeID/history", s.publicNodeHistory)
 
 	s.router.POST("/api/v1/agent/report", gin.WrapF(s.gateway.HTTPReport))
 
@@ -92,6 +93,46 @@ func (s *Server) publicNodes(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"nodes": nodes, "server_time": time.Now().UTC()})
+}
+
+func (s *Server) publicNodeHistory(c *gin.Context) {
+	rangeName := c.DefaultQuery("range", "1h")
+	duration, bucket, ok := historyRange(rangeName)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "range must be one of 1h, 12h, 1d, 3d, 7d, 30d"})
+		return
+	}
+	start := time.Now().UTC().Add(-duration)
+	metrics, err := s.store.MetricHistory(c.Request.Context(), c.Param("nodeID"), start, bucket)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read metric history"})
+		return
+	}
+	latency, err := s.store.LatencyHistory(c.Request.Context(), c.Param("nodeID"), start, bucket)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read latency history"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"range": rangeName, "bucket_seconds": bucket, "metrics": metrics, "latency": latency})
+}
+
+func historyRange(name string) (time.Duration, int, bool) {
+	switch name {
+	case "1h":
+		return time.Hour, 15, true
+	case "12h":
+		return 12 * time.Hour, 60, true
+	case "1d":
+		return 24 * time.Hour, 120, true
+	case "3d":
+		return 72 * time.Hour, 300, true
+	case "7d":
+		return 7 * 24 * time.Hour, 900, true
+	case "30d":
+		return 30 * 24 * time.Hour, 3600, true
+	default:
+		return 0, 0, false
+	}
 }
 
 func (s *Server) publicWebSocket(w http.ResponseWriter, r *http.Request) {

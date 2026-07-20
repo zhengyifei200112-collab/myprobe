@@ -51,6 +51,10 @@ func TestNodeTokenAndReportRoundTrip(t *testing.T) {
 	if nodes[0].Report.CPU.Model != "Test CPU" {
 		t.Fatalf("CPU model = %q", nodes[0].Report.CPU.Model)
 	}
+	history, err := store.MetricHistory(ctx, node.ID, time.Now().UTC().Add(-time.Hour), 60)
+	if err != nil || len(history) != 1 || history[0].CPUPercent != report.CPU.UsagePercent {
+		t.Fatalf("metric history = %#v, error = %v", history, err)
+	}
 }
 
 func TestLatencyAssignmentAndResultRoundTrip(t *testing.T) {
@@ -91,5 +95,9 @@ func TestLatencyAssignmentAndResultRoundTrip(t *testing.T) {
 	latest, err := database.ListLatestLatency(ctx, node.ID)
 	if err != nil || len(latest) != 1 || latest[0].LatencyMS == nil || *latest[0].LatencyMS != result.LatencyMS {
 		t.Fatalf("latest = %#v, error = %v", latest, err)
+	}
+	history, err := database.LatencyHistory(ctx, node.ID, time.Now().UTC().Add(-time.Hour), 60)
+	if err != nil || len(history) != 1 || history[0].LatencyMS == nil || *history[0].LatencyMS != result.LatencyMS || history[0].SuccessRate != 100 {
+		t.Fatalf("latency history = %#v, error = %v", history, err)
 	}
 }

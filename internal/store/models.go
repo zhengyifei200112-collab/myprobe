@@ -105,3 +105,21 @@ type LatestLatency struct {
 	Error     string     `json:"error_class,omitempty"`
 	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
+
+type MetricHistoryPoint struct {
+	Time          time.Time `json:"time"`
+	CPUPercent    float64   `json:"cpu_percent"`
+	MemoryPercent float64   `json:"memory_percent"`
+	DiskPercent   float64   `json:"disk_percent"`
+	RXBytesPerS   float64   `json:"rx_bytes_per_second"`
+	TXBytesPerS   float64   `json:"tx_bytes_per_second"`
+}
+
+type LatencyHistoryPoint struct {
+	Time        time.Time `json:"time"`
+	TargetID    string    `json:"target_id"`
+	Name        string    `json:"name"`
+	Kind        string    `json:"kind"`
+	LatencyMS   *float64  `json:"latency_ms,omitempty"`
+	SuccessRate float64   `json:"success_rate"`
+}

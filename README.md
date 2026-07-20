@@ -40,8 +40,9 @@ testable vertical architecture.
 The first vertical slice is operational: the server bootstraps SQLite and administrator
 authentication, agents report real host metrics over authenticated WebSockets with an
 HTTP fallback, typed Ping/TCPing tasks are scheduled and persisted, and the embedded
-responsive dashboard updates metrics and latency in real time. The remaining ZJM parity
-work is tracked in the product specification.
+responsive dashboard updates metrics and latency in real time. Bounded historical APIs
+and lazy-loaded charts cover the 1h/12h/1d/3d/7d/30d views without sending raw long-range
+samples to the browser. The remaining ZJM parity work is tracked in the product specification.
 
 ## Local development
 

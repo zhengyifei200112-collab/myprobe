@@ -1,4 +1,4 @@
-import type { ApiResponse, RealtimeEvent } from './types'
+import type { ApiResponse, HistoryRange, HistoryResponse, RealtimeEvent } from './types'
 
 export async function fetchNodes(signal?: AbortSignal): Promise<ApiResponse> {
   const response = await fetch('/api/v1/public/nodes', {
@@ -8,6 +8,15 @@ export async function fetchNodes(signal?: AbortSignal): Promise<ApiResponse> {
   })
   if (!response.ok) throw new Error(`nodes request failed: ${response.status}`)
   return response.json() as Promise<ApiResponse>
+}
+
+export async function fetchHistory(nodeID: string, range: HistoryRange): Promise<HistoryResponse> {
+  const response = await fetch(`/api/v1/public/nodes/${encodeURIComponent(nodeID)}/history?range=${range}`, {
+    cache: 'no-cache',
+    headers: { Accept: 'application/json' },
+  })
+  if (!response.ok) throw new Error(`history request failed: ${response.status}`)
+  return response.json() as Promise<HistoryResponse>
 }
 
 export function connectRealtime(

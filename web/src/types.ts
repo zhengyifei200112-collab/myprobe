@@ -21,6 +21,29 @@ export interface LatestLatency {
   updated_at?: string
 }
 
+export type HistoryRange = '1h' | '12h' | '1d' | '3d' | '7d' | '30d'
+
+export interface HistoryResponse {
+  range: HistoryRange
+  bucket_seconds: number
+  metrics: Array<{
+    time: string
+    cpu_percent: number
+    memory_percent: number
+    disk_percent: number
+    rx_bytes_per_second: number
+    tx_bytes_per_second: number
+  }>
+  latency: Array<{
+    time: string
+    target_id: string
+    name: string
+    kind: 'ping' | 'tcping'
+    latency_ms?: number
+    success_rate: number
+  }>
+}
+
 export interface NodeMetadata {
   id: string
   name: string

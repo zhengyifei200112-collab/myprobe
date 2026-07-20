@@ -22,7 +22,7 @@
 | Latency | Ping/TCPing targets, groups, display mode and current results | Scheduled task integration test | Partial: core loop/API complete; admin UI remains |
 | Theme | Light, dark, and system preference | Browser theme tests | Implemented |
 | Realtime | WebSocket updates, reconnect, cached last-known data | Disconnect/recovery test | Implemented |
-| Charts | Ping, TCPing, upload, download, and total traffic history | 1h/12h/1d/3d/7d/30d queries | Planned |
+| Charts | Ping, TCPing, upload, download, and total traffic history | 1h/12h/1d/3d/7d/30d queries | Partial: resource/rate/latency charts complete; traffic totals remain |
 | Chart sharing | Group-scoped password protected chart views | Authentication and rate-limit tests | Planned |
 | Node administration | Register, edit, order, hide, delete, rotate token | Admin API and browser tests | Partial: registration API only |
 | Target administration | Ping/TCPing target and group CRUD | API and scheduler tests | Partial: create/list/assign APIs complete; edit/delete UI remains |

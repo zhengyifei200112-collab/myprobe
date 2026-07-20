@@ -575,6 +575,69 @@ func (s *Store) ListLatestLatency(ctx context.Context, nodeID string) ([]LatestL
 	return result, rows.Err()
 }
 
+func (s *Store) MetricHistory(ctx context.Context, nodeID string, start time.Time, bucketSeconds int) ([]MetricHistoryPoint, error) {
+	if bucketSeconds < 1 || bucketSeconds > 86400 {
+		return nil, errors.New("invalid history bucket")
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT (unixepoch(m.captured_at) / ?) * ? AS bucket,
+		AVG(m.cpu_usage),
+		AVG(CASE WHEN m.memory_total > 0 THEN 100.0 * m.memory_used / m.memory_total ELSE 0 END),
+		AVG(CASE WHEN m.disk_total > 0 THEN 100.0 * m.disk_used / m.disk_total ELSE 0 END),
+		AVG(m.net_rx_rate), AVG(m.net_tx_rate)
+		FROM metric_samples m JOIN nodes n ON n.id = m.node_id
+		WHERE m.node_id = ? AND n.hidden = 0 AND m.captured_at >= ?
+		GROUP BY bucket ORDER BY bucket`, bucketSeconds, bucketSeconds, nodeID, formatTime(start))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]MetricHistoryPoint, 0)
+	for rows.Next() {
+		var point MetricHistoryPoint
+		var unixSeconds int64
+		if err := rows.Scan(&unixSeconds, &point.CPUPercent, &point.MemoryPercent, &point.DiskPercent, &point.RXBytesPerS, &point.TXBytesPerS); err != nil {
+			return nil, err
+		}
+		point.Time = time.Unix(unixSeconds, 0).UTC()
+		result = append(result, point)
+	}
+	return result, rows.Err()
+}
+
+func (s *Store) LatencyHistory(ctx context.Context, nodeID string, start time.Time, bucketSeconds int) ([]LatencyHistoryPoint, error) {
+	if bucketSeconds < 1 || bucketSeconds > 86400 {
+		return nil, errors.New("invalid history bucket")
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT (unixepoch(l.captured_at) / ?) * ? AS bucket,
+		l.target_id, t.name, l.kind,
+		AVG(CASE WHEN l.success = 1 THEN l.latency_ms END), 100.0 * AVG(l.success)
+		FROM latency_samples l
+		JOIN targets t ON t.id = l.target_id
+		JOIN nodes n ON n.id = l.node_id
+		WHERE l.node_id = ? AND n.hidden = 0 AND l.captured_at >= ?
+		GROUP BY bucket, l.target_id, t.name, l.kind ORDER BY bucket, t.sort_order, t.name`, bucketSeconds, bucketSeconds, nodeID, formatTime(start))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]LatencyHistoryPoint, 0)
+	for rows.Next() {
+		var point LatencyHistoryPoint
+		var unixSeconds int64
+		var latency sql.NullFloat64
+		if err := rows.Scan(&unixSeconds, &point.TargetID, &point.Name, &point.Kind, &latency, &point.SuccessRate); err != nil {
+			return nil, err
+		}
+		point.Time = time.Unix(unixSeconds, 0).UTC()
+		if latency.Valid {
+			value := latency.Float64
+			point.LatencyMS = &value
+		}
+		result = append(result, point)
+	}
+	return result, rows.Err()
+}
+
 func decodeNodeFields(node *Node, hidden, useSinceBoot int, tags, created, updated string, expiresAt, lastSeen sql.NullString, priceMinor, resetDay sql.NullInt64) {
 	node.Hidden = hidden != 0
 	node.UseSinceBoot = useSinceBoot != 0
