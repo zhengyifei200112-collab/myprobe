@@ -113,11 +113,17 @@ func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 			ReportSeconds:     node.ReportSeconds,
 		},
 	})
-	if err := wsjson.Write(ctx, connection, welcome); err != nil {
+	session := &agentSession{connection: connection}
+	// Publish the session while holding its writer lock. A scheduler can discover
+	// it immediately, but its first task cannot overtake the welcome frame.
+	session.writeMu.Lock()
+	g.register(node.ID, session)
+	err = wsjson.Write(ctx, connection, welcome)
+	session.writeMu.Unlock()
+	if err != nil {
+		g.unregister(node.ID, session)
 		return
 	}
-	session := &agentSession{connection: connection}
-	g.register(node.ID, session)
 	defer g.unregister(node.ID, session)
 
 	for {
