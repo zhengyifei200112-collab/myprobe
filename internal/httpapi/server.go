@@ -1,0 +1,222 @@
+package httpapi
+
+import (
+	"context"
+	"crypto/subtle"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
+	"github.com/gin-gonic/gin"
+	"github.com/zhengyifei200112-collab/myprobe/internal/agentgateway"
+	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
+	"github.com/zhengyifei200112-collab/myprobe/internal/config"
+	"github.com/zhengyifei200112-collab/myprobe/internal/store"
+	"github.com/zhengyifei200112-collab/myprobe/internal/webui"
+)
+
+const sessionCookie = "myprobe_session"
+
+type Server struct {
+	config  config.Config
+	store   *store.Store
+	auth    *auth.Service
+	gateway *agentgateway.Gateway
+	hub     *agentgateway.Hub
+	router  *gin.Engine
+	handler http.Handler
+}
+
+func New(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub) *Server {
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+	router.Use(gin.Recovery(), securityHeaders())
+	server := &Server{config: cfg, store: database, auth: authService, gateway: gateway, hub: hub, router: router}
+	server.routes()
+	mux := http.NewServeMux()
+	// WebSocket upgrades bypass Gin's wrapped ResponseWriter. coder/websocket uses
+	// net/http hijacking directly, which avoids frame corruption through middleware wrappers.
+	mux.HandleFunc("/api/v1/agent/ws", gateway.WebSocket)
+	mux.HandleFunc("/api/v1/public/ws", server.publicWebSocket)
+	ui := webui.NewHandler()
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" || strings.HasPrefix(r.URL.Path, "/api/") {
+			router.ServeHTTP(w, r)
+			return
+		}
+		ui.ServeHTTP(w, r)
+	}))
+	server.handler = mux
+	return server
+}
+
+func (s *Server) Handler() http.Handler { return s.handler }
+
+func (s *Server) routes() {
+	s.router.GET("/healthz", func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), time.Second)
+		defer cancel()
+		if err := s.store.Health(ctx); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unhealthy"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	public := s.router.Group("/api/v1/public")
+	public.GET("/nodes", s.publicNodes)
+
+	s.router.POST("/api/v1/agent/report", gin.WrapF(s.gateway.HTTPReport))
+
+	authRoutes := s.router.Group("/api/v1/auth")
+	authRoutes.POST("/login", s.login)
+	authRoutes.POST("/logout", s.requireSession(true), s.logout)
+	authRoutes.GET("/me", s.requireSession(false), s.me)
+
+	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
+	admin.POST("/nodes", s.createNode)
+}
+
+func (s *Server) publicNodes(c *gin.Context) {
+	nodes, err := s.store.ListPublicNodes(c.Request.Context(), time.Now().UTC())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list nodes"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"nodes": nodes, "server_time": time.Now().UTC()})
+}
+
+func (s *Server) publicWebSocket(w http.ResponseWriter, r *http.Request) {
+	connection, err := websocket.Accept(w, r, &websocket.AcceptOptions{CompressionMode: websocket.CompressionDisabled})
+	if err != nil {
+		return
+	}
+	defer connection.Close(websocket.StatusNormalClosure, "connection closed")
+	connection.SetReadLimit(4 << 10)
+	ctx := connection.CloseRead(r.Context())
+
+	nodes, err := s.store.ListPublicNodes(ctx, time.Now().UTC())
+	if err != nil || wsjson.Write(ctx, connection, map[string]any{"type": "snapshot", "nodes": nodes}) != nil {
+		return
+	}
+	events, unsubscribe := s.hub.Subscribe()
+	defer unsubscribe()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-events:
+			if !ok || wsjson.Write(ctx, connection, event) != nil {
+				return
+			}
+		}
+	}
+}
+
+func (s *Server) login(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	var request struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(c.Request.Body).Decode(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	session, token, err := s.auth.Login(c.Request.Context(), request.Username, request.Password)
+	if err != nil {
+		time.Sleep(250 * time.Millisecond)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: s.config.CookieSecure,
+		SameSite: http.SameSiteLaxMode, Expires: session.ExpiresAt,
+	})
+	c.JSON(http.StatusOK, gin.H{"csrf_token": session.CSRFToken, "expires_at": session.ExpiresAt})
+}
+
+func (s *Server) logout(c *gin.Context) {
+	token, _ := c.Cookie(sessionCookie)
+	_ = s.auth.Logout(c.Request.Context(), token)
+	http.SetCookie(c.Writer, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", HttpOnly: true, Secure: s.config.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: -1})
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) me(c *gin.Context) {
+	sessionValue, _ := c.Get("session")
+	session := sessionValue.(store.Session)
+	c.JSON(http.StatusOK, gin.H{"authenticated": true, "csrf_token": session.CSRFToken, "expires_at": session.ExpiresAt})
+}
+
+func (s *Server) createNode(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32<<10)
+	var request struct {
+		ID                string   `json:"id"`
+		Name              string   `json:"name"`
+		Tags              []string `json:"tags"`
+		CountryCode       string   `json:"country_code"`
+		CollectionSeconds int      `json:"collection_seconds"`
+		ReportSeconds     int      `json:"report_seconds"`
+	}
+	if err := json.NewDecoder(c.Request.Body).Decode(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	node, token, err := s.store.CreateNode(c.Request.Context(), store.CreateNodeParams{
+		ID: request.ID, Name: request.Name, Tags: request.Tags, CountryCode: request.CountryCode,
+		CollectionSeconds: request.CollectionSeconds, ReportSeconds: request.ReportSeconds,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"node": node, "agent_token": token})
+}
+
+func (s *Server) requireSession(csrf bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token, err := c.Cookie(sessionCookie)
+		if err != nil || token == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+			return
+		}
+		session, err := s.auth.Session(c.Request.Context(), token)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "session expired"})
+			return
+		}
+		if csrf && !safeMethod(c.Request.Method) {
+			provided := c.GetHeader("X-CSRF-Token")
+			if len(provided) != len(session.CSRFToken) || subtle.ConstantTimeCompare([]byte(provided), []byte(session.CSRFToken)) != 1 {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "invalid CSRF token"})
+				return
+			}
+		}
+		c.Set("session", session)
+		c.Next()
+	}
+}
+
+func safeMethod(method string) bool {
+	switch strings.ToUpper(method) {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return true
+	default:
+		return false
+	}
+}
+
+func securityHeaders() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("Referrer-Policy", "same-origin")
+		c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		c.Header("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:")
+		c.Next()
+	}
+}
