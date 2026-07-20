@@ -292,6 +292,9 @@ func (s *Store) SaveReport(ctx context.Context, nodeID string, report protocol.R
 	if _, err = tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", nowText(), nowText(), nodeID); err != nil {
 		return err
 	}
+	if err = s.updateTrafficState(ctx, tx, nodeID, report.CapturedAt, rxTotal, txTotal); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
@@ -343,6 +346,11 @@ func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNod
 			return nil, err
 		}
 		result[index].Latency = latency
+		traffic, err := s.TrafficUsage(ctx, result[index].Node.ID, result[index].Node.TrafficResetDay, now)
+		if err != nil {
+			return nil, err
+		}
+		result[index].Traffic = traffic
 	}
 	return result, nil
 }

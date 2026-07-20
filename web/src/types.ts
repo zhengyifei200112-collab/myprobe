@@ -9,6 +9,7 @@ export interface PublicNode {
   stale: boolean
   report?: Report
   latency?: LatestLatency[]
+  traffic: { period_start: string; period_end: string; rx_bytes: number; tx_bytes: number }
 }
 
 export interface LatestLatency {
@@ -42,6 +43,7 @@ export interface HistoryResponse {
     latency_ms?: number
     success_rate: number
   }>
+  traffic: Array<{ time: string; rx_bytes: number; tx_bytes: number; total_bytes: number }>
 }
 
 export interface NodeMetadata {

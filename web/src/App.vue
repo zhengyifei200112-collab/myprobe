@@ -17,6 +17,7 @@ const chartLoading = ref(false)
 const chartError = ref('')
 const resourceChartElement = ref<HTMLElement>()
 const latencyChartElement = ref<HTMLElement>()
+const trafficChartElement = ref<HTMLElement>()
 const historyRanges: HistoryRange[] = ['1h', '12h', '1d', '3d', '7d', '30d']
 const initialTheme = localStorage.getItem('myprobe-theme') as Theme | null
 const theme = ref<Theme>(initialTheme ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
@@ -24,6 +25,7 @@ let disconnect: (() => void) | undefined
 let clock: number | undefined
 let resourceChart: any
 let latencyChart: any
+let trafficChart: any
 
 const sortedNodes = computed(() => [...nodes.value].sort((a, b) => a.node.sort_order - b.node.sort_order || a.node.name.localeCompare(b.node.name)))
 const tags = computed(() => {
@@ -178,12 +180,14 @@ async function loadHistory() {
 }
 
 async function renderHistory(history: HistoryResponse) {
-  if (!resourceChartElement.value || !latencyChartElement.value) return
+  if (!resourceChartElement.value || !latencyChartElement.value || !trafficChartElement.value) return
   const { default: echarts } = await import('./charting')
   resourceChart?.dispose()
   latencyChart?.dispose()
+  trafficChart?.dispose()
   resourceChart = echarts.init(resourceChartElement.value)
   latencyChart = echarts.init(latencyChartElement.value)
+  trafficChart = echarts.init(trafficChartElement.value)
   const styles = getComputedStyle(document.documentElement)
   const text = styles.getPropertyValue('--muted').trim()
   const border = styles.getPropertyValue('--border').trim()
@@ -225,19 +229,31 @@ async function renderHistory(history: HistoryResponse) {
     yAxis: { type: 'value', min: 0, axisLabel: { color: text, formatter: '{value} ms' }, splitLine: { lineStyle: { color: border } } },
     series: [...targets.values()].map((target) => ({ name: target.name, type: 'line', connectNulls: false, showSymbol: false, smooth: true, data: target.points })),
   })
+  trafficChart.setOption({
+    ...common,
+    yAxis: { type: 'value', min: 0, axisLabel: { color: text, formatter: (value: number) => formatBytes(value) }, splitLine: { lineStyle: { color: border } } },
+    series: [
+      { name: '上传累计', type: 'line', showSymbol: false, data: history.traffic.map((p) => [p.time, p.tx_bytes]), lineStyle: { color: orange }, itemStyle: { color: orange } },
+      { name: '下载累计', type: 'line', showSymbol: false, data: history.traffic.map((p) => [p.time, p.rx_bytes]), lineStyle: { color: green }, itemStyle: { color: green } },
+      { name: '总流量', type: 'line', showSymbol: false, data: history.traffic.map((p) => [p.time, p.total_bytes]), lineStyle: { color: blue }, itemStyle: { color: blue } },
+    ],
+  })
 }
 
 function closeHistory() {
   chartNode.value = undefined
   resourceChart?.dispose()
   latencyChart?.dispose()
+  trafficChart?.dispose()
   resourceChart = undefined
   latencyChart = undefined
+  trafficChart = undefined
 }
 
 function resizeCharts() {
   resourceChart?.resize()
   latencyChart?.resize()
+  trafficChart?.resize()
 }
 
 onMounted(() => {
@@ -257,6 +273,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', resizeCharts)
   resourceChart?.dispose()
   latencyChart?.dispose()
+  trafficChart?.dispose()
 })
 </script>
 
@@ -351,7 +368,7 @@ onBeforeUnmount(() => {
             <div><span>运行</span><strong>{{ formatUptime(item.report?.uptime_seconds) }}</strong></div>
             <div><span>流量</span><strong>↑ {{ formatBytes(aggregate(item).txTotal) }} · ↓ {{ formatBytes(aggregate(item).rxTotal) }}</strong></div>
             <div><span>周期</span><strong>{{ item.node.traffic_reset_day ? `每月 ${item.node.traffic_reset_day} 日` : '自然月' }}</strong></div>
-            <div><span>本周期</span><strong>—</strong></div>
+            <div><span>本周期</span><strong>↑ {{ formatBytes(item.traffic?.tx_bytes || 0) }} · ↓ {{ formatBytes(item.traffic?.rx_bytes || 0) }}</strong></div>
           </div>
 
           <div class="divider"></div>
@@ -403,6 +420,10 @@ onBeforeUnmount(() => {
         <div class="chart-block">
           <h3>Ping / TCPing 延迟</h3>
           <div ref="latencyChartElement" class="chart-canvas"></div>
+        </div>
+        <div class="chart-block">
+          <h3>上传 / 下载 / 总流量累计</h3>
+          <div ref="trafficChartElement" class="chart-canvas"></div>
         </div>
       </section>
     </div>

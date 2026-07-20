@@ -123,7 +123,12 @@ func (s *Server) publicNodeHistory(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read latency history"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"range": rangeName, "bucket_seconds": bucket, "metrics": metrics, "latency": latency})
+	traffic, err := s.store.TrafficHistory(c.Request.Context(), c.Param("nodeID"), start, time.Now().UTC(), bucket)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read traffic history"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"range": rangeName, "bucket_seconds": bucket, "metrics": metrics, "latency": latency, "traffic": traffic})
 }
 
 func historyRange(name string) (time.Duration, int, bool) {

@@ -17,12 +17,12 @@
 | Public filtering | Tag/region pills with counts and horizontal mobile scrolling | UI test at 360/768/1440 px | Implemented |
 | Node cards | Flag, name, status, masked IP, OS, uptime, last update | Snapshot and API contract tests | Partial: public IP and OS labels remain |
 | Capacity | CPU model/cores, memory and disk totals and utilization | Agent integration test | Implemented |
-| Network | Current up/down rate, lifetime and billing-cycle traffic | Counter-reset and interval tests | Partial: cycle accounting remains |
+| Network | Current up/down rate, lifetime and billing-cycle traffic | Counter-reset and interval tests | Implemented |
 | Commercial metadata | Price, billing period, expiry date and remaining days | Date-boundary tests | Planned |
 | Latency | Ping/TCPing targets, groups, display mode and current results | Scheduled task integration test | Partial: core loop/API complete; admin UI remains |
 | Theme | Light, dark, and system preference | Browser theme tests | Implemented |
 | Realtime | WebSocket updates, reconnect, cached last-known data | Disconnect/recovery test | Implemented |
-| Charts | Ping, TCPing, upload, download, and total traffic history | 1h/12h/1d/3d/7d/30d queries | Partial: resource/rate/latency charts complete; traffic totals remain |
+| Charts | Ping, TCPing, upload, download, and total traffic history | 1h/12h/1d/3d/7d/30d queries | Implemented |
 | Chart sharing | Group-scoped password protected chart views | Authentication and rate-limit tests | Planned |
 | Node administration | Register, edit, order, hide, delete, rotate token | Admin API and browser tests | Partial: full API complete; admin UI remains |
 | Target administration | Ping/TCPing target and group CRUD | API and scheduler tests | Partial: full API complete; admin UI remains |

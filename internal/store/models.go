@@ -75,6 +75,21 @@ type PublicNode struct {
 	Stale   bool             `json:"stale"`
 	Report  *protocol.Report `json:"report,omitempty"`
 	Latency []LatestLatency  `json:"latency,omitempty"`
+	Traffic TrafficUsage     `json:"traffic"`
+}
+
+type TrafficUsage struct {
+	PeriodStart time.Time `json:"period_start"`
+	PeriodEnd   time.Time `json:"period_end"`
+	RXBytes     uint64    `json:"rx_bytes"`
+	TXBytes     uint64    `json:"tx_bytes"`
+}
+
+type TrafficHistoryPoint struct {
+	Time    time.Time `json:"time"`
+	RXBytes uint64    `json:"rx_bytes"`
+	TXBytes uint64    `json:"tx_bytes"`
+	Total   uint64    `json:"total_bytes"`
 }
 
 type Target struct {

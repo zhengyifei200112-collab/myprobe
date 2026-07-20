@@ -42,7 +42,9 @@ authentication, agents report real host metrics over authenticated WebSockets wi
 HTTP fallback, typed Ping/TCPing tasks are scheduled and persisted, and the embedded
 responsive dashboard updates metrics and latency in real time. Bounded historical APIs
 and lazy-loaded charts cover the 1h/12h/1d/3d/7d/30d views without sending raw long-range
-samples to the browser. The remaining ZJM parity work is tracked in the product specification.
+samples to the browser. Monthly traffic accounting handles configurable reset days,
+short months, host counter resets, and persisted O(1) dashboard reads. The remaining ZJM
+parity work is tracked in the product specification.
 
 ## Local development
 
