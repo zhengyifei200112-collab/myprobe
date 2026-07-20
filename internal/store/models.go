@@ -52,6 +52,23 @@ type CreateNodeParams struct {
 	ReportSeconds     int
 }
 
+type UpdateNodeParams struct {
+	Name              string
+	SortOrder         int
+	Hidden            bool
+	Tags              []string
+	CountryCode       string
+	Currency          string
+	PriceMinor        *int64
+	BillingCycle      string
+	ExpiresAt         *time.Time
+	TrafficResetDay   *int
+	UseSinceBoot      bool
+	LatencyMode       string
+	CollectionSeconds int
+	ReportSeconds     int
+}
+
 type PublicNode struct {
 	Node    Node             `json:"node"`
 	Online  bool             `json:"online"`
@@ -81,6 +98,17 @@ type CreateTargetParams struct {
 	Port            *int
 	IntervalSeconds int
 	TimeoutMS       int
+}
+
+type UpdateTargetParams struct {
+	Name            string
+	Kind            string
+	Host            string
+	Port            *int
+	IntervalSeconds int
+	TimeoutMS       int
+	Enabled         bool
+	SortOrder       int
 }
 
 type TargetGroup struct {

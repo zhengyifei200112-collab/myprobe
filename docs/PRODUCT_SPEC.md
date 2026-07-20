@@ -24,14 +24,14 @@
 | Realtime | WebSocket updates, reconnect, cached last-known data | Disconnect/recovery test | Implemented |
 | Charts | Ping, TCPing, upload, download, and total traffic history | 1h/12h/1d/3d/7d/30d queries | Partial: resource/rate/latency charts complete; traffic totals remain |
 | Chart sharing | Group-scoped password protected chart views | Authentication and rate-limit tests | Planned |
-| Node administration | Register, edit, order, hide, delete, rotate token | Admin API and browser tests | Partial: registration API only |
-| Target administration | Ping/TCPing target and group CRUD | API and scheduler tests | Partial: create/list/assign APIs complete; edit/delete UI remains |
+| Node administration | Register, edit, order, hide, delete, rotate token | Admin API and browser tests | Partial: full API complete; admin UI remains |
+| Target administration | Ping/TCPing target and group CRUD | API and scheduler tests | Partial: full API complete; admin UI remains |
 | Notifications | Telegram bot and generic webhook channels | Mock receiver tests | Planned |
 | Alerts | Offline/recovery, CPU, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Planned |
 | Custom display | Structured badges/links and sanitized advanced HTML | Sanitizer and CSP tests | Planned |
 | Configuration | Versioned import/export and database backup/restore | Round-trip and upgrade tests | Planned |
 | Authentication | Password login/logout/change, CSRF, throttling and CAPTCHA | Security integration tests | Partial: login/logout/session/CSRF implemented |
-| Audit | Administrative action log | API verification | Planned |
+| Audit | Administrative action log | API verification | Partial: all current management writes recorded; viewer remains |
 
 ## Public dashboard layout
 

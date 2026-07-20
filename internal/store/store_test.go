@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -99,5 +100,87 @@ func TestLatencyAssignmentAndResultRoundTrip(t *testing.T) {
 	history, err := database.LatencyHistory(ctx, node.ID, time.Now().UTC().Add(-time.Hour), 60)
 	if err != nil || len(history) != 1 || history[0].LatencyMS == nil || *history[0].LatencyMS != result.LatencyMS || history[0].SuccessRate != 100 {
 		t.Fatalf("latency history = %#v, error = %v", history, err)
+	}
+}
+
+func TestAdministrativeCRUDTokenRotationAndAudit(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	node, oldToken, err := database.CreateNode(ctx, CreateNodeParams{Name: "old"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reset := 15
+	price := int64(499)
+	expires := time.Now().UTC().Add(30 * 24 * time.Hour)
+	updated, err := database.UpdateNode(ctx, node.ID, UpdateNodeParams{Name: "updated", SortOrder: 2, Tags: []string{"US"}, CountryCode: "us", Currency: "usd", PriceMinor: &price, BillingCycle: "year", ExpiresAt: &expires, TrafficResetDay: &reset, LatencyMode: protocol.TaskKindTCPing, CollectionSeconds: 10, ReportSeconds: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Name != "updated" || updated.Currency != "USD" || updated.TrafficResetDay == nil || *updated.TrafficResetDay != 15 {
+		t.Fatalf("updated node = %#v", updated)
+	}
+	newToken, err := database.RotateAgentToken(ctx, node.ID)
+	if err != nil || newToken == "" {
+		t.Fatal(err)
+	}
+	if _, err := database.AuthenticateAgent(ctx, oldToken); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("old token error = %v", err)
+	}
+	if _, err := database.AuthenticateAgent(ctx, newToken); err != nil {
+		t.Fatal(err)
+	}
+	port := 443
+	target, err := database.CreateTarget(ctx, CreateTargetParams{Name: "old", Kind: protocol.TaskKindTCPing, Host: "example.com", Port: &port, IntervalSeconds: 30, TimeoutMS: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err = database.UpdateTarget(ctx, target.ID, UpdateTargetParams{Name: "new", Kind: protocol.TaskKindTCPing, Host: "example.org", Port: &port, IntervalSeconds: 60, TimeoutMS: 2000, Enabled: true, SortOrder: 3})
+	if err != nil || target.Name != "new" {
+		t.Fatalf("target=%#v err=%v", target, err)
+	}
+	group, err := database.CreateTargetGroup(ctx, "old", protocol.TaskKindTCPing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	group, err = database.UpdateTargetGroup(ctx, group.ID, "new", protocol.TaskKindTCPing)
+	if err != nil || group.Name != "new" {
+		t.Fatal(err)
+	}
+	if err := database.AddTargetToGroup(ctx, group.ID, target.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.AssignTargetGroup(ctx, node.ID, group.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.RemoveTargetFromGroup(ctx, group.ID, target.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.UnassignTargetGroup(ctx, node.ID, group.ID); err != nil {
+		t.Fatal(err)
+	}
+	user, err := database.CreateUser(ctx, "auditor", "test-hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.LogAudit(ctx, user.ID, "update", "node", node.ID, "127.0.0.1", map[string]any{"name": "updated"}); err != nil {
+		t.Fatal(err)
+	}
+	var audits int
+	if err := database.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM audit_log").Scan(&audits); err != nil || audits != 1 {
+		t.Fatalf("audit count=%d err=%v", audits, err)
+	}
+	if err := database.DeleteTargetGroup(ctx, group.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.DeleteTarget(ctx, target.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.DeleteNode(ctx, node.ID); err != nil {
+		t.Fatal(err)
 	}
 }

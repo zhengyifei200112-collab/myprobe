@@ -78,12 +78,22 @@ func (s *Server) routes() {
 	authRoutes.GET("/me", s.requireSession(false), s.me)
 
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
+	admin.GET("/nodes", s.adminNodes)
 	admin.POST("/nodes", s.createNode)
+	admin.PATCH("/nodes/:nodeID", s.updateNode)
+	admin.DELETE("/nodes/:nodeID", s.deleteNode)
+	admin.POST("/nodes/:nodeID/rotate-token", s.rotateNodeToken)
 	admin.GET("/latency-config", s.latencyConfig)
 	admin.POST("/targets", s.createTarget)
+	admin.PATCH("/targets/:targetID", s.updateTarget)
+	admin.DELETE("/targets/:targetID", s.deleteTarget)
 	admin.POST("/target-groups", s.createTargetGroup)
+	admin.PATCH("/target-groups/:groupID", s.updateTargetGroup)
+	admin.DELETE("/target-groups/:groupID", s.deleteTargetGroup)
 	admin.PUT("/target-groups/:groupID/targets/:targetID", s.addTargetToGroup)
+	admin.DELETE("/target-groups/:groupID/targets/:targetID", s.removeTargetFromGroup)
 	admin.PUT("/nodes/:nodeID/target-groups/:groupID", s.assignTargetGroup)
+	admin.DELETE("/nodes/:nodeID/target-groups/:groupID", s.unassignTargetGroup)
 }
 
 func (s *Server) publicNodes(c *gin.Context) {
@@ -221,6 +231,66 @@ func (s *Server) createNode(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"node": node, "agent_token": token})
+	s.audit(c, "create", "node", node.ID, gin.H{"name": node.Name})
+}
+
+func (s *Server) adminNodes(c *gin.Context) {
+	nodes, err := s.store.ListNodes(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list nodes"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"nodes": nodes})
+}
+
+func (s *Server) updateNode(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32<<10)
+	var r struct {
+		Name              string     `json:"name"`
+		SortOrder         int        `json:"sort_order"`
+		Hidden            bool       `json:"hidden"`
+		Tags              []string   `json:"tags"`
+		CountryCode       string     `json:"country_code"`
+		Currency          string     `json:"currency"`
+		PriceMinor        *int64     `json:"price_minor"`
+		BillingCycle      string     `json:"billing_cycle"`
+		ExpiresAt         *time.Time `json:"expires_at"`
+		TrafficResetDay   *int       `json:"traffic_reset_day"`
+		UseSinceBoot      bool       `json:"use_since_boot"`
+		LatencyMode       string     `json:"latency_mode"`
+		CollectionSeconds int        `json:"collection_seconds"`
+		ReportSeconds     int        `json:"report_seconds"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&r) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	node, err := s.store.UpdateNode(c.Request.Context(), c.Param("nodeID"), store.UpdateNodeParams{Name: r.Name, SortOrder: r.SortOrder, Hidden: r.Hidden, Tags: r.Tags, CountryCode: r.CountryCode, Currency: r.Currency, PriceMinor: r.PriceMinor, BillingCycle: r.BillingCycle, ExpiresAt: r.ExpiresAt, TrafficResetDay: r.TrafficResetDay, UseSinceBoot: r.UseSinceBoot, LatencyMode: r.LatencyMode, CollectionSeconds: r.CollectionSeconds, ReportSeconds: r.ReportSeconds})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	s.audit(c, "update", "node", node.ID, r)
+	c.JSON(http.StatusOK, gin.H{"node": node})
+}
+func (s *Server) deleteNode(c *gin.Context) {
+	id := c.Param("nodeID")
+	if s.store.DeleteNode(c.Request.Context(), id) != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
+		return
+	}
+	s.audit(c, "delete", "node", id, nil)
+	c.Status(http.StatusNoContent)
+}
+func (s *Server) rotateNodeToken(c *gin.Context) {
+	id := c.Param("nodeID")
+	token, err := s.store.RotateAgentToken(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
+		return
+	}
+	s.audit(c, "rotate_token", "node", id, nil)
+	c.JSON(http.StatusOK, gin.H{"agent_token": token})
 }
 
 func (s *Server) latencyConfig(c *gin.Context) {
@@ -265,6 +335,41 @@ func (s *Server) createTarget(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"target": target})
+	s.audit(c, "create", "target", target.ID, gin.H{"name": target.Name})
+}
+
+func (s *Server) updateTarget(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	var r struct {
+		Name            string `json:"name"`
+		Kind            string `json:"kind"`
+		Host            string `json:"host"`
+		Port            *int   `json:"port"`
+		IntervalSeconds int    `json:"interval_seconds"`
+		TimeoutMS       int    `json:"timeout_ms"`
+		Enabled         bool   `json:"enabled"`
+		SortOrder       int    `json:"sort_order"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&r) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	target, err := s.store.UpdateTarget(c.Request.Context(), c.Param("targetID"), store.UpdateTargetParams{Name: r.Name, Kind: r.Kind, Host: r.Host, Port: r.Port, IntervalSeconds: r.IntervalSeconds, TimeoutMS: r.TimeoutMS, Enabled: r.Enabled, SortOrder: r.SortOrder})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	s.audit(c, "update", "target", target.ID, r)
+	c.JSON(http.StatusOK, gin.H{"target": target})
+}
+func (s *Server) deleteTarget(c *gin.Context) {
+	id := c.Param("targetID")
+	if s.store.DeleteTarget(c.Request.Context(), id) != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "target not found"})
+		return
+	}
+	s.audit(c, "delete", "target", id, nil)
+	c.Status(http.StatusNoContent)
 }
 
 func (s *Server) createTargetGroup(c *gin.Context) {
@@ -283,6 +388,34 @@ func (s *Server) createTargetGroup(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"group": group})
+	s.audit(c, "create", "target_group", group.ID, gin.H{"name": group.Name})
+}
+
+func (s *Server) updateTargetGroup(c *gin.Context) {
+	var r struct {
+		Name string `json:"name"`
+		Kind string `json:"kind"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&r) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	group, err := s.store.UpdateTargetGroup(c.Request.Context(), c.Param("groupID"), r.Name, r.Kind)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	s.audit(c, "update", "target_group", group.ID, r)
+	c.JSON(http.StatusOK, gin.H{"group": group})
+}
+func (s *Server) deleteTargetGroup(c *gin.Context) {
+	id := c.Param("groupID")
+	if s.store.DeleteTargetGroup(c.Request.Context(), id) != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "group not found"})
+		return
+	}
+	s.audit(c, "delete", "target_group", id, nil)
+	c.Status(http.StatusNoContent)
 }
 
 func (s *Server) addTargetToGroup(c *gin.Context) {
@@ -290,6 +423,15 @@ func (s *Server) addTargetToGroup(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "compatible target or group not found"})
 		return
 	}
+	c.Status(http.StatusNoContent)
+	s.audit(c, "attach_target", "target_group", c.Param("groupID"), gin.H{"target_id": c.Param("targetID")})
+}
+func (s *Server) removeTargetFromGroup(c *gin.Context) {
+	if s.store.RemoveTargetFromGroup(c.Request.Context(), c.Param("groupID"), c.Param("targetID")) != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+		return
+	}
+	s.audit(c, "detach_target", "target_group", c.Param("groupID"), gin.H{"target_id": c.Param("targetID")})
 	c.Status(http.StatusNoContent)
 }
 
@@ -299,6 +441,24 @@ func (s *Server) assignTargetGroup(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+	s.audit(c, "assign_group", "node", c.Param("nodeID"), gin.H{"group_id": c.Param("groupID")})
+}
+func (s *Server) unassignTargetGroup(c *gin.Context) {
+	if s.store.UnassignTargetGroup(c.Request.Context(), c.Param("nodeID"), c.Param("groupID")) != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+		return
+	}
+	s.audit(c, "unassign_group", "node", c.Param("nodeID"), gin.H{"group_id": c.Param("groupID")})
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) audit(c *gin.Context, action, objectType, objectID string, details any) {
+	value, ok := c.Get("session")
+	if !ok {
+		return
+	}
+	session := value.(store.Session)
+	_ = s.store.LogAudit(c.Request.Context(), session.UserID, action, objectType, objectID, c.ClientIP(), details)
 }
 
 func (s *Server) requireSession(csrf bool) gin.HandlerFunc {
