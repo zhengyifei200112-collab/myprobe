@@ -60,6 +60,9 @@ Updates collection/report intervals, monitored interfaces and mount points.
 ### `task`
 
 Schedules a typed Ping or TCPing operation. Arbitrary commands are not supported.
+Tasks carry a short expiry, strict timeout, validated host, and (for TCPing) a valid port.
+The agent caps concurrent probes and invokes the operating system's fixed `ping` program
+without a shell; TCPing uses a direct socket connection.
 
 ## Connection lifecycle
 

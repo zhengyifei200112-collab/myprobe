@@ -53,3 +53,28 @@ func TestEnvelopePayloadRoundTrip(t *testing.T) {
 		t.Fatalf("payload = %#v, want %#v", got, want)
 	}
 }
+
+func TestTaskValidationRejectsCommandLikeHosts(t *testing.T) {
+	now := time.Now().UTC()
+	base := Task{ID: "task", Kind: TaskKindTCPing, TargetID: "target", Host: "example.com", Port: 443, TimeoutMS: 1000, ExpiresAt: now.Add(time.Minute)}
+	if err := base.Validate(now); err != nil {
+		t.Fatalf("valid task rejected: %v", err)
+	}
+	for _, host := range []string{"-c", "example.com;whoami", "example..com", ""} {
+		item := base
+		item.Host = host
+		if err := item.Validate(now); err == nil {
+			t.Fatalf("host %q was accepted", host)
+		}
+	}
+}
+
+func TestLatencyResultValidation(t *testing.T) {
+	now := time.Now().UTC()
+	if err := (LatencyResult{TaskID: "task", TargetID: "target", Success: true, LatencyMS: 12.5, CompletedAt: now}).Validate(now); err != nil {
+		t.Fatal(err)
+	}
+	if err := (LatencyResult{TaskID: "task", TargetID: "target", CompletedAt: now}).Validate(now); err == nil {
+		t.Fatal("failed result without an error class was accepted")
+	}
+}

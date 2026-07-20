@@ -41,6 +41,7 @@ type Client struct {
 	connMu    sync.RWMutex
 	writeMu   sync.Mutex
 	conn      *websocket.Conn
+	taskSlots chan struct{}
 }
 
 func New(config Config, source *collector.Collector, logger *slog.Logger) (*Client, error) {
@@ -56,7 +57,8 @@ func New(config Config, source *collector.Collector, logger *slog.Logger) (*Clie
 	}
 	client := &Client{
 		config: config, baseURL: parsed, collector: source, logger: logger,
-		http: &http.Client{Timeout: 15 * time.Second},
+		http:      &http.Client{Timeout: 15 * time.Second},
+		taskSlots: make(chan struct{}, 8),
 	}
 	client.reportNS.Store(int64(config.ReportPeriod))
 	return client, nil
@@ -144,6 +146,9 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 	}
 	c.replaceConnection(connection)
 	c.logger.Info("agent websocket connected", "server", c.baseURL.Host)
+	connectionCtx, stopHeartbeat := context.WithCancel(ctx)
+	defer stopHeartbeat()
+	go c.heartbeatLoop(connectionCtx, connection)
 
 	for ctx.Err() == nil {
 		var message protocol.Envelope
@@ -158,13 +163,83 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 				c.applyConfig(config)
 			}
 		case protocol.TypeTask:
-			// Typed Ping/TCPing execution is connected in the scheduler milestone.
+			task, err := protocol.DecodePayload[protocol.Task](message)
+			if err == nil && task.Validate(time.Now().UTC()) == nil {
+				c.startTask(ctx, task)
+			}
 		case protocol.TypeAcknowledged:
 		default:
 			c.logger.Debug("ignored server message", "type", message.Type)
 		}
 	}
 	return true, ctx.Err()
+}
+
+func (c *Client) heartbeatLoop(ctx context.Context, expected *websocket.Conn) {
+	ticker := time.NewTicker(25 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			envelope, err := protocol.NewEnvelope(protocol.TypeHeartbeat, c.sequence.Add(1), struct{}{})
+			if err != nil {
+				continue
+			}
+			writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			c.writeMu.Lock()
+			err = wsjson.Write(writeCtx, expected, envelope)
+			c.writeMu.Unlock()
+			cancel()
+			if err != nil {
+				c.clearConnection(expected)
+				return
+			}
+		}
+	}
+}
+
+func (c *Client) startTask(ctx context.Context, task protocol.Task) {
+	select {
+	case c.taskSlots <- struct{}{}:
+		go func() {
+			defer func() { <-c.taskSlots }()
+			result := executeTask(ctx, task)
+			if err := c.sendLatencyResult(ctx, task.Kind, result); err != nil && ctx.Err() == nil {
+				c.logger.Warn("upload latency result", "kind", task.Kind, "target_id", task.TargetID, "error", err)
+			}
+		}()
+	default:
+		result := protocol.LatencyResult{TaskID: task.ID, TargetID: task.TargetID, ErrorClass: "busy", CompletedAt: time.Now().UTC()}
+		if err := c.sendLatencyResult(ctx, task.Kind, result); err != nil {
+			c.logger.Warn("upload busy latency result", "target_id", task.TargetID, "error", err)
+		}
+	}
+}
+
+func (c *Client) sendLatencyResult(ctx context.Context, kind string, result protocol.LatencyResult) error {
+	messageType := protocol.TypePingResult
+	if kind == protocol.TaskKindTCPing {
+		messageType = protocol.TypeTCPingResult
+	}
+	envelope, err := protocol.NewEnvelope(messageType, c.sequence.Add(1), result)
+	if err != nil {
+		return err
+	}
+	connection := c.currentConnection()
+	if connection == nil {
+		return errors.New("agent websocket is disconnected")
+	}
+	writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	c.writeMu.Lock()
+	err = wsjson.Write(writeCtx, connection, envelope)
+	c.writeMu.Unlock()
+	if err != nil {
+		c.clearConnection(connection)
+	}
+	return err
 }
 
 func (c *Client) reportLoop(ctx context.Context) {

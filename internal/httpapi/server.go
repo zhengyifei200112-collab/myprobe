@@ -78,6 +78,11 @@ func (s *Server) routes() {
 
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
 	admin.POST("/nodes", s.createNode)
+	admin.GET("/latency-config", s.latencyConfig)
+	admin.POST("/targets", s.createTarget)
+	admin.POST("/target-groups", s.createTargetGroup)
+	admin.PUT("/target-groups/:groupID/targets/:targetID", s.addTargetToGroup)
+	admin.PUT("/nodes/:nodeID/target-groups/:groupID", s.assignTargetGroup)
 }
 
 func (s *Server) publicNodes(c *gin.Context) {
@@ -175,6 +180,84 @@ func (s *Server) createNode(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"node": node, "agent_token": token})
+}
+
+func (s *Server) latencyConfig(c *gin.Context) {
+	targets, err := s.store.ListTargets(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list targets"})
+		return
+	}
+	groups, err := s.store.ListTargetGroups(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list groups"})
+		return
+	}
+	assignments, err := s.store.ListTargetAssignments(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list assignments"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"targets": targets, "groups": groups, "assignments": assignments})
+}
+
+func (s *Server) createTarget(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	var request struct {
+		Name            string `json:"name"`
+		Kind            string `json:"kind"`
+		Host            string `json:"host"`
+		Port            *int   `json:"port"`
+		IntervalSeconds int    `json:"interval_seconds"`
+		TimeoutMS       int    `json:"timeout_ms"`
+	}
+	if err := json.NewDecoder(c.Request.Body).Decode(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	target, err := s.store.CreateTarget(c.Request.Context(), store.CreateTargetParams{
+		Name: request.Name, Kind: request.Kind, Host: request.Host, Port: request.Port,
+		IntervalSeconds: request.IntervalSeconds, TimeoutMS: request.TimeoutMS,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"target": target})
+}
+
+func (s *Server) createTargetGroup(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 8<<10)
+	var request struct {
+		Name string `json:"name"`
+		Kind string `json:"kind"`
+	}
+	if err := json.NewDecoder(c.Request.Body).Decode(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	group, err := s.store.CreateTargetGroup(c.Request.Context(), request.Name, request.Kind)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"group": group})
+}
+
+func (s *Server) addTargetToGroup(c *gin.Context) {
+	if err := s.store.AddTargetToGroup(c.Request.Context(), c.Param("groupID"), c.Param("targetID")); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "compatible target or group not found"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) assignTargetGroup(c *gin.Context) {
+	if err := s.store.AssignTargetGroup(c.Request.Context(), c.Param("nodeID"), c.Param("groupID")); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "node or group not found"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (s *Server) requireSession(csrf bool) gin.HandlerFunc {

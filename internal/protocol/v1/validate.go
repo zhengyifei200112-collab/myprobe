@@ -3,6 +3,9 @@ package v1
 import (
 	"errors"
 	"fmt"
+	"net"
+	"regexp"
+	"strings"
 	"time"
 )
 
@@ -11,6 +14,8 @@ var (
 	ErrInvalidMessageType = errors.New("invalid message type")
 	ErrInvalidTimestamp   = errors.New("invalid timestamp")
 )
+
+var hostnamePattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$`)
 
 func (e Envelope) Validate(now time.Time) error {
 	if e.Version != Version {
@@ -58,6 +63,67 @@ func (r Report) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (t Task) Validate(now time.Time) error {
+	if strings.TrimSpace(t.ID) == "" || len(t.ID) > 128 || strings.TrimSpace(t.TargetID) == "" || len(t.TargetID) > 128 {
+		return errors.New("task id and target id are required")
+	}
+	if t.Kind != TaskKindPing && t.Kind != TaskKindTCPing {
+		return errors.New("task kind must be ping or tcping")
+	}
+	if !validProbeHost(t.Host) {
+		return errors.New("task host is invalid")
+	}
+	if t.Kind == TaskKindTCPing && (t.Port < 1 || t.Port > 65535) {
+		return errors.New("tcping port must be between 1 and 65535")
+	}
+	if t.TimeoutMS < 100 || t.TimeoutMS > 60000 {
+		return errors.New("task timeout must be between 100 and 60000 milliseconds")
+	}
+	if t.ExpiresAt.IsZero() || t.ExpiresAt.Before(now) || t.ExpiresAt.After(now.Add(10*time.Minute)) {
+		return errors.New("task expiry is invalid")
+	}
+	return nil
+}
+
+func (r LatencyResult) Validate(now time.Time) error {
+	if strings.TrimSpace(r.TaskID) == "" || len(r.TaskID) > 128 || strings.TrimSpace(r.TargetID) == "" || len(r.TargetID) > 128 {
+		return errors.New("task id and target id are required")
+	}
+	if r.CompletedAt.IsZero() || r.CompletedAt.Before(now.Add(-10*time.Minute)) || r.CompletedAt.After(now.Add(time.Minute)) {
+		return errors.New("completion time is invalid")
+	}
+	if r.Success && (r.LatencyMS < 0 || r.LatencyMS > 60000 || r.ErrorClass != "") {
+		return errors.New("successful latency result is invalid")
+	}
+	if !r.Success && strings.TrimSpace(r.ErrorClass) == "" {
+		return errors.New("failed latency result requires an error class")
+	}
+	if !r.Success && !validProbeErrorClass(r.ErrorClass) {
+		return errors.New("failed latency result has an invalid error class")
+	}
+	return nil
+}
+
+func validProbeErrorClass(value string) bool {
+	switch value {
+	case "timeout", "dns", "unsupported", "refused", "unreachable", "invalid_task", "busy":
+		return true
+	default:
+		return false
+	}
+}
+
+func validProbeHost(host string) bool {
+	host = strings.TrimSpace(host)
+	if host == "" || len(host) > 253 {
+		return false
+	}
+	if net.ParseIP(host) != nil {
+		return true
+	}
+	return hostnamePattern.MatchString(host) && !strings.Contains(host, "..")
 }
 
 func validateMemory(name string, metric MemoryMetric) error {

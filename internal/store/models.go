@@ -53,8 +53,55 @@ type CreateNodeParams struct {
 }
 
 type PublicNode struct {
-	Node   Node             `json:"node"`
-	Online bool             `json:"online"`
-	Stale  bool             `json:"stale"`
-	Report *protocol.Report `json:"report,omitempty"`
+	Node    Node             `json:"node"`
+	Online  bool             `json:"online"`
+	Stale   bool             `json:"stale"`
+	Report  *protocol.Report `json:"report,omitempty"`
+	Latency []LatestLatency  `json:"latency,omitempty"`
+}
+
+type Target struct {
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Kind            string    `json:"kind"`
+	Host            string    `json:"host"`
+	Port            *int      `json:"port,omitempty"`
+	IntervalSeconds int       `json:"interval_seconds"`
+	TimeoutMS       int       `json:"timeout_ms"`
+	Enabled         bool      `json:"enabled"`
+	SortOrder       int       `json:"sort_order"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type CreateTargetParams struct {
+	Name            string
+	Kind            string
+	Host            string
+	Port            *int
+	IntervalSeconds int
+	TimeoutMS       int
+}
+
+type TargetGroup struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Kind      string    `json:"kind"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type TargetAssignment struct {
+	NodeID string `json:"node_id"`
+	Target Target `json:"target"`
+}
+
+type LatestLatency struct {
+	TargetID  string     `json:"target_id"`
+	Name      string     `json:"name"`
+	Kind      string     `json:"kind"`
+	Success   *bool      `json:"success,omitempty"`
+	LatencyMS *float64   `json:"latency_ms,omitempty"`
+	Error     string     `json:"error_class,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }

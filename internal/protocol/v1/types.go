@@ -18,6 +18,8 @@ const (
 	TypeConfiguration = "config"
 	TypeTask          = "task"
 	TypeError         = "error"
+	TaskKindPing      = "ping"
+	TaskKindTCPing    = "tcping"
 )
 
 // Envelope is the stable outer wire shape shared by every protocol message.

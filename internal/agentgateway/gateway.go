@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -16,12 +17,36 @@ import (
 )
 
 type Gateway struct {
-	store *store.Store
-	hub   *Hub
+	store      *store.Store
+	hub        *Hub
+	sessionsMu sync.RWMutex
+	sessions   map[string]*agentSession
+	pendingMu  sync.Mutex
+	pending    map[string]pendingTask
 }
 
 func New(database *store.Store, hub *Hub) *Gateway {
-	return &Gateway{store: database, hub: hub}
+	return &Gateway{store: database, hub: hub, sessions: make(map[string]*agentSession), pending: make(map[string]pendingTask)}
+}
+
+var ErrAgentOffline = errors.New("agent is offline")
+
+type agentSession struct {
+	connection *websocket.Conn
+	writeMu    sync.Mutex
+}
+
+func (s *agentSession) write(ctx context.Context, envelope protocol.Envelope) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	return wsjson.Write(ctx, s.connection, envelope)
+}
+
+type pendingTask struct {
+	nodeID   string
+	targetID string
+	kind     string
+	expires  time.Time
 }
 
 func (g *Gateway) HTTPReport(w http.ResponseWriter, r *http.Request) {
@@ -91,6 +116,9 @@ func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 	if err := wsjson.Write(ctx, connection, welcome); err != nil {
 		return
 	}
+	session := &agentSession{connection: connection}
+	g.register(node.ID, session)
+	defer g.unregister(node.ID, session)
 
 	for {
 		readCtx, readCancel := context.WithTimeout(ctx, 75*time.Second)
@@ -101,33 +129,50 @@ func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := envelope.Validate(time.Now().UTC()); err != nil {
-			g.writeProtocolError(ctx, connection, "invalid_envelope", err.Error())
+			g.writeProtocolError(ctx, session, "invalid_envelope", err.Error())
 			continue
 		}
 		switch envelope.Type {
 		case protocol.TypeReport:
 			report, err := protocol.DecodePayload[protocol.Report](envelope)
 			if err != nil || report.Validate() != nil {
-				g.writeProtocolError(ctx, connection, "invalid_report", "report validation failed")
+				g.writeProtocolError(ctx, session, "invalid_report", "report validation failed")
 				continue
 			}
 			if err := g.persistAndPublish(ctx, node, report); err != nil {
-				g.writeProtocolError(ctx, connection, "storage_error", "report could not be stored")
+				g.writeProtocolError(ctx, session, "storage_error", "report could not be stored")
 				continue
 			}
 			ack, _ := protocol.NewEnvelope(protocol.TypeAcknowledged, envelope.Sequence, protocol.Acknowledgement{Sequence: envelope.Sequence})
-			if err := wsjson.Write(ctx, connection, ack); err != nil {
+			if err := session.write(ctx, ack); err != nil {
 				return
 			}
 		case protocol.TypeHeartbeat:
 			ack, _ := protocol.NewEnvelope(protocol.TypeAcknowledged, envelope.Sequence, protocol.Acknowledgement{Sequence: envelope.Sequence})
-			if err := wsjson.Write(ctx, connection, ack); err != nil {
+			if err := session.write(ctx, ack); err != nil {
 				return
 			}
 		case protocol.TypePingResult, protocol.TypeTCPingResult:
-			// Persistence for scheduled latency tasks is added with the scheduler milestone.
+			result, err := protocol.DecodePayload[protocol.LatencyResult](envelope)
+			kind := protocol.TaskKindPing
+			if envelope.Type == protocol.TypeTCPingResult {
+				kind = protocol.TaskKindTCPing
+			}
+			if err != nil || result.Validate(time.Now().UTC()) != nil || !g.consumePending(node.ID, kind, result) {
+				g.writeProtocolError(ctx, session, "invalid_result", "latency result does not match an active task")
+				continue
+			}
+			if err := g.store.SaveLatencyResult(ctx, node.ID, kind, result); err != nil {
+				g.writeProtocolError(ctx, session, "storage_error", "latency result could not be stored")
+				continue
+			}
+			g.publishNode(ctx, node.ID)
+			ack, _ := protocol.NewEnvelope(protocol.TypeAcknowledged, envelope.Sequence, protocol.Acknowledgement{Sequence: envelope.Sequence})
+			if err := session.write(ctx, ack); err != nil {
+				return
+			}
 		default:
-			g.writeProtocolError(ctx, connection, "unsupported_type", envelope.Type)
+			g.writeProtocolError(ctx, session, "unsupported_type", envelope.Type)
 		}
 	}
 }
@@ -136,17 +181,21 @@ func (g *Gateway) persistAndPublish(ctx context.Context, node store.Node, report
 	if err := g.store.SaveReport(ctx, node.ID, report); err != nil {
 		return err
 	}
+	g.publishNode(ctx, node.ID)
+	return nil
+}
+
+func (g *Gateway) publishNode(ctx context.Context, nodeID string) {
 	items, err := g.store.ListPublicNodes(ctx, time.Now().UTC())
 	if err != nil {
-		return err
+		return
 	}
 	for _, item := range items {
-		if item.Node.ID == node.ID {
+		if item.Node.ID == nodeID {
 			g.hub.Publish(Event{Type: "node_metrics", Node: item})
 			break
 		}
 	}
-	return nil
 }
 
 func (g *Gateway) authenticate(w http.ResponseWriter, r *http.Request) (store.Node, bool) {
@@ -164,11 +213,71 @@ func (g *Gateway) authenticate(w http.ResponseWriter, r *http.Request) (store.No
 	return node, true
 }
 
-func (g *Gateway) writeProtocolError(ctx context.Context, connection *websocket.Conn, code, message string) {
+func (g *Gateway) writeProtocolError(ctx context.Context, session *agentSession, code, message string) {
 	envelope, err := protocol.NewEnvelope(protocol.TypeError, 0, protocol.ProtocolError{Code: code, Message: message})
 	if err == nil {
-		_ = wsjson.Write(ctx, connection, envelope)
+		_ = session.write(ctx, envelope)
 	}
+}
+
+func (g *Gateway) SendTask(ctx context.Context, nodeID string, task protocol.Task) error {
+	if err := task.Validate(time.Now().UTC()); err != nil {
+		return err
+	}
+	g.sessionsMu.RLock()
+	session := g.sessions[nodeID]
+	g.sessionsMu.RUnlock()
+	if session == nil {
+		return ErrAgentOffline
+	}
+	envelope, err := protocol.NewEnvelope(protocol.TypeTask, 0, task)
+	if err != nil {
+		return err
+	}
+	g.pendingMu.Lock()
+	for id, pending := range g.pending {
+		if pending.expires.Before(time.Now().UTC()) {
+			delete(g.pending, id)
+		}
+	}
+	g.pending[task.ID] = pendingTask{nodeID: nodeID, targetID: task.TargetID, kind: task.Kind, expires: task.ExpiresAt}
+	g.pendingMu.Unlock()
+	if err := session.write(ctx, envelope); err != nil {
+		g.pendingMu.Lock()
+		delete(g.pending, task.ID)
+		g.pendingMu.Unlock()
+		return err
+	}
+	return nil
+}
+
+func (g *Gateway) consumePending(nodeID, kind string, result protocol.LatencyResult) bool {
+	g.pendingMu.Lock()
+	defer g.pendingMu.Unlock()
+	pending, ok := g.pending[result.TaskID]
+	if !ok || pending.nodeID != nodeID || pending.targetID != result.TargetID || pending.kind != kind || pending.expires.Before(time.Now().UTC()) {
+		return false
+	}
+	delete(g.pending, result.TaskID)
+	return true
+}
+
+func (g *Gateway) register(nodeID string, session *agentSession) {
+	g.sessionsMu.Lock()
+	previous := g.sessions[nodeID]
+	g.sessions[nodeID] = session
+	g.sessionsMu.Unlock()
+	if previous != nil && previous != session {
+		_ = previous.connection.Close(websocket.StatusPolicyViolation, "replaced by a newer connection")
+	}
+}
+
+func (g *Gateway) unregister(nodeID string, expected *agentSession) {
+	g.sessionsMu.Lock()
+	if g.sessions[nodeID] == expected {
+		delete(g.sessions, nodeID)
+	}
+	g.sessionsMu.Unlock()
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

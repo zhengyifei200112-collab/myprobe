@@ -138,6 +138,13 @@ function expiry(item: PublicNode) {
   return days >= 0 ? `剩 ${days} 天` : `已过期 ${Math.abs(days)} 天`
 }
 
+function latencyText(success?: boolean, latency?: number, errorClass?: string) {
+  if (success === undefined) return '等待首次探测'
+  if (!success) return errorClass ? `失败 · ${errorClass}` : '探测失败'
+  if (latency === undefined) return '已连通'
+  return `${latency < 10 ? latency.toFixed(2) : latency.toFixed(1)} ms`
+}
+
 onMounted(() => {
   document.documentElement.dataset.theme = theme.value
   void load()
@@ -261,8 +268,13 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="latency-panel">
-            <div><span>{{ item.node.latency_mode === 'tcping' ? 'TCPing' : 'Ping' }}</span><strong>等待探测任务</strong></div>
+          <div class="latency-panel" :class="{ empty: !item.latency?.length }">
+            <div v-for="latency in item.latency" :key="latency.target_id">
+              <span>{{ latency.kind === 'tcping' ? 'TCP' : 'PING' }}</span>
+              <b>{{ latency.name }}</b>
+              <strong :class="{ failed: latency.success === false }">{{ latencyText(latency.success, latency.latency_ms, latency.error_class) }}</strong>
+            </div>
+            <div v-if="!item.latency?.length"><span>{{ item.node.latency_mode === 'tcping' ? 'TCP' : 'PING' }}</span><b>延迟</b><strong>等待后台分配目标</strong></div>
           </div>
 
           <footer>

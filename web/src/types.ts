@@ -8,6 +8,17 @@ export interface PublicNode {
   online: boolean
   stale: boolean
   report?: Report
+  latency?: LatestLatency[]
+}
+
+export interface LatestLatency {
+  target_id: string
+  name: string
+  kind: 'ping' | 'tcping'
+  success?: boolean
+  latency_ms?: number
+  error_class?: string
+  updated_at?: string
 }
 
 export interface NodeMetadata {

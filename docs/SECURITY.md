@@ -16,6 +16,9 @@
 - Session cookies are HttpOnly, SameSite=Lax, and Secure when TLS is enabled.
 - Every state-changing cookie-authenticated request requires `X-CSRF-Token`.
 - WebSocket messages and HTTP bodies have strict size limits and typed validation.
+- Latency tasks accept only validated host names/IP addresses and fixed Ping/TCP probe
+  implementations. The agent never passes task data through a shell, and results are
+  accepted only for a matching unexpired task issued by the server.
 - Advanced custom HTML is sanitized and governed by a restrictive CSP.
 - Production startup warns or fails when a public listener is configured without an
   explicit TLS/reverse-proxy acknowledgement.

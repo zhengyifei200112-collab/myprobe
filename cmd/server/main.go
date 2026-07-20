@@ -14,6 +14,7 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
 	"github.com/zhengyifei200112-collab/myprobe/internal/httpapi"
+	"github.com/zhengyifei200112-collab/myprobe/internal/scheduler"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
@@ -44,6 +45,10 @@ func main() {
 
 	hub := agentgateway.NewHub()
 	gateway := agentgateway.New(database, hub)
+	runCtx, cancelRun := context.WithCancel(context.Background())
+	defer cancelRun()
+	latencyScheduler := scheduler.New(database, gateway, logger)
+	go latencyScheduler.Run(runCtx)
 	api := httpapi.New(cfg, database, authService, gateway, hub)
 	server := &http.Server{
 		Addr: cfg.ListenAddress, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second,
@@ -61,6 +66,7 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
+	cancelRun()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {

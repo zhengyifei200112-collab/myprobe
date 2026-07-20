@@ -24,7 +24,7 @@ func TestAgentWebSocketHandshake(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	_, token, err := database.CreateNode(ctx, store.CreateNodeParams{Name: "test"})
+	node, token, err := database.CreateNode(ctx, store.CreateNodeParams{Name: "test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,5 +53,47 @@ func TestAgentWebSocketHandshake(t *testing.T) {
 	}
 	if welcome.Type != protocol.TypeWelcome {
 		t.Fatalf("message type = %q", welcome.Type)
+	}
+
+	port := 443
+	target, err := database.CreateTarget(ctx, store.CreateTargetParams{Name: "HTTPS", Kind: protocol.TaskKindTCPing, Host: "example.com", Port: &port, IntervalSeconds: 30, TimeoutMS: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	group, err := database.CreateTargetGroup(ctx, "TCP", protocol.TaskKindTCPing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.AddTargetToGroup(ctx, group.ID, target.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.AssignTargetGroup(ctx, node.ID, group.ID); err != nil {
+		t.Fatal(err)
+	}
+	task := protocol.Task{ID: "task-1", Kind: protocol.TaskKindTCPing, TargetID: target.ID, Host: target.Host, Port: port, TimeoutMS: 1000, ExpiresAt: time.Now().UTC().Add(time.Minute)}
+	if err := gateway.SendTask(ctx, node.ID, task); err != nil {
+		t.Fatal(err)
+	}
+	var taskEnvelope protocol.Envelope
+	if err := wsjson.Read(ctx, connection, &taskEnvelope); err != nil {
+		t.Fatal(err)
+	}
+	if taskEnvelope.Type != protocol.TypeTask {
+		t.Fatalf("message type = %q, want task", taskEnvelope.Type)
+	}
+	result, _ := protocol.NewEnvelope(protocol.TypeTCPingResult, 2, protocol.LatencyResult{TaskID: task.ID, TargetID: target.ID, Success: true, LatencyMS: 12.5, CompletedAt: time.Now().UTC()})
+	if err := wsjson.Write(ctx, connection, result); err != nil {
+		t.Fatal(err)
+	}
+	var acknowledgement protocol.Envelope
+	if err := wsjson.Read(ctx, connection, &acknowledgement); err != nil {
+		t.Fatal(err)
+	}
+	if acknowledgement.Type != protocol.TypeAcknowledged {
+		t.Fatalf("message type = %q, want ack", acknowledgement.Type)
+	}
+	latest, err := database.ListLatestLatency(ctx, node.ID)
+	if err != nil || len(latest) != 1 || latest[0].LatencyMS == nil || *latest[0].LatencyMS != 12.5 {
+		t.Fatalf("latest latency = %#v, error = %v", latest, err)
 	}
 }

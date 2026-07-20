@@ -334,6 +334,244 @@ func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNod
 		}
 		result = append(result, item)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for index := range result {
+		latency, err := s.ListLatestLatency(ctx, result[index].Node.ID)
+		if err != nil {
+			return nil, err
+		}
+		result[index].Latency = latency
+	}
+	return result, nil
+}
+
+func (s *Store) CreateTarget(ctx context.Context, params CreateTargetParams) (Target, error) {
+	params.Name = strings.TrimSpace(params.Name)
+	params.Host = strings.TrimSpace(params.Host)
+	if params.Name == "" {
+		return Target{}, errors.New("target name is required")
+	}
+	if params.IntervalSeconds == 0 {
+		params.IntervalSeconds = 60
+	}
+	if params.TimeoutMS == 0 {
+		params.TimeoutMS = 5000
+	}
+	port := 0
+	if params.Port != nil {
+		port = *params.Port
+	}
+	task := protocol.Task{ID: "validation", TargetID: "validation", Kind: params.Kind, Host: params.Host, Port: port, TimeoutMS: params.TimeoutMS, ExpiresAt: time.Now().UTC().Add(time.Minute)}
+	if err := task.Validate(time.Now().UTC()); err != nil {
+		return Target{}, err
+	}
+	if params.IntervalSeconds < 5 || params.IntervalSeconds > 86400 {
+		return Target{}, errors.New("target interval must be between 5 and 86400 seconds")
+	}
+	now := time.Now().UTC()
+	target := Target{ID: randomID(), Name: params.Name, Kind: params.Kind, Host: params.Host, Port: params.Port, IntervalSeconds: params.IntervalSeconds, TimeoutMS: params.TimeoutMS, Enabled: true, CreatedAt: now, UpdatedAt: now}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO targets(id, name, kind, host, port, interval_seconds, timeout_ms, enabled, created_at, updated_at)
+		VALUES(?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`, target.ID, target.Name, target.Kind, target.Host, target.Port, target.IntervalSeconds, target.TimeoutMS, formatTime(now), formatTime(now))
+	return target, err
+}
+
+func (s *Store) CreateTargetGroup(ctx context.Context, name, kind string) (TargetGroup, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || (kind != protocol.TaskKindPing && kind != protocol.TaskKindTCPing) {
+		return TargetGroup{}, errors.New("target group name and valid kind are required")
+	}
+	now := time.Now().UTC()
+	group := TargetGroup{ID: randomID(), Name: name, Kind: kind, CreatedAt: now, UpdatedAt: now}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO target_groups(id, name, kind, created_at, updated_at) VALUES(?, ?, ?, ?, ?)`, group.ID, group.Name, group.Kind, formatTime(now), formatTime(now))
+	return group, err
+}
+
+func (s *Store) AddTargetToGroup(ctx context.Context, groupID, targetID string) error {
+	result, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO target_group_members(group_id, target_id)
+		SELECT g.id, t.id FROM target_groups g JOIN targets t ON t.id = ? AND t.kind = g.kind WHERE g.id = ?`, targetID, groupID)
+	if err != nil {
+		return err
+	}
+	count, _ := result.RowsAffected()
+	if count == 0 {
+		var exists int
+		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM target_group_members WHERE group_id = ? AND target_id = ?`, groupID, targetID).Scan(&exists); err != nil || exists == 0 {
+			return ErrNotFound
+		}
+	}
+	return nil
+}
+
+func (s *Store) AssignTargetGroup(ctx context.Context, nodeID, groupID string) error {
+	result, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO node_target_groups(node_id, group_id)
+		SELECT n.id, g.id FROM nodes n CROSS JOIN target_groups g WHERE n.id = ? AND g.id = ?`, nodeID, groupID)
+	if err != nil {
+		return err
+	}
+	count, _ := result.RowsAffected()
+	if count == 0 {
+		var exists int
+		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM node_target_groups WHERE node_id = ? AND group_id = ?`, nodeID, groupID).Scan(&exists); err != nil || exists == 0 {
+			return ErrNotFound
+		}
+	}
+	return nil
+}
+
+func (s *Store) ListTargets(ctx context.Context) ([]Target, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, kind, host, port, interval_seconds, timeout_ms, enabled, sort_order, created_at, updated_at FROM targets ORDER BY sort_order, name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]Target, 0)
+	for rows.Next() {
+		var item Target
+		var port sql.NullInt64
+		var enabled int
+		var created, updated string
+		if err := rows.Scan(&item.ID, &item.Name, &item.Kind, &item.Host, &port, &item.IntervalSeconds, &item.TimeoutMS, &enabled, &item.SortOrder, &created, &updated); err != nil {
+			return nil, err
+		}
+		item.Enabled = enabled != 0
+		item.CreatedAt, _ = parseTime(created)
+		item.UpdatedAt, _ = parseTime(updated)
+		if port.Valid {
+			value := int(port.Int64)
+			item.Port = &value
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+func (s *Store) ListTargetGroups(ctx context.Context) ([]TargetGroup, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, kind, created_at, updated_at FROM target_groups ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]TargetGroup, 0)
+	for rows.Next() {
+		var item TargetGroup
+		var created, updated string
+		if err := rows.Scan(&item.ID, &item.Name, &item.Kind, &created, &updated); err != nil {
+			return nil, err
+		}
+		item.CreatedAt, _ = parseTime(created)
+		item.UpdatedAt, _ = parseTime(updated)
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+func (s *Store) ListTargetAssignments(ctx context.Context) ([]TargetAssignment, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT ng.node_id, t.id, t.name, t.kind, t.host, t.port,
+		t.interval_seconds, t.timeout_ms, t.enabled, t.sort_order, t.created_at, t.updated_at
+		FROM node_target_groups ng
+		JOIN target_group_members gm ON gm.group_id = ng.group_id
+		JOIN targets t ON t.id = gm.target_id
+		WHERE t.enabled = 1 ORDER BY ng.node_id, t.sort_order, t.name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]TargetAssignment, 0)
+	for rows.Next() {
+		var assignment TargetAssignment
+		var port sql.NullInt64
+		var enabled int
+		var created, updated string
+		if err := rows.Scan(&assignment.NodeID, &assignment.Target.ID, &assignment.Target.Name, &assignment.Target.Kind,
+			&assignment.Target.Host, &port, &assignment.Target.IntervalSeconds, &assignment.Target.TimeoutMS, &enabled,
+			&assignment.Target.SortOrder, &created, &updated); err != nil {
+			return nil, err
+		}
+		assignment.Target.Enabled = enabled != 0
+		assignment.Target.CreatedAt, _ = parseTime(created)
+		assignment.Target.UpdatedAt, _ = parseTime(updated)
+		if port.Valid {
+			value := int(port.Int64)
+			assignment.Target.Port = &value
+		}
+		result = append(result, assignment)
+	}
+	return result, rows.Err()
+}
+
+func (s *Store) SaveLatencyResult(ctx context.Context, nodeID, kind string, result protocol.LatencyResult) error {
+	if kind != protocol.TaskKindPing && kind != protocol.TaskKindTCPing {
+		return errors.New("invalid latency kind")
+	}
+	if err := result.Validate(time.Now().UTC()); err != nil {
+		return err
+	}
+	var latency any
+	if result.Success {
+		latency = result.LatencyMS
+	}
+	stored, err := s.db.ExecContext(ctx, `INSERT INTO latency_samples(node_id, target_id, kind, captured_at, success, latency_ms, error_class)
+		SELECT ?, t.id, t.kind, ?, ?, ?, ? FROM targets t
+		WHERE t.id = ? AND t.kind = ? AND EXISTS (
+			SELECT 1 FROM target_group_members gm JOIN node_target_groups ng ON ng.group_id = gm.group_id
+			WHERE gm.target_id = t.id AND ng.node_id = ?
+		)`, nodeID, formatTime(result.CompletedAt), result.Success, latency, result.ErrorClass, result.TargetID, kind, nodeID)
+	if err != nil {
+		return err
+	}
+	count, _ := stored.RowsAffected()
+	if count == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) ListLatestLatency(ctx context.Context, nodeID string) ([]LatestLatency, error) {
+	rows, err := s.db.QueryContext(ctx, `WITH assigned AS (
+		SELECT DISTINCT t.id, t.name, t.kind, t.sort_order
+		FROM node_target_groups ng
+		JOIN target_group_members gm ON gm.group_id = ng.group_id
+		JOIN targets t ON t.id = gm.target_id
+		WHERE ng.node_id = ? AND t.enabled = 1
+	)
+	SELECT a.id, a.name, a.kind, l.captured_at, l.success, l.latency_ms, l.error_class
+	FROM assigned a LEFT JOIN latency_samples l ON l.id = (
+		SELECT id FROM latency_samples WHERE node_id = ? AND target_id = a.id ORDER BY captured_at DESC LIMIT 1
+	) ORDER BY a.sort_order, a.name`, nodeID, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]LatestLatency, 0)
+	for rows.Next() {
+		var item LatestLatency
+		var captured, errorClass sql.NullString
+		var success sql.NullInt64
+		var latency sql.NullFloat64
+		if err := rows.Scan(&item.TargetID, &item.Name, &item.Kind, &captured, &success, &latency, &errorClass); err != nil {
+			return nil, err
+		}
+		if captured.Valid {
+			value, parseErr := parseTime(captured.String)
+			if parseErr == nil {
+				item.UpdatedAt = &value
+			}
+		}
+		if success.Valid {
+			value := success.Int64 != 0
+			item.Success = &value
+		}
+		if latency.Valid {
+			value := latency.Float64
+			item.LatencyMS = &value
+		}
+		if errorClass.Valid {
+			item.Error = errorClass.String
+		}
+		result = append(result, item)
+	}
 	return result, rows.Err()
 }
 

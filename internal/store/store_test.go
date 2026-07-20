@@ -52,3 +52,44 @@ func TestNodeTokenAndReportRoundTrip(t *testing.T) {
 		t.Fatalf("CPU model = %q", nodes[0].Report.CPU.Model)
 	}
 }
+
+func TestLatencyAssignmentAndResultRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+
+	node, _, err := database.CreateNode(ctx, CreateNodeParams{Name: "probe-node"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := 443
+	target, err := database.CreateTarget(ctx, CreateTargetParams{Name: "example HTTPS", Kind: protocol.TaskKindTCPing, Host: "example.com", Port: &port, IntervalSeconds: 30, TimeoutMS: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	group, err := database.CreateTargetGroup(ctx, "public TCP", protocol.TaskKindTCPing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.AddTargetToGroup(ctx, group.ID, target.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.AssignTargetGroup(ctx, node.ID, group.ID); err != nil {
+		t.Fatal(err)
+	}
+	assignments, err := database.ListTargetAssignments(ctx)
+	if err != nil || len(assignments) != 1 || assignments[0].Target.ID != target.ID {
+		t.Fatalf("assignments = %#v, error = %v", assignments, err)
+	}
+	result := protocol.LatencyResult{TaskID: "task", TargetID: target.ID, Success: true, LatencyMS: 18.25, CompletedAt: time.Now().UTC()}
+	if err := database.SaveLatencyResult(ctx, node.ID, protocol.TaskKindTCPing, result); err != nil {
+		t.Fatal(err)
+	}
+	latest, err := database.ListLatestLatency(ctx, node.ID)
+	if err != nil || len(latest) != 1 || latest[0].LatencyMS == nil || *latest[0].LatencyMS != result.LatencyMS {
+		t.Fatalf("latest = %#v, error = %v", latest, err)
+	}
+}
