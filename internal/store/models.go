@@ -139,6 +139,16 @@ type TargetAssignment struct {
 	Target Target `json:"target"`
 }
 
+type TargetGroupMember struct {
+	GroupID  string `json:"group_id"`
+	TargetID string `json:"target_id"`
+}
+
+type NodeTargetGroup struct {
+	NodeID  string `json:"node_id"`
+	GroupID string `json:"group_id"`
+}
+
 type LatestLatency struct {
 	TargetID  string     `json:"target_id"`
 	Name      string     `json:"name"`

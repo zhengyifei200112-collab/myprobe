@@ -1,0 +1,253 @@
+<script setup lang="ts">
+import { onMounted, reactive, ref } from 'vue'
+import type { NodeMetadata } from './types'
+import type { AdminGroup, AdminTarget, LatencyConfig } from './admin-api'
+import {
+  createGroup, createNode, createTarget, deleteGroup, deleteNode, deleteTarget, loadLatencyConfig,
+  loadNodes, login, logout, restoreSession, rotateNodeToken, setGroupTarget, setNodeGroup,
+  updateGroup, updateNode, updateTarget,
+} from './admin-api'
+
+type Tab = 'nodes' | 'targets' | 'groups'
+const authenticated = ref(false)
+const booting = ref(true)
+const busy = ref(false)
+const error = ref('')
+const notice = ref('')
+const tab = ref<Tab>('nodes')
+const username = ref('admin')
+const password = ref('')
+const nodes = ref<NodeMetadata[]>([])
+const config = ref<LatencyConfig>({ targets: [], groups: [], group_members: [], node_groups: [] })
+const token = ref('')
+const tokenNode = ref('')
+
+const emptyNode = () => ({ name: '', tags: '', country_code: '', collection_seconds: 5, report_seconds: 5 })
+const nodeCreate = reactive(emptyNode())
+const nodeEdit = ref<NodeMetadata | null>(null)
+const emptyTarget = (): Omit<AdminTarget, 'id'> => ({ name: '', kind: 'ping', host: '', interval_seconds: 60, timeout_ms: 3000, enabled: true, sort_order: 0 })
+const targetForm = reactive(emptyTarget() as Omit<AdminTarget, 'id'> & { id?: string })
+const groupForm = reactive({ id: '', name: '', kind: 'ping' as 'ping' | 'tcping' })
+
+function showError(value: unknown) {
+  error.value = value instanceof Error ? value.message : '操作失败'
+}
+
+async function refresh() {
+  const [nodeResult, latencyResult] = await Promise.all([loadNodes(), loadLatencyConfig()])
+  nodes.value = nodeResult.nodes
+  config.value = latencyResult
+}
+
+async function run(action: () => Promise<void>, success = '') {
+  busy.value = true
+  error.value = ''
+  notice.value = ''
+  try {
+    await action()
+    if (success) notice.value = success
+  } catch (value) {
+    showError(value)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function submitLogin() {
+  await run(async () => {
+    await login(username.value.trim(), password.value)
+    password.value = ''
+    authenticated.value = true
+    await refresh()
+  })
+}
+
+async function signOut() {
+  await run(async () => {
+    await logout()
+    authenticated.value = false
+    nodes.value = []
+  })
+}
+
+async function submitNodeCreate() {
+  await run(async () => {
+    const result = await createNode({ ...nodeCreate, tags: nodeCreate.tags.split(',').map(x => x.trim()).filter(Boolean) })
+    token.value = result.agent_token
+    tokenNode.value = result.node.name
+    Object.assign(nodeCreate, emptyNode())
+    await refresh()
+  }, '节点已创建，请立即保存 Agent Token。')
+}
+
+function editNode(item: NodeMetadata) {
+  const copy = JSON.parse(JSON.stringify(item)) as NodeMetadata
+  if (copy.expires_at) {
+    const date = new Date(copy.expires_at)
+    const offset = date.getTimezoneOffset() * 60_000
+    copy.expires_at = new Date(date.getTime() - offset).toISOString().slice(0, 16)
+  }
+  nodeEdit.value = copy
+}
+
+async function saveNode() {
+  if (!nodeEdit.value) return
+  const item = nodeEdit.value
+  await run(async () => {
+    await updateNode(item.id, {
+      ...item,
+      price_minor: typeof item.price_minor === 'number' ? item.price_minor : null,
+      expires_at: item.expires_at ? new Date(item.expires_at).toISOString() : null,
+      traffic_reset_day: item.traffic_reset_day || null,
+    })
+    nodeEdit.value = null
+    await refresh()
+  }, '节点配置已保存。')
+}
+
+async function removeNode(item: NodeMetadata) {
+  if (!confirm(`确认删除节点“${item.name}”？相关历史数据也会删除。`)) return
+  await run(async () => { await deleteNode(item.id); await refresh() }, '节点已删除。')
+}
+
+async function rotateToken(item: NodeMetadata) {
+  if (!confirm(`确认轮换“${item.name}”的 Agent Token？旧 Token 会立即失效。`)) return
+  await run(async () => {
+    const result = await rotateNodeToken(item.id)
+    token.value = result.agent_token
+    tokenNode.value = item.name
+  }, 'Token 已轮换，请立即更新 Agent。')
+}
+
+function editTarget(item?: AdminTarget) {
+  Object.assign(targetForm, item ? { ...item } : emptyTarget(), { id: item?.id })
+}
+
+async function saveTarget() {
+  await run(async () => {
+    const payload = { ...targetForm, port: targetForm.kind === 'tcping' ? Number(targetForm.port || 0) : null }
+    if (targetForm.id) await updateTarget(targetForm.id, payload)
+    else await createTarget(payload)
+    editTarget()
+    await refresh()
+  }, targetForm.id ? '探测目标已更新。' : '探测目标已创建。')
+}
+
+async function removeTarget(item: AdminTarget) {
+  if (!confirm(`确认删除探测目标“${item.name}”？`)) return
+  await run(async () => { await deleteTarget(item.id); await refresh() }, '探测目标已删除。')
+}
+
+function editGroup(item?: AdminGroup) {
+  Object.assign(groupForm, item ? { ...item } : { id: '', name: '', kind: 'ping' })
+}
+
+async function saveGroup() {
+  await run(async () => {
+    const payload = { name: groupForm.name, kind: groupForm.kind }
+    if (groupForm.id) await updateGroup(groupForm.id, payload)
+    else await createGroup(payload)
+    editGroup()
+    await refresh()
+  }, groupForm.id ? '目标组已更新。' : '目标组已创建。')
+}
+
+async function removeGroup(item: AdminGroup) {
+  if (!confirm(`确认删除目标组“${item.name}”？`)) return
+  await run(async () => { await deleteGroup(item.id); await refresh() }, '目标组已删除。')
+}
+
+function isGroupTarget(groupID: string, targetID: string) {
+  return config.value.group_members.some(item => item.group_id === groupID && item.target_id === targetID)
+}
+
+function isNodeGroup(nodeID: string, groupID: string) {
+  return config.value.node_groups.some(item => item.node_id === nodeID && item.group_id === groupID)
+}
+
+async function toggleGroupTarget(group: AdminGroup, target: AdminTarget, assigned: boolean) {
+  await run(async () => { await setGroupTarget(group.id, target.id, assigned); await refresh() }, assigned ? '目标已加入分组。' : '目标已移出分组。')
+}
+
+async function toggleNodeGroup(node: NodeMetadata, group: AdminGroup, assigned: boolean) {
+  await run(async () => { await setNodeGroup(node.id, group.id, assigned); await refresh() }, assigned ? '目标组已分配。' : '目标组已取消。')
+}
+
+async function copyToken() {
+  await navigator.clipboard.writeText(token.value)
+  notice.value = 'Token 已复制。'
+}
+
+onMounted(async () => {
+  authenticated.value = await restoreSession()
+  if (authenticated.value) {
+    try { await refresh() } catch (value) { showError(value) }
+  }
+  booting.value = false
+})
+</script>
+
+<template>
+  <div class="admin-shell">
+    <header class="admin-nav">
+      <a class="brand" href="/"><span class="brand-mark">MP</span><span>MyProbe <small>管理中心</small></span></a>
+      <nav v-if="authenticated" class="admin-tabs">
+        <button :class="{ active: tab === 'nodes' }" @click="tab = 'nodes'">节点</button>
+        <button :class="{ active: tab === 'targets' }" @click="tab = 'targets'">探测目标</button>
+        <button :class="{ active: tab === 'groups' }" @click="tab = 'groups'">目标组</button>
+      </nav>
+      <div class="nav-actions"><a class="soft-button" href="/">公开面板</a><button v-if="authenticated" class="soft-button" @click="signOut">退出</button></div>
+    </header>
+
+    <main v-if="booting" class="state-panel"><div class="loader"></div><p>正在恢复管理会话…</p></main>
+    <main v-else-if="!authenticated" class="login-wrap">
+      <form class="admin-panel login-card" @submit.prevent="submitLogin">
+        <span class="eyebrow">SECURE CONSOLE</span><h1>登录管理中心</h1><p>使用初始化时配置的管理员账号登录。</p>
+        <label>用户名<input v-model="username" autocomplete="username" required></label>
+        <label>密码<input v-model="password" type="password" autocomplete="current-password" required></label>
+        <p v-if="error" class="form-message error">{{ error }}</p>
+        <button class="primary-button" :disabled="busy">{{ busy ? '登录中…' : '登录' }}</button>
+      </form>
+    </main>
+
+    <main v-else class="admin-main">
+      <div v-if="error" class="admin-alert error">{{ error }}</div><div v-if="notice" class="admin-alert success">{{ notice }}</div>
+
+      <template v-if="tab === 'nodes'">
+        <section class="admin-heading"><div><span class="eyebrow">INFRASTRUCTURE</span><h1>节点管理</h1><p>创建 Agent 身份、调整公开展示与采集策略，并分配延迟探测组。</p></div><span class="count-pill">{{ nodes.length }} 个节点</span></section>
+        <form class="admin-panel compact-form" @submit.prevent="submitNodeCreate">
+          <h2>添加节点</h2><div class="form-grid four"><label>名称<input v-model="nodeCreate.name" required></label><label>标签（逗号分隔）<input v-model="nodeCreate.tags" placeholder="香港, 生产"></label><label>国家/地区代码<input v-model="nodeCreate.country_code" maxlength="2" placeholder="HK"></label><label>上报间隔（秒）<input v-model.number="nodeCreate.report_seconds" type="number" min="1" max="3600" required></label></div>
+          <button class="primary-button" :disabled="busy">创建节点</button>
+        </form>
+        <section class="admin-list">
+          <article v-for="item in nodes" :key="item.id" class="admin-panel entity-card">
+            <div class="entity-title"><div><strong>{{ item.name }}</strong><code>{{ item.id }}</code></div><span :class="['status-label', item.hidden ? 'muted' : 'active']">{{ item.hidden ? '已隐藏' : '公开' }}</span></div>
+            <div class="entity-meta"><span>{{ item.country_code || '未设置地区' }}</span><span>采集 {{ item.collection_seconds }}s / 上报 {{ item.report_seconds }}s</span><span>{{ item.latency_mode.toUpperCase() }}</span></div>
+            <div class="assignment-box"><b>分配目标组</b><label v-for="group in config.groups" :key="group.id" class="check-chip"><input type="checkbox" :checked="isNodeGroup(item.id, group.id)" :disabled="busy" @change="toggleNodeGroup(item, group, ($event.target as HTMLInputElement).checked)">{{ group.name }}</label><span v-if="!config.groups.length" class="empty-inline">请先创建目标组</span></div>
+            <div class="entity-actions"><button @click="editNode(item)">编辑</button><button @click="rotateToken(item)">轮换 Token</button><button class="danger" @click="removeNode(item)">删除</button></div>
+          </article>
+        </section>
+      </template>
+
+      <template v-else-if="tab === 'targets'">
+        <section class="admin-heading"><div><span class="eyebrow">LATENCY PROBES</span><h1>探测目标</h1><p>配置由 Agent 执行的 ICMP Ping 或 TCPing 目标。</p></div><span class="count-pill">{{ config.targets.length }} 个目标</span></section>
+        <form class="admin-panel compact-form" @submit.prevent="saveTarget">
+          <h2>{{ targetForm.id ? '编辑目标' : '添加目标' }}</h2><div class="form-grid six"><label>名称<input v-model="targetForm.name" required></label><label>类型<select v-model="targetForm.kind"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label><label>主机<input v-model="targetForm.host" required placeholder="example.com"></label><label>端口<input v-model.number="targetForm.port" type="number" min="1" max="65535" :required="targetForm.kind === 'tcping'" :disabled="targetForm.kind === 'ping'"></label><label>间隔（秒）<input v-model.number="targetForm.interval_seconds" type="number" min="5" max="86400"></label><label>超时（毫秒）<input v-model.number="targetForm.timeout_ms" type="number" min="1"></label><label>排序<input v-model.number="targetForm.sort_order" type="number"></label></div>
+          <div v-if="targetForm.id" class="switch-row"><label><input v-model="targetForm.enabled" type="checkbox"> 启用此目标</label></div>
+          <div class="form-actions"><button class="primary-button" :disabled="busy">{{ targetForm.id ? '保存修改' : '创建目标' }}</button><button v-if="targetForm.id" type="button" @click="editTarget()">取消</button></div>
+        </form>
+        <section class="admin-list"><article v-for="item in config.targets" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ item.name }}</strong><code>{{ item.host }}{{ item.port ? `:${item.port}` : '' }}</code></div><span class="status-label active">{{ item.kind.toUpperCase() }}</span></div><div class="entity-meta"><span>每 {{ item.interval_seconds }} 秒</span><span>超时 {{ item.timeout_ms }}ms</span><span>{{ item.enabled ? '已启用' : '已停用' }}</span></div><div class="entity-actions"><button @click="editTarget(item)">编辑</button><button class="danger" @click="removeTarget(item)">删除</button></div></article></section>
+      </template>
+
+      <template v-else>
+        <section class="admin-heading"><div><span class="eyebrow">ASSIGNMENTS</span><h1>目标组</h1><p>将同类目标组成策略组，再分配给一个或多个节点。</p></div><span class="count-pill">{{ config.groups.length }} 个分组</span></section>
+        <form class="admin-panel compact-form" @submit.prevent="saveGroup"><h2>{{ groupForm.id ? '编辑分组' : '添加分组' }}</h2><div class="form-grid two"><label>名称<input v-model="groupForm.name" required></label><label>类型<select v-model="groupForm.kind"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label></div><div class="form-actions"><button class="primary-button" :disabled="busy">{{ groupForm.id ? '保存修改' : '创建分组' }}</button><button v-if="groupForm.id" type="button" @click="editGroup()">取消</button></div></form>
+        <section class="admin-list"><article v-for="group in config.groups" :key="group.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ group.name }}</strong><code>{{ group.kind.toUpperCase() }}</code></div><span class="status-label active">{{ config.group_members.filter(x => x.group_id === group.id).length }} 个目标</span></div><div class="assignment-box"><b>组内目标</b><label v-for="targetItem in config.targets.filter(x => x.kind === group.kind)" :key="targetItem.id" class="check-chip"><input type="checkbox" :checked="isGroupTarget(group.id, targetItem.id)" :disabled="busy" @change="toggleGroupTarget(group, targetItem, ($event.target as HTMLInputElement).checked)">{{ targetItem.name }}</label><span v-if="!config.targets.some(x => x.kind === group.kind)" class="empty-inline">没有兼容目标</span></div><div class="entity-actions"><button @click="editGroup(group)">编辑</button><button class="danger" @click="removeGroup(group)">删除</button></div></article></section>
+      </template>
+    </main>
+
+    <div v-if="nodeEdit" class="admin-overlay" @click.self="nodeEdit = null"><form class="admin-panel edit-dialog" @submit.prevent="saveNode"><header><div><span class="eyebrow">NODE SETTINGS</span><h2>{{ nodeEdit.name }}</h2></div><button type="button" class="close-button" @click="nodeEdit = null">×</button></header><div class="form-grid two"><label>名称<input v-model="nodeEdit.name" required></label><label>排序<input v-model.number="nodeEdit.sort_order" type="number"></label><label>国家/地区代码<input v-model="nodeEdit.country_code" maxlength="2"></label><label>标签（逗号分隔显示）<input :value="nodeEdit.tags.join(', ')" @input="nodeEdit!.tags = ($event.target as HTMLInputElement).value.split(',').map(x => x.trim()).filter(Boolean)"></label><label>采集间隔（秒）<input v-model.number="nodeEdit.collection_seconds" type="number" min="1" max="3600"></label><label>上报间隔（秒）<input v-model.number="nodeEdit.report_seconds" type="number" min="1" max="3600"></label><label>延迟模式<select v-model="nodeEdit.latency_mode"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label><label>流量重置日<input v-model.number="nodeEdit.traffic_reset_day" type="number" min="1" max="31" placeholder="自然月"></label><label>货币<input v-model="nodeEdit.currency" maxlength="3" placeholder="USD"></label><label>价格（最小货币单位）<input v-model.number="nodeEdit.price_minor" type="number" min="0"></label><label>计费周期<input v-model="nodeEdit.billing_cycle" placeholder="monthly"></label><label>到期时间<input v-model="nodeEdit.expires_at" type="datetime-local"></label></div><div class="switch-row"><label><input v-model="nodeEdit.hidden" type="checkbox"> 从公开面板隐藏</label><label><input v-model="nodeEdit.use_since_boot" type="checkbox"> 使用开机以来流量</label></div><div class="form-actions"><button class="primary-button" :disabled="busy">保存节点</button><button type="button" @click="nodeEdit = null">取消</button></div></form></div>
+
+    <div v-if="token" class="admin-overlay"><section class="admin-panel token-dialog"><span class="eyebrow">ONE-TIME SECRET</span><h2>{{ tokenNode }} 的 Agent Token</h2><p>此 Token 只展示一次。复制并安全保存后再关闭。</p><code>{{ token }}</code><div class="form-actions"><button class="primary-button" @click="copyToken">复制 Token</button><button @click="token = ''">我已保存</button></div></section></div>
+  </div>
+</template>

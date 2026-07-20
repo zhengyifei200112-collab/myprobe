@@ -314,7 +314,20 @@ func (s *Server) latencyConfig(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list assignments"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"targets": targets, "groups": groups, "assignments": assignments})
+	groupMembers, err := s.store.ListTargetGroupMembers(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list group members"})
+		return
+	}
+	nodeGroups, err := s.store.ListNodeTargetGroups(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list node groups"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"targets": targets, "groups": groups, "assignments": assignments,
+		"group_members": groupMembers, "node_groups": nodeGroups,
+	})
 }
 
 func (s *Server) createTarget(c *gin.Context) {

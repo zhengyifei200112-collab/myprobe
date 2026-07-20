@@ -475,6 +475,40 @@ func (s *Store) ListTargetGroups(ctx context.Context) ([]TargetGroup, error) {
 	return result, rows.Err()
 }
 
+func (s *Store) ListTargetGroupMembers(ctx context.Context) ([]TargetGroupMember, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT group_id, target_id FROM target_group_members ORDER BY group_id, target_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]TargetGroupMember, 0)
+	for rows.Next() {
+		var item TargetGroupMember
+		if err := rows.Scan(&item.GroupID, &item.TargetID); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+func (s *Store) ListNodeTargetGroups(ctx context.Context) ([]NodeTargetGroup, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT node_id, group_id FROM node_target_groups ORDER BY node_id, group_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]NodeTargetGroup, 0)
+	for rows.Next() {
+		var item NodeTargetGroup
+		if err := rows.Scan(&item.NodeID, &item.GroupID); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
 func (s *Store) ListTargetAssignments(ctx context.Context) ([]TargetAssignment, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT ng.node_id, t.id, t.name, t.kind, t.host, t.port,
 		t.interval_seconds, t.timeout_ms, t.enabled, t.sort_order, t.created_at, t.updated_at

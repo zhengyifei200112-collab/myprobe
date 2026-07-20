@@ -79,6 +79,23 @@ func TestAdminCanConfigureLatencyAssignment(t *testing.T) {
 	if err != nil || len(assignments) != 1 {
 		t.Fatalf("assignments = %#v, error = %v", assignments, err)
 	}
+	configResponse := authenticatedRequest(t, server.Handler(), cookies[0], loginBody.CSRFToken, http.MethodGet, "/api/v1/admin/latency-config", "")
+	if configResponse.Code != http.StatusOK {
+		t.Fatalf("config status = %d: %s", configResponse.Code, configResponse.Body.String())
+	}
+	var configBody struct {
+		GroupMembers []store.TargetGroupMember `json:"group_members"`
+		NodeGroups   []store.NodeTargetGroup   `json:"node_groups"`
+	}
+	if err := json.Unmarshal(configResponse.Body.Bytes(), &configBody); err != nil {
+		t.Fatal(err)
+	}
+	if len(configBody.GroupMembers) != 1 || configBody.GroupMembers[0].TargetID != targetBody.Target.ID {
+		t.Fatalf("group members = %#v", configBody.GroupMembers)
+	}
+	if len(configBody.NodeGroups) != 1 || configBody.NodeGroups[0].GroupID != groupBody.Group.ID {
+		t.Fatalf("node groups = %#v", configBody.NodeGroups)
+	}
 }
 
 func authenticatedRequest(t *testing.T, handler http.Handler, cookie *http.Cookie, csrf, method, target, body string) *httptest.ResponseRecorder {
