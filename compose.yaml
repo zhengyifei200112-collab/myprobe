@@ -4,7 +4,7 @@ services:
       context: .
       args:
         VERSION: ${MYPROBE_VERSION:-dev}
-    image: myprobe:${MYPROBE_VERSION:-dev}
+    image: ${MYPROBE_IMAGE:-myprobe:dev}
     restart: unless-stopped
     init: true
     ports:

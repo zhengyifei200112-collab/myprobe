@@ -39,7 +39,7 @@ Server 与轻量级 Go Agent，配套 Vue 3 响应式管理界面；公共仪表
 - 前端：Vue 3、TypeScript、Vite、ECharts
 - 数据库：SQLite WAL、显式版本迁移、分层历史汇总
 - 通信：带身份认证的 WebSocket，HTTP 作为降级通道
-- 部署：Docker Compose、systemd 或 GitHub Release 二进制
+- 部署：一键安装脚本、Docker Compose、systemd 或 GitHub Release 二进制
 
 ```text
 cmd/server                 Server 入口
@@ -54,6 +54,38 @@ web                        Vue 前端源码
 docs                       产品、协议、安全、治理和发布文档
 deploy                     Docker 与 systemd 部署资料
 ```
+
+## 快速部署
+
+Linux + systemd 环境推荐使用一键安装脚本。脚本会自动识别 amd64/arm64、下载最新
+GitHub Release、校验 SHA-256、写入安全权限的配置并启用 systemd 服务。首次正式
+Release 发布后可使用：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zhengyifei200112-collab/myprobe/main/install.sh -o install.sh
+chmod +x install.sh
+sudo ./install.sh server
+```
+
+在管理后台创建节点并取得一次性 Agent Token 后，在被监控机器运行：
+
+```bash
+sudo ./install.sh agent
+```
+
+脚本会隐藏输入管理员密码或 Agent Token。重复执行安装命令可升级二进制且默认保留
+配置；也支持 `update`、`status`、`uninstall` 和显式 `--purge`。执行
+`./install.sh --help` 查看全部参数。生产环境仍应通过支持 WebSocket 的 HTTPS
+反向代理对外提供 Server。
+
+除一键安装外，还支持以下方式：
+
+- Docker Compose：既可在本机从源码构建，也可使用 GHCR 预构建镜像。
+- 二进制部署：从 GitHub Releases 下载并对照 `SHA256SUMS` 校验。
+- 源码构建：适合开发、审计和定制。
+
+完整步骤、安全边界、升级与卸载说明参见
+[`docs/INSTALLATION.zh-CN.md`](docs/INSTALLATION.zh-CN.md)。
 
 ## 使用 Docker Compose 部署
 
@@ -77,6 +109,14 @@ MYPROBE_ENCRYPTION_KEY=至少32个随机字符的稳定密钥
 ```bash
 docker compose up -d --build
 docker compose ps
+```
+
+正式 Release 发布后，也可以在 `.env` 中设置
+`MYPROBE_IMAGE=ghcr.io/zhengyifei200112-collab/myprobe:latest`，然后运行：
+
+```bash
+docker compose pull
+docker compose up -d --no-build
 ```
 
 默认只监听宿主机 `127.0.0.1:25775`。生产环境应使用支持 WebSocket Upgrade 的
