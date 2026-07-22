@@ -7,6 +7,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-22
+
 ### Fixed
 
 - Docker release builds now copy Vite output from the configured embedded asset path,
@@ -28,5 +30,6 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   historical rollups, administration, alerts, sharing, maintenance, and deployment
   packaging.
 
-[Unreleased]: https://github.com/zhengyifei200112-collab/myprobe/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/zhengyifei200112-collab/myprobe/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/zhengyifei200112-collab/myprobe/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/zhengyifei200112-collab/myprobe/releases/tag/v0.1.0
