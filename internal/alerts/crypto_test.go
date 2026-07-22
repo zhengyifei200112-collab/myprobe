@@ -1,6 +1,7 @@
 package alerts
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 )
@@ -22,11 +23,12 @@ func TestCryptoBoxRoundTripAndTamperDetection(t *testing.T) {
 	if err != nil || string(opened) != string(plaintext) {
 		t.Fatalf("opened = %q, error = %v", opened, err)
 	}
-	replacement := byte('A')
-	if sealed[len(sealed)-1] == replacement {
-		replacement = 'B'
+	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(sealed, "v1:"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	tampered := sealed[:len(sealed)-1] + string(replacement)
+	raw[len(raw)-1] ^= 1
+	tampered := "v1:" + base64.RawURLEncoding.EncodeToString(raw)
 	if _, err := box.open(tampered); err == nil {
 		t.Fatal("tampered ciphertext was accepted")
 	}
