@@ -28,22 +28,24 @@ type ConfigSnapshot struct {
 }
 
 type ConfigNode struct {
-	ID                string     `json:"id"`
-	Name              string     `json:"name"`
-	SortOrder         int        `json:"sort_order"`
-	Hidden            bool       `json:"hidden"`
-	Tags              []string   `json:"tags"`
-	CountryCode       string     `json:"country_code"`
-	Currency          string     `json:"currency"`
-	PriceMinor        *int64     `json:"price_minor,omitempty"`
-	BillingCycle      string     `json:"billing_cycle"`
-	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
-	TrafficResetDay   *int       `json:"traffic_reset_day,omitempty"`
-	UseSinceBoot      bool       `json:"use_since_boot"`
-	LatencyMode       string     `json:"latency_mode"`
-	CustomHTML        string     `json:"custom_html,omitempty"`
-	CollectionSeconds int        `json:"collection_seconds"`
-	ReportSeconds     int        `json:"report_seconds"`
+	ID                string        `json:"id"`
+	Name              string        `json:"name"`
+	SortOrder         int           `json:"sort_order"`
+	Hidden            bool          `json:"hidden"`
+	Tags              []string      `json:"tags"`
+	CountryCode       string        `json:"country_code"`
+	Currency          string        `json:"currency"`
+	PriceMinor        *int64        `json:"price_minor,omitempty"`
+	BillingCycle      string        `json:"billing_cycle"`
+	ExpiresAt         *time.Time    `json:"expires_at,omitempty"`
+	TrafficResetDay   *int          `json:"traffic_reset_day,omitempty"`
+	UseSinceBoot      bool          `json:"use_since_boot"`
+	LatencyMode       string        `json:"latency_mode"`
+	CustomHTML        string        `json:"custom_html,omitempty"`
+	CustomBadges      []CustomBadge `json:"custom_badges,omitempty"`
+	CustomLinks       []CustomLink  `json:"custom_links,omitempty"`
+	CollectionSeconds int           `json:"collection_seconds"`
+	ReportSeconds     int           `json:"report_seconds"`
 }
 
 type ConfigTarget struct {
@@ -99,7 +101,7 @@ func (s *Store) ExportConfig(ctx context.Context, now time.Time) (ConfigSnapshot
 	}
 	snapshot := ConfigSnapshot{Version: ConfigSnapshotVersion, ExportedAt: now.UTC(), GroupMembers: members, NodeGroups: nodeGroups}
 	for _, item := range nodes {
-		snapshot.Nodes = append(snapshot.Nodes, ConfigNode{ID: item.ID, Name: item.Name, SortOrder: item.SortOrder, Hidden: item.Hidden, Tags: item.Tags, CountryCode: item.CountryCode, Currency: item.Currency, PriceMinor: item.PriceMinor, BillingCycle: item.BillingCycle, ExpiresAt: item.ExpiresAt, TrafficResetDay: item.TrafficResetDay, UseSinceBoot: item.UseSinceBoot, LatencyMode: item.LatencyMode, CustomHTML: item.CustomHTML, CollectionSeconds: item.CollectionSeconds, ReportSeconds: item.ReportSeconds})
+		snapshot.Nodes = append(snapshot.Nodes, ConfigNode{ID: item.ID, Name: item.Name, SortOrder: item.SortOrder, Hidden: item.Hidden, Tags: item.Tags, CountryCode: item.CountryCode, Currency: item.Currency, PriceMinor: item.PriceMinor, BillingCycle: item.BillingCycle, ExpiresAt: item.ExpiresAt, TrafficResetDay: item.TrafficResetDay, UseSinceBoot: item.UseSinceBoot, LatencyMode: item.LatencyMode, CustomHTML: item.CustomHTML, CustomBadges: item.CustomBadges, CustomLinks: item.CustomLinks, CollectionSeconds: item.CollectionSeconds, ReportSeconds: item.ReportSeconds})
 	}
 	for _, item := range targets {
 		snapshot.Targets = append(snapshot.Targets, ConfigTarget{ID: item.ID, Name: item.Name, Kind: item.Kind, Host: item.Host, Port: item.Port, IntervalSeconds: item.IntervalSeconds, TimeoutMS: item.TimeoutMS, Enabled: item.Enabled, SortOrder: item.SortOrder})
@@ -127,9 +129,15 @@ func (s *Store) ImportConfig(ctx context.Context, snapshot ConfigSnapshot, dryRu
 			return result, err
 		}
 		tags, _ := json.Marshal(item.Tags)
-		_, err = tx.ExecContext(ctx, `INSERT INTO nodes(id,name,sort_order,hidden,tags_json,country_code,currency,price_minor,billing_cycle,expires_at,traffic_reset_day,use_since_boot,latency_mode,custom_html,collection_seconds,report_seconds,created_at,updated_at)
-			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,sort_order=excluded.sort_order,hidden=excluded.hidden,tags_json=excluded.tags_json,country_code=excluded.country_code,currency=excluded.currency,price_minor=excluded.price_minor,billing_cycle=excluded.billing_cycle,expires_at=excluded.expires_at,traffic_reset_day=excluded.traffic_reset_day,use_since_boot=excluded.use_since_boot,latency_mode=excluded.latency_mode,custom_html=excluded.custom_html,collection_seconds=excluded.collection_seconds,report_seconds=excluded.report_seconds,updated_at=excluded.updated_at`,
-			item.ID, strings.TrimSpace(item.Name), item.SortOrder, item.Hidden, string(tags), strings.ToUpper(strings.TrimSpace(item.CountryCode)), strings.ToUpper(strings.TrimSpace(item.Currency)), item.PriceMinor, strings.TrimSpace(item.BillingCycle), nullableTime(item.ExpiresAt), item.TrafficResetDay, item.UseSinceBoot, item.LatencyMode, item.CustomHTML, item.CollectionSeconds, item.ReportSeconds, now, now)
+		customHTML, badges, links, normalizeErr := normalizeCustomDisplay(item.CustomHTML, item.CustomBadges, item.CustomLinks)
+		if normalizeErr != nil {
+			return result, fmt.Errorf("import node %s: %w", item.ID, normalizeErr)
+		}
+		badgesJSON, _ := json.Marshal(badges)
+		linksJSON, _ := json.Marshal(links)
+		_, err = tx.ExecContext(ctx, `INSERT INTO nodes(id,name,sort_order,hidden,tags_json,country_code,currency,price_minor,billing_cycle,expires_at,traffic_reset_day,use_since_boot,latency_mode,custom_html,custom_badges_json,custom_links_json,collection_seconds,report_seconds,created_at,updated_at)
+			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,sort_order=excluded.sort_order,hidden=excluded.hidden,tags_json=excluded.tags_json,country_code=excluded.country_code,currency=excluded.currency,price_minor=excluded.price_minor,billing_cycle=excluded.billing_cycle,expires_at=excluded.expires_at,traffic_reset_day=excluded.traffic_reset_day,use_since_boot=excluded.use_since_boot,latency_mode=excluded.latency_mode,custom_html=excluded.custom_html,custom_badges_json=excluded.custom_badges_json,custom_links_json=excluded.custom_links_json,collection_seconds=excluded.collection_seconds,report_seconds=excluded.report_seconds,updated_at=excluded.updated_at`,
+			item.ID, strings.TrimSpace(item.Name), item.SortOrder, item.Hidden, string(tags), strings.ToUpper(strings.TrimSpace(item.CountryCode)), strings.ToUpper(strings.TrimSpace(item.Currency)), item.PriceMinor, strings.TrimSpace(item.BillingCycle), nullableTime(item.ExpiresAt), item.TrafficResetDay, item.UseSinceBoot, item.LatencyMode, customHTML, string(badgesJSON), string(linksJSON), item.CollectionSeconds, item.ReportSeconds, now, now)
 		if err != nil {
 			return result, fmt.Errorf("import node %s: %w", item.ID, err)
 		}

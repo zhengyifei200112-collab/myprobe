@@ -37,6 +37,7 @@ const importTokens = ref<Record<string, string>>({})
 const emptyNode = () => ({ name: '', tags: '', country_code: '', collection_seconds: 5, report_seconds: 5 })
 const nodeCreate = reactive(emptyNode())
 const nodeEdit = ref<NodeMetadata | null>(null)
+const customEdit = ref<NodeMetadata | null>(null)
 const emptyTarget = (): Omit<AdminTarget, 'id'> => ({ name: '', kind: 'ping', host: '', interval_seconds: 60, timeout_ms: 3000, enabled: true, sort_order: 0 })
 const targetForm = reactive(emptyTarget() as Omit<AdminTarget, 'id'> & { id?: string })
 const groupForm = reactive({ id: '', name: '', kind: 'ping' as 'ping' | 'tcping' })
@@ -106,12 +107,44 @@ async function submitNodeCreate() {
 
 function editNode(item: NodeMetadata) {
   const copy = JSON.parse(JSON.stringify(item)) as NodeMetadata
+  copy.custom_badges ||= []
+  copy.custom_links ||= []
   if (copy.expires_at) {
     const date = new Date(copy.expires_at)
     const offset = date.getTimezoneOffset() * 60_000
     copy.expires_at = new Date(date.getTime() - offset).toISOString().slice(0, 16)
   }
   nodeEdit.value = copy
+}
+
+function addCustomBadge() {
+  customEdit.value?.custom_badges?.push({ label: '', color: 'blue' })
+}
+
+function addCustomLink() {
+  customEdit.value?.custom_links?.push({ label: '', url: 'https://' })
+}
+
+function editCustomDisplay(item: NodeMetadata) {
+  const copy = JSON.parse(JSON.stringify(item)) as NodeMetadata
+  copy.custom_badges ||= []
+  copy.custom_links ||= []
+  customEdit.value = copy
+}
+
+async function saveCustomDisplay() {
+  if (!customEdit.value) return
+  const item = customEdit.value
+  await run(async () => {
+    await updateNode(item.id, {
+      ...item,
+      price_minor: typeof item.price_minor === 'number' ? item.price_minor : null,
+      expires_at: item.expires_at || null,
+      traffic_reset_day: item.traffic_reset_day || null,
+    })
+    customEdit.value = null
+    await refresh()
+  }, '节点自定义展示已清洗并保存。')
 }
 
 async function saveNode() {
@@ -413,7 +446,7 @@ onMounted(async () => {
             <div class="entity-title"><div><strong>{{ item.name }}</strong><code>{{ item.id }}</code></div><span :class="['status-label', item.hidden ? 'muted' : 'active']">{{ item.hidden ? '已隐藏' : '公开' }}</span></div>
             <div class="entity-meta"><span>{{ item.country_code || '未设置地区' }}</span><span>采集 {{ item.collection_seconds }}s / 上报 {{ item.report_seconds }}s</span><span>{{ item.latency_mode.toUpperCase() }}</span></div>
             <div class="assignment-box"><b>分配目标组</b><label v-for="group in config.groups" :key="group.id" class="check-chip"><input type="checkbox" :checked="isNodeGroup(item.id, group.id)" :disabled="busy" @change="toggleNodeGroup(item, group, ($event.target as HTMLInputElement).checked)">{{ group.name }}</label><span v-if="!config.groups.length" class="empty-inline">请先创建目标组</span></div>
-            <div class="entity-actions"><button @click="editNode(item)">编辑</button><button @click="rotateToken(item)">轮换 Token</button><button class="danger" @click="removeNode(item)">删除</button></div>
+            <div class="entity-actions"><button @click="editNode(item)">编辑</button><button @click="editCustomDisplay(item)">自定义展示</button><button @click="rotateToken(item)">轮换 Token</button><button class="danger" @click="removeNode(item)">删除</button></div>
           </article>
         </section>
       </template>
@@ -481,6 +514,23 @@ onMounted(async () => {
     </main>
 
     <div v-if="nodeEdit" class="admin-overlay" @click.self="nodeEdit = null"><form class="admin-panel edit-dialog" @submit.prevent="saveNode"><header><div><span class="eyebrow">NODE SETTINGS</span><h2>{{ nodeEdit.name }}</h2></div><button type="button" class="close-button" @click="nodeEdit = null">×</button></header><div class="form-grid two"><label>名称<input v-model="nodeEdit.name" required></label><label>排序<input v-model.number="nodeEdit.sort_order" type="number"></label><label>国家/地区代码<input v-model="nodeEdit.country_code" maxlength="2"></label><label>标签（逗号分隔显示）<input :value="nodeEdit.tags.join(', ')" @input="nodeEdit!.tags = ($event.target as HTMLInputElement).value.split(',').map(x => x.trim()).filter(Boolean)"></label><label>采集间隔（秒）<input v-model.number="nodeEdit.collection_seconds" type="number" min="1" max="3600"></label><label>上报间隔（秒）<input v-model.number="nodeEdit.report_seconds" type="number" min="1" max="3600"></label><label>延迟模式<select v-model="nodeEdit.latency_mode"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label><label>流量重置日<input v-model.number="nodeEdit.traffic_reset_day" type="number" min="1" max="31" placeholder="自然月"></label><label>货币<input v-model="nodeEdit.currency" maxlength="3" placeholder="USD"></label><label>价格（最小货币单位）<input v-model.number="nodeEdit.price_minor" type="number" min="0"></label><label>计费周期<input v-model="nodeEdit.billing_cycle" placeholder="monthly"></label><label>到期时间<input v-model="nodeEdit.expires_at" type="datetime-local"></label></div><div class="switch-row"><label><input v-model="nodeEdit.hidden" type="checkbox"> 从公开面板隐藏</label><label><input v-model="nodeEdit.use_since_boot" type="checkbox"> 使用开机以来流量</label></div><div class="form-actions"><button class="primary-button" :disabled="busy">保存节点</button><button type="button" @click="nodeEdit = null">取消</button></div></form></div>
+
+    <div v-if="customEdit" class="admin-overlay" @click.self="customEdit = null">
+      <form class="admin-panel edit-dialog custom-dialog" @submit.prevent="saveCustomDisplay">
+        <header><div><span class="eyebrow">CUSTOM DISPLAY</span><h2>{{ customEdit.name }}</h2></div><button type="button" class="close-button" @click="customEdit = null">×</button></header>
+        <section class="custom-editor">
+          <header><div><strong>自定义徽章</strong><small>最多 12 个；使用预设颜色保证亮色/暗色主题可读</small></div><button type="button" :disabled="customEdit.custom_badges!.length >= 12" @click="addCustomBadge">添加徽章</button></header>
+          <div v-for="(badge, index) in customEdit.custom_badges" :key="`badge-${index}`" class="custom-editor-row badge-row"><input v-model="badge.label" maxlength="40" required placeholder="例如：CN2 GIA"><select v-model="badge.color"><option value="gray">灰色</option><option value="blue">蓝色</option><option value="green">绿色</option><option value="orange">橙色</option><option value="red">红色</option></select><button type="button" @click="customEdit.custom_badges!.splice(index, 1)">移除</button></div>
+          <p v-if="!customEdit.custom_badges?.length" class="empty-inline">尚未添加徽章</p>
+          <header><div><strong>自定义链接</strong><small>只允许完整的 HTTPS/HTTP 地址，最多 8 个</small></div><button type="button" :disabled="customEdit.custom_links!.length >= 8" @click="addCustomLink">添加链接</button></header>
+          <div v-for="(link, index) in customEdit.custom_links" :key="`link-${index}`" class="custom-editor-row link-row"><input v-model="link.label" maxlength="60" required placeholder="名称"><input v-model="link.url" type="url" required placeholder="https://example.com"><button type="button" @click="customEdit.custom_links!.splice(index, 1)">移除</button></div>
+          <p v-if="!customEdit.custom_links?.length" class="empty-inline">尚未添加链接</p>
+          <label class="html-field">进阶 HTML（服务端白名单清洗）<textarea v-model="customEdit.custom_html" maxlength="16384" rows="5" placeholder="允许 p、span、strong、em、small、code、br 和安全链接；脚本、事件属性及危险协议会被移除"></textarea></label>
+          <p class="security-hint">保存后展示的是服务端清洗结果，原始危险内容不会写入数据库。</p>
+        </section>
+        <div class="form-actions"><button class="primary-button" :disabled="busy">清洗并保存</button><button type="button" @click="customEdit = null">取消</button></div>
+      </form>
+    </div>
 
     <div v-if="token" class="admin-overlay"><section class="admin-panel token-dialog"><span class="eyebrow">ONE-TIME SECRET</span><h2>{{ tokenNode }} 的 Agent Token</h2><p>此 Token 只展示一次。复制并安全保存后再关闭。</p><code>{{ token }}</code><div class="form-actions"><button class="primary-button" @click="copyToken">复制 Token</button><button @click="token = ''">我已保存</button></div></section></div>
     <div v-if="Object.keys(importTokens).length" class="admin-overlay"><section class="admin-panel token-dialog import-token-dialog"><span class="eyebrow">ONE-TIME SECRETS</span><h2>导入节点的 Agent Token</h2><p>这些 Token 只展示一次。请全部安全保存后再关闭。</p><div class="import-token-list"><div v-for="(value, id) in importTokens" :key="id"><strong>{{ nodeName(id) }}</strong><code>{{ value }}</code></div></div><div class="form-actions"><button @click="importTokens = {}">我已全部保存</button></div></section></div>

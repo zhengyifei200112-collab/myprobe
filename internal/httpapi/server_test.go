@@ -10,12 +10,26 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	"github.com/gin-gonic/gin"
 	"github.com/zhengyifei200112-collab/myprobe/internal/agentgateway"
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
+
+func TestSecurityHeadersDisallowInlineScripts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(securityHeaders())
+	router.GET("/", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
+	policy := response.Header().Get("Content-Security-Policy")
+	if !strings.Contains(policy, "script-src 'self'") || strings.Contains(policy, "'unsafe-eval'") || strings.Contains(policy, "script-src 'self' 'unsafe-inline'") {
+		t.Fatalf("content security policy = %q", policy)
+	}
+}
 
 func TestAgentWebSocketHandshake(t *testing.T) {
 	ctx := context.Background()

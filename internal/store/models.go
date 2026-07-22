@@ -23,25 +23,37 @@ type Session struct {
 }
 
 type Node struct {
-	ID                string     `json:"id"`
-	Name              string     `json:"name"`
-	SortOrder         int        `json:"sort_order"`
-	Hidden            bool       `json:"hidden"`
-	Tags              []string   `json:"tags"`
-	CountryCode       string     `json:"country_code"`
-	Currency          string     `json:"currency"`
-	PriceMinor        *int64     `json:"price_minor,omitempty"`
-	BillingCycle      string     `json:"billing_cycle"`
-	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
-	TrafficResetDay   *int       `json:"traffic_reset_day,omitempty"`
-	UseSinceBoot      bool       `json:"use_since_boot"`
-	LatencyMode       string     `json:"latency_mode"`
-	CustomHTML        string     `json:"custom_html,omitempty"`
-	CollectionSeconds int        `json:"collection_seconds"`
-	ReportSeconds     int        `json:"report_seconds"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
-	LastSeenAt        *time.Time `json:"last_seen_at,omitempty"`
+	ID                string        `json:"id"`
+	Name              string        `json:"name"`
+	SortOrder         int           `json:"sort_order"`
+	Hidden            bool          `json:"hidden"`
+	Tags              []string      `json:"tags"`
+	CountryCode       string        `json:"country_code"`
+	Currency          string        `json:"currency"`
+	PriceMinor        *int64        `json:"price_minor,omitempty"`
+	BillingCycle      string        `json:"billing_cycle"`
+	ExpiresAt         *time.Time    `json:"expires_at,omitempty"`
+	TrafficResetDay   *int          `json:"traffic_reset_day,omitempty"`
+	UseSinceBoot      bool          `json:"use_since_boot"`
+	LatencyMode       string        `json:"latency_mode"`
+	CustomHTML        string        `json:"custom_html,omitempty"`
+	CustomBadges      []CustomBadge `json:"custom_badges,omitempty"`
+	CustomLinks       []CustomLink  `json:"custom_links,omitempty"`
+	CollectionSeconds int           `json:"collection_seconds"`
+	ReportSeconds     int           `json:"report_seconds"`
+	CreatedAt         time.Time     `json:"created_at"`
+	UpdatedAt         time.Time     `json:"updated_at"`
+	LastSeenAt        *time.Time    `json:"last_seen_at,omitempty"`
+}
+
+type CustomBadge struct {
+	Label string `json:"label"`
+	Color string `json:"color"`
+}
+
+type CustomLink struct {
+	Label string `json:"label"`
+	URL   string `json:"url"`
 }
 
 type CreateNodeParams struct {
@@ -66,6 +78,9 @@ type UpdateNodeParams struct {
 	TrafficResetDay   *int
 	UseSinceBoot      bool
 	LatencyMode       string
+	CustomHTML        string
+	CustomBadges      []CustomBadge
+	CustomLinks       []CustomLink
 	CollectionSeconds int
 	ReportSeconds     int
 }

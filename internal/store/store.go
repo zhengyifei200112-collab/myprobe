@@ -226,20 +226,20 @@ func (s *Store) AuthenticateAgent(ctx context.Context, token string) (Node, erro
 	}
 	var node Node
 	var hidden, useSinceBoot int
-	var tags, created, updated string
+	var tags, badges, links, created, updated string
 	var expiresAt, lastSeen sql.NullString
 	var priceMinor sql.NullInt64
 	var resetDay sql.NullInt64
 	err := s.db.QueryRowContext(ctx, `
 		SELECT n.id, n.name, n.sort_order, n.hidden, n.tags_json, n.country_code, n.currency,
 		       n.price_minor, n.billing_cycle, n.expires_at, n.traffic_reset_day, n.use_since_boot,
-		       n.latency_mode, n.custom_html, n.collection_seconds, n.report_seconds,
+		       n.latency_mode, n.custom_html, n.custom_badges_json, n.custom_links_json, n.collection_seconds, n.report_seconds,
 		       n.created_at, n.updated_at, n.last_seen_at
 		FROM agent_tokens t JOIN nodes n ON n.id = t.node_id
 		WHERE t.token_hash = ? AND t.revoked_at IS NULL`, tokenHash(token)).Scan(
 		&node.ID, &node.Name, &node.SortOrder, &hidden, &tags, &node.CountryCode, &node.Currency,
 		&priceMinor, &node.BillingCycle, &expiresAt, &resetDay, &useSinceBoot,
-		&node.LatencyMode, &node.CustomHTML, &node.CollectionSeconds, &node.ReportSeconds,
+		&node.LatencyMode, &node.CustomHTML, &badges, &links, &node.CollectionSeconds, &node.ReportSeconds,
 		&created, &updated, &lastSeen)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Node{}, ErrNotFound
@@ -247,7 +247,7 @@ func (s *Store) AuthenticateAgent(ctx context.Context, token string) (Node, erro
 	if err != nil {
 		return Node{}, err
 	}
-	decodeNodeFields(&node, hidden, useSinceBoot, tags, created, updated, expiresAt, lastSeen, priceMinor, resetDay)
+	decodeNodeFields(&node, hidden, useSinceBoot, tags, badges, links, created, updated, expiresAt, lastSeen, priceMinor, resetDay)
 	_, _ = s.db.ExecContext(ctx, "UPDATE agent_tokens SET last_used_at = ? WHERE token_hash = ?", nowText(), tokenHash(token))
 	return node, nil
 }
@@ -304,7 +304,7 @@ func (s *Store) SaveReport(ctx context.Context, nodeID string, report protocol.R
 func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNode, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT n.id, n.name, n.sort_order, n.hidden, n.tags_json, n.country_code,
 		n.currency, n.price_minor, n.billing_cycle, n.expires_at, n.traffic_reset_day, n.use_since_boot,
-		n.latency_mode, n.custom_html, n.collection_seconds, n.report_seconds, n.created_at, n.updated_at,
+		n.latency_mode, n.custom_html, n.custom_badges_json, n.custom_links_json, n.collection_seconds, n.report_seconds, n.created_at, n.updated_at,
 		n.last_seen_at, m.report_json
 		FROM nodes n LEFT JOIN metric_latest m ON m.node_id = n.id
 		WHERE n.hidden = 0 ORDER BY n.sort_order, n.name`)
@@ -316,16 +316,16 @@ func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNod
 	for rows.Next() {
 		var node Node
 		var hidden, useSinceBoot int
-		var tags, created, updated string
+		var tags, badges, links, created, updated string
 		var expiresAt, lastSeen, reportJSON sql.NullString
 		var priceMinor, resetDay sql.NullInt64
 		if err := rows.Scan(&node.ID, &node.Name, &node.SortOrder, &hidden, &tags, &node.CountryCode,
 			&node.Currency, &priceMinor, &node.BillingCycle, &expiresAt, &resetDay, &useSinceBoot,
-			&node.LatencyMode, &node.CustomHTML, &node.CollectionSeconds, &node.ReportSeconds, &created, &updated,
+			&node.LatencyMode, &node.CustomHTML, &badges, &links, &node.CollectionSeconds, &node.ReportSeconds, &created, &updated,
 			&lastSeen, &reportJSON); err != nil {
 			return nil, err
 		}
-		decodeNodeFields(&node, hidden, useSinceBoot, tags, created, updated, expiresAt, lastSeen, priceMinor, resetDay)
+		decodeNodeFields(&node, hidden, useSinceBoot, tags, badges, links, created, updated, expiresAt, lastSeen, priceMinor, resetDay)
 		item := PublicNode{Node: node}
 		if node.LastSeenAt != nil {
 			threshold := time.Duration(max(node.ReportSeconds*3, 20)) * time.Second
@@ -683,10 +683,12 @@ func (s *Store) LatencyHistory(ctx context.Context, nodeID string, start time.Ti
 	return result, rows.Err()
 }
 
-func decodeNodeFields(node *Node, hidden, useSinceBoot int, tags, created, updated string, expiresAt, lastSeen sql.NullString, priceMinor, resetDay sql.NullInt64) {
+func decodeNodeFields(node *Node, hidden, useSinceBoot int, tags, badges, links, created, updated string, expiresAt, lastSeen sql.NullString, priceMinor, resetDay sql.NullInt64) {
 	node.Hidden = hidden != 0
 	node.UseSinceBoot = useSinceBoot != 0
 	_ = json.Unmarshal([]byte(tags), &node.Tags)
+	_ = json.Unmarshal([]byte(badges), &node.CustomBadges)
+	_ = json.Unmarshal([]byte(links), &node.CustomLinks)
 	node.CreatedAt, _ = parseTime(created)
 	node.UpdatedAt, _ = parseTime(updated)
 	if expiresAt.Valid {

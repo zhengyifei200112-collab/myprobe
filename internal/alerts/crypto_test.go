@@ -22,7 +22,11 @@ func TestCryptoBoxRoundTripAndTamperDetection(t *testing.T) {
 	if err != nil || string(opened) != string(plaintext) {
 		t.Fatalf("opened = %q, error = %v", opened, err)
 	}
-	tampered := sealed[:len(sealed)-1] + "A"
+	replacement := byte('A')
+	if sealed[len(sealed)-1] == replacement {
+		replacement = 'B'
+	}
+	tampered := sealed[:len(sealed)-1] + string(replacement)
 	if _, err := box.open(tampered); err == nil {
 		t.Fatal("tampered ciphertext was accepted")
 	}

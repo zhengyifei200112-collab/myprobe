@@ -61,6 +61,8 @@ export interface NodeMetadata {
   use_since_boot: boolean
   latency_mode: 'ping' | 'tcping'
   custom_html?: string
+  custom_badges?: Array<{ label: string; color: 'gray' | 'blue' | 'green' | 'orange' | 'red' }>
+  custom_links?: Array<{ label: string; url: string }>
   collection_seconds: number
   report_seconds: number
   last_seen_at?: string

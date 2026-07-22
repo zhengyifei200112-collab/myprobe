@@ -5,15 +5,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"strings"
 	"time"
 
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
+	"github.com/zhengyifei200112-collab/myprobe/internal/sanitize"
 )
 
 func (s *Store) ListNodes(ctx context.Context) ([]Node, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT id, name, sort_order, hidden, tags_json, country_code, currency,
-		price_minor, billing_cycle, expires_at, traffic_reset_day, use_since_boot, latency_mode, custom_html,
+		price_minor, billing_cycle, expires_at, traffic_reset_day, use_since_boot, latency_mode, custom_html, custom_badges_json, custom_links_json,
 		collection_seconds, report_seconds, created_at, updated_at, last_seen_at FROM nodes ORDER BY sort_order, name`)
 	if err != nil {
 		return nil, err
@@ -23,13 +25,13 @@ func (s *Store) ListNodes(ctx context.Context) ([]Node, error) {
 	for rows.Next() {
 		var n Node
 		var hidden, boot int
-		var tags, created, updated string
+		var tags, badges, links, created, updated string
 		var expires, seen sql.NullString
 		var price, reset sql.NullInt64
-		if err := rows.Scan(&n.ID, &n.Name, &n.SortOrder, &hidden, &tags, &n.CountryCode, &n.Currency, &price, &n.BillingCycle, &expires, &reset, &boot, &n.LatencyMode, &n.CustomHTML, &n.CollectionSeconds, &n.ReportSeconds, &created, &updated, &seen); err != nil {
+		if err := rows.Scan(&n.ID, &n.Name, &n.SortOrder, &hidden, &tags, &n.CountryCode, &n.Currency, &price, &n.BillingCycle, &expires, &reset, &boot, &n.LatencyMode, &n.CustomHTML, &badges, &links, &n.CollectionSeconds, &n.ReportSeconds, &created, &updated, &seen); err != nil {
 			return nil, err
 		}
-		decodeNodeFields(&n, hidden, boot, tags, created, updated, expires, seen, price, reset)
+		decodeNodeFields(&n, hidden, boot, tags, badges, links, created, updated, expires, seen, price, reset)
 		items = append(items, n)
 	}
 	return items, rows.Err()
@@ -48,10 +50,16 @@ func (s *Store) UpdateNode(ctx context.Context, id string, p UpdateNodeParams) (
 	if p.TrafficResetDay != nil && (*p.TrafficResetDay < 1 || *p.TrafficResetDay > 31) {
 		return Node{}, errors.New("invalid traffic reset day")
 	}
+	customHTML, badges, links, err := normalizeCustomDisplay(p.CustomHTML, p.CustomBadges, p.CustomLinks)
+	if err != nil {
+		return Node{}, err
+	}
 	tags, _ := json.Marshal(p.Tags)
+	badgesJSON, _ := json.Marshal(badges)
+	linksJSON, _ := json.Marshal(links)
 	now := nowText()
-	result, err := s.db.ExecContext(ctx, `UPDATE nodes SET name=?, sort_order=?, hidden=?, tags_json=?, country_code=?, currency=?, price_minor=?, billing_cycle=?, expires_at=?, traffic_reset_day=?, use_since_boot=?, latency_mode=?, collection_seconds=?, report_seconds=?, updated_at=? WHERE id=?`,
-		p.Name, p.SortOrder, p.Hidden, string(tags), p.CountryCode, p.Currency, p.PriceMinor, p.BillingCycle, nullableTime(p.ExpiresAt), p.TrafficResetDay, p.UseSinceBoot, p.LatencyMode, p.CollectionSeconds, p.ReportSeconds, now, id)
+	result, err := s.db.ExecContext(ctx, `UPDATE nodes SET name=?, sort_order=?, hidden=?, tags_json=?, country_code=?, currency=?, price_minor=?, billing_cycle=?, expires_at=?, traffic_reset_day=?, use_since_boot=?, latency_mode=?, custom_html=?, custom_badges_json=?, custom_links_json=?, collection_seconds=?, report_seconds=?, updated_at=? WHERE id=?`,
+		p.Name, p.SortOrder, p.Hidden, string(tags), p.CountryCode, p.Currency, p.PriceMinor, p.BillingCycle, nullableTime(p.ExpiresAt), p.TrafficResetDay, p.UseSinceBoot, p.LatencyMode, customHTML, string(badgesJSON), string(linksJSON), p.CollectionSeconds, p.ReportSeconds, now, id)
 	if err != nil {
 		return Node{}, err
 	}
@@ -69,6 +77,37 @@ func (s *Store) UpdateNode(ctx context.Context, id string, p UpdateNodeParams) (
 		}
 	}
 	return Node{}, ErrNotFound
+}
+
+func normalizeCustomDisplay(customHTML string, badges []CustomBadge, links []CustomLink) (string, []CustomBadge, []CustomLink, error) {
+	if len(badges) > 12 || len(links) > 8 {
+		return "", nil, nil, errors.New("too many custom badges or links")
+	}
+	allowedColors := map[string]bool{"gray": true, "blue": true, "green": true, "orange": true, "red": true}
+	cleanBadges := make([]CustomBadge, 0, len(badges))
+	for _, item := range badges {
+		item.Label = strings.TrimSpace(item.Label)
+		item.Color = strings.ToLower(strings.TrimSpace(item.Color))
+		if item.Label == "" || len(item.Label) > 40 || !allowedColors[item.Color] {
+			return "", nil, nil, errors.New("invalid custom badge")
+		}
+		cleanBadges = append(cleanBadges, item)
+	}
+	cleanLinks := make([]CustomLink, 0, len(links))
+	for _, item := range links {
+		item.Label = strings.TrimSpace(item.Label)
+		item.URL = strings.TrimSpace(item.URL)
+		parsed, err := url.ParseRequestURI(item.URL)
+		if err != nil || item.Label == "" || len(item.Label) > 60 || len(item.URL) > 2048 || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			return "", nil, nil, errors.New("invalid custom link")
+		}
+		cleanLinks = append(cleanLinks, item)
+	}
+	cleanHTML, err := sanitize.HTML(customHTML)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	return cleanHTML, cleanBadges, cleanLinks, nil
 }
 
 func (s *Store) DeleteNode(ctx context.Context, id string) error {

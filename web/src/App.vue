@@ -356,6 +356,12 @@ onBeforeUnmount(() => {
             <span :class="{ overdue: item.node.expires_at && new Date(item.node.expires_at) < now }">{{ expiry(item) }}</span>
           </div>
 
+          <div v-if="item.node.custom_badges?.length || item.node.custom_links?.length || item.node.custom_html" class="custom-display">
+            <div v-if="item.node.custom_badges?.length" class="custom-badges"><span v-for="badge in item.node.custom_badges" :key="`${badge.label}-${badge.color}`" :class="`custom-badge ${badge.color}`">{{ badge.label }}</span></div>
+            <div v-if="item.node.custom_links?.length" class="custom-links"><a v-for="link in item.node.custom_links" :key="link.url" :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.label }} ↗</a></div>
+            <div v-if="item.node.custom_html" class="custom-html" v-html="item.node.custom_html"></div>
+          </div>
+
           <div class="config-line">
             <span>{{ item.report?.cpu.logical_cores || '—' }}C</span>
             <i></i><span>{{ formatBytes(item.report?.memory.total_bytes || 0) }}</span>

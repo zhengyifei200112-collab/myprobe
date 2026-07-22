@@ -298,26 +298,29 @@ func (s *Server) adminNodes(c *gin.Context) {
 func (s *Server) updateNode(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32<<10)
 	var r struct {
-		Name              string     `json:"name"`
-		SortOrder         int        `json:"sort_order"`
-		Hidden            bool       `json:"hidden"`
-		Tags              []string   `json:"tags"`
-		CountryCode       string     `json:"country_code"`
-		Currency          string     `json:"currency"`
-		PriceMinor        *int64     `json:"price_minor"`
-		BillingCycle      string     `json:"billing_cycle"`
-		ExpiresAt         *time.Time `json:"expires_at"`
-		TrafficResetDay   *int       `json:"traffic_reset_day"`
-		UseSinceBoot      bool       `json:"use_since_boot"`
-		LatencyMode       string     `json:"latency_mode"`
-		CollectionSeconds int        `json:"collection_seconds"`
-		ReportSeconds     int        `json:"report_seconds"`
+		Name              string              `json:"name"`
+		SortOrder         int                 `json:"sort_order"`
+		Hidden            bool                `json:"hidden"`
+		Tags              []string            `json:"tags"`
+		CountryCode       string              `json:"country_code"`
+		Currency          string              `json:"currency"`
+		PriceMinor        *int64              `json:"price_minor"`
+		BillingCycle      string              `json:"billing_cycle"`
+		ExpiresAt         *time.Time          `json:"expires_at"`
+		TrafficResetDay   *int                `json:"traffic_reset_day"`
+		UseSinceBoot      bool                `json:"use_since_boot"`
+		LatencyMode       string              `json:"latency_mode"`
+		CustomHTML        string              `json:"custom_html"`
+		CustomBadges      []store.CustomBadge `json:"custom_badges"`
+		CustomLinks       []store.CustomLink  `json:"custom_links"`
+		CollectionSeconds int                 `json:"collection_seconds"`
+		ReportSeconds     int                 `json:"report_seconds"`
 	}
 	if json.NewDecoder(c.Request.Body).Decode(&r) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-	node, err := s.store.UpdateNode(c.Request.Context(), c.Param("nodeID"), store.UpdateNodeParams{Name: r.Name, SortOrder: r.SortOrder, Hidden: r.Hidden, Tags: r.Tags, CountryCode: r.CountryCode, Currency: r.Currency, PriceMinor: r.PriceMinor, BillingCycle: r.BillingCycle, ExpiresAt: r.ExpiresAt, TrafficResetDay: r.TrafficResetDay, UseSinceBoot: r.UseSinceBoot, LatencyMode: r.LatencyMode, CollectionSeconds: r.CollectionSeconds, ReportSeconds: r.ReportSeconds})
+	node, err := s.store.UpdateNode(c.Request.Context(), c.Param("nodeID"), store.UpdateNodeParams{Name: r.Name, SortOrder: r.SortOrder, Hidden: r.Hidden, Tags: r.Tags, CountryCode: r.CountryCode, Currency: r.Currency, PriceMinor: r.PriceMinor, BillingCycle: r.BillingCycle, ExpiresAt: r.ExpiresAt, TrafficResetDay: r.TrafficResetDay, UseSinceBoot: r.UseSinceBoot, LatencyMode: r.LatencyMode, CustomHTML: r.CustomHTML, CustomBadges: r.CustomBadges, CustomLinks: r.CustomLinks, CollectionSeconds: r.CollectionSeconds, ReportSeconds: r.ReportSeconds})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
