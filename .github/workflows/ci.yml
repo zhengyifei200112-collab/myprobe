@@ -40,3 +40,13 @@ jobs:
           go test ./...
           go vet ./...
           go build ./cmd/...
+
+      - name: Validate installer
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck
+          bash -n install.sh scripts/install_test.sh
+          shellcheck install.sh scripts/install_test.sh
+          bash scripts/install_test.sh
+          bash install.sh --help >/dev/null

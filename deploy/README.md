@@ -1,10 +1,73 @@
 # Deployment
 
+MyProbe supports four maintained deployment paths:
+
+| Method | Best for | Updates | Service management |
+| --- | --- | --- | --- |
+| One-click installer | Linux amd64/arm64 hosts | Re-run installer or use `update` | systemd |
+| Published container | Docker/Compose hosts | Pull a new immutable release tag | Docker |
+| Release binary | Custom or non-systemd environments | Replace verified binary | Operator-defined |
+| Source build | Development and auditing | Rebuild from a reviewed commit | Operator-defined |
+
+Every packaged method depends on a published GitHub Release. Release assets and
+containers are produced only from version tags on the protected `main` branch.
+
+## One-click Linux installer
+
+Download the script first so it can be inspected before root execution:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/zhengyifei200112-collab/myprobe/main/install.sh -o install.sh
+chmod +x install.sh
+sudo ./install.sh server
+```
+
+The Server installer prompts for the initial administrator password, generates a
+stable encryption key when one is not provided, installs the hardened systemd unit,
+and listens on `127.0.0.1:25775` by default.
+
+After creating a node in the administration console, install its Agent:
+
+```sh
+sudo ./install.sh agent
+```
+
+The Agent installer prompts for the HTTPS Server URL and the one-time node token.
+Credentials are stored in root-readable environment files with mode `0600`; they
+are never printed by the script.
+
+Common lifecycle commands:
+
+```sh
+sudo ./install.sh update server
+sudo ./install.sh update agent --name default
+./install.sh status server
+sudo ./install.sh uninstall agent --name default
+```
+
+Configuration and Server data are preserved by a normal uninstall. Use `--purge`
+only when permanent removal is intended. For unattended provisioning, use secret files
+such as `--admin-password-file`, `--encryption-key-file`, and `--token-file`;
+see `./install.sh --help`.
+
 ## Docker Compose
 
 1. Copy `.env.example` to `.env`, replace the administrator password and encryption
    key, and adjust the trusted proxy CIDR to the actual container network.
-2. Run `docker compose up -d --build`.
+2. Choose either a local build or published image:
+
+   ```sh
+   # Local build from the checked-out source.
+   docker compose up -d --build
+
+   # Published image (set this in .env).
+   MYPROBE_IMAGE=ghcr.io/zhengyifei200112-collab/myprobe:latest
+   docker compose pull
+   docker compose up -d --no-build
+   ```
+
+   Pin a version such as `v1.2.0` instead of `latest` when deterministic rollback
+   is required.
 3. Put an HTTPS reverse proxy in front of `127.0.0.1:25775`. The proxy must support
    WebSocket upgrades and should pass `X-Forwarded-For`.
 4. Keep `MYPROBE_COOKIE_SECURE=true` when the public URL is HTTPS. Set
@@ -14,6 +77,20 @@
 The named `myprobe-data` volume contains SQLite and must be included in host backups.
 Keep `MYPROBE_ENCRYPTION_KEY` in a separate secret backup because encrypted notification
 credentials cannot be recovered without it.
+
+## Release binaries
+
+Download the binary and `SHA256SUMS` from the same GitHub Release. Verify the exact
+asset before installing it:
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS
+install -m 0755 myprobe-server-linux-amd64 /usr/local/bin/myprobe-server
+```
+
+Linux Server and Agent assets are published for amd64 and arm64. Windows Server and
+Agent binaries and macOS Agent binaries are also published. Non-systemd service
+management remains the operator's responsibility.
 
 ## systemd
 
@@ -42,3 +119,7 @@ For each monitored machine, install `myprobe-agent@.service`, create a file such
 MYPROBE_SERVER=https://status.example.com
 MYPROBE_TOKEN=the-one-time-node-token
 ```
+
+The committed units are also the canonical templates embedded by `install.sh`. Any
+unit change must update both surfaces and the installer validation in the same pull
+request.

@@ -57,7 +57,27 @@ theme-safe structured badges, validated external links, and server-sanitized adv
 HTML. The feature-by-feature implementation and evidence matrix is maintained in the
 product specification.
 
-## Docker deployment
+## Deployment
+
+For Linux hosts with systemd, the one-click installer is the recommended path. It
+detects amd64/arm64, downloads a GitHub Release, verifies its SHA-256 checksum, writes
+protected configuration, and enables the service:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zhengyifei200112-collab/myprobe/main/install.sh -o install.sh
+chmod +x install.sh
+sudo ./install.sh server
+```
+
+Run `sudo ./install.sh agent` on a monitored host after creating its node and
+one-time token. Re-running the command updates the binary without replacing existing
+configuration. The installer also supports explicit `update`, `status`,
+`uninstall`, and `--purge` operations. A published GitHub Release is required.
+
+Docker Compose, verified release binaries, and source builds remain supported. See
+[`deploy/README.md`](deploy/README.md) for the complete deployment matrix.
+
+### Docker Compose
 
 ```bash
 cp .env.example .env
@@ -66,9 +86,10 @@ docker compose up -d --build
 ```
 
 The default bind address is `127.0.0.1:25775`; publish it through an HTTPS reverse proxy
-with WebSocket support. See [`deploy/README.md`](deploy/README.md) for proxy/security
-guidance and hardened systemd units. The SQLite database is stored in the
-`myprobe-data` volume.
+with WebSocket support. To use a published image instead of building locally, set
+`MYPROBE_IMAGE=ghcr.io/zhengyifei200112-collab/myprobe:latest` in `.env`, then run
+`docker compose pull` and `docker compose up -d --no-build`. The SQLite database is
+stored in the `myprobe-data` volume.
 
 ## Local development
 

@@ -26,9 +26,11 @@ git push origin vX.Y.Z
 ```
 
 The Release workflow builds Server binaries for Linux and Windows, Agent binaries for
-Linux, Windows, and macOS, generates SHA-256 checksums, and publishes a GitHub Release.
-Verify the checksums and perform a clean install plus an upgrade from the previous
-release before announcing it.
+Linux, Windows, and macOS, generates SHA-256 checksums, publishes a GitHub Release, and
+pushes versioned plus `latest` Server images to GitHub Container Registry. Verify the
+checksums, container health check, one-click clean install, and upgrade from the
+previous release before announcing it. The installer must not be advertised as
+available until at least one GitHub Release has completed successfully.
 
 ## Urgent fixes
 

@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Multi-path deployment with a checksum-verifying Linux one-click installer for Server
+  and Agent, lifecycle commands, published GHCR images, binary instructions, and
+  Chinese installation documentation.
 - Complete Simplified Chinese README covering features, deployment, configuration,
   security, development, and maintenance workflows.
 - Repository governance baseline for GitHub Flow, Conventional Commits, code ownership,
