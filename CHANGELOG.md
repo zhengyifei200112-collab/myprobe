@@ -7,6 +7,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Docker release builds now copy Vite output from the configured embedded asset path,
+  with a pull-request container build preventing regressions before a release tag.
+
 ## [0.1.0] - 2026-07-22
 
 ### Added

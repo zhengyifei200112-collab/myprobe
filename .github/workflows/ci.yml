@@ -41,6 +41,9 @@ jobs:
           go vet ./...
           go build ./cmd/...
 
+      - name: Build container image
+        run: docker build --build-arg VERSION=ci --tag myprobe:ci .
+
       - name: Validate installer
         shell: bash
         run: |
