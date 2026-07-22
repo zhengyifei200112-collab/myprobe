@@ -46,8 +46,10 @@ samples to the browser. Monthly traffic accounting handles configurable reset da
 short months, host counter resets, and persisted O(1) dashboard reads. The responsive
 management console covers login, node lifecycle and token rotation, Ping/TCPing target
 CRUD, target groups, node assignments, encrypted notifications, alert rules, and
-password-protected read-only chart sharing. The remaining ZJM parity work is tracked in
-the product specification.
+password-protected read-only chart sharing. Its maintenance area provides previewable,
+versioned configuration transfer and passphrase-encrypted full database backups with
+restart-safe staged restore and automatic preservation of the previous database. The
+remaining ZJM parity work is tracked in the product specification.
 
 ## Local development
 

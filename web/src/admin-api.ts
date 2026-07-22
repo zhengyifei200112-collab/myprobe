@@ -74,6 +74,18 @@ export interface ChartShare {
   updated_at: string
 }
 
+export interface ConfigImportResult {
+  nodes_created: number
+  nodes_updated: number
+  targets_created: number
+  targets_updated: number
+  groups_created: number
+  groups_updated: number
+  memberships_created: number
+  agent_tokens?: Record<string, string>
+  dry_run: boolean
+}
+
 let csrfToken = ''
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -149,3 +161,34 @@ export const loadChartShares = () => request<{ shares: ChartShare[] }>('/api/v1/
 export const createChartShare = (payload: unknown) => request<{ share: ChartShare; path: string }>('/api/v1/admin/chart-shares', { method: 'POST', body: JSON.stringify(payload) })
 export const updateChartShare = (id: string, payload: unknown) => request<{ share: ChartShare; path: string }>(`/api/v1/admin/chart-shares/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
 export const deleteChartShare = (id: string) => request<void>(`/api/v1/admin/chart-shares/${encodeURIComponent(id)}`, { method: 'DELETE' })
+
+async function downloadRequest(path: string, options: RequestInit = {}): Promise<{ blob: Blob; filename: string }> {
+  const headers = new Headers(options.headers)
+  if (csrfToken) headers.set('X-CSRF-Token', csrfToken)
+  const response = await fetch(path, { ...options, headers, credentials: 'same-origin', cache: 'no-store' })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { error?: string }
+    throw new Error(payload.error || `请求失败（${response.status}）`)
+  }
+  const disposition = response.headers.get('Content-Disposition') || ''
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] || 'myprobe-download'
+  return { blob: await response.blob(), filename }
+}
+
+export const downloadConfiguration = () => downloadRequest('/api/v1/admin/maintenance/config')
+export const importConfiguration = (config: unknown, dryRun: boolean) => request<{ result: ConfigImportResult }>('/api/v1/admin/maintenance/config/import', { method: 'POST', body: JSON.stringify({ dry_run: dryRun, config }) })
+export const downloadDatabaseBackup = (passphrase: string) => downloadRequest('/api/v1/admin/maintenance/backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ passphrase }) })
+
+export async function uploadDatabaseRestore(file: File, passphrase: string): Promise<{ staged: boolean; restart_required: boolean }> {
+  const form = new FormData()
+  form.set('file', file)
+  form.set('passphrase', passphrase)
+  const headers = new Headers()
+  if (csrfToken) headers.set('X-CSRF-Token', csrfToken)
+  const response = await fetch('/api/v1/admin/maintenance/restore', { method: 'POST', body: form, headers, credentials: 'same-origin', cache: 'no-store' })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { error?: string }
+    throw new Error(payload.error || `请求失败（${response.status}）`)
+  }
+  return response.json()
+}

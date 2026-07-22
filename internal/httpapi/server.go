@@ -124,6 +124,10 @@ func (s *Server) routes() {
 	admin.POST("/chart-shares", s.createChartShare)
 	admin.PATCH("/chart-shares/:shareID", s.updateChartShare)
 	admin.DELETE("/chart-shares/:shareID", s.deleteChartShare)
+	admin.GET("/maintenance/config", s.exportConfiguration)
+	admin.POST("/maintenance/config/import", s.importConfiguration)
+	admin.POST("/maintenance/backup", s.exportDatabaseBackup)
+	admin.POST("/maintenance/restore", s.stageDatabaseRestore)
 }
 
 func (s *Server) publicNodes(c *gin.Context) {

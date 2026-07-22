@@ -27,6 +27,14 @@ func main() {
 		os.Exit(1)
 	}
 	ctx := context.Background()
+	recovery, err := store.ApplyPendingRestore(ctx, cfg.DatabasePath, time.Now().UTC())
+	if err != nil {
+		logger.Error("apply pending database restore", "error", err)
+		os.Exit(1)
+	}
+	if recovery != "" {
+		logger.Warn("pending database restore applied; previous database preserved", "recovery_path", recovery)
+	}
 	database, err := store.Open(ctx, cfg.DatabasePath)
 	if err != nil {
 		logger.Error("open database", "error", err)

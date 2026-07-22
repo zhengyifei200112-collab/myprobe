@@ -30,8 +30,13 @@
 - Advanced custom HTML is sanitized and governed by a restrictive CSP.
 - Production startup warns or fails when a public listener is configured without an
   explicit TLS/reverse-proxy acknowledgement.
-- Database backups exclude agent tokens and notification secrets unless encrypted export
-  is explicitly selected.
+- Versioned JSON configuration exports exclude passwords, agent tokens, notification
+  credentials, share password hashes, sessions, and history. Full database exports use
+  scrypt-derived AES-256-GCM keys with independently authenticated chunks and an
+  authenticated terminator, so wrong passwords, tampering, truncation, and trailing data
+  are rejected. Restores are integrity-checked and staged while the service is running;
+  the next startup activates them before opening SQLite and preserves the previous
+  database as a timestamped recovery copy.
 
 Administrators are trusted to configure outbound notification destinations. Webhooks may
 intentionally target private infrastructure, so deployments should apply egress firewall

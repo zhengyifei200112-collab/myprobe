@@ -29,7 +29,8 @@ var migrations embed.FS
 var ErrNotFound = errors.New("not found")
 
 type Store struct {
-	db *sql.DB
+	db   *sql.DB
+	path string
 }
 
 func Open(ctx context.Context, path string) (*Store, error) {
@@ -52,7 +53,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("ping sqlite: %w", err)
 	}
-	store := &Store{db: db}
+	store := &Store{db: db, path: path}
 	if err := store.Migrate(ctx); err != nil {
 		db.Close()
 		return nil, err
@@ -69,6 +70,8 @@ func sqliteDSN(path string) string {
 }
 
 func (s *Store) Close() error { return s.db.Close() }
+
+func (s *Store) DatabasePath() string { return s.path }
 
 func (s *Store) Health(ctx context.Context) error { return s.db.PingContext(ctx) }
 

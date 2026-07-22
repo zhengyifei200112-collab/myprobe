@@ -29,7 +29,7 @@
 | Notifications | Telegram bot and generic webhook channels | Mock receiver tests | Implemented |
 | Alerts | Offline/recovery, CPU, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Implemented |
 | Custom display | Structured badges/links and sanitized advanced HTML | Sanitizer and CSP tests | Planned |
-| Configuration | Versioned import/export and database backup/restore | Round-trip and upgrade tests | Planned |
+| Configuration | Versioned merge import/export and encrypted database backup/restore | Round-trip, tamper, dry-run and recovery tests | Implemented |
 | Authentication | Password login/logout/change, CSRF, throttling and CAPTCHA | Security integration tests | Partial: login/logout/session/CSRF implemented |
 | Audit | Administrative action log | API verification | Partial: all current management writes recorded; viewer remains |
 

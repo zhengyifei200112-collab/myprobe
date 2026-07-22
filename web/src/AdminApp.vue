@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import type { NodeMetadata } from './types'
-import type { AdminGroup, AdminTarget, AlertEvent, AlertKind, AlertRule, ChartShare, LatencyConfig, NotificationChannel } from './admin-api'
+import type { AdminGroup, AdminTarget, AlertEvent, AlertKind, AlertRule, ChartShare, ConfigImportResult, LatencyConfig, NotificationChannel } from './admin-api'
 import {
   createAlertRule, createChannel, createChartShare, createGroup, createNode, createTarget, deleteAlertRule, deleteChannel, deleteChartShare,
   deleteGroup, deleteNode, deleteTarget, loadAlertEvents, loadAlertRules, loadChannels, loadLatencyConfig,
-  loadChartShares, loadNodes, login, logout, restoreSession, rotateNodeToken, setGroupTarget, setNodeGroup, testChannel,
+  downloadConfiguration, downloadDatabaseBackup, importConfiguration, loadChartShares, loadNodes, login, logout, restoreSession, rotateNodeToken, setGroupTarget, setNodeGroup, testChannel, uploadDatabaseRestore,
   updateAlertRule, updateChannel, updateChartShare, updateGroup, updateNode, updateTarget,
 } from './admin-api'
 
-type Tab = 'nodes' | 'targets' | 'groups' | 'alerts' | 'shares'
+type Tab = 'nodes' | 'targets' | 'groups' | 'alerts' | 'shares' | 'maintenance'
 const authenticated = ref(false)
 const booting = ref(true)
 const busy = ref(false)
@@ -26,6 +26,13 @@ const events = ref<AlertEvent[]>([])
 const shares = ref<ChartShare[]>([])
 const token = ref('')
 const tokenNode = ref('')
+const configFile = ref<File | null>(null)
+const configDocument = ref<unknown>(null)
+const configPreview = ref<ConfigImportResult | null>(null)
+const backupPassphrase = ref('')
+const restorePassphrase = ref('')
+const restoreFile = ref<File | null>(null)
+const importTokens = ref<Record<string, string>>({})
 
 const emptyNode = () => ({ name: '', tags: '', country_code: '', collection_seconds: 5, report_seconds: 5 })
 const nodeCreate = reactive(emptyNode())
@@ -289,6 +296,74 @@ async function copyToken() {
   notice.value = 'Token 已复制。'
 }
 
+function saveDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+async function exportConfigFile() {
+  await run(async () => {
+    const result = await downloadConfiguration()
+    saveDownload(result.blob, result.filename)
+  }, '配置文件已导出；其中不包含密码、Token、通知凭据和历史数据。')
+}
+
+function selectConfigFile(event: Event) {
+  configFile.value = (event.target as HTMLInputElement).files?.[0] || null
+  configDocument.value = null
+  configPreview.value = null
+}
+
+async function previewConfigImport() {
+  if (!configFile.value) return
+  await run(async () => {
+    if (configFile.value!.size > 10 * 1024 * 1024) throw new Error('配置文件不能超过 10 MiB。')
+    configDocument.value = JSON.parse(await configFile.value!.text())
+    configPreview.value = (await importConfiguration(configDocument.value, true)).result
+  }, '预检通过；尚未修改任何配置。')
+}
+
+async function applyConfigImport() {
+  if (!configDocument.value || !configPreview.value) return
+  if (!confirm('确认以合并模式导入此配置？同 ID 项会更新，未出现在文件中的现有项会保留。')) return
+  await run(async () => {
+    const result = (await importConfiguration(configDocument.value, false)).result
+    importTokens.value = result.agent_tokens || {}
+    configPreview.value = null
+    configDocument.value = null
+    configFile.value = null
+    await refresh()
+  }, '配置已合并导入。新节点 Token 只在当前弹窗显示一次。')
+}
+
+async function exportEncryptedBackup() {
+  await run(async () => {
+    if (backupPassphrase.value.length < 12) throw new Error('备份口令至少需要 12 个字符。')
+    const result = await downloadDatabaseBackup(backupPassphrase.value)
+    saveDownload(result.blob, result.filename)
+    backupPassphrase.value = ''
+  }, '加密数据库备份已下载。请将口令与备份文件分开保存。')
+}
+
+function selectRestoreFile(event: Event) {
+  restoreFile.value = (event.target as HTMLInputElement).files?.[0] || null
+}
+
+async function stageRestore() {
+  if (!restoreFile.value) return
+  if (!confirm('确认校验并暂存此数据库备份？当前服务不会立即切换，重启后才会启用，并保留恢复前数据库。')) return
+  await run(async () => {
+    if (restorePassphrase.value.length < 12) throw new Error('恢复口令至少需要 12 个字符。')
+    await uploadDatabaseRestore(restoreFile.value!, restorePassphrase.value)
+    restorePassphrase.value = ''
+    restoreFile.value = null
+  }, '备份校验成功并已暂存。请在合适的维护窗口重启服务以完成恢复。')
+}
+
 onMounted(async () => {
   authenticated.value = await restoreSession()
   if (authenticated.value) {
@@ -308,6 +383,7 @@ onMounted(async () => {
         <button :class="{ active: tab === 'groups' }" @click="tab = 'groups'">目标组</button>
         <button :class="{ active: tab === 'alerts' }" @click="tab = 'alerts'">告警</button>
         <button :class="{ active: tab === 'shares' }" @click="tab = 'shares'">分享</button>
+        <button :class="{ active: tab === 'maintenance' }" @click="tab = 'maintenance'">维护</button>
       </nav>
       <div class="nav-actions"><a class="soft-button" href="/">公开面板</a><button v-if="authenticated" class="soft-button" @click="signOut">退出</button></div>
     </header>
@@ -373,15 +449,40 @@ onMounted(async () => {
         <section class="event-section"><h2>最近告警事件</h2><div class="event-list admin-panel"><article v-for="item in events" :key="item.id"><span :class="['event-state', item.state]">{{ item.state === 'firing' ? '告警' : item.state === 'resolved' ? '恢复' : '失败' }}</span><div><strong>{{ nodeName(item.node_id) }}</strong><p>{{ item.delivery_error || item.message }}</p></div><time>{{ new Date(item.created_at).toLocaleString('zh-CN', { hour12: false }) }}</time></article><p v-if="!events.length" class="empty-admin">暂无告警事件</p></div></section>
       </template>
 
-      <template v-else>
+      <template v-else-if="tab === 'shares'">
         <section class="admin-heading"><div><span class="eyebrow">SECURE SHARING</span><h1>图表分享</h1><p>为选定节点生成密码保护的只读历史图表链接。</p></div><span class="count-pill">{{ shares.length }} 个分享</span></section>
         <form class="admin-panel compact-form" @submit.prevent="saveShare"><h2>{{ shareForm.id ? '编辑分享' : '创建分享' }}</h2><div class="form-grid two"><label>名称<input v-model="shareForm.name" required placeholder="客户监控视图"></label><label>{{ shareForm.id ? '新密码（留空保持不变）' : '分享密码' }}<input v-model="shareForm.password" type="password" minlength="8" :required="!shareForm.id" autocomplete="new-password"></label></div><div class="assignment-box share-node-picker"><b>允许查看的节点</b><label v-for="item in nodes" :key="item.id" class="check-chip"><input v-model="shareForm.node_ids" type="checkbox" :value="item.id">{{ item.name }}</label><span v-if="!nodes.length" class="empty-inline">暂无节点</span></div><div v-if="shareForm.id" class="switch-row"><label><input v-model="shareForm.enabled" type="checkbox"> 启用此分享</label></div><div class="form-actions"><button class="primary-button" :disabled="busy || !shareForm.node_ids.length">{{ shareForm.id ? '保存分享' : '创建分享' }}</button><button v-if="shareForm.id" type="button" @click="editShare()">取消</button></div></form>
         <section class="admin-list"><article v-for="item in shares" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ item.name }}</strong><code>/share/{{ item.id }}</code></div><span :class="['status-label', item.enabled ? 'active' : 'muted']">{{ item.enabled ? '可访问' : '已停用' }}</span></div><div class="entity-meta"><span>{{ item.node_ids.length }} 个节点</span><span>密码保护</span><span>只读</span></div><div class="entity-actions"><a class="entity-link" :href="`/share/${item.id}`" target="_blank">打开</a><button @click="copyShare(item)">复制链接</button><button @click="editShare(item)">编辑</button><button class="danger" @click="removeShare(item)">删除</button></div></article><div v-if="!shares.length" class="admin-panel empty-admin">尚未创建图表分享</div></section>
+      </template>
+
+      <template v-else>
+        <section class="admin-heading"><div><span class="eyebrow">PORTABILITY &amp; RECOVERY</span><h1>迁移与备份</h1><p>迁移可审阅配置，或创建包含全部数据的口令加密数据库备份。</p></div><span class="count-pill">版本 1</span></section>
+        <div class="maintenance-grid">
+          <section class="admin-panel maintenance-card">
+            <span class="eyebrow">SAFE CONFIG</span><h2>版本化配置</h2><p>JSON 配置不包含管理员密码、Agent Token、通知密文、分享密码和历史指标。导入默认使用合并模式。</p>
+            <div class="maintenance-actions"><button class="primary-button" :disabled="busy" @click="exportConfigFile">导出配置 JSON</button></div>
+            <div class="maintenance-divider"></div>
+            <label class="file-field">选择配置文件<input type="file" accept="application/json,.json" @change="selectConfigFile"></label>
+            <div class="form-actions"><button :disabled="busy || !configFile" @click="previewConfigImport">预检导入</button><button v-if="configPreview" class="primary-button" :disabled="busy" @click="applyConfigImport">确认合并导入</button></div>
+            <div v-if="configPreview" class="import-preview"><strong>预检结果</strong><span>节点：新增 {{ configPreview.nodes_created }} / 更新 {{ configPreview.nodes_updated }}</span><span>目标：新增 {{ configPreview.targets_created }} / 更新 {{ configPreview.targets_updated }}</span><span>目标组：新增 {{ configPreview.groups_created }} / 更新 {{ configPreview.groups_updated }}</span><span>新增关系：{{ configPreview.memberships_created }}</span></div>
+          </section>
+          <section class="admin-panel maintenance-card">
+            <span class="eyebrow">FULL SNAPSHOT</span><h2>加密数据库备份</h2><p>包含认证数据、通知配置和全部历史。服务先生成 SQLite 一致快照，再使用口令分块加密。</p>
+            <div class="form-grid one"><label>备份口令（至少 12 个字符）<input v-model="backupPassphrase" type="password" minlength="12" autocomplete="new-password"></label></div>
+            <div class="maintenance-actions"><button class="primary-button" :disabled="busy || backupPassphrase.length < 12" @click="exportEncryptedBackup">生成并下载 .mpb</button></div>
+            <div class="maintenance-divider danger-line"></div>
+            <h3>恢复数据库</h3><p>上传后只做解密、完整性校验并暂存；重启时原子启用，恢复前数据库会保留为可回退副本。</p>
+            <label class="file-field">选择 .mpb 备份<input type="file" accept=".mpb,application/octet-stream" @change="selectRestoreFile"></label>
+            <div class="form-grid one"><label>恢复口令<input v-model="restorePassphrase" type="password" minlength="12" autocomplete="current-password"></label></div>
+            <div class="maintenance-actions"><button class="danger-button" :disabled="busy || !restoreFile || restorePassphrase.length < 12" @click="stageRestore">校验并暂存恢复</button></div>
+          </section>
+        </div>
       </template>
     </main>
 
     <div v-if="nodeEdit" class="admin-overlay" @click.self="nodeEdit = null"><form class="admin-panel edit-dialog" @submit.prevent="saveNode"><header><div><span class="eyebrow">NODE SETTINGS</span><h2>{{ nodeEdit.name }}</h2></div><button type="button" class="close-button" @click="nodeEdit = null">×</button></header><div class="form-grid two"><label>名称<input v-model="nodeEdit.name" required></label><label>排序<input v-model.number="nodeEdit.sort_order" type="number"></label><label>国家/地区代码<input v-model="nodeEdit.country_code" maxlength="2"></label><label>标签（逗号分隔显示）<input :value="nodeEdit.tags.join(', ')" @input="nodeEdit!.tags = ($event.target as HTMLInputElement).value.split(',').map(x => x.trim()).filter(Boolean)"></label><label>采集间隔（秒）<input v-model.number="nodeEdit.collection_seconds" type="number" min="1" max="3600"></label><label>上报间隔（秒）<input v-model.number="nodeEdit.report_seconds" type="number" min="1" max="3600"></label><label>延迟模式<select v-model="nodeEdit.latency_mode"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label><label>流量重置日<input v-model.number="nodeEdit.traffic_reset_day" type="number" min="1" max="31" placeholder="自然月"></label><label>货币<input v-model="nodeEdit.currency" maxlength="3" placeholder="USD"></label><label>价格（最小货币单位）<input v-model.number="nodeEdit.price_minor" type="number" min="0"></label><label>计费周期<input v-model="nodeEdit.billing_cycle" placeholder="monthly"></label><label>到期时间<input v-model="nodeEdit.expires_at" type="datetime-local"></label></div><div class="switch-row"><label><input v-model="nodeEdit.hidden" type="checkbox"> 从公开面板隐藏</label><label><input v-model="nodeEdit.use_since_boot" type="checkbox"> 使用开机以来流量</label></div><div class="form-actions"><button class="primary-button" :disabled="busy">保存节点</button><button type="button" @click="nodeEdit = null">取消</button></div></form></div>
 
     <div v-if="token" class="admin-overlay"><section class="admin-panel token-dialog"><span class="eyebrow">ONE-TIME SECRET</span><h2>{{ tokenNode }} 的 Agent Token</h2><p>此 Token 只展示一次。复制并安全保存后再关闭。</p><code>{{ token }}</code><div class="form-actions"><button class="primary-button" @click="copyToken">复制 Token</button><button @click="token = ''">我已保存</button></div></section></div>
+    <div v-if="Object.keys(importTokens).length" class="admin-overlay"><section class="admin-panel token-dialog import-token-dialog"><span class="eyebrow">ONE-TIME SECRETS</span><h2>导入节点的 Agent Token</h2><p>这些 Token 只展示一次。请全部安全保存后再关闭。</p><div class="import-token-list"><div v-for="(value, id) in importTokens" :key="id"><strong>{{ nodeName(id) }}</strong><code>{{ value }}</code></div></div><div class="form-actions"><button @click="importTokens = {}">我已全部保存</button></div></section></div>
   </div>
 </template>
