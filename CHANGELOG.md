@@ -7,6 +7,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Fresh Server installations and the default Compose configuration now expose
+  `http://SERVER_IP:25775` directly, while an explicit reverse-proxy mode retains
+  loopback binding and HTTPS-only session cookies.
+
 ## [0.2.0] - 2026-07-22
 
 ### Added

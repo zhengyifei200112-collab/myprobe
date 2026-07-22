@@ -36,8 +36,19 @@ sudo ./install.sh server
 5. 创建权限为 `0600` 的 `/etc/myprobe/server.env`。
 6. 安装并启动加固后的 `myprobe.service`。
 
-默认监听 `127.0.0.1:25775`。首次安装会隐藏输入管理员密码，并自动生成至少
+默认监听 `0.0.0.0:25775`，主机防火墙放行 TCP 25775 后可通过
+`http://服务器IP:25775` 访问。首次安装会隐藏输入管理员密码，并自动生成至少
 32 字符的稳定加密密钥。该密钥必须与 SQLite 数据库分开备份。
+
+直接 IP 模式使用 HTTP，登录密码和会话不会被传输加密。准备使用域名和 HTTPS 反向
+代理时，安装命令改为：
+
+```bash
+sudo ./install.sh server --reverse-proxy
+```
+
+该模式默认监听 `127.0.0.1:25775`、启用 Secure Cookie，并信任本机反向代理。反向
+代理必须支持 WebSocket Upgrade。
 
 ## 一键安装 Agent
 
@@ -122,6 +133,16 @@ docker compose up -d --no-build
 ```
 
 固定版本标签便于审计和回滚；`latest` 更方便，但会随新版本变化。
+
+Compose 默认通过 `0.0.0.0:25775` 提供直接 IP 访问。切换到域名反代时，在 `.env`
+中设置：
+
+```dotenv
+MYPROBE_BIND_ADDRESS=127.0.0.1
+MYPROBE_COOKIE_SECURE=true
+MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=true
+MYPROBE_TRUSTED_PROXIES=反向代理连接到容器时使用的准确IP或CIDR
+```
 
 ### Docker Agent 监控 Linux 宿主机
 

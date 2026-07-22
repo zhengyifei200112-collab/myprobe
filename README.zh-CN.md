@@ -119,12 +119,16 @@ docker compose pull
 docker compose up -d --no-build
 ```
 
-默认只监听宿主机 `127.0.0.1:25775`。生产环境应使用支持 WebSocket Upgrade 的
-HTTPS 反向代理对外提供服务。确认 HTTPS 代理可用后设置：
+默认监听宿主机 `0.0.0.0:25775`。主机防火墙放行后，可以直接打开
+`http://服务器IP:25775`。直接 HTTP 不会加密登录密码和会话，必须使用足够强且唯一的
+管理员密码，不建议长期暴露在不可信网络。
+
+需要域名和 HTTPS 时，使用支持 WebSocket Upgrade 的反向代理，并设置：
 
 ```dotenv
 MYPROBE_COOKIE_SECURE=true
 MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=true
+MYPROBE_BIND_ADDRESS=127.0.0.1
 MYPROBE_TRUSTED_PROXIES=反向代理实际连接到MyProbe时使用的IP或CIDR
 ```
 
@@ -132,6 +136,9 @@ MYPROBE_TRUSTED_PROXIES=反向代理实际连接到MyProbe时使用的IP或CIDR
 提供的转发头会被忽略。SQLite 数据保存在 `myprobe-data` Volume 中，必须纳入宿主机
 备份。`MYPROBE_ENCRYPTION_KEY` 应与数据库分开备份，否则通知渠道中的加密凭据无法
 恢复。
+
+一键安装脚本同样默认提供 `http://服务器IP:25775`。如果从安装时就准备使用域名反代，
+请执行 `sudo ./install.sh server --reverse-proxy`。
 
 ### 使用 Docker 监控 Linux 宿主机
 

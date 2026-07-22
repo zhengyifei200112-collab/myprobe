@@ -85,11 +85,18 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-The default bind address is `127.0.0.1:25775`; publish it through an HTTPS reverse proxy
-with WebSocket support. To use a published image instead of building locally, set
+The default bind address is `0.0.0.0:25775`, so the dashboard is available at
+`http://SERVER_IP:25775` after the host firewall allows the port. Direct HTTP does not
+encrypt credentials or sessions; use a strong unique administrator password. To use a
+published image instead of building locally, set
 `MYPROBE_IMAGE=ghcr.io/zhengyifei200112-collab/myprobe:latest` in `.env`, then run
 `docker compose pull` and `docker compose up -d --no-build`. The SQLite database is
 stored in the `myprobe-data` volume.
+
+For a domain with HTTPS, set `MYPROBE_BIND_ADDRESS=127.0.0.1`,
+`MYPROBE_COOKIE_SECURE=true`, and `MYPROBE_TRUSTED_PROXIES` to the exact reverse-proxy
+address or CIDR. The proxy must support WebSocket upgrades. The one-click installer
+provides the same mode through `sudo ./install.sh server --reverse-proxy`.
 
 Linux hosts can also run the dedicated Agent image with `compose.agent.yaml`. It uses
 host networking and read-only host filesystem access so CPU, process, network, and disk

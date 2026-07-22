@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 DynamicUser=yes
 StateDirectory=myprobe
-Environment=MYPROBE_LISTEN=127.0.0.1:25775
+Environment=MYPROBE_LISTEN=0.0.0.0:25775
 Environment=MYPROBE_DATABASE=/var/lib/myprobe/myprobe.db
 EnvironmentFile=/etc/myprobe/server.env
 ExecStart=/usr/local/bin/myprobe-server

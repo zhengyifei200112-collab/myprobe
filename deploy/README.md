@@ -24,7 +24,12 @@ sudo ./install.sh server
 
 The Server installer prompts for the initial administrator password, generates a
 stable encryption key when one is not provided, installs the hardened systemd unit,
-and listens on `127.0.0.1:25775` by default.
+and listens on `0.0.0.0:25775` by default. After the host firewall allows TCP 25775,
+open `http://SERVER_IP:25775`. Direct HTTP does not encrypt credentials or sessions.
+
+For a domain behind an HTTPS reverse proxy, install with
+`sudo ./install.sh server --reverse-proxy`. This binds `127.0.0.1:25775`, enables Secure
+cookies, and trusts loopback proxies. The proxy must support WebSocket upgrades.
 
 After creating a node in the administration console, install its Agent:
 
@@ -68,11 +73,11 @@ see `./install.sh --help`.
 
    Pin a version such as `v1.2.0` instead of `latest` when deterministic rollback
    is required.
-3. Put an HTTPS reverse proxy in front of `127.0.0.1:25775`. The proxy must support
+3. The default `0.0.0.0:25775` mapping provides `http://SERVER_IP:25775`. Confirm the
+   host firewall scope and use a strong unique administrator password.
+4. For an HTTPS domain, bind `127.0.0.1`, enable `MYPROBE_COOKIE_SECURE`, and set
+   `MYPROBE_TRUSTED_PROXIES` to the exact proxy address/CIDR. The proxy must support
    WebSocket upgrades and should pass `X-Forwarded-For`.
-4. Keep `MYPROBE_COOKIE_SECURE=true` when the public URL is HTTPS. Set
-   `MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=true` after the HTTPS proxy is in place, or only
-   when deliberately accepting the risk of direct public HTTP.
 
 The named `myprobe-data` volume contains SQLite and must be included in host backups.
 Keep `MYPROBE_ENCRYPTION_KEY` in a separate secret backup because encrypted notification
