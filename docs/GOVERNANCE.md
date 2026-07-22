@@ -2,25 +2,20 @@
 
 ## Visibility and branch protection
 
-The repository is currently private. On GitHub Free, branch protection and repository
-rulesets are available for public repositories; protecting a private repository requires
-GitHub Pro, Team, or Enterprise. Changing visibility is a separate owner decision because
-it exposes source code and commit history immediately.
+The repository is public and `main` is protected. GitHub Free provides branch protection
+and repository rulesets for public repositories; a future change back to private would
+require GitHub Pro, Team, or Enterprise to preserve these controls.
 
-Until server-side protection is available, `AGENTS.md`, pull request templates, the
-Governance workflow, and maintainer discipline define the process. They improve review
-quality but cannot technically prevent an administrator from pushing directly to `main`.
-
-When branch protection or rulesets become available, protect `main` with:
+The active `main` protection requires:
 
 - require a pull request before merging;
 - require the `test` and `pull-request-policy` status checks;
 - require all review conversations to be resolved;
 - dismiss stale approvals after new commits;
-- require one approval only after a second trusted maintainer exists, because authors
-  cannot approve their own pull requests;
+- zero approvals while the project has one maintainer; increase this to one after a
+  second trusted maintainer exists, because authors cannot approve their own pull requests;
 - require linear history and block force pushes and branch deletion;
-- apply the rule to administrators when operational recovery access is documented.
+- apply the rule to administrators.
 
 ## Roles
 
