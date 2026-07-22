@@ -92,6 +92,9 @@ func (c *Client) connectionLoop(ctx context.Context) {
 		}
 		if err != nil && ctx.Err() == nil {
 			c.logger.Warn("agent websocket disconnected", "error", err, "retry_in", backoff)
+			if metadataErr := c.sendHelloHTTP(ctx); metadataErr != nil {
+				c.logger.Debug("upload agent metadata over HTTP fallback", "error", metadataErr)
+			}
 		}
 		delay := withJitter(backoff)
 		select {
@@ -287,7 +290,11 @@ func (c *Client) sendReport(ctx context.Context, report protocol.Report) error {
 
 func (c *Client) sendHTTP(ctx context.Context, envelope protocol.Envelope) error {
 	endpoint := *c.baseURL
-	endpoint.Path = path.Join(endpoint.Path, "/api/v1/agent/report")
+	endpointPath := "/api/v1/agent/report"
+	if envelope.Type == protocol.TypeHello {
+		endpointPath = "/api/v1/agent/hello"
+	}
+	endpoint.Path = path.Join(endpoint.Path, endpointPath)
 	body, err := json.Marshal(envelope)
 	if err != nil {
 		return err
@@ -307,6 +314,18 @@ func (c *Client) sendHTTP(ctx context.Context, envelope protocol.Envelope) error
 		return fmt.Errorf("HTTP fallback status %d", response.StatusCode)
 	}
 	return nil
+}
+
+func (c *Client) sendHelloHTTP(ctx context.Context) error {
+	hello, err := c.collector.Hello(ctx, c.config.AgentVersion, int(c.config.CollectionPeriod/time.Second), int(c.config.ReportPeriod/time.Second))
+	if err != nil {
+		return err
+	}
+	envelope, err := protocol.NewEnvelope(protocol.TypeHello, c.sequence.Add(1), hello)
+	if err != nil {
+		return err
+	}
+	return c.sendHTTP(ctx, envelope)
 }
 
 func (c *Client) applyConfig(config protocol.Config) {

@@ -49,9 +49,9 @@ CRUD, target groups, node assignments, encrypted notifications, alert rules, and
 password-protected read-only chart sharing. Its maintenance area provides previewable,
 versioned configuration transfer and passphrase-encrypted full database backups with
 restart-safe staged restore and automatic preservation of the previous database. The
-public cards also support theme-safe structured badges, validated external links, and
-server-sanitized advanced HTML. The remaining ZJM parity work is tracked in the product
-specification.
+public cards also support persisted OS/platform labels, tested commercial expiry status,
+theme-safe structured badges, validated external links, and server-sanitized advanced
+HTML. The remaining ZJM parity work is tracked in the product specification.
 
 ## Local development
 

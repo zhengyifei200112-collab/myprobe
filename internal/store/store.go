@@ -326,7 +326,7 @@ func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNod
 			return nil, err
 		}
 		decodeNodeFields(&node, hidden, useSinceBoot, tags, badges, links, created, updated, expiresAt, lastSeen, priceMinor, resetDay)
-		item := PublicNode{Node: node}
+		item := PublicNode{Node: node, Commercial: ComputeCommercialStatus(node.ExpiresAt, now)}
 		if node.LastSeenAt != nil {
 			threshold := time.Duration(max(node.ReportSeconds*3, 20)) * time.Second
 			item.Online = now.Sub(*node.LastSeenAt) <= threshold
@@ -342,6 +342,19 @@ func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNod
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	metadata, err := s.agentMetadata(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for index := range result {
+		if item, ok := metadata[result[index].Node.ID]; ok {
+			item.Hostname = ""
+			item.AgentVersion = ""
+			item.Capabilities = nil
+			copy := item
+			result[index].Node.Agent = &copy
+		}
 	}
 	for index := range result {
 		latency, err := s.ListLatestLatency(ctx, result[index].Node.ID)

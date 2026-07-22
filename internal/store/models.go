@@ -40,27 +40,40 @@ type AuditEntry struct {
 }
 
 type Node struct {
-	ID                string        `json:"id"`
-	Name              string        `json:"name"`
-	SortOrder         int           `json:"sort_order"`
-	Hidden            bool          `json:"hidden"`
-	Tags              []string      `json:"tags"`
-	CountryCode       string        `json:"country_code"`
-	Currency          string        `json:"currency"`
-	PriceMinor        *int64        `json:"price_minor,omitempty"`
-	BillingCycle      string        `json:"billing_cycle"`
-	ExpiresAt         *time.Time    `json:"expires_at,omitempty"`
-	TrafficResetDay   *int          `json:"traffic_reset_day,omitempty"`
-	UseSinceBoot      bool          `json:"use_since_boot"`
-	LatencyMode       string        `json:"latency_mode"`
-	CustomHTML        string        `json:"custom_html,omitempty"`
-	CustomBadges      []CustomBadge `json:"custom_badges,omitempty"`
-	CustomLinks       []CustomLink  `json:"custom_links,omitempty"`
-	CollectionSeconds int           `json:"collection_seconds"`
-	ReportSeconds     int           `json:"report_seconds"`
-	CreatedAt         time.Time     `json:"created_at"`
-	UpdatedAt         time.Time     `json:"updated_at"`
-	LastSeenAt        *time.Time    `json:"last_seen_at,omitempty"`
+	ID                string         `json:"id"`
+	Name              string         `json:"name"`
+	SortOrder         int            `json:"sort_order"`
+	Hidden            bool           `json:"hidden"`
+	Tags              []string       `json:"tags"`
+	CountryCode       string         `json:"country_code"`
+	Currency          string         `json:"currency"`
+	PriceMinor        *int64         `json:"price_minor,omitempty"`
+	BillingCycle      string         `json:"billing_cycle"`
+	ExpiresAt         *time.Time     `json:"expires_at,omitempty"`
+	TrafficResetDay   *int           `json:"traffic_reset_day,omitempty"`
+	UseSinceBoot      bool           `json:"use_since_boot"`
+	LatencyMode       string         `json:"latency_mode"`
+	CustomHTML        string         `json:"custom_html,omitempty"`
+	CustomBadges      []CustomBadge  `json:"custom_badges,omitempty"`
+	CustomLinks       []CustomLink   `json:"custom_links,omitempty"`
+	CollectionSeconds int            `json:"collection_seconds"`
+	ReportSeconds     int            `json:"report_seconds"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	LastSeenAt        *time.Time     `json:"last_seen_at,omitempty"`
+	Agent             *AgentMetadata `json:"agent,omitempty"`
+}
+
+type AgentMetadata struct {
+	Hostname        string    `json:"hostname,omitempty"`
+	OperatingSystem string    `json:"operating_system,omitempty"`
+	Platform        string    `json:"platform,omitempty"`
+	PlatformVersion string    `json:"platform_version,omitempty"`
+	KernelVersion   string    `json:"kernel_version,omitempty"`
+	Architecture    string    `json:"architecture,omitempty"`
+	AgentVersion    string    `json:"agent_version,omitempty"`
+	Capabilities    []string  `json:"capabilities,omitempty"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type CustomBadge struct {
@@ -103,12 +116,18 @@ type UpdateNodeParams struct {
 }
 
 type PublicNode struct {
-	Node    Node             `json:"node"`
-	Online  bool             `json:"online"`
-	Stale   bool             `json:"stale"`
-	Report  *protocol.Report `json:"report,omitempty"`
-	Latency []LatestLatency  `json:"latency,omitempty"`
-	Traffic TrafficUsage     `json:"traffic"`
+	Node       Node              `json:"node"`
+	Online     bool              `json:"online"`
+	Stale      bool              `json:"stale"`
+	Report     *protocol.Report  `json:"report,omitempty"`
+	Latency    []LatestLatency   `json:"latency,omitempty"`
+	Traffic    TrafficUsage      `json:"traffic"`
+	Commercial *CommercialStatus `json:"commercial,omitempty"`
+}
+
+type CommercialStatus struct {
+	Expired bool `json:"expired"`
+	Days    int  `json:"days"`
 }
 
 type TrafficUsage struct {

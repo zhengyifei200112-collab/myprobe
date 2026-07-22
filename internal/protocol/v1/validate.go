@@ -30,6 +30,32 @@ func (e Envelope) Validate(now time.Time) error {
 	return nil
 }
 
+func (h Hello) Validate() error {
+	values := []struct {
+		name, value string
+		limit       int
+	}{
+		{"agent_version", h.AgentVersion, 128}, {"hostname", h.Hostname, 253}, {"machine_id", h.MachineID, 512}, {"os", h.OS, 64}, {"platform", h.Platform, 128}, {"platform_version", h.PlatformVersion, 128}, {"kernel_version", h.KernelVersion, 256}, {"architecture", h.Architecture, 64},
+	}
+	for _, item := range values {
+		if len(item.value) > item.limit {
+			return fmt.Errorf("%s is too long", item.name)
+		}
+	}
+	if len(h.Capabilities) > 64 {
+		return errors.New("too many agent capabilities")
+	}
+	for _, item := range h.Capabilities {
+		if strings.TrimSpace(item) == "" || len(item) > 128 {
+			return errors.New("invalid agent capability")
+		}
+	}
+	if h.CollectionSeconds < 0 || h.CollectionSeconds > 3600 || h.ReportSeconds < 0 || h.ReportSeconds > 3600 {
+		return errors.New("invalid agent intervals")
+	}
+	return nil
+}
+
 func (r Report) Validate() error {
 	if r.CapturedAt.IsZero() {
 		return fmt.Errorf("captured_at: %w", ErrInvalidTimestamp)

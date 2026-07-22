@@ -77,6 +77,30 @@ func (g *Gateway) HTTPReport(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, protocol.Acknowledgement{Sequence: envelope.Sequence})
 }
 
+func (g *Gateway) HTTPHello(w http.ResponseWriter, r *http.Request) {
+	node, ok := g.authenticate(w, r)
+	if !ok {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, protocol.MaxMessageBytes)
+	defer r.Body.Close()
+	var envelope protocol.Envelope
+	if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil || envelope.Validate(time.Now().UTC()) != nil || envelope.Type != protocol.TypeHello {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid hello envelope"})
+		return
+	}
+	hello, err := protocol.DecodePayload[protocol.Hello](envelope)
+	if err != nil || hello.Validate() != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid hello payload"})
+		return
+	}
+	if err := g.store.SaveAgentMetadata(r.Context(), node.ID, hello); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to store agent metadata"})
+		return
+	}
+	writeJSON(w, http.StatusOK, protocol.Acknowledgement{Sequence: envelope.Sequence})
+}
+
 func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 	node, ok := g.authenticate(w, r)
 	if !ok {
@@ -101,8 +125,13 @@ func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 		_ = connection.Close(websocket.StatusPolicyViolation, "hello required")
 		return
 	}
-	if _, err := protocol.DecodePayload[protocol.Hello](first); err != nil {
+	hello, err := protocol.DecodePayload[protocol.Hello](first)
+	if err != nil || hello.Validate() != nil {
 		_ = connection.Close(websocket.StatusPolicyViolation, "invalid hello")
+		return
+	}
+	if err := g.store.SaveAgentMetadata(ctx, node.ID, hello); err != nil {
+		_ = connection.Close(websocket.StatusInternalError, "metadata storage failed")
 		return
 	}
 	welcome, _ := protocol.NewEnvelope(protocol.TypeWelcome, 0, protocol.Welcome{

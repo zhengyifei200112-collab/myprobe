@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -68,11 +70,29 @@ func TestAgentWebSocketHandshake(t *testing.T) {
 	if welcome.Type != protocol.TypeWelcome {
 		t.Fatalf("message type = %q", welcome.Type)
 	}
+	nodes, err := database.ListNodes(ctx)
+	if err != nil || len(nodes) != 1 || nodes[0].Agent == nil || nodes[0].Agent.AgentVersion != "test" {
+		t.Fatalf("agent metadata = %#v, error = %v", nodes, err)
+	}
 
 	port := 443
 	target, err := database.CreateTarget(ctx, store.CreateTargetParams{Name: "HTTPS", Kind: protocol.TaskKindTCPing, Host: "example.com", Port: &port, IntervalSeconds: 30, TimeoutMS: 1000})
 	if err != nil {
 		t.Fatal(err)
+	}
+	fallbackHello, _ := protocol.NewEnvelope(protocol.TypeHello, 2, protocol.Hello{AgentVersion: "fallback", Hostname: "fallback-host", OS: "linux", Platform: "alpine", Architecture: "amd64"})
+	fallbackBody, _ := json.Marshal(fallbackHello)
+	fallbackRequest := httptest.NewRequest(http.MethodPost, "/api/v1/agent/hello", bytes.NewReader(fallbackBody))
+	fallbackRequest.Header.Set("Authorization", "Bearer "+token)
+	fallbackRequest.Header.Set("Content-Type", "application/json")
+	fallbackResponse := httptest.NewRecorder()
+	api.Handler().ServeHTTP(fallbackResponse, fallbackRequest)
+	if fallbackResponse.Code != http.StatusOK {
+		t.Fatalf("HTTP hello = %d %s", fallbackResponse.Code, fallbackResponse.Body.String())
+	}
+	nodes, err = database.ListNodes(ctx)
+	if err != nil || nodes[0].Agent == nil || nodes[0].Agent.AgentVersion != "fallback" {
+		t.Fatalf("HTTP metadata = %#v, error = %v", nodes, err)
 	}
 	group, err := database.CreateTargetGroup(ctx, "TCP", protocol.TaskKindTCPing)
 	if err != nil {

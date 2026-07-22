@@ -4,6 +4,9 @@
 
 - Agents are untrusted authenticated writers for exactly one node.
 - Public visitors receive only visible nodes and explicitly public fields.
+- Agent machine IDs are never persisted. Real hostnames, Agent versions, and capability
+  lists are available to administrators but removed from public node responses; public
+  cards receive only OS, platform, version, kernel, and architecture labels.
 - Administrators can mutate configuration through cookie-authenticated, CSRF-protected APIs.
 - Notification destinations are privileged secrets and are never returned after creation.
 

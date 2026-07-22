@@ -10,6 +10,7 @@ export interface PublicNode {
   report?: Report
   latency?: LatestLatency[]
   traffic: { period_start: string; period_end: string; rx_bytes: number; tx_bytes: number }
+  commercial?: { expired: boolean; days: number }
 }
 
 export interface LatestLatency {
@@ -66,6 +67,7 @@ export interface NodeMetadata {
   collection_seconds: number
   report_seconds: number
   last_seen_at?: string
+  agent?: { hostname?: string; operating_system?: string; platform?: string; platform_version?: string; kernel_version?: string; architecture?: string; agent_version?: string; capabilities?: string[]; updated_at: string }
 }
 
 export interface Report {

@@ -34,7 +34,15 @@ func (s *Store) ListNodes(ctx context.Context) ([]Node, error) {
 		decodeNodeFields(&n, hidden, boot, tags, badges, links, created, updated, expires, seen, price, reset)
 		items = append(items, n)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	metadata, err := s.agentMetadata(ctx)
+	if err != nil {
+		return nil, err
+	}
+	attachAgentMetadata(items, metadata)
+	return items, nil
 }
 
 func (s *Store) UpdateNode(ctx context.Context, id string, p UpdateNodeParams) (Node, error) {

@@ -146,8 +146,14 @@ function price(item: PublicNode) {
 
 function expiry(item: PublicNode) {
   if (!item.node.expires_at) return '无到期日期'
-  const days = Math.ceil((new Date(item.node.expires_at).getTime() - now.value.getTime()) / 86400000)
-  return days >= 0 ? `剩 ${days} 天` : `已过期 ${Math.abs(days)} 天`
+  if (!item.commercial) return '到期状态未知'
+  return item.commercial.expired ? `已过期 ${item.commercial.days} 天` : `剩 ${item.commercial.days} 天`
+}
+
+function platformLabel(item: PublicNode) {
+  const agent = item.node.agent
+  if (!agent) return item.report?.cpu.architecture || '等待 Agent 上报'
+  return [agent.platform || agent.operating_system, agent.platform_version, agent.architecture].filter(Boolean).join(' · ')
 }
 
 function latencyText(success?: boolean, latency?: number, errorClass?: string) {
@@ -346,14 +352,14 @@ onBeforeUnmount(() => {
           <header class="node-header">
             <div class="node-title">
               <span class="flag">{{ flag(item.node.country_code) }}</span>
-              <div><strong>{{ item.node.name }}</strong><small>{{ item.report?.cpu.architecture || '等待 Agent 上报' }}</small></div>
+              <div><strong>{{ item.node.name }}</strong><small>{{ platformLabel(item) }}</small></div>
             </div>
             <span class="status-dot" :class="{ online: item.online }" :title="item.online ? '在线' : '离线'"></span>
           </header>
 
           <div class="commercial-row">
             <span>{{ price(item) }}<template v-if="item.node.billing_cycle">/{{ item.node.billing_cycle }}</template></span>
-            <span :class="{ overdue: item.node.expires_at && new Date(item.node.expires_at) < now }">{{ expiry(item) }}</span>
+            <span :class="{ overdue: item.commercial?.expired }">{{ expiry(item) }}</span>
           </div>
 
           <div v-if="item.node.custom_badges?.length || item.node.custom_links?.length || item.node.custom_html" class="custom-display">
@@ -375,6 +381,8 @@ onBeforeUnmount(() => {
             <div><span>流量</span><strong>↑ {{ formatBytes(aggregate(item).txTotal) }} · ↓ {{ formatBytes(aggregate(item).rxTotal) }}</strong></div>
             <div><span>周期</span><strong>{{ item.node.traffic_reset_day ? `每月 ${item.node.traffic_reset_day} 日` : '自然月' }}</strong></div>
             <div><span>本周期</span><strong>↑ {{ formatBytes(item.traffic?.tx_bytes || 0) }} · ↓ {{ formatBytes(item.traffic?.rx_bytes || 0) }}</strong></div>
+            <div><span>系统</span><strong>{{ item.node.agent ? `${item.node.agent.operating_system} / ${item.node.agent.platform}` : '—' }}</strong></div>
+            <div><span>内核</span><strong>{{ item.node.agent?.kernel_version || '—' }}</strong></div>
           </div>
 
           <div class="divider"></div>

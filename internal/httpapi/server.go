@@ -81,6 +81,7 @@ func (s *Server) routes() {
 	public.GET("/nodes/:nodeID/history", s.publicNodeHistory)
 
 	s.router.POST("/api/v1/agent/report", gin.WrapF(s.gateway.HTTPReport))
+	s.router.POST("/api/v1/agent/hello", gin.WrapF(s.gateway.HTTPHello))
 
 	authRoutes := s.router.Group("/api/v1/auth")
 	authRoutes.POST("/login", s.login)
