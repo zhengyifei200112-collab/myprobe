@@ -106,3 +106,11 @@ one-minute to five-minute storage.
 ## License
 
 MIT
+
+## Contributing and maintenance
+
+MyProbe uses GitHub Flow, Conventional Commits, reviewed pull requests, automated checks,
+Semantic Versioning, and forward-only database migrations. Start with
+[`AGENTS.md`](AGENTS.md) and [`CONTRIBUTING.md`](CONTRIBUTING.md); release maintainers
+should also read [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) and
+[`docs/RELEASING.md`](docs/RELEASING.md).
