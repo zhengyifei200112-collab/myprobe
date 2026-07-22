@@ -1,0 +1,28 @@
+# Go
+/bin/
+*.exe
+*.test
+*.out
+coverage.*
+
+# Runtime data
+/data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Frontend
+/web/node_modules/
+/web/dist/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local secrets
+.env
+.env.*
+!.env.example
