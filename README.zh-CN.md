@@ -126,13 +126,15 @@ docker compose up -d --no-build
 需要域名和 HTTPS 时，使用支持 WebSocket Upgrade 的反向代理，并设置：
 
 ```dotenv
-MYPROBE_COOKIE_SECURE=true
-MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=true
 MYPROBE_BIND_ADDRESS=127.0.0.1
+MYPROBE_COOKIE_SECURE=true
 MYPROBE_TRUSTED_PROXIES=反向代理实际连接到MyProbe时使用的IP或CIDR
+MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=true
 ```
 
-不要为了方便填写过宽的可信代理网段；未列入 `MYPROBE_TRUSTED_PROXIES` 的来源所
+`MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED` 只表示你已确认当前暴露方式，不会自动启用
+TLS；请在 HTTPS 反代可用或明确接受直接 HTTP 风险后再设置。不要为了方便填写过宽
+的可信代理网段；未列入 `MYPROBE_TRUSTED_PROXIES` 的来源所
 提供的转发头会被忽略。SQLite 数据保存在 `myprobe-data` Volume 中，必须纳入宿主机
 备份。`MYPROBE_ENCRYPTION_KEY` 应与数据库分开备份，否则通知渠道中的加密凭据无法
 恢复。

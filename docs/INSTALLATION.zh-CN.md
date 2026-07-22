@@ -140,9 +140,12 @@ Compose 默认通过 `0.0.0.0:25775` 提供直接 IP 访问。切换到域名反
 ```dotenv
 MYPROBE_BIND_ADDRESS=127.0.0.1
 MYPROBE_COOKIE_SECURE=true
-MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=true
 MYPROBE_TRUSTED_PROXIES=反向代理连接到容器时使用的准确IP或CIDR
+MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=true
 ```
+
+`MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED` 只是确认你已处理公网暴露风险，不会启用 TLS。
+请先确认 HTTPS 反代已经可用，或明确接受直接 HTTP 风险后再设置。
 
 ### Docker Agent 监控 Linux 宿主机
 
@@ -180,7 +183,8 @@ docker compose --env-file .env.agent -f compose.agent.yaml up -d --build
 Server 容器内部必须监听 `:25775` 才能接收 Docker 端口转发。因此，当宿主机端口仍
 绑定 `127.0.0.1` 且尚未设置 `MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=true` 时，Server
 日志中的公开 HTTP 提醒描述的是容器内部监听状态，不表示端口已经暴露到公网。仍应在
-HTTPS 反向代理可用后启用安全 Cookie，并明确设置确认项与可信代理范围。
+HTTPS 反向代理可用后启用安全 Cookie，并明确设置可信代理范围；确认项只用于记录
+你已经接受该部署形态。
 
 ## 直接使用二进制
 
