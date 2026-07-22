@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import type { NodeMetadata } from './types'
-import type { AdminGroup, AdminTarget, AlertEvent, AlertKind, AlertRule, LatencyConfig, NotificationChannel } from './admin-api'
+import type { AdminGroup, AdminTarget, AlertEvent, AlertKind, AlertRule, ChartShare, LatencyConfig, NotificationChannel } from './admin-api'
 import {
-  createAlertRule, createChannel, createGroup, createNode, createTarget, deleteAlertRule, deleteChannel,
+  createAlertRule, createChannel, createChartShare, createGroup, createNode, createTarget, deleteAlertRule, deleteChannel, deleteChartShare,
   deleteGroup, deleteNode, deleteTarget, loadAlertEvents, loadAlertRules, loadChannels, loadLatencyConfig,
-  loadNodes, login, logout, restoreSession, rotateNodeToken, setGroupTarget, setNodeGroup, testChannel,
-  updateAlertRule, updateChannel, updateGroup, updateNode, updateTarget,
+  loadChartShares, loadNodes, login, logout, restoreSession, rotateNodeToken, setGroupTarget, setNodeGroup, testChannel,
+  updateAlertRule, updateChannel, updateChartShare, updateGroup, updateNode, updateTarget,
 } from './admin-api'
 
-type Tab = 'nodes' | 'targets' | 'groups' | 'alerts'
+type Tab = 'nodes' | 'targets' | 'groups' | 'alerts' | 'shares'
 const authenticated = ref(false)
 const booting = ref(true)
 const busy = ref(false)
@@ -23,6 +23,7 @@ const config = ref<LatencyConfig>({ targets: [], groups: [], group_members: [], 
 const channels = ref<NotificationChannel[]>([])
 const rules = ref<AlertRule[]>([])
 const events = ref<AlertEvent[]>([])
+const shares = ref<ChartShare[]>([])
 const token = ref('')
 const tokenNode = ref('')
 
@@ -36,20 +37,23 @@ const emptyChannel = () => ({ id: '', name: '', kind: 'webhook' as 'webhook' | '
 const channelForm = reactive(emptyChannel())
 const emptyRule = () => ({ id: '', node_id: '', channel_id: '', kind: 'offline' as AlertKind, threshold: 60, cooldown_seconds: 900, enabled: true })
 const ruleForm = reactive(emptyRule())
+const emptyShare = () => ({ id: '', name: '', password: '', node_ids: [] as string[], enabled: true })
+const shareForm = reactive(emptyShare())
 
 function showError(value: unknown) {
   error.value = value instanceof Error ? value.message : '操作失败'
 }
 
 async function refresh() {
-  const [nodeResult, latencyResult, channelResult, ruleResult, eventResult] = await Promise.all([
-    loadNodes(), loadLatencyConfig(), loadChannels(), loadAlertRules(), loadAlertEvents(),
+  const [nodeResult, latencyResult, channelResult, ruleResult, eventResult, shareResult] = await Promise.all([
+    loadNodes(), loadLatencyConfig(), loadChannels(), loadAlertRules(), loadAlertEvents(), loadChartShares(),
   ])
   nodes.value = nodeResult.nodes
   config.value = latencyResult
   channels.value = channelResult.channels
   rules.value = ruleResult.rules
   events.value = eventResult.events
+  shares.value = shareResult.shares
 }
 
 async function run(action: () => Promise<void>, success = '') {
@@ -251,6 +255,35 @@ function nodeName(id?: string) { return nodes.value.find(item => item.id === id)
 function channelName(id: string) { return channels.value.find(item => item.id === id)?.name || id }
 function kindName(kind: AlertKind) { return ({ offline: '离线', cpu: 'CPU', bandwidth: '带宽', cycle_traffic: '周期流量', expiry: '到期' } as Record<AlertKind, string>)[kind] }
 
+function editShare(item?: ChartShare) {
+  Object.assign(shareForm, emptyShare(), item ? { id: item.id, name: item.name, node_ids: [...item.node_ids], enabled: item.enabled } : {})
+}
+
+async function saveShare() {
+  await run(async () => {
+    const payload: Record<string, unknown> = { name: shareForm.name, node_ids: shareForm.node_ids, enabled: shareForm.enabled }
+    if (!shareForm.id || shareForm.password) payload.password = shareForm.password
+    if (shareForm.id) await updateChartShare(shareForm.id, payload)
+    else await createChartShare(payload)
+    editShare()
+    await refresh()
+  }, shareForm.id ? '分享配置已更新。' : '分享链接已创建。')
+}
+
+async function removeShare(item: ChartShare) {
+  if (!confirm(`确认删除分享“${item.name}”？所有访客会话将立即失效。`)) return
+  await run(async () => { await deleteChartShare(item.id); await refresh() }, '分享链接已删除。')
+}
+
+async function copyShare(item: ChartShare) {
+  try {
+    await navigator.clipboard.writeText(`${location.origin}/share/${item.id}`)
+    notice.value = '分享链接已复制。'
+  } catch {
+    error.value = '浏览器拒绝访问剪贴板，请从地址栏手动复制分享链接。'
+  }
+}
+
 async function copyToken() {
   await navigator.clipboard.writeText(token.value)
   notice.value = 'Token 已复制。'
@@ -274,6 +307,7 @@ onMounted(async () => {
         <button :class="{ active: tab === 'targets' }" @click="tab = 'targets'">探测目标</button>
         <button :class="{ active: tab === 'groups' }" @click="tab = 'groups'">目标组</button>
         <button :class="{ active: tab === 'alerts' }" @click="tab = 'alerts'">告警</button>
+        <button :class="{ active: tab === 'shares' }" @click="tab = 'shares'">分享</button>
       </nav>
       <div class="nav-actions"><a class="soft-button" href="/">公开面板</a><button v-if="authenticated" class="soft-button" @click="signOut">退出</button></div>
     </header>
@@ -324,7 +358,7 @@ onMounted(async () => {
         <section class="admin-list"><article v-for="group in config.groups" :key="group.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ group.name }}</strong><code>{{ group.kind.toUpperCase() }}</code></div><span class="status-label active">{{ config.group_members.filter(x => x.group_id === group.id).length }} 个目标</span></div><div class="assignment-box"><b>组内目标</b><label v-for="targetItem in config.targets.filter(x => x.kind === group.kind)" :key="targetItem.id" class="check-chip"><input type="checkbox" :checked="isGroupTarget(group.id, targetItem.id)" :disabled="busy" @change="toggleGroupTarget(group, targetItem, ($event.target as HTMLInputElement).checked)">{{ targetItem.name }}</label><span v-if="!config.targets.some(x => x.kind === group.kind)" class="empty-inline">没有兼容目标</span></div><div class="entity-actions"><button @click="editGroup(group)">编辑</button><button class="danger" @click="removeGroup(group)">删除</button></div></article></section>
       </template>
 
-      <template v-else>
+      <template v-else-if="tab === 'alerts'">
         <section class="admin-heading"><div><span class="eyebrow">NOTIFICATIONS</span><h1>通知与告警</h1><p>加密保存通知凭据，并对离线、CPU、带宽、周期流量和到期状态进行去重告警。</p></div><span class="count-pill">{{ rules.length }} 条规则</span></section>
         <div class="alert-layout">
           <section>
@@ -337,6 +371,12 @@ onMounted(async () => {
           </section>
         </div>
         <section class="event-section"><h2>最近告警事件</h2><div class="event-list admin-panel"><article v-for="item in events" :key="item.id"><span :class="['event-state', item.state]">{{ item.state === 'firing' ? '告警' : item.state === 'resolved' ? '恢复' : '失败' }}</span><div><strong>{{ nodeName(item.node_id) }}</strong><p>{{ item.delivery_error || item.message }}</p></div><time>{{ new Date(item.created_at).toLocaleString('zh-CN', { hour12: false }) }}</time></article><p v-if="!events.length" class="empty-admin">暂无告警事件</p></div></section>
+      </template>
+
+      <template v-else>
+        <section class="admin-heading"><div><span class="eyebrow">SECURE SHARING</span><h1>图表分享</h1><p>为选定节点生成密码保护的只读历史图表链接。</p></div><span class="count-pill">{{ shares.length }} 个分享</span></section>
+        <form class="admin-panel compact-form" @submit.prevent="saveShare"><h2>{{ shareForm.id ? '编辑分享' : '创建分享' }}</h2><div class="form-grid two"><label>名称<input v-model="shareForm.name" required placeholder="客户监控视图"></label><label>{{ shareForm.id ? '新密码（留空保持不变）' : '分享密码' }}<input v-model="shareForm.password" type="password" minlength="8" :required="!shareForm.id" autocomplete="new-password"></label></div><div class="assignment-box share-node-picker"><b>允许查看的节点</b><label v-for="item in nodes" :key="item.id" class="check-chip"><input v-model="shareForm.node_ids" type="checkbox" :value="item.id">{{ item.name }}</label><span v-if="!nodes.length" class="empty-inline">暂无节点</span></div><div v-if="shareForm.id" class="switch-row"><label><input v-model="shareForm.enabled" type="checkbox"> 启用此分享</label></div><div class="form-actions"><button class="primary-button" :disabled="busy || !shareForm.node_ids.length">{{ shareForm.id ? '保存分享' : '创建分享' }}</button><button v-if="shareForm.id" type="button" @click="editShare()">取消</button></div></form>
+        <section class="admin-list"><article v-for="item in shares" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ item.name }}</strong><code>/share/{{ item.id }}</code></div><span :class="['status-label', item.enabled ? 'active' : 'muted']">{{ item.enabled ? '可访问' : '已停用' }}</span></div><div class="entity-meta"><span>{{ item.node_ids.length }} 个节点</span><span>密码保护</span><span>只读</span></div><div class="entity-actions"><a class="entity-link" :href="`/share/${item.id}`" target="_blank">打开</a><button @click="copyShare(item)">复制链接</button><button @click="editShare(item)">编辑</button><button class="danger" @click="removeShare(item)">删除</button></div></article><div v-if="!shares.length" class="admin-panel empty-admin">尚未创建图表分享</div></section>
       </template>
     </main>
 

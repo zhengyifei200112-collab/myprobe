@@ -5,7 +5,10 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"math"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +19,7 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/alerts"
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
+	"github.com/zhengyifei200112-collab/myprobe/internal/sharing"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 	"github.com/zhengyifei200112-collab/myprobe/internal/webui"
 )
@@ -29,6 +33,7 @@ type Server struct {
 	gateway *agentgateway.Gateway
 	hub     *agentgateway.Hub
 	alerts  *alerts.Service
+	sharing *sharing.Service
 	router  *gin.Engine
 	handler http.Handler
 }
@@ -37,7 +42,7 @@ func New(cfg config.Config, database *store.Store, authService *auth.Service, ga
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery(), securityHeaders())
-	server := &Server{config: cfg, store: database, auth: authService, gateway: gateway, hub: hub, alerts: alerts.New(database, cfg.EncryptionKey, nil, nil), router: router}
+	server := &Server{config: cfg, store: database, auth: authService, gateway: gateway, hub: hub, alerts: alerts.New(database, cfg.EncryptionKey, nil, nil), sharing: sharing.New(database, 12*time.Hour), router: router}
 	server.routes()
 	mux := http.NewServeMux()
 	// WebSocket upgrades bypass Gin's wrapped ResponseWriter. coder/websocket uses
@@ -80,6 +85,14 @@ func (s *Server) routes() {
 	authRoutes.POST("/logout", s.requireSession(true), s.logout)
 	authRoutes.GET("/me", s.requireSession(false), s.me)
 
+	share := s.router.Group("/api/v1/share/:shareID")
+	share.Use(privateNoStore())
+	share.GET("/meta", s.shareMeta)
+	share.POST("/login", s.shareLogin)
+	share.POST("/logout", s.shareLogout)
+	share.GET("/nodes", s.shareNodes)
+	share.GET("/nodes/:nodeID/history", s.shareNodeHistory)
+
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
 	admin.GET("/nodes", s.adminNodes)
 	admin.POST("/nodes", s.createNode)
@@ -107,6 +120,10 @@ func (s *Server) routes() {
 	admin.PATCH("/alert-rules/:ruleID", s.updateAlertRule)
 	admin.DELETE("/alert-rules/:ruleID", s.deleteAlertRule)
 	admin.GET("/alert-events", s.listAlertEvents)
+	admin.GET("/chart-shares", s.listChartShares)
+	admin.POST("/chart-shares", s.createChartShare)
+	admin.PATCH("/chart-shares/:shareID", s.updateChartShare)
+	admin.DELETE("/chart-shares/:shareID", s.deleteChartShare)
 }
 
 func (s *Server) publicNodes(c *gin.Context) {
@@ -119,6 +136,19 @@ func (s *Server) publicNodes(c *gin.Context) {
 }
 
 func (s *Server) publicNodeHistory(c *gin.Context) {
+	visible, err := s.store.NodeIsPublic(c.Request.Context(), c.Param("nodeID"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify node visibility"})
+		return
+	}
+	if !visible {
+		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
+		return
+	}
+	s.writeNodeHistory(c, c.Param("nodeID"))
+}
+
+func (s *Server) writeNodeHistory(c *gin.Context, nodeID string) {
 	rangeName := c.DefaultQuery("range", "1h")
 	duration, bucket, ok := historyRange(rangeName)
 	if !ok {
@@ -126,17 +156,17 @@ func (s *Server) publicNodeHistory(c *gin.Context) {
 		return
 	}
 	start := time.Now().UTC().Add(-duration)
-	metrics, err := s.store.MetricHistory(c.Request.Context(), c.Param("nodeID"), start, bucket)
+	metrics, err := s.store.MetricHistory(c.Request.Context(), nodeID, start, bucket)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read metric history"})
 		return
 	}
-	latency, err := s.store.LatencyHistory(c.Request.Context(), c.Param("nodeID"), start, bucket)
+	latency, err := s.store.LatencyHistory(c.Request.Context(), nodeID, start, bucket)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read latency history"})
 		return
 	}
-	traffic, err := s.store.TrafficHistory(c.Request.Context(), c.Param("nodeID"), start, time.Now().UTC(), bucket)
+	traffic, err := s.store.TrafficHistory(c.Request.Context(), nodeID, start, time.Now().UTC(), bucket)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read traffic history"})
 		return
@@ -626,6 +656,181 @@ func (s *Server) listAlertEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"events": items})
 }
 
+func (s *Server) listChartShares(c *gin.Context) {
+	items, err := s.store.ListChartShares(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list chart shares"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"shares": items})
+}
+
+func (s *Server) createChartShare(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32<<10)
+	var request struct {
+		Name     string   `json:"name"`
+		Password string   `json:"password"`
+		NodeIDs  []string `json:"node_ids"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&request) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	item, err := s.sharing.Create(c.Request.Context(), request.Name, request.Password, request.NodeIDs)
+	if err != nil {
+		writeSharingError(c, err)
+		return
+	}
+	s.audit(c, "create", "chart_share", item.ID, gin.H{"name": item.Name, "node_ids": item.NodeIDs})
+	c.JSON(http.StatusCreated, gin.H{"share": item, "path": "/share/" + item.ID})
+}
+
+func (s *Server) updateChartShare(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32<<10)
+	var request struct {
+		Name     string   `json:"name"`
+		Password *string  `json:"password"`
+		NodeIDs  []string `json:"node_ids"`
+		Enabled  bool     `json:"enabled"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&request) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	item, err := s.sharing.Update(c.Request.Context(), c.Param("shareID"), request.Name, request.Password, request.NodeIDs, request.Enabled)
+	if err != nil {
+		writeSharingError(c, err)
+		return
+	}
+	s.audit(c, "update", "chart_share", item.ID, gin.H{"name": item.Name, "node_ids": item.NodeIDs, "enabled": item.Enabled, "password_changed": request.Password != nil && *request.Password != ""})
+	c.JSON(http.StatusOK, gin.H{"share": item, "path": "/share/" + item.ID})
+}
+
+func (s *Server) deleteChartShare(c *gin.Context) {
+	id := c.Param("shareID")
+	if err := s.store.DeleteChartShare(c.Request.Context(), id); err != nil {
+		writeSharingError(c, err)
+		return
+	}
+	s.audit(c, "delete", "chart_share", id, nil)
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) shareMeta(c *gin.Context) {
+	item, err := s.store.ChartShare(c.Request.Context(), c.Param("shareID"))
+	if err != nil || !item.Enabled {
+		c.JSON(http.StatusNotFound, gin.H{"error": "share not found"})
+		return
+	}
+	authenticated := false
+	if token, err := c.Cookie(shareCookieName(item.ID)); err == nil {
+		_, authenticatedErr := s.sharing.Authenticate(c.Request.Context(), item.ID, token, time.Now().UTC())
+		authenticated = authenticatedErr == nil
+	}
+	c.JSON(http.StatusOK, gin.H{"id": item.ID, "name": item.Name, "authenticated": authenticated})
+}
+
+func (s *Server) shareLogin(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 8<<10)
+	var request struct {
+		Password string `json:"password"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&request) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	now := time.Now().UTC()
+	session, token, err := s.sharing.Login(c.Request.Context(), c.Param("shareID"), request.Password, s.requestIP(c), now)
+	if err != nil {
+		if errors.Is(err, sharing.ErrRateLimited) {
+			var rateError *sharing.RateLimitError
+			if errors.As(err, &rateError) {
+				c.Header("Retry-After", strconv.Itoa(max(1, int(math.Ceil(rateError.RetryAfter.Seconds())))))
+			}
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many attempts, try again later"})
+			return
+		}
+		time.Sleep(250 * time.Millisecond)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid share password"})
+		return
+	}
+	http.SetCookie(c.Writer, &http.Cookie{Name: shareCookieName(c.Param("shareID")), Value: token, Path: "/api/v1/share/" + c.Param("shareID"), HttpOnly: true, Secure: s.config.CookieSecure, SameSite: http.SameSiteLaxMode, Expires: session.ExpiresAt})
+	c.JSON(http.StatusOK, gin.H{"expires_at": session.ExpiresAt})
+}
+
+func (s *Server) shareLogout(c *gin.Context) {
+	id := c.Param("shareID")
+	if token, err := c.Cookie(shareCookieName(id)); err == nil {
+		_ = s.sharing.Logout(c.Request.Context(), id, token)
+	}
+	http.SetCookie(c.Writer, &http.Cookie{Name: shareCookieName(id), Value: "", Path: "/api/v1/share/" + id, HttpOnly: true, Secure: s.config.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: -1})
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) shareNodes(c *gin.Context) {
+	item, ok := s.requireShare(c)
+	if !ok {
+		return
+	}
+	now := time.Now().UTC()
+	nodes, err := s.store.ListChartShareNodes(c.Request.Context(), item.NodeIDs, now)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list shared nodes"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"share": gin.H{"id": item.ID, "name": item.Name}, "nodes": nodes, "server_time": now})
+}
+
+func (s *Server) shareNodeHistory(c *gin.Context) {
+	item, ok := s.requireShare(c)
+	if !ok {
+		return
+	}
+	if !s.sharing.AllowsNode(item, c.Param("nodeID")) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
+		return
+	}
+	s.writeNodeHistory(c, c.Param("nodeID"))
+}
+
+func (s *Server) requireShare(c *gin.Context) (store.ChartShare, bool) {
+	id := c.Param("shareID")
+	token, err := c.Cookie(shareCookieName(id))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "share authentication required"})
+		return store.ChartShare{}, false
+	}
+	item, err := s.sharing.Authenticate(c.Request.Context(), id, token, time.Now().UTC())
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "share session expired"})
+		return store.ChartShare{}, false
+	}
+	return item, true
+}
+
+func (s *Server) requestIP(c *gin.Context) string {
+	if s.config.TrustedProxy {
+		return c.ClientIP()
+	}
+	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return c.Request.RemoteAddr
+}
+
+func shareCookieName(shareID string) string {
+	return "myprobe_share_" + shareID
+}
+
+func writeSharingError(c *gin.Context, err error) {
+	status := http.StatusBadRequest
+	if errors.Is(err, store.ErrNotFound) {
+		status = http.StatusNotFound
+	}
+	c.JSON(status, gin.H{"error": err.Error()})
+}
+
 func writeAlertError(c *gin.Context, err error) {
 	status := http.StatusBadRequest
 	if errors.Is(err, store.ErrNotFound) {
@@ -685,6 +890,14 @@ func securityHeaders() gin.HandlerFunc {
 		c.Header("Referrer-Policy", "same-origin")
 		c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		c.Header("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:")
+		c.Next()
+	}
+}
+
+func privateNoStore() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("Cache-Control", "private, no-store")
+		c.Header("Pragma", "no-cache")
 		c.Next()
 	}
 }

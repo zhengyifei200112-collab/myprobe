@@ -65,6 +65,15 @@ export interface AlertEvent {
   delivered_at?: string
 }
 
+export interface ChartShare {
+  id: string
+  name: string
+  node_ids: string[]
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
 let csrfToken = ''
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -135,3 +144,8 @@ export const createAlertRule = (payload: unknown) => request<{ rule: AlertRule }
 export const updateAlertRule = (id: string, payload: unknown) => request<{ rule: AlertRule }>(`/api/v1/admin/alert-rules/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
 export const deleteAlertRule = (id: string) => request<void>(`/api/v1/admin/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const loadAlertEvents = () => request<{ events: AlertEvent[] }>('/api/v1/admin/alert-events')
+
+export const loadChartShares = () => request<{ shares: ChartShare[] }>('/api/v1/admin/chart-shares')
+export const createChartShare = (payload: unknown) => request<{ share: ChartShare; path: string }>('/api/v1/admin/chart-shares', { method: 'POST', body: JSON.stringify(payload) })
+export const updateChartShare = (id: string, payload: unknown) => request<{ share: ChartShare; path: string }>(`/api/v1/admin/chart-shares/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
+export const deleteChartShare = (id: string) => request<void>(`/api/v1/admin/chart-shares/${encodeURIComponent(id)}`, { method: 'DELETE' })

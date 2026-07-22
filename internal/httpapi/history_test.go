@@ -51,4 +51,13 @@ func TestPublicHistoryUsesBoundedRanges(t *testing.T) {
 	if invalid.Code != http.StatusBadRequest {
 		t.Fatalf("invalid range status = %d", invalid.Code)
 	}
+	node.Hidden = true
+	if _, err := database.UpdateNode(ctx, node.ID, store.UpdateNodeParams{Name: node.Name, Hidden: true, Tags: node.Tags, CountryCode: node.CountryCode, Currency: node.Currency, PriceMinor: node.PriceMinor, BillingCycle: node.BillingCycle, ExpiresAt: node.ExpiresAt, TrafficResetDay: node.TrafficResetDay, UseSinceBoot: node.UseSinceBoot, LatencyMode: node.LatencyMode, CollectionSeconds: node.CollectionSeconds, ReportSeconds: node.ReportSeconds}); err != nil {
+		t.Fatal(err)
+	}
+	hidden := httptest.NewRecorder()
+	handler.ServeHTTP(hidden, httptest.NewRequest(http.MethodGet, "/api/v1/public/nodes/"+node.ID+"/history?range=1h", nil))
+	if hidden.Code != http.StatusNotFound {
+		t.Fatalf("hidden history status = %d", hidden.Code)
+	}
 }

@@ -15,6 +15,10 @@
 - Login endpoints are rate limited and introduce CAPTCHA after repeated failures.
 - Session cookies are HttpOnly, SameSite=Lax, and Secure when TLS is enabled.
 - Every state-changing cookie-authenticated request requires `X-CSRF-Token`.
+- Password-protected chart shares use separate, scope-bound HttpOnly sessions. Five
+  failed passwords in ten minutes trigger a persistent fifteen-minute block per share
+  and source IP. Share responses are private and non-cacheable, and every history query
+  revalidates the selected-node allowlist on the server.
 - Webhook URLs, Telegram Bot Tokens, and chat IDs are encrypted with AES-256-GCM before
   they are written to SQLite. `MYPROBE_ENCRYPTION_KEY` must contain at least 32
   characters and must be backed up separately; changing or losing it makes existing

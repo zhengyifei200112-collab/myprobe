@@ -45,7 +45,8 @@ and lazy-loaded charts cover the 1h/12h/1d/3d/7d/30d views without sending raw l
 samples to the browser. Monthly traffic accounting handles configurable reset days,
 short months, host counter resets, and persisted O(1) dashboard reads. The responsive
 management console covers login, node lifecycle and token rotation, Ping/TCPing target
-CRUD, target groups, and node assignments. The remaining ZJM parity work is tracked in
+CRUD, target groups, node assignments, encrypted notifications, alert rules, and
+password-protected read-only chart sharing. The remaining ZJM parity work is tracked in
 the product specification.
 
 ## Local development

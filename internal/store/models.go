@@ -223,3 +223,19 @@ type AlertEvent struct {
 	CreatedAt     time.Time  `json:"created_at"`
 	DeliveredAt   *time.Time `json:"delivered_at,omitempty"`
 }
+
+type ChartShare struct {
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	PasswordHash string    `json:"-"`
+	NodeIDs      []string  `json:"node_ids"`
+	Enabled      bool      `json:"enabled"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type ChartShareSession struct {
+	ID        string
+	ShareID   string
+	ExpiresAt time.Time
+}
