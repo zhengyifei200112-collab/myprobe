@@ -123,6 +123,44 @@ docker compose up -d --no-build
 
 固定版本标签便于审计和回滚；`latest` 更方便，但会随新版本变化。
 
+### Docker Agent 监控 Linux 宿主机
+
+不要通过修改 Server 镜像的 entrypoint 来运行 Agent：该方式会继承 Server 的
+`/healthz` 检查，而且普通容器命名空间只能看到容器自己的部分指标。项目提供独立的
+Agent 镜像和 `compose.agent.yaml`：
+
+```bash
+cp deploy/agent.env.example .env.agent
+chmod 600 .env.agent
+# 填写 HTTPS Server 地址、一次性节点 Token，并把镜像固定到正式版本
+editor .env.agent
+
+docker compose --env-file .env.agent -f compose.agent.yaml pull
+docker compose --env-file .env.agent -f compose.agent.yaml up -d --no-build
+docker compose --env-file .env.agent -f compose.agent.yaml logs --tail=50 myprobe-agent
+```
+
+模板使用 `network_mode: host` 访问本机 Server 和真实网络，使用 `uts: host` 获得
+宿主机名，并把 `/` 以只读、`rslave` 传播方式挂载到 `/host`。Agent 会从宿主机的
+`/proc`、`/sys`、`/etc` 等路径采集指标，并把磁盘挂载点显示为宿主机逻辑路径（例如
+`/`，而不是 `/host`）。容器不开放端口、启用只读根文件系统与
+`no-new-privileges`，仅保留 Ping 任务所需的 `NET_RAW` 能力。
+
+该模板仅支持 Linux。若宿主机禁止 host network、UTS namespace 或 bind
+propagation，请改用一键安装的 systemd Agent 或经校验的二进制文件。Agent Token
+保存在 `.env.agent` 中，必须保持 `0600` 权限且不得提交到 Git。
+
+从源码验证 Agent 镜像时可运行：
+
+```bash
+docker compose --env-file .env.agent -f compose.agent.yaml up -d --build
+```
+
+Server 容器内部必须监听 `:25775` 才能接收 Docker 端口转发。因此，当宿主机端口仍
+绑定 `127.0.0.1` 且尚未设置 `MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=true` 时，Server
+日志中的公开 HTTP 提醒描述的是容器内部监听状态，不表示端口已经暴露到公网。仍应在
+HTTPS 反向代理可用后启用安全 Cookie，并明确设置确认项与可信代理范围。
+
 ## 直接使用二进制
 
 从同一个 GitHub Release 下载目标平台二进制与 `SHA256SUMS`，先验证再安装：

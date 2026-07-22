@@ -1,0 +1,39 @@
+services:
+  myprobe-agent:
+    build:
+      context: .
+      target: agent
+      args:
+        VERSION: ${MYPROBE_VERSION:-dev}
+    image: ${MYPROBE_AGENT_IMAGE:-ghcr.io/zhengyifei200112-collab/myprobe-agent:latest}
+    restart: unless-stopped
+    init: true
+    network_mode: host
+    uts: host
+    environment:
+      MYPROBE_SERVER: ${MYPROBE_SERVER:?set MYPROBE_SERVER in the Agent env file}
+      MYPROBE_TOKEN: ${MYPROBE_TOKEN:?set MYPROBE_TOKEN in the Agent env file}
+      MYPROBE_HOST_ROOT: /host
+      HOST_ROOT: /host
+      HOST_PROC: /host/proc
+      HOST_SYS: /host/sys
+      HOST_ETC: /host/etc
+      HOST_VAR: /host/var
+      HOST_RUN: /host/run
+      HOST_DEV: /host/dev
+    volumes:
+      - type: bind
+        source: /
+        target: /host
+        read_only: true
+        bind:
+          propagation: rslave
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW

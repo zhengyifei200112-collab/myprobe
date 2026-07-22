@@ -23,10 +23,11 @@ func main() {
 	report := flag.Duration("report-interval", 5*time.Second, "metric report interval")
 	interfaces := flag.String("interfaces", "", "comma-separated network interfaces; empty selects all non-loopback interfaces")
 	mounts := flag.String("mounts", "", "comma-separated disk mount points; empty discovers physical mounts")
+	hostRoot := flag.String("host-root", env("MYPROBE_HOST_ROOT", ""), "optional host filesystem prefix used by containerized agents")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	source := collector.New(collector.Config{Interfaces: split(*interfaces), Mounts: split(*mounts)})
+	source := collector.New(collector.Config{Interfaces: split(*interfaces), Mounts: split(*mounts), HostRoot: *hostRoot})
 	client, err := agentclient.New(agentclient.Config{
 		ServerURL: *serverURL, Token: *token, CollectionPeriod: *collection,
 		ReportPeriod: *report, AgentVersion: version,

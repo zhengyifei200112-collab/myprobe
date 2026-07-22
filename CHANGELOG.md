@@ -7,6 +7,18 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A dedicated Agent container image and Linux host-monitoring Compose template now
+  expose host metrics through read-only mounts while retaining outbound-only Agent
+  communication.
+
+### Fixed
+
+- Agent containers no longer inherit the Server `/healthz` check, include the `ping`
+  utility required by Ping tasks, and report logical host mount paths instead of the
+  container bind-mount prefix.
+
 ## [0.1.1] - 2026-07-22
 
 ### Fixed

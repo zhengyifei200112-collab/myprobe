@@ -91,6 +91,21 @@ with WebSocket support. To use a published image instead of building locally, se
 `docker compose pull` and `docker compose up -d --no-build`. The SQLite database is
 stored in the `myprobe-data` volume.
 
+Linux hosts can also run the dedicated Agent image with `compose.agent.yaml`. It uses
+host networking and read-only host filesystem access so CPU, process, network, and disk
+metrics describe the host instead of the container. Copy `deploy/agent.env.example` to
+`.env.agent`, set the Server URL and one-time node token, then run:
+
+```bash
+docker compose --env-file .env.agent -f compose.agent.yaml pull
+docker compose --env-file .env.agent -f compose.agent.yaml up -d --no-build
+```
+
+The Agent image is published separately as
+`ghcr.io/zhengyifei200112-collab/myprobe-agent`. Pin the same release tag as the Server
+in production. See [`deploy/README.md`](deploy/README.md) for permissions and local-build
+instructions.
+
 ## Local development
 
 Requirements: Go 1.26+, Node.js 22+, and npm.

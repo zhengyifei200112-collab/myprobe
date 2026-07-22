@@ -59,16 +59,20 @@ jobs:
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes --title "$GITHUB_REF_NAME"
           gh release upload "$GITHUB_REF_NAME" dist/* --clobber
 
-      - name: Publish server container image
+      - name: Publish server and Agent container images
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          server_image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          agent_image="${server_image}-agent"
           version="${GITHUB_REF_NAME#v}"
           printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-          docker build --build-arg "VERSION=$GITHUB_REF_NAME" --tag "$image:$GITHUB_REF_NAME" --tag "$image:$version" --tag "$image:latest" .
-          docker push "$image:$GITHUB_REF_NAME"
-          docker push "$image:$version"
-          docker push "$image:latest"
+          docker build --target server --build-arg "VERSION=$GITHUB_REF_NAME" --tag "$server_image:$GITHUB_REF_NAME" --tag "$server_image:$version" --tag "$server_image:latest" .
+          docker build --target agent --build-arg "VERSION=$GITHUB_REF_NAME" --tag "$agent_image:$GITHUB_REF_NAME" --tag "$agent_image:$version" --tag "$agent_image:latest" .
+          for image in "$server_image" "$agent_image"; do
+            docker push "$image:$GITHUB_REF_NAME"
+            docker push "$image:$version"
+            docker push "$image:latest"
+          done
