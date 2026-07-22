@@ -41,8 +41,10 @@
   accepted only for a matching unexpired task issued by the server.
 - Advanced custom HTML is sanitized and governed by a restrictive CSP.
 - Production startup emits a structured warning when a public listener is configured
-  without `MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=true`. The supplied Compose and systemd
-  defaults bind the host listener to loopback for an HTTPS reverse proxy.
+  without `MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=true`. Fresh Compose and systemd installs
+  explicitly acknowledge direct HTTP and expose TCP 25775 for immediate IP access.
+  Direct HTTP does not provide transport confidentiality; operators should restrict the
+  firewall or use the documented loopback-bound HTTPS reverse-proxy mode.
 - Versioned JSON configuration exports exclude passwords, agent tokens, notification
   credentials, share password hashes, sessions, and history. Full database exports use
   scrypt-derived AES-256-GCM keys with independently authenticated chunks and an

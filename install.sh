@@ -16,7 +16,11 @@ SERVER_URL=""
 TOKEN_FILE=""
 ADMIN_PASSWORD_FILE=""
 ENCRYPTION_KEY_FILE=""
-LISTEN_ADDRESS="127.0.0.1:25775"
+LISTEN_ADDRESS=""
+REVERSE_PROXY=0
+COOKIE_SECURE=""
+TRUSTED_PROXIES=""
+PUBLIC_HTTP_ACKNOWLEDGED=""
 FORCE_CONFIG=0
 PURGE=0
 NO_START=0
@@ -54,7 +58,8 @@ Common options:
   -h, --help                      Show this help
 
 Server options:
-  --listen ADDRESS                Listen address (default: 127.0.0.1:25775)
+  --listen ADDRESS                Listen address (default: 0.0.0.0:25775)
+  --reverse-proxy                 Default to loopback and HTTPS-only proxy cookies
   --admin-password-file PATH      Read the initial administrator password from a file
   --encryption-key-file PATH      Read the stable encryption key from a file
   --force-config                  Replace an existing server.env
@@ -74,6 +79,7 @@ Environment alternatives for first-time setup:
 
 Examples:
   sudo ./install.sh server
+  sudo ./install.sh server --reverse-proxy
   sudo ./install.sh agent
   sudo ./install.sh update server --version v1.2.0
   sudo ./install.sh uninstall agent --name default
@@ -156,6 +162,25 @@ generate_encryption_key() {
   od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
 }
 
+resolve_server_access_defaults() {
+  if [[ -z "${LISTEN_ADDRESS}" ]]; then
+    if [[ "${REVERSE_PROXY}" -eq 1 ]]; then
+      LISTEN_ADDRESS="127.0.0.1:25775"
+    else
+      LISTEN_ADDRESS="0.0.0.0:25775"
+    fi
+  fi
+  if [[ "${REVERSE_PROXY}" -eq 1 ]]; then
+    COOKIE_SECURE="true"
+    TRUSTED_PROXIES="127.0.0.1,::1"
+    PUBLIC_HTTP_ACKNOWLEDGED="false"
+  else
+    COOKIE_SECURE="false"
+    TRUSTED_PROXIES=""
+    PUBLIC_HTTP_ACKNOWLEDGED="true"
+  fi
+}
+
 release_base_url() {
   if [[ "${VERSION}" == "latest" ]]; then
     printf 'https://github.com/%s/releases/latest/download\n' "${REPOSITORY}"
@@ -201,7 +226,7 @@ Wants=network-online.target
 Type=simple
 DynamicUser=yes
 StateDirectory=myprobe
-Environment=MYPROBE_LISTEN=127.0.0.1:25775
+Environment=MYPROBE_LISTEN=0.0.0.0:25775
 Environment=MYPROBE_DATABASE=/var/lib/myprobe/myprobe.db
 EnvironmentFile=/etc/myprobe/server.env
 ExecStart=/usr/local/bin/myprobe-server
@@ -294,9 +319,9 @@ write_server_config() {
     printf 'MYPROBE_ADMIN_PASSWORD=%s\n' "$(systemd_quote "${password}")"
     printf 'MYPROBE_ENCRYPTION_KEY=%s\n' "$(systemd_quote "${encryption_key}")"
     printf 'MYPROBE_LISTEN=%s\n' "$(systemd_quote "${LISTEN_ADDRESS}")"
-    printf 'MYPROBE_COOKIE_SECURE=true\n'
-    printf 'MYPROBE_TRUSTED_PROXIES="127.0.0.1,::1"\n'
-    printf 'MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=false\n'
+    printf 'MYPROBE_COOKIE_SECURE=%s\n' "${COOKIE_SECURE}"
+    printf 'MYPROBE_TRUSTED_PROXIES=%s\n' "$(systemd_quote "${TRUSTED_PROXIES}")"
+    printf 'MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=%s\n' "${PUBLIC_HTTP_ACKNOWLEDGED}"
   } >"${path}.tmp"
   chmod 0600 "${path}.tmp"
   mv -f -- "${path}.tmp" "${path}"
@@ -493,6 +518,7 @@ parse_arguments() {
         LISTEN_ADDRESS="$2"
         shift 2
         ;;
+      --reverse-proxy) REVERSE_PROXY=1; shift ;;
       --force-config) FORCE_CONFIG=1; shift ;;
       --purge) PURGE=1; shift ;;
       --no-start) NO_START=1; shift ;;
@@ -503,6 +529,9 @@ parse_arguments() {
 
   validate_version "${VERSION}" || die "Version must be latest or a tag such as v1.2.3."
   [[ "${ROLE}" == "server" || "${ROLE}" == "agent" ]] || die "Role must be server or agent."
+  if [[ "${ROLE}" == "server" ]]; then
+    resolve_server_access_defaults
+  fi
 }
 
 main() {

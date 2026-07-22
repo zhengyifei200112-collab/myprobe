@@ -60,6 +60,20 @@ assert_success "accepts safe Agent name" validate_agent_name edge-01
 assert_failure "rejects Agent path traversal" validate_agent_name '../edge'
 assert_equal '"a b\"c\\d"' "$(systemd_quote 'a b"c\d')" "quotes systemd environment value"
 assert_failure "rejects multiline environment value" validate_single_line $'first\nsecond'
+
+LISTEN_ADDRESS=""
+REVERSE_PROXY=0
+resolve_server_access_defaults
+assert_equal "0.0.0.0:25775" "${LISTEN_ADDRESS}" "direct mode listens on all interfaces"
+assert_equal "false" "${COOKIE_SECURE}" "direct mode allows HTTP login cookies"
+assert_equal "true" "${PUBLIC_HTTP_ACKNOWLEDGED}" "direct mode acknowledges public HTTP"
+
+LISTEN_ADDRESS=""
+REVERSE_PROXY=1
+resolve_server_access_defaults
+assert_equal "127.0.0.1:25775" "${LISTEN_ADDRESS}" "reverse-proxy mode listens on loopback"
+assert_equal "true" "${COOKIE_SECURE}" "reverse-proxy mode requires HTTPS cookies"
+assert_equal "127.0.0.1,::1" "${TRUSTED_PROXIES}" "reverse-proxy mode trusts local proxies"
 assert_equal "$(tr -d '\r' <"${ROOT_DIR}/deploy/myprobe.service")" "$(extract_unit install_server_unit)" "Server unit matches deploy template"
 assert_equal "$(tr -d '\r' <"${ROOT_DIR}/deploy/myprobe-agent@.service")" "$(extract_unit install_agent_unit)" "Agent unit matches deploy template"
 
