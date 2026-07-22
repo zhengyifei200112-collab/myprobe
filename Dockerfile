@@ -16,14 +16,22 @@ COPY --from=web /src/internal/webui/dist ./internal/webui/dist
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/myprobe-server ./cmd/server && \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/myprobe-agent ./cmd/agent
 
-FROM alpine:3.23
+FROM alpine:3.23 AS runtime
 RUN apk add --no-cache ca-certificates tzdata && \
     addgroup -S myprobe && adduser -S -G myprobe -h /var/lib/myprobe myprobe && \
     mkdir -p /var/lib/myprobe && chown myprobe:myprobe /var/lib/myprobe
-COPY --from=build /out/myprobe-server /usr/local/bin/myprobe-server
-COPY --from=build /out/myprobe-agent /usr/local/bin/myprobe-agent
 USER myprobe
 WORKDIR /var/lib/myprobe
+
+FROM runtime AS agent
+USER root
+RUN apk add --no-cache iputils
+COPY --from=build /out/myprobe-agent /usr/local/bin/myprobe-agent
+USER myprobe
+ENTRYPOINT ["/usr/local/bin/myprobe-agent"]
+
+FROM runtime AS server
+COPY --from=build /out/myprobe-server /usr/local/bin/myprobe-server
 VOLUME ["/var/lib/myprobe"]
 EXPOSE 25775
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \

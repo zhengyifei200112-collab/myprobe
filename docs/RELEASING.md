@@ -27,10 +27,12 @@ git push origin vX.Y.Z
 
 The Release workflow builds Server binaries for Linux and Windows, Agent binaries for
 Linux, Windows, and macOS, generates SHA-256 checksums, publishes a GitHub Release, and
-pushes versioned plus `latest` Server images to GitHub Container Registry. Verify the
-checksums, container health check, one-click clean install, and upgrade from the
-previous release before announcing it. The installer must not be advertised as
-available until at least one GitHub Release has completed successfully.
+pushes versioned plus `latest` Server and Agent images to GitHub Container Registry.
+Verify the checksums, Server health check, absence of a Server health check on the Agent
+image, Agent Ping support, Linux host-metric Compose path, one-click clean install, and
+upgrade from the previous release before announcing it. The installer and new container
+images must not be advertised as available until the corresponding GitHub Release has
+completed successfully.
 
 ## Urgent fixes
 

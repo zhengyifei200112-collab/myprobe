@@ -41,8 +41,19 @@ jobs:
           go vet ./...
           go build ./cmd/...
 
-      - name: Build container image
-        run: docker build --build-arg VERSION=ci --tag myprobe:ci .
+      - name: Build and validate container images
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --target server --build-arg VERSION=ci --tag myprobe-server:ci .
+          docker build --target agent --build-arg VERSION=ci --tag myprobe-agent:ci .
+          test "$(docker image inspect --format '{{json .Config.Entrypoint}}' myprobe-server:ci)" = '["/usr/local/bin/myprobe-server"]'
+          test "$(docker image inspect --format '{{json .Config.Entrypoint}}' myprobe-agent:ci)" = '["/usr/local/bin/myprobe-agent"]'
+          test "$(docker image inspect --format '{{json .Config.Healthcheck}}' myprobe-agent:ci)" = 'null'
+          docker run --rm myprobe-agent:ci --help >/dev/null
+          docker run --rm --entrypoint ping myprobe-agent:ci -V >/dev/null
+          MYPROBE_ADMIN_PASSWORD=test-password MYPROBE_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef docker compose config --quiet
+          MYPROBE_SERVER=https://status.example.com MYPROBE_TOKEN=test-token docker compose -f compose.agent.yaml config --quiet
 
       - name: Validate installer
         shell: bash

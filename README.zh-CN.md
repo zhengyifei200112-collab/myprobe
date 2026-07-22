@@ -133,6 +133,27 @@ MYPROBE_TRUSTED_PROXIES=反向代理实际连接到MyProbe时使用的IP或CIDR
 备份。`MYPROBE_ENCRYPTION_KEY` 应与数据库分开备份，否则通知渠道中的加密凭据无法
 恢复。
 
+### 使用 Docker 监控 Linux 宿主机
+
+Agent 使用独立镜像 `ghcr.io/zhengyifei200112-collab/myprobe-agent`，不会继承 Server
+的 `/healthz` 健康检查。模板通过只读挂载宿主机根目录，并使用宿主机网络与 UTS
+命名空间，使 CPU、进程、网卡和磁盘指标来自宿主机，而不是 Agent 容器。
+
+先在管理后台创建节点并复制只显示一次的 Token，然后执行：
+
+```bash
+cp deploy/agent.env.example .env.agent
+chmod 600 .env.agent
+# 编辑 .env.agent，设置 MYPROBE_SERVER、MYPROBE_TOKEN，并建议固定镜像版本标签
+docker compose --env-file .env.agent -f compose.agent.yaml pull
+docker compose --env-file .env.agent -f compose.agent.yaml up -d --no-build
+docker compose --env-file .env.agent -f compose.agent.yaml ps
+```
+
+该模板仅适用于 Linux 宿主机。它保持 Agent 仅主动向 Server 建立出站连接，不开放
+入站端口；宿主机根目录以只读方式挂载，容器丢弃全部能力后只加回 Ping 探测需要的
+`NET_RAW`。Server 与 Agent 应固定同一个 Release 标签，便于审计、升级和回滚。
+
 完整部署和 systemd 示例参见 [`deploy/README.md`](deploy/README.md)。
 
 ## 本地开发

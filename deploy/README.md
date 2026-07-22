@@ -78,6 +78,46 @@ The named `myprobe-data` volume contains SQLite and must be included in host bac
 Keep `MYPROBE_ENCRYPTION_KEY` in a separate secret backup because encrypted notification
 credentials cannot be recovered without it.
 
+The Server listens on `:25775` inside its container so Docker port forwarding can reach
+it. If the host mapping remains on `127.0.0.1`, the Server's public-HTTP startup warning
+describes the container listener and does not mean the host port is public. Do not
+silence the warning until HTTPS is actually in place or direct HTTP risk is deliberately
+accepted.
+
+### Linux host Agent container
+
+Use the dedicated Agent image instead of overriding the Server image entrypoint. The
+Agent image has no Server health check and includes the `ping` utility required for
+Ping tasks.
+
+```sh
+cp deploy/agent.env.example .env.agent
+chmod 0600 .env.agent
+# Set MYPROBE_SERVER, MYPROBE_TOKEN, and pin MYPROBE_AGENT_IMAGE to a release tag.
+docker compose --env-file .env.agent -f compose.agent.yaml pull
+docker compose --env-file .env.agent -f compose.agent.yaml up -d --no-build
+docker compose --env-file .env.agent -f compose.agent.yaml logs --tail=50 myprobe-agent
+```
+
+The template is Linux-only. It uses host networking for localhost Server access and
+real network behavior, shares the host UTS namespace for the hostname, and bind-mounts
+the host root read-only with `rslave` propagation. The `HOST_*` paths let gopsutil read
+host `/proc`, `/sys`, and related metadata, while `MYPROBE_HOST_ROOT=/host` maps disk
+statistics back to logical host mount names. It exposes no inbound ports, uses a
+read-only container filesystem, drops all capabilities, and adds back only `NET_RAW`
+for Ping tasks.
+
+To build the Agent locally instead of pulling it, use:
+
+```sh
+docker compose --env-file .env.agent -f compose.agent.yaml up -d --build
+```
+
+Pin `MYPROBE_AGENT_IMAGE` to the same release tag as the Server. The Agent token remains
+visible to Docker administrators through container configuration, so protect the env
+file with mode `0600` and never commit it. Prefer the systemd or release-binary Agent on
+hosts where root bind mounts or host namespaces are prohibited.
+
 ## Release binaries
 
 Download the binary and `SHA256SUMS` from the same GitHub Release. Verify the exact

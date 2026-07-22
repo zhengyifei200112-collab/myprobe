@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -22,6 +23,7 @@ import (
 type Config struct {
 	Interfaces []string
 	Mounts     []string
+	HostRoot   string
 }
 
 type networkSnapshot struct {
@@ -42,7 +44,9 @@ func New(config Config) *Collector {
 
 func (c *Collector) UpdateConfig(config Config) {
 	c.mu.Lock()
+	hostRoot := c.config.HostRoot
 	c.config = normalizedConfig(config)
+	c.config.HostRoot = hostRoot
 	c.mu.Unlock()
 }
 
@@ -124,12 +128,12 @@ func (c *Collector) collectDisks(ctx context.Context) []protocol.DiskMetric {
 	}
 	metrics := make([]protocol.DiskMetric, 0, len(mounts))
 	for _, mount := range mounts {
-		usage, err := disk.UsageWithContext(ctx, mount)
+		usage, err := disk.UsageWithContext(ctx, diskUsagePath(c.config.HostRoot, mount))
 		if err != nil || usage.Total == 0 {
 			continue
 		}
 		metrics = append(metrics, protocol.DiskMetric{
-			Mount: usage.Path, Filesystem: usage.Fstype, TotalBytes: usage.Total,
+			Mount: mount, Filesystem: usage.Fstype, TotalBytes: usage.Total,
 			UsedBytes: usage.Used, UsagePercent: clampPercent(usage.UsedPercent),
 		})
 	}
@@ -171,7 +175,20 @@ func (c *Collector) collectNetworks(ctx context.Context, now time.Time) []protoc
 }
 
 func normalizedConfig(config Config) Config {
-	return Config{Interfaces: cleanUnique(config.Interfaces), Mounts: cleanUnique(config.Mounts)}
+	hostRoot := strings.TrimSpace(config.HostRoot)
+	if hostRoot != "" {
+		hostRoot = filepath.Clean(hostRoot)
+	}
+	return Config{Interfaces: cleanUnique(config.Interfaces), Mounts: cleanUnique(config.Mounts), HostRoot: hostRoot}
+}
+
+func diskUsagePath(hostRoot, mount string) string {
+	if !filepath.IsAbs(hostRoot) || !filepath.IsAbs(mount) {
+		return mount
+	}
+	volume := filepath.VolumeName(mount)
+	relative := strings.TrimLeft(mount[len(volume):], `/\\`)
+	return filepath.Join(hostRoot, relative)
 }
 
 func cleanUnique(values []string) []string {
