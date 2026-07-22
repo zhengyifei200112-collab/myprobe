@@ -9,6 +9,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Complete Simplified Chinese README covering features, deployment, configuration,
+  security, development, and maintenance workflows.
 - Repository governance baseline for GitHub Flow, Conventional Commits, code ownership,
   structured issues and pull requests, dependency updates, security reporting, and
   repeatable releases.

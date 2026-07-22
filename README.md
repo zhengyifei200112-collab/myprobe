@@ -1,5 +1,7 @@
 # MyProbe
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 MyProbe is a self-hosted VPS monitoring platform with an original implementation,
 a lightweight Go agent, and a responsive dashboard inspired by the information
 architecture and visual polish of ZJM.
@@ -41,7 +43,7 @@ The first vertical slice is operational: the server bootstraps SQLite and admini
 authentication, agents report real host metrics over authenticated WebSockets with an
 HTTP fallback, typed Ping/TCPing tasks are scheduled and persisted, and the embedded
 responsive dashboard updates metrics and latency in real time. Bounded historical APIs
-and lazy-loaded charts cover the 1h/12h/1d/3d/7d/30d views without sending raw long-range
+and lazy-loaded charts cover the 1h/12h/1d/3d/7d/30d/1y views without sending raw long-range
 samples to the browser. Transactional retention keeps seven days of raw samples,
 30 days of one-minute rollups, and one year of five-minute rollups. Monthly traffic accounting handles configurable reset days,
 short months, host counter resets, and persisted O(1) dashboard reads. The responsive
