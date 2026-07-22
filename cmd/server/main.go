@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/agentgateway"
+	"github.com/zhengyifei200112-collab/myprobe/internal/alerts"
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
 	"github.com/zhengyifei200112-collab/myprobe/internal/httpapi"
@@ -49,6 +50,8 @@ func main() {
 	defer cancelRun()
 	latencyScheduler := scheduler.New(database, gateway, logger)
 	go latencyScheduler.Run(runCtx)
+	alertService := alerts.New(database, cfg.EncryptionKey, nil, logger)
+	go alertService.Run(runCtx)
 	api := httpapi.New(cfg, database, authService, gateway, hub)
 	server := &http.Server{
 		Addr: cfg.ListenAddress, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second,

@@ -72,7 +72,9 @@ go run ./cmd/agent --server http://127.0.0.1:25775 --token <agent-token>
 
 Configuration is supplied through `MYPROBE_*` environment variables. Set
 `MYPROBE_ADMIN_PASSWORD` before the first production startup; otherwise a random initial
-password is printed once to the server log.
+password is printed once to the server log. Set `MYPROBE_ENCRYPTION_KEY` to a stable,
+random value of at least 32 characters before configuring Webhook or Telegram
+notifications. Back up that key separately from the SQLite database.
 
 ## License
 

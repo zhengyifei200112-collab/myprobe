@@ -25,6 +25,46 @@ export interface LatencyConfig {
   node_groups: Array<{ node_id: string; group_id: string }>
 }
 
+export interface NotificationChannel {
+  id: string
+  name: string
+  kind: 'webhook' | 'telegram'
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type AlertKind = 'offline' | 'cpu' | 'bandwidth' | 'cycle_traffic' | 'expiry'
+
+export interface AlertRule {
+  id: string
+  node_id: string
+  channel_id: string
+  kind: AlertKind
+  config: {
+    offline_seconds?: number
+    threshold_percent?: number
+    threshold_bytes_per_second?: number
+    threshold_bytes?: number
+    days_before?: number
+  }
+  enabled: boolean
+  cooldown_seconds: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AlertEvent {
+  id: string
+  rule_id: string
+  node_id?: string
+  state: 'firing' | 'resolved' | 'failed'
+  message: string
+  delivery_error?: string
+  created_at: string
+  delivered_at?: string
+}
+
 let csrfToken = ''
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -83,3 +123,15 @@ export const deleteGroup = (id: string) => request<void>(`/api/v1/admin/target-g
 
 export const setGroupTarget = (groupID: string, targetID: string, assigned: boolean) => request<void>(`/api/v1/admin/target-groups/${encodeURIComponent(groupID)}/targets/${encodeURIComponent(targetID)}`, { method: assigned ? 'PUT' : 'DELETE' })
 export const setNodeGroup = (nodeID: string, groupID: string, assigned: boolean) => request<void>(`/api/v1/admin/nodes/${encodeURIComponent(nodeID)}/target-groups/${encodeURIComponent(groupID)}`, { method: assigned ? 'PUT' : 'DELETE' })
+
+export const loadChannels = () => request<{ channels: NotificationChannel[] }>('/api/v1/admin/notification-channels')
+export const createChannel = (payload: unknown) => request<{ channel: NotificationChannel }>('/api/v1/admin/notification-channels', { method: 'POST', body: JSON.stringify(payload) })
+export const updateChannel = (id: string, payload: unknown) => request<{ channel: NotificationChannel }>(`/api/v1/admin/notification-channels/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
+export const deleteChannel = (id: string) => request<void>(`/api/v1/admin/notification-channels/${encodeURIComponent(id)}`, { method: 'DELETE' })
+export const testChannel = (id: string) => request<void>(`/api/v1/admin/notification-channels/${encodeURIComponent(id)}/test`, { method: 'POST' })
+
+export const loadAlertRules = () => request<{ rules: AlertRule[] }>('/api/v1/admin/alert-rules')
+export const createAlertRule = (payload: unknown) => request<{ rule: AlertRule }>('/api/v1/admin/alert-rules', { method: 'POST', body: JSON.stringify(payload) })
+export const updateAlertRule = (id: string, payload: unknown) => request<{ rule: AlertRule }>(`/api/v1/admin/alert-rules/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
+export const deleteAlertRule = (id: string) => request<void>(`/api/v1/admin/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' })
+export const loadAlertEvents = () => request<{ events: AlertEvent[] }>('/api/v1/admin/alert-events')

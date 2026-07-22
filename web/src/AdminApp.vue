@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import type { NodeMetadata } from './types'
-import type { AdminGroup, AdminTarget, LatencyConfig } from './admin-api'
+import type { AdminGroup, AdminTarget, AlertEvent, AlertKind, AlertRule, LatencyConfig, NotificationChannel } from './admin-api'
 import {
-  createGroup, createNode, createTarget, deleteGroup, deleteNode, deleteTarget, loadLatencyConfig,
-  loadNodes, login, logout, restoreSession, rotateNodeToken, setGroupTarget, setNodeGroup,
-  updateGroup, updateNode, updateTarget,
+  createAlertRule, createChannel, createGroup, createNode, createTarget, deleteAlertRule, deleteChannel,
+  deleteGroup, deleteNode, deleteTarget, loadAlertEvents, loadAlertRules, loadChannels, loadLatencyConfig,
+  loadNodes, login, logout, restoreSession, rotateNodeToken, setGroupTarget, setNodeGroup, testChannel,
+  updateAlertRule, updateChannel, updateGroup, updateNode, updateTarget,
 } from './admin-api'
 
-type Tab = 'nodes' | 'targets' | 'groups'
+type Tab = 'nodes' | 'targets' | 'groups' | 'alerts'
 const authenticated = ref(false)
 const booting = ref(true)
 const busy = ref(false)
@@ -19,6 +20,9 @@ const username = ref('admin')
 const password = ref('')
 const nodes = ref<NodeMetadata[]>([])
 const config = ref<LatencyConfig>({ targets: [], groups: [], group_members: [], node_groups: [] })
+const channels = ref<NotificationChannel[]>([])
+const rules = ref<AlertRule[]>([])
+const events = ref<AlertEvent[]>([])
 const token = ref('')
 const tokenNode = ref('')
 
@@ -28,15 +32,24 @@ const nodeEdit = ref<NodeMetadata | null>(null)
 const emptyTarget = (): Omit<AdminTarget, 'id'> => ({ name: '', kind: 'ping', host: '', interval_seconds: 60, timeout_ms: 3000, enabled: true, sort_order: 0 })
 const targetForm = reactive(emptyTarget() as Omit<AdminTarget, 'id'> & { id?: string })
 const groupForm = reactive({ id: '', name: '', kind: 'ping' as 'ping' | 'tcping' })
+const emptyChannel = () => ({ id: '', name: '', kind: 'webhook' as 'webhook' | 'telegram', url: '', bot_token: '', chat_id: '', enabled: true })
+const channelForm = reactive(emptyChannel())
+const emptyRule = () => ({ id: '', node_id: '', channel_id: '', kind: 'offline' as AlertKind, threshold: 60, cooldown_seconds: 900, enabled: true })
+const ruleForm = reactive(emptyRule())
 
 function showError(value: unknown) {
   error.value = value instanceof Error ? value.message : '操作失败'
 }
 
 async function refresh() {
-  const [nodeResult, latencyResult] = await Promise.all([loadNodes(), loadLatencyConfig()])
+  const [nodeResult, latencyResult, channelResult, ruleResult, eventResult] = await Promise.all([
+    loadNodes(), loadLatencyConfig(), loadChannels(), loadAlertRules(), loadAlertEvents(),
+  ])
   nodes.value = nodeResult.nodes
   config.value = latencyResult
+  channels.value = channelResult.channels
+  rules.value = ruleResult.rules
+  events.value = eventResult.events
 }
 
 async function run(action: () => Promise<void>, success = '') {
@@ -173,6 +186,71 @@ async function toggleNodeGroup(node: NodeMetadata, group: AdminGroup, assigned: 
   await run(async () => { await setNodeGroup(node.id, group.id, assigned); await refresh() }, assigned ? '目标组已分配。' : '目标组已取消。')
 }
 
+function editChannel(item?: NotificationChannel) {
+  Object.assign(channelForm, emptyChannel(), item ? { id: item.id, name: item.name, kind: item.kind, enabled: item.enabled } : {})
+}
+
+async function saveChannel() {
+  const credentialConfig = channelForm.kind === 'webhook'
+    ? (channelForm.url ? { url: channelForm.url } : undefined)
+    : (channelForm.bot_token || channelForm.chat_id ? { bot_token: channelForm.bot_token, chat_id: channelForm.chat_id } : undefined)
+  await run(async () => {
+    const payload = { name: channelForm.name, kind: channelForm.kind, enabled: channelForm.enabled, config: credentialConfig }
+    if (channelForm.id) await updateChannel(channelForm.id, payload)
+    else await createChannel(payload)
+    editChannel()
+    await refresh()
+  }, channelForm.id ? '通知通道已更新。' : '通知通道已创建。')
+}
+
+async function removeChannel(item: NotificationChannel) {
+  if (!confirm(`确认删除通知通道“${item.name}”？关联告警规则也会删除。`)) return
+  await run(async () => { await deleteChannel(item.id); await refresh() }, '通知通道已删除。')
+}
+
+async function sendChannelTest(item: NotificationChannel) {
+  await run(async () => { await testChannel(item.id) }, '测试通知已发送。')
+}
+
+function thresholdLabel(kind: AlertKind) {
+  return ({ offline: '离线秒数', cpu: 'CPU 百分比', bandwidth: '总带宽 MiB/s', cycle_traffic: '周期流量 GiB', expiry: '提前天数' } as Record<AlertKind, string>)[kind]
+}
+
+function ruleConfig(kind: AlertKind, threshold: number) {
+  if (kind === 'offline') return { offline_seconds: threshold }
+  if (kind === 'cpu') return { threshold_percent: threshold }
+  if (kind === 'bandwidth') return { threshold_bytes_per_second: Math.round(threshold * 1024 * 1024) }
+  if (kind === 'cycle_traffic') return { threshold_bytes: Math.round(threshold * 1024 * 1024 * 1024) }
+  return { days_before: threshold }
+}
+
+function editRule(item?: AlertRule) {
+  if (!item) { Object.assign(ruleForm, emptyRule()); return }
+  let threshold = item.config.offline_seconds ?? item.config.threshold_percent ?? item.config.days_before ?? 0
+  if (item.kind === 'bandwidth') threshold = (item.config.threshold_bytes_per_second || 0) / 1024 / 1024
+  if (item.kind === 'cycle_traffic') threshold = (item.config.threshold_bytes || 0) / 1024 / 1024 / 1024
+  Object.assign(ruleForm, { id: item.id, node_id: item.node_id, channel_id: item.channel_id, kind: item.kind, threshold, cooldown_seconds: item.cooldown_seconds, enabled: item.enabled })
+}
+
+async function saveRule() {
+  await run(async () => {
+    const payload = { node_id: ruleForm.node_id, channel_id: ruleForm.channel_id, kind: ruleForm.kind, config: ruleConfig(ruleForm.kind, ruleForm.threshold), cooldown_seconds: ruleForm.cooldown_seconds, enabled: ruleForm.enabled }
+    if (ruleForm.id) await updateAlertRule(ruleForm.id, payload)
+    else await createAlertRule(payload)
+    editRule()
+    await refresh()
+  }, ruleForm.id ? '告警规则已更新。' : '告警规则已创建。')
+}
+
+async function removeRule(item: AlertRule) {
+  if (!confirm('确认删除此告警规则？')) return
+  await run(async () => { await deleteAlertRule(item.id); await refresh() }, '告警规则已删除。')
+}
+
+function nodeName(id?: string) { return nodes.value.find(item => item.id === id)?.name || id || '未知节点' }
+function channelName(id: string) { return channels.value.find(item => item.id === id)?.name || id }
+function kindName(kind: AlertKind) { return ({ offline: '离线', cpu: 'CPU', bandwidth: '带宽', cycle_traffic: '周期流量', expiry: '到期' } as Record<AlertKind, string>)[kind] }
+
 async function copyToken() {
   await navigator.clipboard.writeText(token.value)
   notice.value = 'Token 已复制。'
@@ -195,6 +273,7 @@ onMounted(async () => {
         <button :class="{ active: tab === 'nodes' }" @click="tab = 'nodes'">节点</button>
         <button :class="{ active: tab === 'targets' }" @click="tab = 'targets'">探测目标</button>
         <button :class="{ active: tab === 'groups' }" @click="tab = 'groups'">目标组</button>
+        <button :class="{ active: tab === 'alerts' }" @click="tab = 'alerts'">告警</button>
       </nav>
       <div class="nav-actions"><a class="soft-button" href="/">公开面板</a><button v-if="authenticated" class="soft-button" @click="signOut">退出</button></div>
     </header>
@@ -239,10 +318,25 @@ onMounted(async () => {
         <section class="admin-list"><article v-for="item in config.targets" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ item.name }}</strong><code>{{ item.host }}{{ item.port ? `:${item.port}` : '' }}</code></div><span class="status-label active">{{ item.kind.toUpperCase() }}</span></div><div class="entity-meta"><span>每 {{ item.interval_seconds }} 秒</span><span>超时 {{ item.timeout_ms }}ms</span><span>{{ item.enabled ? '已启用' : '已停用' }}</span></div><div class="entity-actions"><button @click="editTarget(item)">编辑</button><button class="danger" @click="removeTarget(item)">删除</button></div></article></section>
       </template>
 
-      <template v-else>
+      <template v-else-if="tab === 'groups'">
         <section class="admin-heading"><div><span class="eyebrow">ASSIGNMENTS</span><h1>目标组</h1><p>将同类目标组成策略组，再分配给一个或多个节点。</p></div><span class="count-pill">{{ config.groups.length }} 个分组</span></section>
         <form class="admin-panel compact-form" @submit.prevent="saveGroup"><h2>{{ groupForm.id ? '编辑分组' : '添加分组' }}</h2><div class="form-grid two"><label>名称<input v-model="groupForm.name" required></label><label>类型<select v-model="groupForm.kind"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label></div><div class="form-actions"><button class="primary-button" :disabled="busy">{{ groupForm.id ? '保存修改' : '创建分组' }}</button><button v-if="groupForm.id" type="button" @click="editGroup()">取消</button></div></form>
         <section class="admin-list"><article v-for="group in config.groups" :key="group.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ group.name }}</strong><code>{{ group.kind.toUpperCase() }}</code></div><span class="status-label active">{{ config.group_members.filter(x => x.group_id === group.id).length }} 个目标</span></div><div class="assignment-box"><b>组内目标</b><label v-for="targetItem in config.targets.filter(x => x.kind === group.kind)" :key="targetItem.id" class="check-chip"><input type="checkbox" :checked="isGroupTarget(group.id, targetItem.id)" :disabled="busy" @change="toggleGroupTarget(group, targetItem, ($event.target as HTMLInputElement).checked)">{{ targetItem.name }}</label><span v-if="!config.targets.some(x => x.kind === group.kind)" class="empty-inline">没有兼容目标</span></div><div class="entity-actions"><button @click="editGroup(group)">编辑</button><button class="danger" @click="removeGroup(group)">删除</button></div></article></section>
+      </template>
+
+      <template v-else>
+        <section class="admin-heading"><div><span class="eyebrow">NOTIFICATIONS</span><h1>通知与告警</h1><p>加密保存通知凭据，并对离线、CPU、带宽、周期流量和到期状态进行去重告警。</p></div><span class="count-pill">{{ rules.length }} 条规则</span></section>
+        <div class="alert-layout">
+          <section>
+            <form class="admin-panel compact-form" @submit.prevent="saveChannel"><h2>{{ channelForm.id ? '编辑通知通道' : '添加通知通道' }}</h2><div class="form-grid two"><label>名称<input v-model="channelForm.name" required></label><label>类型<select v-model="channelForm.kind"><option value="webhook">Webhook</option><option value="telegram">Telegram</option></select></label><label v-if="channelForm.kind === 'webhook'">Webhook URL<input v-model="channelForm.url" type="url" :required="!channelForm.id" :placeholder="channelForm.id ? '留空则保留原凭据' : 'https://example.com/hook'"></label><template v-else><label>Bot Token<input v-model="channelForm.bot_token" type="password" :required="!channelForm.id" :placeholder="channelForm.id ? '留空则保留原凭据' : ''"></label><label>Chat ID<input v-model="channelForm.chat_id" :required="!channelForm.id"></label></template></div><div v-if="channelForm.id" class="switch-row"><label><input v-model="channelForm.enabled" type="checkbox"> 启用此通道</label></div><div class="form-actions"><button class="primary-button" :disabled="busy">{{ channelForm.id ? '保存通道' : '创建通道' }}</button><button v-if="channelForm.id" type="button" @click="editChannel()">取消</button></div></form>
+            <div class="admin-list single"><article v-for="item in channels" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ item.name }}</strong><code>{{ item.kind.toUpperCase() }} · 凭据已加密</code></div><span :class="['status-label', item.enabled ? 'active' : 'muted']">{{ item.enabled ? '启用' : '停用' }}</span></div><div class="entity-actions"><button @click="sendChannelTest(item)">发送测试</button><button @click="editChannel(item)">编辑</button><button class="danger" @click="removeChannel(item)">删除</button></div></article><div v-if="!channels.length" class="admin-panel empty-admin">尚未配置通知通道</div></div>
+          </section>
+          <section>
+            <form class="admin-panel compact-form" @submit.prevent="saveRule"><h2>{{ ruleForm.id ? '编辑告警规则' : '添加告警规则' }}</h2><div class="form-grid two"><label>节点<select v-model="ruleForm.node_id" required><option value="" disabled>请选择</option><option v-for="item in nodes" :key="item.id" :value="item.id">{{ item.name }}</option></select></label><label>通知通道<select v-model="ruleForm.channel_id" required><option value="" disabled>请选择</option><option v-for="item in channels.filter(x => x.enabled)" :key="item.id" :value="item.id">{{ item.name }}</option></select></label><label>规则类型<select v-model="ruleForm.kind"><option value="offline">离线/恢复</option><option value="cpu">CPU</option><option value="bandwidth">总带宽</option><option value="cycle_traffic">周期流量</option><option value="expiry">到期</option></select></label><label>{{ thresholdLabel(ruleForm.kind) }}<input v-model.number="ruleForm.threshold" type="number" min="0" step="any" required></label><label>冷却时间（秒）<input v-model.number="ruleForm.cooldown_seconds" type="number" min="30" max="2592000" required></label></div><div v-if="ruleForm.id" class="switch-row"><label><input v-model="ruleForm.enabled" type="checkbox"> 启用此规则</label></div><div class="form-actions"><button class="primary-button" :disabled="busy || !nodes.length || !channels.length">{{ ruleForm.id ? '保存规则' : '创建规则' }}</button><button v-if="ruleForm.id" type="button" @click="editRule()">取消</button></div></form>
+            <div class="admin-list single"><article v-for="item in rules" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ nodeName(item.node_id) }} · {{ kindName(item.kind) }}</strong><code>{{ channelName(item.channel_id) }} · 冷却 {{ item.cooldown_seconds }} 秒</code></div><span :class="['status-label', item.enabled ? 'active' : 'muted']">{{ item.enabled ? '监控中' : '已停用' }}</span></div><div class="entity-actions"><button @click="editRule(item)">编辑</button><button class="danger" @click="removeRule(item)">删除</button></div></article><div v-if="!rules.length" class="admin-panel empty-admin">尚未创建告警规则</div></div>
+          </section>
+        </div>
+        <section class="event-section"><h2>最近告警事件</h2><div class="event-list admin-panel"><article v-for="item in events" :key="item.id"><span :class="['event-state', item.state]">{{ item.state === 'firing' ? '告警' : item.state === 'resolved' ? '恢复' : '失败' }}</span><div><strong>{{ nodeName(item.node_id) }}</strong><p>{{ item.delivery_error || item.message }}</p></div><time>{{ new Date(item.created_at).toLocaleString('zh-CN', { hour12: false }) }}</time></article><p v-if="!events.length" class="empty-admin">暂无告警事件</p></div></section>
       </template>
     </main>
 

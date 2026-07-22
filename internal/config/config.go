@@ -13,6 +13,7 @@ type Config struct {
 	DatabasePath  string
 	AdminUsername string
 	AdminPassword string
+	EncryptionKey string
 	SessionTTL    time.Duration
 	CookieSecure  bool
 	TrustedProxy  bool
@@ -24,6 +25,7 @@ func Load() (Config, error) {
 		DatabasePath:  env("MYPROBE_DATABASE", filepath.Join("data", "myprobe.db")),
 		AdminUsername: env("MYPROBE_ADMIN_USERNAME", "admin"),
 		AdminPassword: os.Getenv("MYPROBE_ADMIN_PASSWORD"),
+		EncryptionKey: os.Getenv("MYPROBE_ENCRYPTION_KEY"),
 		SessionTTL:    24 * time.Hour,
 		CookieSecure:  envBool("MYPROBE_COOKIE_SECURE", false),
 		TrustedProxy:  envBool("MYPROBE_TRUST_PROXY", false),

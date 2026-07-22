@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"time"
 
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
@@ -175,4 +176,50 @@ type LatencyHistoryPoint struct {
 	Kind        string    `json:"kind"`
 	LatencyMS   *float64  `json:"latency_ms,omitempty"`
 	SuccessRate float64   `json:"success_rate"`
+}
+
+type NotificationChannel struct {
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Kind            string    `json:"kind"`
+	ConfigEncrypted string    `json:"-"`
+	Enabled         bool      `json:"enabled"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type AlertRule struct {
+	ID              string          `json:"id"`
+	NodeID          string          `json:"node_id"`
+	ChannelID       string          `json:"channel_id"`
+	Kind            string          `json:"kind"`
+	Config          json.RawMessage `json:"config"`
+	Enabled         bool            `json:"enabled"`
+	CooldownSeconds int             `json:"cooldown_seconds"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+}
+
+type AlertState struct {
+	Fingerprint     string
+	RuleID          string
+	NodeID          string
+	Active          bool
+	LastMessage     string
+	LastAttemptAt   time.Time
+	LastDeliveredAt *time.Time
+	LastError       string
+	UpdatedAt       time.Time
+}
+
+type AlertEvent struct {
+	ID            string     `json:"id"`
+	RuleID        string     `json:"rule_id"`
+	NodeID        string     `json:"node_id,omitempty"`
+	State         string     `json:"state"`
+	Fingerprint   string     `json:"fingerprint"`
+	Message       string     `json:"message"`
+	DeliveryError string     `json:"delivery_error,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	DeliveredAt   *time.Time `json:"delivered_at,omitempty"`
 }

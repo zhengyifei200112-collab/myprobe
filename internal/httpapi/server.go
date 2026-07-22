@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 	"github.com/gin-gonic/gin"
 	"github.com/zhengyifei200112-collab/myprobe/internal/agentgateway"
+	"github.com/zhengyifei200112-collab/myprobe/internal/alerts"
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
@@ -26,6 +28,7 @@ type Server struct {
 	auth    *auth.Service
 	gateway *agentgateway.Gateway
 	hub     *agentgateway.Hub
+	alerts  *alerts.Service
 	router  *gin.Engine
 	handler http.Handler
 }
@@ -34,7 +37,7 @@ func New(cfg config.Config, database *store.Store, authService *auth.Service, ga
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery(), securityHeaders())
-	server := &Server{config: cfg, store: database, auth: authService, gateway: gateway, hub: hub, router: router}
+	server := &Server{config: cfg, store: database, auth: authService, gateway: gateway, hub: hub, alerts: alerts.New(database, cfg.EncryptionKey, nil, nil), router: router}
 	server.routes()
 	mux := http.NewServeMux()
 	// WebSocket upgrades bypass Gin's wrapped ResponseWriter. coder/websocket uses
@@ -94,6 +97,16 @@ func (s *Server) routes() {
 	admin.DELETE("/target-groups/:groupID/targets/:targetID", s.removeTargetFromGroup)
 	admin.PUT("/nodes/:nodeID/target-groups/:groupID", s.assignTargetGroup)
 	admin.DELETE("/nodes/:nodeID/target-groups/:groupID", s.unassignTargetGroup)
+	admin.GET("/notification-channels", s.listNotificationChannels)
+	admin.POST("/notification-channels", s.createNotificationChannel)
+	admin.PATCH("/notification-channels/:channelID", s.updateNotificationChannel)
+	admin.DELETE("/notification-channels/:channelID", s.deleteNotificationChannel)
+	admin.POST("/notification-channels/:channelID/test", s.testNotificationChannel)
+	admin.GET("/alert-rules", s.listAlertRules)
+	admin.POST("/alert-rules", s.createAlertRule)
+	admin.PATCH("/alert-rules/:ruleID", s.updateAlertRule)
+	admin.DELETE("/alert-rules/:ruleID", s.deleteAlertRule)
+	admin.GET("/alert-events", s.listAlertEvents)
 }
 
 func (s *Server) publicNodes(c *gin.Context) {
@@ -468,6 +481,159 @@ func (s *Server) unassignTargetGroup(c *gin.Context) {
 	}
 	s.audit(c, "unassign_group", "node", c.Param("nodeID"), gin.H{"group_id": c.Param("groupID")})
 	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) listNotificationChannels(c *gin.Context) {
+	items, err := s.alerts.ListChannels(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list notification channels"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"channels": items})
+}
+
+func (s *Server) createNotificationChannel(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32<<10)
+	var request struct {
+		Name   string               `json:"name"`
+		Kind   string               `json:"kind"`
+		Config alerts.ChannelConfig `json:"config"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&request) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	item, err := s.alerts.CreateChannel(c.Request.Context(), request.Name, request.Kind, request.Config)
+	if err != nil {
+		writeAlertError(c, err)
+		return
+	}
+	s.audit(c, "create", "notification_channel", item.ID, gin.H{"name": item.Name, "kind": item.Kind})
+	c.JSON(http.StatusCreated, gin.H{"channel": item})
+}
+
+func (s *Server) updateNotificationChannel(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32<<10)
+	var request struct {
+		Name    string                `json:"name"`
+		Kind    string                `json:"kind"`
+		Config  *alerts.ChannelConfig `json:"config"`
+		Enabled bool                  `json:"enabled"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&request) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	item, err := s.alerts.UpdateChannel(c.Request.Context(), c.Param("channelID"), request.Name, request.Kind, request.Config, request.Enabled)
+	if err != nil {
+		writeAlertError(c, err)
+		return
+	}
+	s.audit(c, "update", "notification_channel", item.ID, gin.H{"name": item.Name, "kind": item.Kind, "enabled": item.Enabled, "credentials_changed": request.Config != nil})
+	c.JSON(http.StatusOK, gin.H{"channel": item})
+}
+
+func (s *Server) deleteNotificationChannel(c *gin.Context) {
+	id := c.Param("channelID")
+	if err := s.alerts.DeleteChannel(c.Request.Context(), id); err != nil {
+		writeAlertError(c, err)
+		return
+	}
+	s.audit(c, "delete", "notification_channel", id, nil)
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) testNotificationChannel(c *gin.Context) {
+	id := c.Param("channelID")
+	if err := s.alerts.TestChannel(c.Request.Context(), id, time.Now().UTC()); err != nil {
+		writeAlertError(c, err)
+		return
+	}
+	s.audit(c, "test", "notification_channel", id, nil)
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) listAlertRules(c *gin.Context) {
+	items, err := s.store.ListAlertRules(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list alert rules"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"rules": items})
+}
+
+func (s *Server) createAlertRule(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	var request struct {
+		NodeID          string            `json:"node_id"`
+		ChannelID       string            `json:"channel_id"`
+		Kind            string            `json:"kind"`
+		Config          alerts.RuleConfig `json:"config"`
+		CooldownSeconds int               `json:"cooldown_seconds"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&request) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	item, err := s.alerts.CreateRule(c.Request.Context(), request.NodeID, request.ChannelID, request.Kind, request.Config, request.CooldownSeconds)
+	if err != nil {
+		writeAlertError(c, err)
+		return
+	}
+	s.audit(c, "create", "alert_rule", item.ID, gin.H{"node_id": item.NodeID, "channel_id": item.ChannelID, "kind": item.Kind})
+	c.JSON(http.StatusCreated, gin.H{"rule": item})
+}
+
+func (s *Server) updateAlertRule(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	var request struct {
+		NodeID          string            `json:"node_id"`
+		ChannelID       string            `json:"channel_id"`
+		Kind            string            `json:"kind"`
+		Config          alerts.RuleConfig `json:"config"`
+		Enabled         bool              `json:"enabled"`
+		CooldownSeconds int               `json:"cooldown_seconds"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&request) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	item, err := s.alerts.UpdateRule(c.Request.Context(), c.Param("ruleID"), request.NodeID, request.ChannelID, request.Kind, request.Config, request.Enabled, request.CooldownSeconds)
+	if err != nil {
+		writeAlertError(c, err)
+		return
+	}
+	s.audit(c, "update", "alert_rule", item.ID, gin.H{"node_id": item.NodeID, "channel_id": item.ChannelID, "kind": item.Kind, "enabled": item.Enabled})
+	c.JSON(http.StatusOK, gin.H{"rule": item})
+}
+
+func (s *Server) deleteAlertRule(c *gin.Context) {
+	id := c.Param("ruleID")
+	if err := s.store.DeleteAlertRule(c.Request.Context(), id); err != nil {
+		writeAlertError(c, err)
+		return
+	}
+	s.audit(c, "delete", "alert_rule", id, nil)
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) listAlertEvents(c *gin.Context) {
+	items, err := s.store.ListAlertEvents(c.Request.Context(), 100)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list alert events"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"events": items})
+}
+
+func writeAlertError(c *gin.Context, err error) {
+	status := http.StatusBadRequest
+	if errors.Is(err, store.ErrNotFound) {
+		status = http.StatusNotFound
+	} else if errors.Is(err, alerts.ErrEncryptionNotConfigured) {
+		status = http.StatusServiceUnavailable
+	}
+	c.JSON(status, gin.H{"error": err.Error()})
 }
 
 func (s *Server) audit(c *gin.Context, action, objectType, objectID string, details any) {

@@ -26,8 +26,8 @@
 | Chart sharing | Group-scoped password protected chart views | Authentication and rate-limit tests | Planned |
 | Node administration | Register, edit, order, hide, delete, rotate token | Admin API and browser tests | Implemented |
 | Target administration | Ping/TCPing target and group CRUD | API and scheduler tests | Implemented |
-| Notifications | Telegram bot and generic webhook channels | Mock receiver tests | Planned |
-| Alerts | Offline/recovery, CPU, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Planned |
+| Notifications | Telegram bot and generic webhook channels | Mock receiver tests | Implemented |
+| Alerts | Offline/recovery, CPU, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Implemented |
 | Custom display | Structured badges/links and sanitized advanced HTML | Sanitizer and CSP tests | Planned |
 | Configuration | Versioned import/export and database backup/restore | Round-trip and upgrade tests | Planned |
 | Authentication | Password login/logout/change, CSRF, throttling and CAPTCHA | Security integration tests | Partial: login/logout/session/CSRF implemented |
