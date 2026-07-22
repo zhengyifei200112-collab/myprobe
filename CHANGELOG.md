@@ -7,6 +7,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-22
+
 ### Added
 
 - Multi-path deployment with a checksum-verifying Linux one-click installer for Server
@@ -20,3 +22,6 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Original Go Server and Agent, Vue dashboard, SQLite persistence, realtime monitoring,
   historical rollups, administration, alerts, sharing, maintenance, and deployment
   packaging.
+
+[Unreleased]: https://github.com/zhengyifei200112-collab/myprobe/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/zhengyifei200112-collab/myprobe/releases/tag/v0.1.0
