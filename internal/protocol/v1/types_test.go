@@ -39,6 +39,13 @@ func TestReportRejectsInvalidAbsoluteValues(t *testing.T) {
 	}
 }
 
+func TestReportRejectsInvalidPublicIP(t *testing.T) {
+	report := Report{CapturedAt: time.Now().UTC(), PublicIP: "203.0.113.1;whoami"}
+	if err := report.Validate(); err == nil {
+		t.Fatal("Validate() accepted an invalid public IP")
+	}
+}
+
 func TestEnvelopePayloadRoundTrip(t *testing.T) {
 	want := Acknowledgement{Sequence: 17}
 	envelope, err := NewEnvelope(TypeAcknowledged, 17, want)

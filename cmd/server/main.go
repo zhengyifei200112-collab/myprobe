@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -41,6 +42,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer database.Close()
+	retentionPolicy := store.RetentionPolicy{
+		Raw: cfg.Retention.Raw, OneMinute: cfg.Retention.OneMinute, FiveMinute: cfg.Retention.FiveMinute,
+	}
+	if err := database.ApplyRetention(ctx, time.Now().UTC(), retentionPolicy); err != nil {
+		logger.Error("apply history retention", "error", err)
+		os.Exit(1)
+	}
 
 	authService := auth.New(database, cfg.SessionTTL)
 	generatedPassword, err := authService.Bootstrap(ctx, cfg.AdminUsername, cfg.AdminPassword)
@@ -60,12 +68,16 @@ func main() {
 	go latencyScheduler.Run(runCtx)
 	alertService := alerts.New(database, cfg.EncryptionKey, nil, logger)
 	go alertService.Run(runCtx)
+	go runRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger)
 	api := httpapi.New(cfg, database, authService, gateway, hub)
 	server := &http.Server{
 		Addr: cfg.ListenAddress, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 90 * time.Second,
 	}
 
+	if isPublicListener(cfg.ListenAddress) && !cfg.PublicHTTPAck {
+		logger.Warn("public HTTP listener has no TLS; place MyProbe behind HTTPS or explicitly acknowledge direct HTTP", "environment", "MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED")
+	}
 	go func() {
 		logger.Info("MyProbe server started", "address", cfg.ListenAddress)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -83,4 +95,31 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("graceful shutdown failed", "error", err)
 	}
+}
+
+func runRetention(ctx context.Context, database *store.Store, policy store.RetentionPolicy, interval time.Duration, logger *slog.Logger) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			if err := database.ApplyRetention(ctx, now.UTC(), policy); err != nil && !errors.Is(err, context.Canceled) {
+				logger.Error("apply history retention", "error", err)
+			}
+		}
+	}
+}
+
+func isPublicListener(address string) bool {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return true
+	}
+	if host == "" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip == nil || ip.IsUnspecified()
 }

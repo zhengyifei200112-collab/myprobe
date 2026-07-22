@@ -1,0 +1,33 @@
+services:
+  myprobe:
+    build:
+      context: .
+      args:
+        VERSION: ${MYPROBE_VERSION:-dev}
+    image: myprobe:${MYPROBE_VERSION:-dev}
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${MYPROBE_BIND_ADDRESS:-127.0.0.1}:${MYPROBE_PORT:-25775}:25775"
+    environment:
+      MYPROBE_LISTEN: ":25775"
+      MYPROBE_DATABASE: /var/lib/myprobe/myprobe.db
+      MYPROBE_ADMIN_USERNAME: ${MYPROBE_ADMIN_USERNAME:-admin}
+      MYPROBE_ADMIN_PASSWORD: ${MYPROBE_ADMIN_PASSWORD:?set MYPROBE_ADMIN_PASSWORD in .env}
+      MYPROBE_ENCRYPTION_KEY: ${MYPROBE_ENCRYPTION_KEY:?set MYPROBE_ENCRYPTION_KEY in .env}
+      MYPROBE_COOKIE_SECURE: ${MYPROBE_COOKIE_SECURE:-false}
+      MYPROBE_TRUSTED_PROXIES: ${MYPROBE_TRUSTED_PROXIES:-}
+      MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED: ${MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED:-false}
+      MYPROBE_RAW_RETENTION_DAYS: ${MYPROBE_RAW_RETENTION_DAYS:-7}
+      MYPROBE_MINUTE_RETENTION_DAYS: ${MYPROBE_MINUTE_RETENTION_DAYS:-30}
+      MYPROBE_FIVE_MINUTE_RETENTION_DAYS: ${MYPROBE_FIVE_MINUTE_RETENTION_DAYS:-365}
+      MYPROBE_RETENTION_INTERVAL_HOURS: ${MYPROBE_RETENTION_INTERVAL_HOURS:-1}
+    volumes:
+      - myprobe-data:/var/lib/myprobe
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  myprobe-data:

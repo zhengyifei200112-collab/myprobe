@@ -32,6 +32,8 @@
 | Configuration | Versioned merge import/export and encrypted database backup/restore | Round-trip, tamper, dry-run and recovery tests | Implemented |
 | Authentication | Password login/logout/change, CSRF, persistent throttling and CAPTCHA | Security integration and restart tests | Implemented |
 | Audit | Administrative action log and cursor-paginated viewer | API and management UI verification | Implemented |
+| Retention | Transactional raw, one-minute, and five-minute history tiers | Migration, idempotence, cleanup and cross-tier query tests | Implemented |
+| Deployment | One-command container startup and single-binary releases | Compose validation and tagged release workflow | Implemented |
 
 ## Public dashboard layout
 
@@ -58,7 +60,8 @@
 - Disk total/used values for configured mount points.
 - Network interface, total counters, calculated rates, and counter reset handling.
 - Uptime, operating system, kernel, process count, temperatures when supported.
-- Public/local IP data is stored separately; public responses expose only masked values.
+- Public IP is derived from the authenticated agent connection rather than trusted from
+  the payload; public responses expose only a server-masked value.
 
 ## Retention
 
@@ -67,6 +70,8 @@
 - One-minute rollups: 30 days.
 - Five-minute rollups: one year.
 - Retention and rollup jobs are configurable and transactional.
+- Historical queries merge tiers without exposing raw long-range samples, including a
+  one-year view backed by the five-minute tier.
 
 ## Explicit exclusions for v1
 

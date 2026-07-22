@@ -1,0 +1,12 @@
+.git
+.github
+.env
+bin
+data
+deploy
+web/node_modules
+web/dist
+*.db
+*.db-shm
+*.db-wal
+*.log

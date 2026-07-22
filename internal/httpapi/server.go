@@ -40,6 +40,7 @@ type Server struct {
 func New(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
+	gateway.SetTrustedProxies(cfg.TrustedProxies)
 	if err := router.SetTrustedProxies(cfg.TrustedProxies); err != nil {
 		_ = router.SetTrustedProxies(nil)
 	}
@@ -161,7 +162,7 @@ func (s *Server) writeNodeHistory(c *gin.Context, nodeID string) {
 	rangeName := c.DefaultQuery("range", "1h")
 	duration, bucket, ok := historyRange(rangeName)
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "range must be one of 1h, 12h, 1d, 3d, 7d, 30d"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "range must be one of 1h, 12h, 1d, 3d, 7d, 30d, 1y"})
 		return
 	}
 	start := time.Now().UTC().Add(-duration)
@@ -197,6 +198,8 @@ func historyRange(name string) (time.Duration, int, bool) {
 		return 7 * 24 * time.Hour, 900, true
 	case "30d":
 		return 30 * 24 * time.Hour, 3600, true
+	case "1y":
+		return 365 * 24 * time.Hour, 12 * 3600, true
 	default:
 		return 0, 0, false
 	}

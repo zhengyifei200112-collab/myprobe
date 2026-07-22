@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -17,12 +19,27 @@ import (
 )
 
 type Gateway struct {
-	store      *store.Store
-	hub        *Hub
-	sessionsMu sync.RWMutex
-	sessions   map[string]*agentSession
-	pendingMu  sync.Mutex
-	pending    map[string]pendingTask
+	store          *store.Store
+	hub            *Hub
+	sessionsMu     sync.RWMutex
+	sessions       map[string]*agentSession
+	pendingMu      sync.Mutex
+	pending        map[string]pendingTask
+	trustedProxies []netip.Prefix
+}
+
+func (g *Gateway) SetTrustedProxies(values []string) {
+	prefixes := make([]netip.Prefix, 0, len(values))
+	for _, value := range values {
+		if address, err := netip.ParseAddr(value); err == nil {
+			prefixes = append(prefixes, netip.PrefixFrom(address, address.BitLen()))
+			continue
+		}
+		if prefix, err := netip.ParsePrefix(value); err == nil {
+			prefixes = append(prefixes, prefix)
+		}
+	}
+	g.trustedProxies = prefixes
 }
 
 func New(database *store.Store, hub *Hub) *Gateway {
@@ -70,6 +87,7 @@ func (g *Gateway) HTTPReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid report payload"})
 		return
 	}
+	report.PublicIP = g.clientIP(r)
 	if err := g.persistAndPublish(r.Context(), node, report); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to store report"})
 		return
@@ -117,6 +135,7 @@ func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 	connection.SetReadLimit(protocol.MaxMessageBytes)
 
 	ctx := r.Context()
+	sourceIP := g.clientIP(r)
 	firstCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	var first protocol.Envelope
 	err = wsjson.Read(firstCtx, connection, &first)
@@ -174,6 +193,7 @@ func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 				g.writeProtocolError(ctx, session, "invalid_report", "report validation failed")
 				continue
 			}
+			report.PublicIP = sourceIP
 			if err := g.persistAndPublish(ctx, node, report); err != nil {
 				g.writeProtocolError(ctx, session, "storage_error", "report could not be stored")
 				continue
@@ -218,6 +238,37 @@ func (g *Gateway) persistAndPublish(ctx context.Context, node store.Node, report
 	}
 	g.publishNode(ctx, node.ID)
 	return nil
+}
+
+func (g *Gateway) clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	remote, err := netip.ParseAddr(host)
+	if err != nil || !g.isTrustedProxy(remote) {
+		return host
+	}
+	chain := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+	for index := len(chain) - 1; index >= 0; index-- {
+		candidate, err := netip.ParseAddr(strings.TrimSpace(chain[index]))
+		if err == nil && !g.isTrustedProxy(candidate) {
+			return candidate.String()
+		}
+	}
+	if candidate, err := netip.ParseAddr(strings.TrimSpace(r.Header.Get("X-Real-IP"))); err == nil {
+		return candidate.String()
+	}
+	return host
+}
+
+func (g *Gateway) isTrustedProxy(address netip.Addr) bool {
+	for _, prefix := range g.trustedProxies {
+		if prefix.Contains(address) {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *Gateway) publishNode(ctx context.Context, nodeID string) {

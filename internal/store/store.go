@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -335,6 +336,7 @@ func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNod
 		if reportJSON.Valid {
 			var report protocol.Report
 			if json.Unmarshal([]byte(reportJSON.String), &report) == nil {
+				report.PublicIP = maskPublicIP(report.PublicIP)
 				item.Report = &report
 			}
 		}
@@ -369,6 +371,21 @@ func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNod
 		result[index].Traffic = traffic
 	}
 	return result, nil
+}
+
+func maskPublicIP(value string) string {
+	address := net.ParseIP(value)
+	if address == nil {
+		return ""
+	}
+	if ipv4 := address.To4(); ipv4 != nil {
+		return fmt.Sprintf("%d.%d.••.••", ipv4[0], ipv4[1])
+	}
+	segments := strings.Split(address.String(), ":")
+	if len(segments) > 3 {
+		return strings.Join(segments[:3], ":") + ":••••"
+	}
+	return "••••"
 }
 
 func (s *Store) CreateTarget(ctx context.Context, params CreateTargetParams) (Target, error) {
@@ -637,14 +654,25 @@ func (s *Store) MetricHistory(ctx context.Context, nodeID string, start time.Tim
 	if bucketSeconds < 1 || bucketSeconds > 86400 {
 		return nil, errors.New("invalid history bucket")
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT (unixepoch(m.captured_at) / ?) * ? AS bucket,
-		AVG(m.cpu_usage),
-		AVG(CASE WHEN m.memory_total > 0 THEN 100.0 * m.memory_used / m.memory_total ELSE 0 END),
-		AVG(CASE WHEN m.disk_total > 0 THEN 100.0 * m.disk_used / m.disk_total ELSE 0 END),
-		AVG(m.net_rx_rate), AVG(m.net_tx_rate)
-		FROM metric_samples m JOIN nodes n ON n.id = m.node_id
-		WHERE m.node_id = ? AND n.hidden = 0 AND m.captured_at >= ?
-		GROUP BY bucket ORDER BY bucket`, bucketSeconds, bucketSeconds, nodeID, formatTime(start))
+	rows, err := s.db.QueryContext(ctx, `WITH history AS (
+		SELECT m.node_id,m.captured_at AS sample_at,1 AS sample_count,m.cpu_usage AS cpu_sum,
+		CASE WHEN m.memory_total>0 THEN 100.0*m.memory_used/m.memory_total ELSE 0 END AS memory_sum,
+		CASE WHEN m.disk_total>0 THEN 100.0*m.disk_used/m.disk_total ELSE 0 END AS disk_sum,
+		m.net_rx_rate AS rx_sum,m.net_tx_rate AS tx_sum
+		FROM metric_samples m
+		WHERE m.node_id=? AND m.captured_at>=? AND NOT EXISTS (
+			SELECT 1 FROM metric_rollups r WHERE r.node_id=m.node_id
+			AND unixepoch(m.captured_at)>=unixepoch(r.bucket_at)
+			AND unixepoch(m.captured_at)<unixepoch(r.bucket_at)+r.bucket_seconds)
+		UNION ALL
+		SELECT node_id,bucket_at,sample_count,cpu_sum,memory_percent_sum,disk_percent_sum,net_rx_rate_sum,net_tx_rate_sum
+		FROM metric_rollups WHERE node_id=? AND bucket_at>=?
+	)
+	SELECT (unixepoch(sample_at)/?)*? AS bucket,
+	SUM(cpu_sum)/SUM(sample_count),SUM(memory_sum)/SUM(sample_count),SUM(disk_sum)/SUM(sample_count),
+	SUM(rx_sum)/SUM(sample_count),SUM(tx_sum)/SUM(sample_count)
+	FROM history JOIN nodes n ON n.id=history.node_id WHERE n.hidden=0
+	GROUP BY bucket ORDER BY bucket`, nodeID, formatTime(start), nodeID, formatTime(start), bucketSeconds, bucketSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -666,14 +694,21 @@ func (s *Store) LatencyHistory(ctx context.Context, nodeID string, start time.Ti
 	if bucketSeconds < 1 || bucketSeconds > 86400 {
 		return nil, errors.New("invalid history bucket")
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT (unixepoch(l.captured_at) / ?) * ? AS bucket,
-		l.target_id, t.name, l.kind,
-		AVG(CASE WHEN l.success = 1 THEN l.latency_ms END), 100.0 * AVG(l.success)
-		FROM latency_samples l
-		JOIN targets t ON t.id = l.target_id
-		JOIN nodes n ON n.id = l.node_id
-		WHERE l.node_id = ? AND n.hidden = 0 AND l.captured_at >= ?
-		GROUP BY bucket, l.target_id, t.name, l.kind ORDER BY bucket, t.sort_order, t.name`, bucketSeconds, bucketSeconds, nodeID, formatTime(start))
+	rows, err := s.db.QueryContext(ctx, `WITH history AS (
+		SELECT node_id,target_id,kind,captured_at AS sample_at,1 AS sample_count,success AS success_count,
+		CASE WHEN success=1 AND latency_ms IS NOT NULL THEN 1 ELSE 0 END AS latency_count,
+		CASE WHEN success=1 THEN COALESCE(latency_ms,0) ELSE 0 END AS latency_sum
+		FROM latency_samples WHERE node_id=? AND captured_at>=?
+		UNION ALL
+		SELECT node_id,target_id,kind,bucket_at,sample_count,success_count,latency_count,latency_sum
+		FROM latency_rollups WHERE node_id=? AND bucket_at>=?
+	)
+	SELECT (unixepoch(sample_at)/?)*? AS bucket,history.target_id,t.name,history.kind,
+		CASE WHEN SUM(latency_count)>0 THEN SUM(latency_sum)/SUM(latency_count) END,
+		100.0*SUM(success_count)/SUM(sample_count)
+	FROM history JOIN targets t ON t.id=history.target_id JOIN nodes n ON n.id=history.node_id
+	WHERE n.hidden=0 GROUP BY bucket,history.target_id,t.name,history.kind
+	ORDER BY bucket,t.sort_order,t.name`, nodeID, formatTime(start), nodeID, formatTime(start), bucketSeconds, bucketSeconds)
 	if err != nil {
 		return nil, err
 	}

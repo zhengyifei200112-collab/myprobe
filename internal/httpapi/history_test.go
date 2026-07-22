@@ -46,8 +46,13 @@ func TestPublicHistoryUsesBoundedRanges(t *testing.T) {
 		t.Fatalf("body = %#v", body)
 	}
 
+	year := httptest.NewRecorder()
+	handler.ServeHTTP(year, httptest.NewRequest(http.MethodGet, "/api/v1/public/nodes/"+node.ID+"/history?range=1y", nil))
+	if year.Code != http.StatusOK {
+		t.Fatalf("one-year range status = %d", year.Code)
+	}
 	invalid := httptest.NewRecorder()
-	handler.ServeHTTP(invalid, httptest.NewRequest(http.MethodGet, "/api/v1/public/nodes/"+node.ID+"/history?range=1y", nil))
+	handler.ServeHTTP(invalid, httptest.NewRequest(http.MethodGet, "/api/v1/public/nodes/"+node.ID+"/history?range=2y", nil))
 	if invalid.Code != http.StatusBadRequest {
 		t.Fatalf("invalid range status = %d", invalid.Code)
 	}

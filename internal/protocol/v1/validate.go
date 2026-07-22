@@ -60,6 +60,9 @@ func (r Report) Validate() error {
 	if r.CapturedAt.IsZero() {
 		return fmt.Errorf("captured_at: %w", ErrInvalidTimestamp)
 	}
+	if r.PublicIP != "" && net.ParseIP(r.PublicIP) == nil {
+		return errors.New("public_ip is invalid")
+	}
 	if err := validPercent("cpu.usage_percent", r.CPU.UsagePercent); err != nil {
 		return err
 	}

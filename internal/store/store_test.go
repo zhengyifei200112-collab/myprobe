@@ -2,12 +2,58 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 )
+
+func TestPublicIPIsStoredPreciselyAndReturnedMasked(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+
+	node, _, err := database.CreateNode(ctx, CreateNodeParams{Name: "network-test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		address string
+		masked  string
+	}{
+		{address: "203.0.113.42", masked: "203.0.••.••"},
+		{address: "2001:db8:abcd:1234::8", masked: "2001:db8:abcd:••••"},
+	} {
+		report := protocol.Report{CapturedAt: time.Now().UTC(), PublicIP: test.address}
+		if err := database.SaveReport(ctx, node.ID, report); err != nil {
+			t.Fatal(err)
+		}
+		items, err := database.ListPublicNodes(ctx, time.Now().UTC())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := items[0].Report.PublicIP; got != test.masked {
+			t.Fatalf("public IP = %q, want %q", got, test.masked)
+		}
+
+		var encoded string
+		if err := database.db.QueryRowContext(ctx, "SELECT report_json FROM metric_samples WHERE node_id = ? ORDER BY captured_at DESC, id DESC LIMIT 1", node.ID).Scan(&encoded); err != nil {
+			t.Fatal(err)
+		}
+		var stored protocol.Report
+		if err := json.Unmarshal([]byte(encoded), &stored); err != nil {
+			t.Fatal(err)
+		}
+		if stored.PublicIP != test.address {
+			t.Fatalf("stored public IP = %q, want %q", stored.PublicIP, test.address)
+		}
+	}
+}
 
 func TestNodeTokenAndReportRoundTrip(t *testing.T) {
 	ctx := context.Background()

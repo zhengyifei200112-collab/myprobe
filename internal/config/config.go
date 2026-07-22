@@ -19,6 +19,15 @@ type Config struct {
 	SessionTTL     time.Duration
 	CookieSecure   bool
 	TrustedProxies []string
+	Retention      Retention
+	PublicHTTPAck  bool
+}
+
+type Retention struct {
+	Raw        time.Duration
+	OneMinute  time.Duration
+	FiveMinute time.Duration
+	Interval   time.Duration
 }
 
 func Load() (Config, error) {
@@ -30,6 +39,13 @@ func Load() (Config, error) {
 		EncryptionKey: os.Getenv("MYPROBE_ENCRYPTION_KEY"),
 		SessionTTL:    24 * time.Hour,
 		CookieSecure:  envBool("MYPROBE_COOKIE_SECURE", false),
+		PublicHTTPAck: envBool("MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED", false),
+		Retention: Retention{
+			Raw:        7 * 24 * time.Hour,
+			OneMinute:  30 * 24 * time.Hour,
+			FiveMinute: 365 * 24 * time.Hour,
+			Interval:   time.Hour,
+		},
 	}
 	if raw := strings.TrimSpace(os.Getenv("MYPROBE_TRUSTED_PROXIES")); raw != "" {
 		for _, item := range strings.Split(raw, ",") {
@@ -51,7 +67,45 @@ func Load() (Config, error) {
 		}
 		cfg.SessionTTL = time.Duration(hours) * time.Hour
 	}
+	var err error
+	if cfg.Retention.Raw, err = envDays("MYPROBE_RAW_RETENTION_DAYS", cfg.Retention.Raw); err != nil {
+		return Config{}, err
+	}
+	if cfg.Retention.OneMinute, err = envDays("MYPROBE_MINUTE_RETENTION_DAYS", cfg.Retention.OneMinute); err != nil {
+		return Config{}, err
+	}
+	if cfg.Retention.FiveMinute, err = envDays("MYPROBE_FIVE_MINUTE_RETENTION_DAYS", cfg.Retention.FiveMinute); err != nil {
+		return Config{}, err
+	}
+	if cfg.Retention.Interval, err = envHours("MYPROBE_RETENTION_INTERVAL_HOURS", cfg.Retention.Interval); err != nil {
+		return Config{}, err
+	}
+	if cfg.Retention.OneMinute < cfg.Retention.Raw || cfg.Retention.FiveMinute < cfg.Retention.OneMinute {
+		return Config{}, errors.New("retention must satisfy raw <= one-minute <= five-minute")
+	}
 	return cfg, nil
+}
+
+func envDays(name string, fallback time.Duration) (time.Duration, error) {
+	if os.Getenv(name) == "" {
+		return fallback, nil
+	}
+	days, err := strconv.Atoi(os.Getenv(name))
+	if err != nil || days < 1 || days > 3650 {
+		return 0, errors.New(name + " must be between 1 and 3650")
+	}
+	return time.Duration(days) * 24 * time.Hour, nil
+}
+
+func envHours(name string, fallback time.Duration) (time.Duration, error) {
+	if os.Getenv(name) == "" {
+		return fallback, nil
+	}
+	hours, err := strconv.Atoi(os.Getenv(name))
+	if err != nil || hours < 1 || hours > 168 {
+		return 0, errors.New(name + " must be between 1 and 168")
+	}
+	return time.Duration(hours) * time.Hour, nil
 }
 
 func env(name, fallback string) string {

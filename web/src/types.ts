@@ -23,7 +23,7 @@ export interface LatestLatency {
   updated_at?: string
 }
 
-export type HistoryRange = '1h' | '12h' | '1d' | '3d' | '7d' | '30d'
+export type HistoryRange = '1h' | '12h' | '1d' | '3d' | '7d' | '30d' | '1y'
 
 export interface HistoryResponse {
   range: HistoryRange

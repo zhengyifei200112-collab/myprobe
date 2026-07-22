@@ -22,3 +22,21 @@ func TestTrustedProxiesAreExplicitAndValidated(t *testing.T) {
 		t.Fatal("invalid trusted proxy was accepted")
 	}
 }
+
+func TestRetentionConfigurationIsOrderedAndConfigurable(t *testing.T) {
+	t.Setenv("MYPROBE_RAW_RETENTION_DAYS", "5")
+	t.Setenv("MYPROBE_MINUTE_RETENTION_DAYS", "20")
+	t.Setenv("MYPROBE_FIVE_MINUTE_RETENTION_DAYS", "400")
+	t.Setenv("MYPROBE_RETENTION_INTERVAL_HOURS", "6")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Retention.Raw.Hours() != 120 || cfg.Retention.OneMinute.Hours() != 480 || cfg.Retention.FiveMinute.Hours() != 9600 || cfg.Retention.Interval.Hours() != 6 {
+		t.Fatalf("retention = %#v", cfg.Retention)
+	}
+	t.Setenv("MYPROBE_MINUTE_RETENTION_DAYS", "4")
+	if _, err := Load(); err == nil {
+		t.Fatal("unordered retention configuration was accepted")
+	}
+}

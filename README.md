@@ -4,7 +4,7 @@ MyProbe is a self-hosted VPS monitoring platform with an original implementation
 a lightweight Go agent, and a responsive dashboard inspired by the information
 architecture and visual polish of ZJM.
 
-The project is currently under active development. The product scope is tracked in
+The product scope and acceptance evidence are tracked in
 [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md), and the versioned agent protocol is
 defined in [`docs/PROTOCOL.md`](docs/PROTOCOL.md).
 
@@ -34,15 +34,16 @@ deploy                     container and service deployment files
 ## Development status
 
 The previous `myprobe-test` repository was an incomplete prototype and is not used as
-the implementation base. This repository starts from a documented protocol and a
-testable vertical architecture.
+the implementation base. This repository uses an independently documented protocol and
+a testable vertical architecture.
 
 The first vertical slice is operational: the server bootstraps SQLite and administrator
 authentication, agents report real host metrics over authenticated WebSockets with an
 HTTP fallback, typed Ping/TCPing tasks are scheduled and persisted, and the embedded
 responsive dashboard updates metrics and latency in real time. Bounded historical APIs
 and lazy-loaded charts cover the 1h/12h/1d/3d/7d/30d views without sending raw long-range
-samples to the browser. Monthly traffic accounting handles configurable reset days,
+samples to the browser. Transactional retention keeps seven days of raw samples,
+30 days of one-minute rollups, and one year of five-minute rollups. Monthly traffic accounting handles configurable reset days,
 short months, host counter resets, and persisted O(1) dashboard reads. The responsive
 management console covers login, node lifecycle and token rotation, Ping/TCPing target
 CRUD, target groups, node assignments, encrypted notifications, alert rules, and
@@ -51,7 +52,21 @@ versioned configuration transfer and passphrase-encrypted full database backups 
 restart-safe staged restore and automatic preservation of the previous database. The
 public cards also support persisted OS/platform labels, tested commercial expiry status,
 theme-safe structured badges, validated external links, and server-sanitized advanced
-HTML. The remaining ZJM parity work is tracked in the product specification.
+HTML. The feature-by-feature implementation and evidence matrix is maintained in the
+product specification.
+
+## Docker deployment
+
+```bash
+cp .env.example .env
+# Replace MYPROBE_ADMIN_PASSWORD and MYPROBE_ENCRYPTION_KEY in .env.
+docker compose up -d --build
+```
+
+The default bind address is `127.0.0.1:25775`; publish it through an HTTPS reverse proxy
+with WebSocket support. See [`deploy/README.md`](deploy/README.md) for proxy/security
+guidance and hardened systemd units. The SQLite database is stored in the
+`myprobe-data` volume.
 
 ## Local development
 
@@ -82,6 +97,11 @@ random value of at least 32 characters before configuring Webhook or Telegram
 notifications. Back up that key separately from the SQLite database.
 Forwarded client IP headers are ignored unless the reverse proxy address or CIDR is
 explicitly listed in `MYPROBE_TRUSTED_PROXIES`.
+
+History retention is configurable with `MYPROBE_RAW_RETENTION_DAYS`,
+`MYPROBE_MINUTE_RETENTION_DAYS`, `MYPROBE_FIVE_MINUTE_RETENTION_DAYS`, and
+`MYPROBE_RETENTION_INTERVAL_HOURS`. Durations must remain ordered from raw to
+one-minute to five-minute storage.
 
 ## License
 

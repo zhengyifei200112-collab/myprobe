@@ -40,8 +40,9 @@
   implementations. The agent never passes task data through a shell, and results are
   accepted only for a matching unexpired task issued by the server.
 - Advanced custom HTML is sanitized and governed by a restrictive CSP.
-- Production startup warns or fails when a public listener is configured without an
-  explicit TLS/reverse-proxy acknowledgement.
+- Production startup emits a structured warning when a public listener is configured
+  without `MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED=true`. The supplied Compose and systemd
+  defaults bind the host listener to loopback for an HTTPS reverse proxy.
 - Versioned JSON configuration exports exclude passwords, agent tokens, notification
   credentials, share password hashes, sessions, and history. Full database exports use
   scrypt-derived AES-256-GCM keys with independently authenticated chunks and an

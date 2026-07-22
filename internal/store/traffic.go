@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
 	"time"
 )
 
@@ -115,33 +116,76 @@ func (s *Store) TrafficHistory(ctx context.Context, nodeID string, start, end ti
 	if bucketSeconds < 1 {
 		return nil, errors.New("invalid traffic bucket")
 	}
+	rollups, err := s.trafficRollups(ctx, nodeID, start, end)
+	if err != nil {
+		return nil, err
+	}
 	samples, err := s.trafficSamples(ctx, nodeID, start, end)
 	if err != nil {
 		return nil, err
 	}
-	if len(samples) < 2 {
+	if len(samples) < 2 && len(rollups) == 0 {
 		return []TrafficHistoryPoint{}, nil
 	}
-	result := make([]TrafficHistoryPoint, 0)
-	var rxTotal, txTotal uint64
-	previous := samples[0]
-	var bucket int64 = -1
-	for _, current := range samples[1:] {
-		rxTotal += counterDelta(previous.rx, current.rx)
-		txTotal += counterDelta(previous.tx, current.tx)
-		currentBucket := current.at.Unix() / int64(bucketSeconds) * int64(bucketSeconds)
-		if currentBucket != bucket {
-			result = append(result, TrafficHistoryPoint{Time: time.Unix(currentBucket, 0).UTC(), RXBytes: rxTotal, TXBytes: txTotal, Total: rxTotal + txTotal})
-			bucket = currentBucket
-		} else {
-			last := &result[len(result)-1]
-			last.RXBytes = rxTotal
-			last.TXBytes = txTotal
-			last.Total = rxTotal + txTotal
+	deltas := make(map[int64]trafficSample)
+	for _, item := range rollups {
+		bucket := item.at.Unix() / int64(bucketSeconds) * int64(bucketSeconds)
+		current := deltas[bucket]
+		current.at = time.Unix(bucket, 0).UTC()
+		current.rx += item.rx
+		current.tx += item.tx
+		deltas[bucket] = current
+	}
+	if len(samples) >= 2 {
+		previous := samples[0]
+		for _, current := range samples[1:] {
+			bucket := current.at.Unix() / int64(bucketSeconds) * int64(bucketSeconds)
+			item := deltas[bucket]
+			item.at = time.Unix(bucket, 0).UTC()
+			item.rx += counterDelta(previous.rx, current.rx)
+			item.tx += counterDelta(previous.tx, current.tx)
+			deltas[bucket] = item
+			previous = current
 		}
-		previous = current
+	}
+	buckets := make([]int64, 0, len(deltas))
+	for bucket := range deltas {
+		buckets = append(buckets, bucket)
+	}
+	sort.Slice(buckets, func(i, j int) bool { return buckets[i] < buckets[j] })
+	result := make([]TrafficHistoryPoint, 0, len(buckets))
+	var rxTotal, txTotal uint64
+	for _, bucket := range buckets {
+		item := deltas[bucket]
+		rxTotal += item.rx
+		txTotal += item.tx
+		result = append(result, TrafficHistoryPoint{Time: item.at, RXBytes: rxTotal, TXBytes: txTotal, Total: rxTotal + txTotal})
 	}
 	return result, nil
+}
+
+func (s *Store) trafficRollups(ctx context.Context, nodeID string, start, end time.Time) ([]trafficSample, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT r.bucket_at,r.rx_bytes,r.tx_bytes FROM traffic_rollups r
+		JOIN nodes n ON n.id=r.node_id WHERE r.node_id=? AND n.hidden=0 AND r.bucket_at>=? AND r.bucket_at<=?
+		ORDER BY r.bucket_at`, nodeID, formatTime(start), formatTime(end))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]trafficSample, 0)
+	for rows.Next() {
+		var raw string
+		var rx, tx int64
+		if err := rows.Scan(&raw, &rx, &tx); err != nil {
+			return nil, err
+		}
+		at, err := parseTime(raw)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, trafficSample{at: at, rx: uint64(max(rx, 0)), tx: uint64(max(tx, 0))})
+	}
+	return items, rows.Err()
 }
 
 func (s *Store) trafficSamples(ctx context.Context, nodeID string, start, end time.Time) ([]trafficSample, error) {
