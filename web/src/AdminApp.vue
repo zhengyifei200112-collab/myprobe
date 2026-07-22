@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import type { NodeMetadata } from './types'
-import type { AdminGroup, AdminTarget, AlertEvent, AlertKind, AlertRule, ChartShare, ConfigImportResult, LatencyConfig, NotificationChannel } from './admin-api'
+import type { AdminGroup, AdminTarget, AlertEvent, AlertKind, AlertRule, AuditEntry, ChartShare, ConfigImportResult, LatencyConfig, NotificationChannel } from './admin-api'
 import {
-  createAlertRule, createChannel, createChartShare, createGroup, createNode, createTarget, deleteAlertRule, deleteChannel, deleteChartShare,
+  changePassword, createAlertRule, createChannel, createChartShare, createGroup, createNode, createTarget, deleteAlertRule, deleteChannel, deleteChartShare,
   deleteGroup, deleteNode, deleteTarget, loadAlertEvents, loadAlertRules, loadChannels, loadLatencyConfig,
-  downloadConfiguration, downloadDatabaseBackup, importConfiguration, loadChartShares, loadNodes, login, logout, restoreSession, rotateNodeToken, setGroupTarget, setNodeGroup, testChannel, uploadDatabaseRestore,
+  downloadConfiguration, downloadDatabaseBackup, importConfiguration, loadAudit, loadChartShares, loadNodes, login, LoginError, logout, restoreSession, rotateNodeToken, setGroupTarget, setNodeGroup, testChannel, uploadDatabaseRestore,
   updateAlertRule, updateChannel, updateChartShare, updateGroup, updateNode, updateTarget,
 } from './admin-api'
 
-type Tab = 'nodes' | 'targets' | 'groups' | 'alerts' | 'shares' | 'maintenance'
+type Tab = 'nodes' | 'targets' | 'groups' | 'alerts' | 'shares' | 'maintenance' | 'security'
 const authenticated = ref(false)
 const booting = ref(true)
 const busy = ref(false)
@@ -18,6 +18,9 @@ const notice = ref('')
 const tab = ref<Tab>('nodes')
 const username = ref('admin')
 const password = ref('')
+const captchaID = ref('')
+const captchaPrompt = ref('')
+const captchaAnswer = ref('')
 const nodes = ref<NodeMetadata[]>([])
 const config = ref<LatencyConfig>({ targets: [], groups: [], group_members: [], node_groups: [] })
 const channels = ref<NotificationChannel[]>([])
@@ -33,6 +36,11 @@ const backupPassphrase = ref('')
 const restorePassphrase = ref('')
 const restoreFile = ref<File | null>(null)
 const importTokens = ref<Record<string, string>>({})
+const auditEntries = ref<AuditEntry[]>([])
+const nextAuditID = ref<number | undefined>()
+const currentPassword = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
 
 const emptyNode = () => ({ name: '', tags: '', country_code: '', collection_seconds: 5, report_seconds: 5 })
 const nodeCreate = reactive(emptyNode())
@@ -53,8 +61,8 @@ function showError(value: unknown) {
 }
 
 async function refresh() {
-  const [nodeResult, latencyResult, channelResult, ruleResult, eventResult, shareResult] = await Promise.all([
-    loadNodes(), loadLatencyConfig(), loadChannels(), loadAlertRules(), loadAlertEvents(), loadChartShares(),
+  const [nodeResult, latencyResult, channelResult, ruleResult, eventResult, shareResult, auditResult] = await Promise.all([
+    loadNodes(), loadLatencyConfig(), loadChannels(), loadAlertRules(), loadAlertEvents(), loadChartShares(), loadAudit(),
   ])
   nodes.value = nodeResult.nodes
   config.value = latencyResult
@@ -62,6 +70,8 @@ async function refresh() {
   rules.value = ruleResult.rules
   events.value = eventResult.events
   shares.value = shareResult.shares
+  auditEntries.value = auditResult.entries
+  nextAuditID.value = auditResult.next_before_id
 }
 
 async function run(action: () => Promise<void>, success = '') {
@@ -80,11 +90,48 @@ async function run(action: () => Promise<void>, success = '') {
 
 async function submitLogin() {
   await run(async () => {
-    await login(username.value.trim(), password.value)
+    try {
+      await login(username.value.trim(), password.value, captchaID.value, captchaAnswer.value)
+    } catch (value) {
+      if (value instanceof LoginError && value.captcha) {
+        captchaID.value = value.captcha.id
+        captchaPrompt.value = value.captcha.prompt
+        captchaAnswer.value = ''
+      } else if (value instanceof LoginError && value.retryAfterSeconds) {
+        captchaID.value = ''
+        captchaPrompt.value = ''
+        captchaAnswer.value = ''
+      }
+      throw value
+    }
     password.value = ''
+    captchaID.value = ''; captchaPrompt.value = ''; captchaAnswer.value = ''
     authenticated.value = true
     await refresh()
   })
+}
+
+async function submitPasswordChange() {
+  if (newPassword.value !== confirmPassword.value) { error.value = '两次输入的新密码不一致。'; return }
+  await run(async () => {
+    await changePassword(currentPassword.value, newPassword.value)
+    currentPassword.value = ''; newPassword.value = ''; confirmPassword.value = ''
+    authenticated.value = false
+  }, '密码已修改，所有会话均已撤销，请重新登录。')
+}
+
+async function loadMoreAudit() {
+  if (!nextAuditID.value) return
+  await run(async () => {
+    const result = await loadAudit(nextAuditID.value)
+    auditEntries.value.push(...result.entries)
+    nextAuditID.value = result.next_before_id
+  })
+}
+
+function auditLabel(item: AuditEntry) {
+  const labels: Record<string, string> = { create:'创建', update:'更新', delete:'删除', rotate_token:'轮换 Token', test:'测试', import:'导入', export:'导出', stage_restore:'暂存恢复', change_password:'修改密码', attach_target:'添加目标', detach_target:'移除目标', assign_group:'分配组', unassign_group:'取消分组' }
+  return labels[item.action] || item.action
 }
 
 async function signOut() {
@@ -417,6 +464,7 @@ onMounted(async () => {
         <button :class="{ active: tab === 'alerts' }" @click="tab = 'alerts'">告警</button>
         <button :class="{ active: tab === 'shares' }" @click="tab = 'shares'">分享</button>
         <button :class="{ active: tab === 'maintenance' }" @click="tab = 'maintenance'">维护</button>
+        <button :class="{ active: tab === 'security' }" @click="tab = 'security'">安全</button>
       </nav>
       <div class="nav-actions"><a class="soft-button" href="/">公开面板</a><button v-if="authenticated" class="soft-button" @click="signOut">退出</button></div>
     </header>
@@ -427,6 +475,8 @@ onMounted(async () => {
         <span class="eyebrow">SECURE CONSOLE</span><h1>登录管理中心</h1><p>使用初始化时配置的管理员账号登录。</p>
         <label>用户名<input v-model="username" autocomplete="username" required></label>
         <label>密码<input v-model="password" type="password" autocomplete="current-password" required></label>
+        <label v-if="captchaPrompt">安全验证：{{ captchaPrompt }}<input v-model="captchaAnswer" inputmode="numeric" autocomplete="off" required></label>
+        <p v-if="notice" class="form-message success">{{ notice }}</p>
         <p v-if="error" class="form-message error">{{ error }}</p>
         <button class="primary-button" :disabled="busy">{{ busy ? '登录中…' : '登录' }}</button>
       </form>
@@ -488,7 +538,7 @@ onMounted(async () => {
         <section class="admin-list"><article v-for="item in shares" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ item.name }}</strong><code>/share/{{ item.id }}</code></div><span :class="['status-label', item.enabled ? 'active' : 'muted']">{{ item.enabled ? '可访问' : '已停用' }}</span></div><div class="entity-meta"><span>{{ item.node_ids.length }} 个节点</span><span>密码保护</span><span>只读</span></div><div class="entity-actions"><a class="entity-link" :href="`/share/${item.id}`" target="_blank">打开</a><button @click="copyShare(item)">复制链接</button><button @click="editShare(item)">编辑</button><button class="danger" @click="removeShare(item)">删除</button></div></article><div v-if="!shares.length" class="admin-panel empty-admin">尚未创建图表分享</div></section>
       </template>
 
-      <template v-else>
+      <template v-else-if="tab === 'maintenance'">
         <section class="admin-heading"><div><span class="eyebrow">PORTABILITY &amp; RECOVERY</span><h1>迁移与备份</h1><p>迁移可审阅配置，或创建包含全部数据的口令加密数据库备份。</p></div><span class="count-pill">版本 1</span></section>
         <div class="maintenance-grid">
           <section class="admin-panel maintenance-card">
@@ -508,6 +558,21 @@ onMounted(async () => {
             <label class="file-field">选择 .mpb 备份<input type="file" accept=".mpb,application/octet-stream" @change="selectRestoreFile"></label>
             <div class="form-grid one"><label>恢复口令<input v-model="restorePassphrase" type="password" minlength="12" autocomplete="current-password"></label></div>
             <div class="maintenance-actions"><button class="danger-button" :disabled="busy || !restoreFile || restorePassphrase.length < 12" @click="stageRestore">校验并暂存恢复</button></div>
+          </section>
+        </div>
+      </template>
+
+      <template v-else>
+        <section class="admin-heading"><div><span class="eyebrow">ACCESS &amp; ACCOUNTABILITY</span><h1>安全与审计</h1><p>修改管理员凭据，并检查所有管理操作、来源地址和结构化详情。</p></div><span class="count-pill">{{ auditEntries.length }} 条已载入</span></section>
+        <div class="security-layout">
+          <form class="admin-panel compact-form password-card" @submit.prevent="submitPasswordChange">
+            <span class="eyebrow">PASSWORD</span><h2>修改管理员密码</h2><p>新密码至少 12 个字符。修改成功后所有管理会话都会立即撤销。</p>
+            <div class="form-grid one"><label>当前密码<input v-model="currentPassword" type="password" autocomplete="current-password" required></label><label>新密码<input v-model="newPassword" type="password" minlength="12" autocomplete="new-password" required></label><label>确认新密码<input v-model="confirmPassword" type="password" minlength="12" autocomplete="new-password" required></label></div>
+            <button class="primary-button" :disabled="busy || newPassword.length < 12">修改并退出所有会话</button>
+          </form>
+          <section class="audit-section">
+            <div class="audit-list admin-panel"><article v-for="item in auditEntries" :key="item.id"><div class="audit-main"><span class="event-state firing">{{ auditLabel(item) }}</span><div><strong>{{ item.object_type }}<template v-if="item.object_id"> · {{ item.object_id }}</template></strong><p>{{ item.username || '已删除用户' }} · {{ item.remote_ip || '未知来源' }}</p></div><time>{{ new Date(item.created_at).toLocaleString('zh-CN', { hour12: false }) }}</time></div><details v-if="item.details"><summary>查看详情</summary><pre>{{ JSON.stringify(item.details, null, 2) }}</pre></details></article><p v-if="!auditEntries.length" class="empty-admin">暂无审计记录</p></div>
+            <button v-if="nextAuditID" class="load-more" :disabled="busy" @click="loadMoreAudit">加载更早记录</button>
           </section>
         </div>
       </template>

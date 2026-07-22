@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -41,6 +40,9 @@ type Server struct {
 func New(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
+	if err := router.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		_ = router.SetTrustedProxies(nil)
+	}
 	router.Use(gin.Recovery(), securityHeaders())
 	server := &Server{config: cfg, store: database, auth: authService, gateway: gateway, hub: hub, alerts: alerts.New(database, cfg.EncryptionKey, nil, nil), sharing: sharing.New(database, 12*time.Hour), router: router}
 	server.routes()
@@ -84,6 +86,7 @@ func (s *Server) routes() {
 	authRoutes.POST("/login", s.login)
 	authRoutes.POST("/logout", s.requireSession(true), s.logout)
 	authRoutes.GET("/me", s.requireSession(false), s.me)
+	authRoutes.POST("/password", s.requireSession(true), s.changePassword)
 
 	share := s.router.Group("/api/v1/share/:shareID")
 	share.Use(privateNoStore())
@@ -128,6 +131,7 @@ func (s *Server) routes() {
 	admin.POST("/maintenance/config/import", s.importConfiguration)
 	admin.POST("/maintenance/backup", s.exportDatabaseBackup)
 	admin.POST("/maintenance/restore", s.stageDatabaseRestore)
+	admin.GET("/audit", s.listAudit)
 }
 
 func (s *Server) publicNodes(c *gin.Context) {
@@ -227,24 +231,67 @@ func (s *Server) publicWebSocket(w http.ResponseWriter, r *http.Request) {
 func (s *Server) login(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
 	var request struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
+		Username      string `json:"username"`
+		Password      string `json:"password"`
+		CaptchaID     string `json:"captcha_id"`
+		CaptchaAnswer string `json:"captcha_answer"`
 	}
 	if err := json.NewDecoder(c.Request.Body).Decode(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-	session, token, err := s.auth.Login(c.Request.Context(), request.Username, request.Password)
+	now := time.Now().UTC()
+	remoteIP := c.ClientIP()
+	guard, err := s.store.LoginGuard(c.Request.Context(), request.Username, remoteIP, now)
 	if err != nil {
-		time.Sleep(250 * time.Millisecond)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to evaluate login security"})
 		return
 	}
+	if guard.BlockedUntil != nil {
+		retry := max(1, int(time.Until(*guard.BlockedUntil).Seconds()))
+		c.Header("Retry-After", strconv.Itoa(retry))
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many login attempts", "retry_after_seconds": retry})
+		return
+	}
+	if guard.CaptchaRequired {
+		valid, verifyErr := s.auth.VerifyCaptcha(c.Request.Context(), request.CaptchaID, request.CaptchaAnswer, request.Username, remoteIP, now)
+		if verifyErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify CAPTCHA"})
+			return
+		}
+		if !valid {
+			_ = s.store.RecordLoginFailure(c.Request.Context(), request.Username, remoteIP, now)
+			s.writeCaptchaRequired(c, request.Username, remoteIP, now)
+			return
+		}
+	}
+	session, token, err := s.auth.Login(c.Request.Context(), request.Username, request.Password)
+	if err != nil {
+		_ = s.store.RecordLoginFailure(c.Request.Context(), request.Username, remoteIP, now)
+		time.Sleep(250 * time.Millisecond)
+		updatedGuard, _ := s.store.LoginGuard(c.Request.Context(), request.Username, remoteIP, now)
+		if updatedGuard.CaptchaRequired {
+			s.writeCaptchaRequired(c, request.Username, remoteIP, now)
+			return
+		}
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials", "captcha_required": false})
+		return
+	}
+	_ = s.store.ClearLoginFailures(c.Request.Context(), request.Username, remoteIP)
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: s.config.CookieSecure,
 		SameSite: http.SameSiteLaxMode, Expires: session.ExpiresAt,
 	})
 	c.JSON(http.StatusOK, gin.H{"csrf_token": session.CSRFToken, "expires_at": session.ExpiresAt})
+}
+
+func (s *Server) writeCaptchaRequired(c *gin.Context, username, remoteIP string, now time.Time) {
+	challenge, err := s.auth.NewCaptcha(c.Request.Context(), username, remoteIP, now)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create CAPTCHA"})
+		return
+	}
+	c.JSON(http.StatusUnauthorized, gin.H{"error": "CAPTCHA required", "captcha_required": true, "captcha": challenge})
 }
 
 func (s *Server) logout(c *gin.Context) {
@@ -258,6 +305,48 @@ func (s *Server) me(c *gin.Context) {
 	sessionValue, _ := c.Get("session")
 	session := sessionValue.(store.Session)
 	c.JSON(http.StatusOK, gin.H{"authenticated": true, "csrf_token": session.CSRFToken, "expires_at": session.ExpiresAt})
+}
+
+func (s *Server) changePassword(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	var request struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&request) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	session := c.MustGet("session").(store.Session)
+	if err := s.auth.ChangePassword(c.Request.Context(), session.UserID, request.CurrentPassword, request.NewPassword); err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, auth.ErrInvalidCredentials) {
+			status = http.StatusUnauthorized
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	s.audit(c, "change_password", "user", session.UserID, nil)
+	http.SetCookie(c.Writer, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", HttpOnly: true, Secure: s.config.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: -1})
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) listAudit(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	if limit < 1 || limit > 200 {
+		limit = 50
+	}
+	beforeID, _ := strconv.ParseInt(c.Query("before_id"), 10, 64)
+	items, err := s.store.ListAudit(c.Request.Context(), limit, beforeID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list audit log"})
+		return
+	}
+	var next any
+	if len(items) == limit && len(items) > 0 {
+		next = items[len(items)-1].ID
+	}
+	c.JSON(http.StatusOK, gin.H{"entries": items, "next_before_id": next})
 }
 
 func (s *Server) createNode(c *gin.Context) {
@@ -816,14 +905,7 @@ func (s *Server) requireShare(c *gin.Context) (store.ChartShare, bool) {
 }
 
 func (s *Server) requestIP(c *gin.Context) string {
-	if s.config.TrustedProxy {
-		return c.ClientIP()
-	}
-	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
-	if err == nil {
-		return host
-	}
-	return c.Request.RemoteAddr
+	return c.ClientIP()
 }
 
 func shareCookieName(shareID string) string {

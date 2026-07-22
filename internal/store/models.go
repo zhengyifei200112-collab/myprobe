@@ -22,6 +22,23 @@ type Session struct {
 	ExpiresAt time.Time
 }
 
+type LoginGuard struct {
+	CaptchaRequired bool
+	BlockedUntil    *time.Time
+}
+
+type AuditEntry struct {
+	ID         int64           `json:"id"`
+	UserID     *string         `json:"user_id,omitempty"`
+	Username   string          `json:"username,omitempty"`
+	Action     string          `json:"action"`
+	ObjectType string          `json:"object_type"`
+	ObjectID   string          `json:"object_id"`
+	RemoteIP   string          `json:"remote_ip"`
+	Details    json.RawMessage `json:"details"`
+	CreatedAt  time.Time       `json:"created_at"`
+}
+
 type Node struct {
 	ID                string        `json:"id"`
 	Name              string        `json:"name"`

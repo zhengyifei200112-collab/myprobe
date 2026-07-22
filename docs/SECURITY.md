@@ -11,8 +11,14 @@
 
 - Agent and session tokens are generated from a cryptographic RNG and stored as SHA-256
   hashes. Plaintext values are shown once.
-- Administrator passwords use bcrypt with an upgrade path to Argon2id.
+- Administrator passwords use bcrypt and are rehashed whenever the password changes.
 - Login endpoints are rate limited and introduce CAPTCHA after repeated failures.
+- Login failure counters and one-time CAPTCHA challenges are persisted in SQLite. Three
+  matching username/IP failures require CAPTCHA; five matching failures or ten failures
+  from one IP impose a fifteen-minute block that survives service restarts. Unknown
+  usernames still execute a dummy bcrypt comparison to reduce account-enumeration timing.
+- Password changes require the current password, enforce a twelve-character minimum,
+  reject reuse of the current value, and revoke every session for that administrator.
 - Session cookies are HttpOnly, SameSite=Lax, and Secure when TLS is enabled.
 - Every state-changing cookie-authenticated request requires `X-CSRF-Token`.
 - Password-protected chart shares use separate, scope-bound HttpOnly sessions. Five
@@ -24,6 +30,9 @@
   characters and must be backed up separately; changing or losing it makes existing
   notification configurations unreadable.
 - WebSocket messages and HTTP bodies have strict size limits and typed validation.
+- Forwarded client-IP headers are ignored by default. Deployments may set
+  `MYPROBE_TRUSTED_PROXIES` to an explicit comma-separated IP/CIDR allowlist; the legacy
+  `MYPROBE_TRUST_PROXY=true` setting trusts loopback proxies only.
 - Latency tasks accept only validated host names/IP addresses and fixed Ping/TCP probe
   implementations. The agent never passes task data through a shell, and results are
   accepted only for a matching unexpired task issued by the server.

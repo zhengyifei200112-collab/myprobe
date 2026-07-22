@@ -30,8 +30,8 @@
 | Alerts | Offline/recovery, CPU, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Implemented |
 | Custom display | Structured badges/links and sanitized advanced HTML | Sanitizer, persistence and CSP tests | Implemented |
 | Configuration | Versioned merge import/export and encrypted database backup/restore | Round-trip, tamper, dry-run and recovery tests | Implemented |
-| Authentication | Password login/logout/change, CSRF, throttling and CAPTCHA | Security integration tests | Partial: login/logout/session/CSRF implemented |
-| Audit | Administrative action log | API verification | Partial: all current management writes recorded; viewer remains |
+| Authentication | Password login/logout/change, CSRF, persistent throttling and CAPTCHA | Security integration and restart tests | Implemented |
+| Audit | Administrative action log and cursor-paginated viewer | API and management UI verification | Implemented |
 
 ## Public dashboard layout
 

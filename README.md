@@ -80,6 +80,8 @@ Configuration is supplied through `MYPROBE_*` environment variables. Set
 password is printed once to the server log. Set `MYPROBE_ENCRYPTION_KEY` to a stable,
 random value of at least 32 characters before configuring Webhook or Telegram
 notifications. Back up that key separately from the SQLite database.
+Forwarded client IP headers are ignored unless the reverse proxy address or CIDR is
+explicitly listed in `MYPROBE_TRUSTED_PROXIES`.
 
 ## License
 

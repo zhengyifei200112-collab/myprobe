@@ -86,6 +86,24 @@ export interface ConfigImportResult {
   dry_run: boolean
 }
 
+export interface CaptchaChallenge { id: string; prompt: string; expires_at: string }
+export class LoginError extends Error {
+  captcha?: CaptchaChallenge
+  retryAfterSeconds?: number
+  constructor(message: string, captcha?: CaptchaChallenge, retryAfterSeconds?: number) { super(message); this.name = 'LoginError'; this.captcha = captcha; this.retryAfterSeconds = retryAfterSeconds }
+}
+
+export interface AuditEntry {
+  id: number
+  username?: string
+  action: string
+  object_type: string
+  object_id: string
+  remote_ip: string
+  details: unknown
+  created_at: string
+}
+
 let csrfToken = ''
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -114,10 +132,11 @@ export async function restoreSession(): Promise<boolean> {
   }
 }
 
-export async function login(username: string, password: string): Promise<void> {
-  const result = await request<{ csrf_token: string }>('/api/v1/auth/login', {
-    method: 'POST', body: JSON.stringify({ username, password }),
-  })
+export async function login(username: string, password: string, captchaID = '', captchaAnswer = ''): Promise<void> {
+  const response = await fetch('/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ username, password, captcha_id: captchaID, captcha_answer: captchaAnswer }), credentials: 'same-origin', cache: 'no-store' })
+  const result = await response.json().catch(() => ({})) as { csrf_token?: string; error?: string; captcha?: CaptchaChallenge; retry_after_seconds?: number }
+  if (!response.ok) throw new LoginError(result.error || `登录失败（${response.status}）`, result.captcha, result.retry_after_seconds)
+  if (!result.csrf_token) throw new Error('登录响应缺少 CSRF Token')
   csrfToken = result.csrf_token
 }
 
@@ -161,6 +180,8 @@ export const loadChartShares = () => request<{ shares: ChartShare[] }>('/api/v1/
 export const createChartShare = (payload: unknown) => request<{ share: ChartShare; path: string }>('/api/v1/admin/chart-shares', { method: 'POST', body: JSON.stringify(payload) })
 export const updateChartShare = (id: string, payload: unknown) => request<{ share: ChartShare; path: string }>(`/api/v1/admin/chart-shares/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
 export const deleteChartShare = (id: string) => request<void>(`/api/v1/admin/chart-shares/${encodeURIComponent(id)}`, { method: 'DELETE' })
+export const changePassword = (currentPassword: string, newPassword: string) => request<void>('/api/v1/auth/password', { method: 'POST', body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) })
+export const loadAudit = (beforeID?: number) => request<{ entries: AuditEntry[]; next_before_id?: number }>(`/api/v1/admin/audit?limit=50${beforeID ? `&before_id=${beforeID}` : ''}`)
 
 async function downloadRequest(path: string, options: RequestInit = {}): Promise<{ blob: Blob; filename: string }> {
   const headers = new Headers(options.headers)
