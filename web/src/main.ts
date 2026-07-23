@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import 'country-flag-icons/3x2/flags.css'
 import App from './App.vue'
 import AdminApp from './AdminApp.vue'
 import ShareApp from './ShareApp.vue'

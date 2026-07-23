@@ -7,6 +7,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Increased public dashboard typography and badge sizing for readability, and replaced
+  platform-dependent flag emoji with bundled country flag artwork.
+
 ## [0.2.1] - 2026-07-22
 
 ### Changed
