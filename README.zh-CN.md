@@ -67,7 +67,11 @@ chmod +x install.sh
 sudo ./install.sh server
 ```
 
-在管理后台创建节点并取得一次性 Agent Token 后，在被监控机器运行：
+在管理后台创建节点（或轮换 Token）后，弹窗会根据当前 Server 地址和一次性 Agent
+Token 生成完整的 Linux 安装命令。点击“复制一键安装命令”，然后直接在目标 VPS
+运行即可完成安装和连接。该命令包含 Token，使用前应按密钥妥善保管。
+
+仍可使用下面的交互式安装作为备用方式：
 
 ```bash
 sudo ./install.sh agent

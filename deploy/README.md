@@ -31,15 +31,20 @@ For a domain behind an HTTPS reverse proxy, install with
 `sudo ./install.sh server --reverse-proxy`. This binds `127.0.0.1:25775`, enables Secure
 cookies, and trusts loopback proxies. The proxy must support WebSocket upgrades.
 
-After creating a node in the administration console, install its Agent:
+After creating a node or rotating its token, the administration console displays a
+ready-to-copy Linux command containing the current Server origin and one-time Agent
+token. Run that command directly on the target VPS. Treat it as a secret until the
+Agent has connected.
+
+The interactive installer remains available as a fallback:
 
 ```sh
 sudo ./install.sh agent
 ```
 
-The Agent installer prompts for the HTTPS Server URL and the one-time node token.
-Credentials are stored in root-readable environment files with mode `0600`; they
-are never printed by the script.
+It prompts for the HTTPS Server URL and one-time node token. Credentials are stored
+in root-readable environment files with mode `0600`; the interactive installer does
+not print them.
 
 Common lifecycle commands:
 
