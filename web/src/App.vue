@@ -119,10 +119,9 @@ function formatUptime(seconds = 0) {
   return days ? `${days}天 ${hours}时` : hours ? `${hours}时 ${minutes}分` : `${minutes}分钟`
 }
 
-function flag(code: string) {
-  const normalized = code?.toUpperCase()
-  if (!/^[A-Z]{2}$/.test(normalized)) return '🌐'
-  return String.fromCodePoint(...[...normalized].map((letter) => 127397 + letter.charCodeAt(0)))
+function countryCode(code: string) {
+  const normalized = code?.trim().toLowerCase()
+  return /^[a-z]{2}$/.test(normalized) ? normalized : ''
 }
 
 function maskedIP(value?: string) {
@@ -351,7 +350,19 @@ onBeforeUnmount(() => {
           <div class="card-glow"></div>
           <header class="node-header">
             <div class="node-title">
-              <span class="flag">{{ flag(item.node.country_code) }}</span>
+              <span
+                class="flag"
+                role="img"
+                :aria-label="countryCode(item.node.country_code) ? `${item.node.country_code.toUpperCase()} 国旗` : '未设置国家或地区'"
+              >
+                <span
+                  v-if="countryCode(item.node.country_code)"
+                  class="country-flag"
+                  :class="`flag:${countryCode(item.node.country_code).toUpperCase()}`"
+                  aria-hidden="true"
+                ></span>
+                <span v-else aria-hidden="true">🌐</span>
+              </span>
               <div><strong>{{ item.node.name }}</strong><small>{{ platformLabel(item) }}</small></div>
             </div>
             <span class="status-dot" :class="{ online: item.online }" :title="item.online ? '在线' : '离线'"></span>
