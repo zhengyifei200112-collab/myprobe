@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import type { NodeMetadata } from './types'
 import type { AdminGroup, AdminTarget, AlertEvent, AlertKind, AlertRule, AuditEntry, ChartShare, ConfigImportResult, LatencyConfig, NotificationChannel } from './admin-api'
 import {
@@ -41,6 +41,15 @@ const nextAuditID = ref<number | undefined>()
 const currentPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
+const installerURL = 'https://raw.githubusercontent.com/zhengyifei200112-collab/myprobe/main/install.sh'
+
+function shellQuote(value: string) {
+  return `'${value.replaceAll("'", "'\"'\"'")}'`
+}
+
+const agentInstallCommand = computed(() => token.value
+  ? `curl -fsSL ${shellQuote(installerURL)} | sudo env MYPROBE_SERVER=${shellQuote(location.origin)} MYPROBE_TOKEN=${shellQuote(token.value)} bash -s -- agent`
+  : '')
 
 const emptyNode = () => ({ name: '', tags: '', country_code: '', collection_seconds: 5, report_seconds: 5 })
 const nodeCreate = reactive(emptyNode())
@@ -364,16 +373,51 @@ async function removeShare(item: ChartShare) {
 
 async function copyShare(item: ChartShare) {
   try {
-    await navigator.clipboard.writeText(`${location.origin}/share/${item.id}`)
+    await copyToClipboard(`${location.origin}/share/${item.id}`)
     notice.value = '分享链接已复制。'
   } catch {
     error.value = '浏览器拒绝访问剪贴板，请从地址栏手动复制分享链接。'
   }
 }
 
+async function copyToClipboard(value: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value)
+      return
+    } catch {
+      // HTTP deployments may not expose the modern Clipboard API.
+    }
+  }
+
+  const field = document.createElement('textarea')
+  field.value = value
+  field.readOnly = true
+  field.style.position = 'fixed'
+  field.style.opacity = '0'
+  document.body.appendChild(field)
+  field.select()
+  const copied = document.execCommand('copy')
+  field.remove()
+  if (!copied) throw new Error('clipboard access denied')
+}
+
 async function copyToken() {
-  await navigator.clipboard.writeText(token.value)
-  notice.value = 'Token 已复制。'
+  try {
+    await copyToClipboard(token.value)
+    notice.value = 'Token 已复制。'
+  } catch {
+    error.value = '浏览器拒绝访问剪贴板，请手动选择并复制 Token。'
+  }
+}
+
+async function copyInstallCommand() {
+  try {
+    await copyToClipboard(agentInstallCommand.value)
+    notice.value = 'Agent 一键安装命令已复制。'
+  } catch {
+    error.value = '浏览器拒绝访问剪贴板，请手动选择并复制安装命令。'
+  }
 }
 
 function saveDownload(blob: Blob, filename: string) {
@@ -597,7 +641,27 @@ onMounted(async () => {
       </form>
     </div>
 
-    <div v-if="token" class="admin-overlay"><section class="admin-panel token-dialog"><span class="eyebrow">ONE-TIME SECRET</span><h2>{{ tokenNode }} 的 Agent Token</h2><p>此 Token 只展示一次。复制并安全保存后再关闭。</p><code>{{ token }}</code><div class="form-actions"><button class="primary-button" @click="copyToken">复制 Token</button><button @click="token = ''">我已保存</button></div></section></div>
+    <div v-if="token" class="admin-overlay">
+      <section class="admin-panel token-dialog">
+        <span class="eyebrow">ONE-CLICK AGENT</span>
+        <h2>{{ tokenNode }} 的 Agent 一键安装</h2>
+        <p>复制下面的命令，在目标 VPS 的 Linux 终端中运行，即可自动连接当前 MyProbe Server。</p>
+        <div class="install-command-block">
+          <strong>Linux · systemd</strong>
+          <code>{{ agentInstallCommand }}</code>
+        </div>
+        <p class="security-hint">命令包含仅展示一次的 Agent Token，请只在目标 VPS 上执行并妥善保管。</p>
+        <details class="token-details">
+          <summary>单独查看 Agent Token</summary>
+          <code>{{ token }}</code>
+        </details>
+        <div class="form-actions">
+          <button class="primary-button" @click="copyInstallCommand">复制一键安装命令</button>
+          <button @click="copyToken">仅复制 Token</button>
+          <button @click="token = ''">完成并关闭</button>
+        </div>
+      </section>
+    </div>
     <div v-if="Object.keys(importTokens).length" class="admin-overlay"><section class="admin-panel token-dialog import-token-dialog"><span class="eyebrow">ONE-TIME SECRETS</span><h2>导入节点的 Agent Token</h2><p>这些 Token 只展示一次。请全部安全保存后再关闭。</p><div class="import-token-list"><div v-for="(value, id) in importTokens" :key="id"><strong>{{ nodeName(id) }}</strong><code>{{ value }}</code></div></div><div class="form-actions"><button @click="importTokens = {}">我已全部保存</button></div></section></div>
   </div>
 </template>

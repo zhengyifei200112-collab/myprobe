@@ -7,6 +7,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Node creation and Agent token rotation now show a ready-to-copy Linux one-click
+  Agent installation command using the current Server URL.
+
 ### Changed
 
 - Increased public dashboard typography and badge sizing for readability, and replaced
