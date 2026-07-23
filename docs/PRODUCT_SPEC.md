@@ -24,7 +24,7 @@
 | Realtime | WebSocket updates, reconnect, cached last-known data | Disconnect/recovery test | Implemented |
 | Charts | Ping, TCPing, upload, download, and total traffic history | 1h/12h/1d/3d/7d/30d queries | Implemented |
 | Chart sharing | Group-scoped password protected chart views | Authentication and rate-limit tests | Implemented |
-| Node administration | Register, edit, order, hide, delete, rotate token | Admin API and browser tests | Implemented |
+| Node administration | Register, edit, order, hide, delete, rotate token, generate one-click Agent install command | Admin API and browser clipboard verification | Implemented |
 | Target administration | Ping/TCPing target and group CRUD | API and scheduler tests | Implemented |
 | Notifications | Telegram bot and generic webhook channels | Mock receiver tests | Implemented |
 | Alerts | Offline/recovery, CPU, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Implemented |

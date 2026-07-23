@@ -69,10 +69,14 @@ chmod +x install.sh
 sudo ./install.sh server
 ```
 
-Run `sudo ./install.sh agent` on a monitored host after creating its node and
-one-time token. Re-running the command updates the binary without replacing existing
-configuration. The installer also supports explicit `update`, `status`,
-`uninstall`, and `--purge` operations. A published GitHub Release is required.
+After creating a node (or rotating its token), the administration console displays
+a ready-to-copy Linux command containing the current Server origin and one-time Agent
+token. Run that command on the monitored VPS to install and connect the Agent.
+Treat the command as a secret until it has been used. `sudo ./install.sh agent`
+remains available as an interactive fallback. Re-running the installer updates the
+binary without replacing existing configuration. It also supports explicit `update`,
+`status`, `uninstall`, and `--purge` operations. A published GitHub Release is
+required.
 
 Docker Compose, verified release binaries, and source builds remain supported. See
 [`deploy/README.md`](deploy/README.md) for the complete deployment matrix.

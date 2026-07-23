@@ -52,7 +52,12 @@ sudo ./install.sh server --reverse-proxy
 
 ## 一键安装 Agent
 
-先在管理后台创建节点并复制仅显示一次的 Token，然后在被监控主机执行：
+在管理后台创建节点（或轮换 Token）后，弹窗会根据当前 Server 地址和仅显示一次的
+Token 生成完整 Linux 安装命令。点击“复制一键安装命令”，然后直接在被监控 VPS
+运行即可完成安装和连接。该命令包含 Token，使用前应按密钥妥善保管，避免粘贴到
+共享终端、聊天记录或日志中。
+
+如需手动输入 Server 地址和 Token，仍可运行交互式安装：
 
 ```bash
 sudo ./install.sh agent
