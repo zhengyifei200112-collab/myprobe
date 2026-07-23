@@ -15,7 +15,7 @@
 | --- | --- | --- | --- |
 | Public overview | Current time, online/offline counts, aggregate traffic and rate | Responsive browser tests and live API data | Implemented |
 | Public filtering | Tag/region pills with counts and horizontal mobile scrolling | UI test at 360/768/1440 px | Implemented |
-| Node cards | Flag, name, status, masked IP, OS, uptime, last update | Metadata persistence, privacy and API contract tests | Implemented |
+| Node cards | Bundled SVG country flag, name, status, masked IP, OS, uptime, last update | Metadata persistence, privacy, API contract, and browser rendering tests | Implemented |
 | Capacity | CPU model/cores, memory and disk totals and utilization | Agent integration test | Implemented |
 | Network | Current up/down rate, lifetime and billing-cycle traffic | Counter-reset and interval tests | Implemented |
 | Commercial metadata | Price, billing period, expiry date and remaining days | Exact, leap-day and past/future boundary tests | Implemented |
@@ -38,7 +38,8 @@
 ## Public dashboard layout
 
 - Header: product brand, theme control, and admin entry.
-- Overview: four cards on desktop and a 2x2 grid on mobile.
+- Overview: four cards on desktop, a 2x2 grid on tablet and compact widths, and one
+  column at 390 px and below.
 - Filter bar: `All`, dynamic tag groups, and `Other`.
 - Node grid: one column below 900 px, two columns from 900 px, and three columns
   from 1250 px.
