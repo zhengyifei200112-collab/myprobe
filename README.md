@@ -71,8 +71,10 @@ sudo ./install.sh server
 ```
 
 After creating a node (or rotating its token), the administration console displays
-a ready-to-copy Linux command containing the current Server origin and one-time Agent
-token. Run that command on the monitored VPS to install and connect the Agent.
+a ready-to-copy Linux command containing a one-time Agent token. The command uses the
+Agent connection address from **Site settings** when configured, and otherwise falls
+back to the current browser origin. Run it on the monitored VPS to install and connect
+the Agent.
 Treat the command as a secret until it has been used. `sudo ./install.sh agent`
 remains available as an interactive fallback. Re-running the installer updates the
 binary without replacing existing configuration. It also supports explicit `update`,
