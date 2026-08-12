@@ -14,8 +14,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Increased public dashboard typography and badge sizing for readability, and replaced
-  platform-dependent flag emoji with bundled country flag artwork.
+- Redesigned the public dashboard to match the ZJM information hierarchy and visual
+  density, including the unified overview, compact and detailed node-card modes,
+  typography, badges, traffic, resource, latency, and responsive layouts.
+- Replaced platform-dependent flag emoji with bundled country flag artwork.
 
 ## [0.2.1] - 2026-07-22
 

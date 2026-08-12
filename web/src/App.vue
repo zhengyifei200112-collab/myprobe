@@ -4,6 +4,7 @@ import { connectRealtime, fetchHistory, fetchNodes } from './api'
 import type { HistoryRange, HistoryResponse, PublicNode, RealtimeEvent } from './types'
 
 type Theme = 'light' | 'dark'
+type DisplayMode = 'compact' | 'detailed'
 
 const nodes = ref<PublicNode[]>([])
 const activeTag = ref('__all__')
@@ -21,6 +22,8 @@ const trafficChartElement = ref<HTMLElement>()
 const historyRanges: HistoryRange[] = ['1h', '12h', '1d', '3d', '7d', '30d', '1y']
 const initialTheme = localStorage.getItem('myprobe-theme') as Theme | null
 const theme = ref<Theme>(initialTheme ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
+const initialDisplayMode = localStorage.getItem('myprobe-display-mode') as DisplayMode | null
+const displayMode = ref<DisplayMode>(initialDisplayMode === 'detailed' ? 'detailed' : 'compact')
 let disconnect: (() => void) | undefined
 let clock: number | undefined
 let resourceChart: any
@@ -76,6 +79,11 @@ function toggleTheme() {
   if (chartNode.value) void loadHistory()
 }
 
+function toggleDisplayMode() {
+  displayMode.value = displayMode.value === 'compact' ? 'detailed' : 'compact'
+  localStorage.setItem('myprobe-display-mode', displayMode.value)
+}
+
 function aggregate(item: PublicNode) {
   const report = item.report
   const disks = report?.disks ?? []
@@ -116,7 +124,7 @@ function formatUptime(seconds = 0) {
   const days = Math.floor(seconds / 86400)
   const hours = Math.floor(seconds % 86400 / 3600)
   const minutes = Math.floor(seconds % 3600 / 60)
-  return days ? `${days}天 ${hours}时` : hours ? `${hours}时 ${minutes}分` : `${minutes}分钟`
+  return days ? `${days}天${hours}时` : hours ? `${hours}时${minutes}分` : `${minutes}分钟`
 }
 
 function countryCode(code: string) {
@@ -127,7 +135,7 @@ function countryCode(code: string) {
 function maskedIP(value?: string) {
   if (!value) return '—'
   const parts = value.split('.')
-  return parts.length === 4 ? `${parts[0]}.${parts[1]}.••.••` : value.replace(/:[^:]+$/, ':••••')
+  return parts.length === 4 ? `${parts[0]}.${parts[1]}.**` : value.replace(/:[^:]+$/, ':****')
 }
 
 function percent(value = 0) {
@@ -140,19 +148,33 @@ function barClass(value = 0) {
 
 function price(item: PublicNode) {
   if (item.node.price_minor == null || !item.node.currency) return '未设置价格'
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: item.node.currency }).format(item.node.price_minor / 100)
+  return new Intl.NumberFormat('zh-CN', {
+    style: 'currency',
+    currency: item.node.currency,
+    currencyDisplay: 'narrowSymbol',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+    useGrouping: false,
+  }).format(item.node.price_minor / 100)
 }
 
 function expiry(item: PublicNode) {
-  if (!item.node.expires_at) return '无到期日期'
+  if (!item.node.expires_at) return '无到期时间'
   if (!item.commercial) return '到期状态未知'
-  return item.commercial.expired ? `已过期 ${item.commercial.days} 天` : `剩 ${item.commercial.days} 天`
+  return item.commercial.expired ? `已过期${item.commercial.days}天` : `剩${item.commercial.days}天`
 }
 
-function platformLabel(item: PublicNode) {
-  const agent = item.node.agent
-  if (!agent) return item.report?.cpu.architecture || '等待 Agent 上报'
-  return [agent.platform || agent.operating_system, agent.platform_version, agent.architecture].filter(Boolean).join(' · ')
+function expiryDate(item: PublicNode) {
+  if (!item.node.expires_at) return ''
+  const parsed = new Date(item.node.expires_at)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return `${parsed.getFullYear()}/${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}到期`
+}
+
+function osName(item: PublicNode) {
+  const value = item.node.agent?.platform || item.node.agent?.operating_system || ''
+  if (!value) return '等待 Agent 上报'
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
 function latencyText(success?: boolean, latency?: number, errorClass?: string) {
@@ -288,51 +310,96 @@ onBeforeUnmount(() => {
       <div class="navbar-inner">
         <a class="brand" href="/" aria-label="MyProbe 首页">
           <span class="brand-mark">MP</span>
-          <span>MyProbe</span>
-          <small>服务器探针</small>
+          <span class="brand-copy">
+            <span class="brand-title">MyProbe</span>
+            <span class="brand-subtitle">Server Monitor</span>
+          </span>
         </a>
         <div class="nav-actions">
-          <span class="connection-state" :class="{ online: connected }">
-            <i></i>{{ connected ? '实时' : '重连中' }}
-          </span>
-          <button class="soft-button" type="button" @click="toggleTheme">
-            <span aria-hidden="true">{{ theme === 'light' ? '☾' : '☀' }}</span>
+          <button
+            class="soft-button mode-button"
+            type="button"
+            :title="displayMode === 'compact' ? '切换到详情显示模式' : '切换到简洁显示模式'"
+            :aria-label="displayMode === 'compact' ? '切换到详情显示模式' : '切换到简洁显示模式'"
+            @click="toggleDisplayMode"
+          >
+            <span class="button-icon" aria-hidden="true">
+              <svg v-if="displayMode === 'compact'" viewBox="0 0 16 16"><path d="M6 2H2v4M10 2h4v4M14 10v4h-4M6 14H2v-4" /></svg>
+              <svg v-else viewBox="0 0 16 16"><path d="M2 6h4V2M14 6h-4V2M10 14v-4h4M6 14v-4H2" /></svg>
+            </span>
+            {{ displayMode === 'compact' ? '详情' : '简洁' }}
+          </button>
+          <button class="soft-button" type="button" :aria-label="theme === 'light' ? '切换到暗色主题' : '切换到亮色主题'" @click="toggleTheme">
+            <span class="button-icon" aria-hidden="true">
+              <svg v-if="theme === 'light'" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.6" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.4 1.4M11.55 11.55l1.4 1.4M12.95 3.05l-1.4 1.4M4.45 11.55l-1.4 1.4" /></svg>
+              <svg v-else viewBox="0 0 16 16"><path d="M13.5 10.6A6 6 0 0 1 5.4 2.5 6 6 0 1 0 13.5 10.6Z" /></svg>
+            </span>
             {{ theme === 'light' ? '暗色' : '亮色' }}
           </button>
-          <a class="soft-button admin-link" href="/admin">后台</a>
+          <a class="soft-button admin-link" href="/admin"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M9 3h4v10H9M7 5l3 3-3 3M10 8H2" /></svg></span>后台</a>
         </div>
       </div>
     </header>
 
     <main>
+      <section class="dashboard-intro" aria-labelledby="dashboard-title">
+        <div>
+          <div class="dashboard-eyebrow">Infrastructure overview</div>
+          <h1 id="dashboard-title">服务器运行概览</h1>
+          <p>节点状态、资源占用、实时速率与网络延迟集中展示，数据自动刷新。</p>
+        </div>
+        <div class="live-badge" :class="{ reconnecting: !connected }" :title="connected ? 'WebSocket 实时连接正常' : '正在重新连接实时数据'">
+          <span class="live-dot" aria-hidden="true"></span>
+          {{ connected ? '实时监控中' : '正在重连' }}
+        </div>
+      </section>
+
       <section class="overview-grid" aria-label="总览">
-        <article class="overview-card accent-blue">
-          <span class="overview-label">当前时间</span>
-          <strong class="clock">{{ now.toLocaleTimeString('zh-CN', { hour12: false }) }}</strong>
-          <small>{{ now.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' }) }}</small>
+        <article class="overview-card overview-time-card">
+          <div class="overview-head"><span class="overview-icon">◷</span><span class="overview-title">当前时间</span></div>
+          <div class="overview-content">
+            <strong class="overview-value clock">{{ now.toLocaleTimeString('zh-CN', { hour12: false }) }}</strong>
+            <small>{{ now.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' }) }}</small>
+          </div>
         </article>
-        <article class="overview-card accent-green">
-          <span class="overview-label">服务器概况</span>
-          <strong><b class="dot online"></b>{{ onlineCount }} <em>/</em> <b class="dot offline"></b>{{ visibleNodes.length - onlineCount }}</strong>
-          <small>在线 / 离线</small>
+        <article class="overview-card overview-status-card" :title="`当前筛选：总数 ${visibleNodes.length} • 在线 ${onlineCount} • 离线 ${visibleNodes.length - onlineCount}`">
+          <div class="overview-head"><span class="overview-icon">▦</span><span class="overview-title">服务器概况</span></div>
+          <div class="overview-content">
+            <div class="overview-main-row"><strong class="overview-main-number">{{ visibleNodes.length }}</strong><span>台节点</span></div>
+            <div class="status-breakdown"><span><b class="dot online"></b>在线 <strong>{{ onlineCount }}</strong></span><span><b class="dot offline"></b>离线 <strong>{{ visibleNodes.length - onlineCount }}</strong></span></div>
+          </div>
         </article>
-        <article class="overview-card accent-purple">
-          <span class="overview-label">总流量概览</span>
-          <strong class="metric-pair"><span>↑ {{ formatBytes(totalTraffic.up) }}</span><span>↓ {{ formatBytes(totalTraffic.down) }}</span></strong>
-          <small>上传 / 下载</small>
+        <article class="overview-card overview-traffic-card">
+          <div class="overview-head"><span class="overview-icon">▥</span><span class="overview-title">累计流量</span></div>
+          <div class="overview-content overview-pairline">
+            <span><small><i class="up-arrow">↑</i> 上传</small><strong class="overview-value">{{ formatBytes(totalTraffic.up) }}</strong></span>
+            <span><small><i class="down-arrow">↓</i> 下载</small><strong class="overview-value">{{ formatBytes(totalTraffic.down) }}</strong></span>
+          </div>
         </article>
-        <article class="overview-card accent-orange">
-          <span class="overview-label">实时速率</span>
-          <strong class="metric-pair"><span>↑ {{ formatBytes(totalRate.up, '/s') }}</span><span>↓ {{ formatBytes(totalRate.down, '/s') }}</span></strong>
-          <small>当前筛选节点</small>
+        <article class="overview-card overview-speed-card">
+          <div class="overview-head"><span class="overview-icon">⌁</span><span class="overview-title">实时速率</span></div>
+          <div class="overview-content overview-pairline">
+            <span><small><i class="up-arrow">↑</i> 上传</small><strong class="overview-value">{{ formatBytes(totalRate.up, '/s') }}</strong></span>
+            <span><small><i class="down-arrow">↓</i> 下载</small><strong class="overview-value">{{ formatBytes(totalRate.down, '/s') }}</strong></span>
+          </div>
         </article>
       </section>
 
-      <section class="filter-bar" aria-label="标签筛选">
-        <button :class="{ active: activeTag === '__all__' }" @click="activeTag = '__all__'">全部 <span>{{ nodes.length }}</span></button>
-        <button v-for="([tag, count]) in tags" :key="tag" :class="{ active: activeTag === tag }" @click="activeTag = tag">
-          {{ tag }} <span>{{ count }}</span>
-        </button>
+      <section class="nodes-section" aria-labelledby="nodes-title">
+        <div class="nodes-toolbar">
+          <div class="section-heading">
+            <div><span class="section-kicker">Infrastructure</span><h2 id="nodes-title">节点列表</h2></div>
+            <div class="section-counter"><strong>{{ visibleNodes.length }}</strong> 个节点</div>
+          </div>
+          <div class="filter-section">
+            <div class="filter-bar" aria-label="标签筛选">
+              <button :class="{ active: activeTag === '__all__' }" @click="activeTag = '__all__'">全部 <span>{{ nodes.length }}</span></button>
+              <button v-for="([tag, count]) in tags" :key="tag" :class="{ active: activeTag === tag }" @click="activeTag = tag">
+                {{ tag }} <span>{{ count }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <div v-if="error" class="notice">{{ error }}，当前展示最后缓存数据。</div>
@@ -345,9 +412,19 @@ onBeforeUnmount(() => {
         <p>在管理后台注册第一台服务器后，数据会实时出现在这里。</p>
       </div>
 
-      <section v-else class="node-grid" aria-live="polite">
-        <article v-for="item in visibleNodes" :key="item.node.id" class="node-card" :class="{ offline: !item.online, stale: item.stale }">
-          <div class="card-glow"></div>
+      <section v-else class="node-grid" :class="displayMode" aria-live="polite">
+        <article
+          v-for="item in visibleNodes"
+          :key="item.node.id"
+          class="node-card"
+          :class="{ offline: !item.online, stale: item.stale }"
+          role="button"
+          tabindex="0"
+          :aria-label="`${item.node.name} 详情卡片`"
+          @click="openHistory(item)"
+          @keydown.enter="openHistory(item)"
+          @keydown.space.prevent="openHistory(item)"
+        >
           <header class="node-header">
             <div class="node-title">
               <span
@@ -363,66 +440,66 @@ onBeforeUnmount(() => {
                 ></span>
                 <span v-else aria-hidden="true">🌐</span>
               </span>
-              <div><strong>{{ item.node.name }}</strong><small>{{ platformLabel(item) }}</small></div>
+              <strong>{{ item.node.name }}</strong>
             </div>
-            <span class="status-dot" :class="{ online: item.online }" :title="item.online ? '在线' : '离线'"></span>
+            <span class="node-status" :class="{ online: item.online }" role="status"><i></i>{{ item.online ? '在线' : '离线' }}</span>
           </header>
 
-          <div class="commercial-row">
-            <span>{{ price(item) }}<template v-if="item.node.billing_cycle">/{{ item.node.billing_cycle }}</template></span>
+          <div class="node-badges">
+            <span class="price-badge">{{ price(item) }}<template v-if="item.node.billing_cycle">/{{ item.node.billing_cycle }}</template></span>
             <span :class="{ overdue: item.commercial?.expired }">{{ expiry(item) }}</span>
+            <span v-if="expiryDate(item)" class="expiry-date">{{ expiryDate(item) }}</span>
           </div>
 
-          <div v-if="item.node.custom_badges?.length || item.node.custom_links?.length || item.node.custom_html" class="custom-display">
-            <div v-if="item.node.custom_badges?.length" class="custom-badges"><span v-for="badge in item.node.custom_badges" :key="`${badge.label}-${badge.color}`" :class="`custom-badge ${badge.color}`">{{ badge.label }}</span></div>
-            <div v-if="item.node.custom_links?.length" class="custom-links"><a v-for="link in item.node.custom_links" :key="link.url" :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.label }} ↗</a></div>
-            <div v-if="item.node.custom_html" class="custom-html" v-html="item.node.custom_html"></div>
+          <div class="quick-facts" aria-label="节点基础信息">
+            <div><span class="quick-icon">◎</span><span><small>公网 IP</small><strong>{{ maskedIP(item.report?.public_ip) }}</strong></span></div>
+            <div><span class="quick-icon clock-icon">◷</span><span><small>在线时长</small><strong>{{ formatUptime(item.report?.uptime_seconds) }}</strong></span></div>
           </div>
 
-          <div class="config-line">
-            <span>{{ item.report?.cpu.logical_cores || '—' }}C</span>
-            <i></i><span>{{ formatBytes(item.report?.memory.total_bytes || 0) }}</span>
-            <i></i><span>{{ formatBytes(aggregate(item).diskTotal) }}</span>
-          </div>
+          <div class="detail-content">
+            <section class="network-panel" aria-label="网络流量">
+              <header><strong><span class="section-icon">⌁</span>网络流量</strong><small>{{ item.node.traffic_reset_day ? `每月${item.node.traffic_reset_day}日重置` : '自然月重置' }}</small></header>
+              <div class="network-grid">
+                <div><small>实时速率</small><span><b class="up-arrow">↑</b><strong>{{ formatBytes(aggregate(item).txRate, '/s') }}</strong></span><span><b class="down-arrow">↓</b><strong>{{ formatBytes(aggregate(item).rxRate, '/s') }}</strong></span></div>
+                <div><small>{{ item.node.use_since_boot ? '开机累计' : '累计流量' }}</small><span><b class="up-arrow">↑</b><strong>{{ formatBytes(aggregate(item).txTotal) }}</strong></span><span><b class="down-arrow">↓</b><strong>{{ formatBytes(aggregate(item).rxTotal) }}</strong></span></div>
+                <div><small>本周期</small><span><b class="up-arrow">↑</b><strong>{{ formatBytes(item.traffic?.tx_bytes || 0) }}</strong></span><span><b class="down-arrow">↓</b><strong>{{ formatBytes(item.traffic?.rx_bytes || 0) }}</strong></span></div>
+              </div>
+            </section>
 
-          <div class="meta-grid">
-            <div><span>网络</span><strong>{{ maskedIP(item.report?.public_ip) }}</strong></div>
-            <div><span>速率</span><strong>↑ {{ formatBytes(aggregate(item).txRate, '/s') }} · ↓ {{ formatBytes(aggregate(item).rxRate, '/s') }}</strong></div>
-            <div><span>运行</span><strong>{{ formatUptime(item.report?.uptime_seconds) }}</strong></div>
-            <div><span>流量</span><strong>↑ {{ formatBytes(aggregate(item).txTotal) }} · ↓ {{ formatBytes(aggregate(item).rxTotal) }}</strong></div>
-            <div><span>周期</span><strong>{{ item.node.traffic_reset_day ? `每月 ${item.node.traffic_reset_day} 日` : '自然月' }}</strong></div>
-            <div><span>本周期</span><strong>↑ {{ formatBytes(item.traffic?.tx_bytes || 0) }} · ↓ {{ formatBytes(item.traffic?.rx_bytes || 0) }}</strong></div>
-            <div><span>系统</span><strong>{{ item.node.agent ? `${item.node.agent.operating_system} / ${item.node.agent.platform}` : '—' }}</strong></div>
-            <div><span>内核</span><strong>{{ item.node.agent?.kernel_version || '—' }}</strong></div>
-          </div>
+            <section class="resource-panel" aria-label="资源使用">
+              <header>
+                <strong><span class="section-icon">◉</span>资源使用</strong>
+                <div class="hardware-line"><span>◉ {{ item.report?.cpu.logical_cores || '—' }}C</span><span>▤ {{ formatBytes(item.report?.memory.total_bytes || 0) }}</span><span>▰ {{ formatBytes(aggregate(item).diskTotal) }}</span></div>
+              </header>
+              <div class="resource-grid">
+                <div><span><b>CPU</b><strong>{{ percent(item.report?.cpu.usage_percent) }}</strong></span><div class="bar"><i :class="barClass(item.report?.cpu.usage_percent)" :style="{ width: percent(item.report?.cpu.usage_percent) }"></i></div></div>
+                <div><span><b>内存</b><strong>{{ percent(item.report?.memory.usage_percent) }}</strong></span><div class="bar"><i :class="barClass(item.report?.memory.usage_percent)" :style="{ width: percent(item.report?.memory.usage_percent) }"></i></div></div>
+                <div><span><b>硬盘</b><strong>{{ percent(aggregate(item).diskPercent) }}</strong></span><div class="bar"><i :class="barClass(aggregate(item).diskPercent)" :style="{ width: percent(aggregate(item).diskPercent) }"></i></div></div>
+              </div>
+            </section>
 
-          <div class="divider"></div>
-          <div class="stat-list">
-            <div class="stat-row">
-              <span>CPU</span><div class="bar"><i :class="barClass(item.report?.cpu.usage_percent)" :style="{ width: percent(item.report?.cpu.usage_percent) }"></i></div><strong>{{ percent(item.report?.cpu.usage_percent) }}</strong>
+            <section class="latency-panel" :class="{ empty: !item.latency?.length }" aria-label="网络延迟">
+              <header><strong><span class="section-icon">▥</span>网络延迟</strong><small>最近探测</small></header>
+              <div class="latency-grid" :style="{ '--latency-columns': Math.min(item.latency?.length || 1, 3) }">
+                <div v-for="latency in item.latency?.slice(0, 3)" :key="latency.target_id" class="latency-item">
+                  <small><i :class="{ failed: latency.success === false }"></i>{{ latency.name }}</small>
+                  <strong :class="{ failed: latency.success === false }">{{ latencyText(latency.success, latency.latency_ms, latency.error_class) }}</strong>
+                </div>
+                <div v-if="!item.latency?.length" class="latency-item empty-item"><small><i></i>{{ item.node.latency_mode === 'tcping' ? 'TCPing' : 'Ping' }}</small><strong>等待后台分配目标</strong></div>
+              </div>
+            </section>
+
+            <div v-if="item.node.custom_badges?.length || item.node.custom_links?.length || item.node.custom_html" class="custom-display">
+              <div v-if="item.node.custom_badges?.length" class="custom-badges"><span v-for="badge in item.node.custom_badges" :key="`${badge.label}-${badge.color}`" :class="`custom-badge ${badge.color}`">{{ badge.label }}</span></div>
+              <div v-if="item.node.custom_links?.length" class="custom-links" @click.stop><a v-for="link in item.node.custom_links" :key="link.url" :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.label }}</a></div>
+              <div v-if="item.node.custom_html" class="custom-html" @click.stop v-html="item.node.custom_html"></div>
             </div>
-            <div class="stat-row">
-              <span>内存</span><div class="bar"><i :class="barClass(item.report?.memory.usage_percent)" :style="{ width: percent(item.report?.memory.usage_percent) }"></i></div><strong>{{ percent(item.report?.memory.usage_percent) }}</strong>
-            </div>
-            <div class="stat-row">
-              <span>硬盘</span><div class="bar"><i :class="barClass(aggregate(item).diskPercent)" :style="{ width: percent(aggregate(item).diskPercent) }"></i></div><strong>{{ percent(aggregate(item).diskPercent) }}</strong>
-            </div>
-          </div>
 
-          <div class="latency-panel" :class="{ empty: !item.latency?.length }">
-            <div v-for="latency in item.latency" :key="latency.target_id">
-              <span>{{ latency.kind === 'tcping' ? 'TCP' : 'PING' }}</span>
-              <b>{{ latency.name }}</b>
-              <strong :class="{ failed: latency.success === false }">{{ latencyText(latency.success, latency.latency_ms, latency.error_class) }}</strong>
-            </div>
-            <div v-if="!item.latency?.length"><span>{{ item.node.latency_mode === 'tcping' ? 'TCP' : 'PING' }}</span><b>延迟</b><strong>等待后台分配目标</strong></div>
+            <footer>
+              <span>{{ osName(item) }}</span>
+              <time>{{ item.report?.captured_at ? `最后更新：${new Date(item.report.captured_at).toLocaleString('zh-CN', { hour12: false })}` : '暂无上报数据' }}</time>
+            </footer>
           </div>
-
-          <footer>
-            <span>{{ item.report?.cpu.model || '尚未连接' }}</span>
-            <button type="button" @click="openHistory(item)">历史图表</button>
-            <time>{{ item.report?.captured_at ? `更新 ${new Date(item.report.captured_at).toLocaleTimeString('zh-CN', { hour12: false })}` : '无数据' }}</time>
-          </footer>
         </article>
       </section>
     </main>

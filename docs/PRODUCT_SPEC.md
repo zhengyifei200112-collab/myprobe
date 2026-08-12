@@ -37,11 +37,15 @@
 
 ## Public dashboard layout
 
-- Header: product brand, theme control, and admin entry.
+- Header: product brand, persistent compact/detail display control, theme control, and
+  admin entry.
 - Overview: four cards on desktop and a 2x2 grid on mobile.
 - Filter bar: `All`, dynamic tag groups, and `Other`.
 - Node grid: one column below 900 px, two columns from 900 px, and three columns
   from 1250 px.
+- Compact node cards show identity, commercial metadata, masked IP, and uptime. Detailed
+  cards additionally show live/lifetime/cycle traffic, capacity utilization, latency,
+  custom actions, operating system, last update, and history access.
 - Node cards use soft elevated surfaces, restrained gradients, rounded corners,
   tabular numeric values, and accessible warning colors.
 - Empty, loading, offline, reconnecting, and stale-data states are first-class UI states.
