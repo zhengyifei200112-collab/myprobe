@@ -32,9 +32,10 @@ For a domain behind an HTTPS reverse proxy, install with
 cookies, and trusts loopback proxies. The proxy must support WebSocket upgrades.
 
 After creating a node or rotating its token, the administration console displays a
-ready-to-copy Linux command containing the current Server origin and one-time Agent
-token. Run that command directly on the target VPS. Treat it as a secret until the
-Agent has connected.
+ready-to-copy Linux command containing a one-time Agent token. It uses the Agent
+connection address configured under **Site settings**, falling back to the current
+browser origin when that field is empty. Run the command directly on the target VPS.
+Treat it as a secret until the Agent has connected.
 
 The interactive installer remains available as a fallback:
 
