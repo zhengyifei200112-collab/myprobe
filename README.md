@@ -39,10 +39,11 @@ The previous `myprobe-test` repository was an incomplete prototype and is not us
 the implementation base. This repository uses an independently documented protocol and
 a testable vertical architecture.
 
-The first vertical slice is operational: the server bootstraps SQLite and administrator
+The maintained v1 feature set is operational: the server bootstraps SQLite and administrator
 authentication, agents report real host metrics over authenticated WebSockets with an
 HTTP fallback, typed Ping/TCPing tasks are scheduled and persisted, and the embedded
-responsive dashboard updates metrics and latency in real time. Bounded historical APIs
+responsive dashboard provides persistent compact/detailed modes and updates metrics and
+latency in real time. Bounded historical APIs
 and lazy-loaded charts cover the 1h/12h/1d/3d/7d/30d/1y views without sending raw long-range
 samples to the browser. Transactional retention keeps seven days of raw samples,
 30 days of one-minute rollups, and one year of five-minute rollups. Monthly traffic accounting handles configurable reset days,
