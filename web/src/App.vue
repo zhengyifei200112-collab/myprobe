@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { connectRealtime, fetchHistory, fetchNodes } from './api'
-import type { HistoryRange, HistoryResponse, PublicNode, RealtimeEvent } from './types'
+import type { HistoryRange, HistoryResponse, PublicNode, RealtimeEvent, SiteSettings } from './types'
 
 type Theme = 'light' | 'dark'
 type DisplayMode = 'compact' | 'detailed'
 
 const nodes = ref<PublicNode[]>([])
+const siteSettings = ref<SiteSettings>({ agent_url: '', site_title: '', site_description: '', header_html: '', footer_html: '' })
 const activeTag = ref('__all__')
 const loading = ref(true)
 const error = ref('')
@@ -46,6 +47,7 @@ const totalTraffic = computed(() => sumNetwork(visibleNodes.value, 'total'))
 function mergeEvent(event: RealtimeEvent) {
   if (event.type === 'snapshot') {
     nodes.value = event.nodes
+    if (event.settings) siteSettings.value = event.settings
     return
   }
   if (event.type === 'node_metrics') {
@@ -59,6 +61,8 @@ async function load() {
   try {
     const response = await fetchNodes()
     nodes.value = response.nodes
+    siteSettings.value = response.settings ?? siteSettings.value
+    if (siteSettings.value.site_title) document.title = `${siteSettings.value.site_title} · MyProbe`
     localStorage.setItem('myprobe-nodes', JSON.stringify(nodes.value))
     error.value = ''
   } catch {
@@ -345,14 +349,16 @@ onBeforeUnmount(() => {
       <section class="dashboard-intro" aria-labelledby="dashboard-title">
         <div>
           <div class="dashboard-eyebrow">Infrastructure overview</div>
-          <h1 id="dashboard-title">服务器运行概览</h1>
-          <p>节点状态、资源占用、实时速率与网络延迟集中展示，数据自动刷新。</p>
+          <h1 id="dashboard-title">{{ siteSettings.site_title || '服务器运行概览' }}</h1>
+          <p>{{ siteSettings.site_description || '节点状态、资源占用、实时速率与网络延迟集中展示，数据自动刷新。' }}</p>
         </div>
         <div class="live-badge" :class="{ reconnecting: !connected }" :title="connected ? 'WebSocket 实时连接正常' : '正在重新连接实时数据'">
           <span class="live-dot" aria-hidden="true"></span>
           {{ connected ? '实时监控中' : '正在重连' }}
         </div>
       </section>
+
+      <section v-if="siteSettings.header_html" class="site-custom-block site-custom-header" v-html="siteSettings.header_html"></section>
 
       <section class="overview-grid" aria-label="总览">
         <article class="overview-card overview-time-card">
@@ -530,6 +536,7 @@ onBeforeUnmount(() => {
       </section>
     </div>
 
+    <section v-if="siteSettings.footer_html" class="site-custom-block site-custom-footer" v-html="siteSettings.footer_html"></section>
     <footer class="site-footer">© {{ now.getFullYear() }} MyProbe · 自托管服务器监控</footer>
   </div>
 </template>

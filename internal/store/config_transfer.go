@@ -25,6 +25,8 @@ type ConfigSnapshot struct {
 	TargetGroups []ConfigTargetGroup `json:"target_groups"`
 	GroupMembers []TargetGroupMember `json:"group_members"`
 	NodeGroups   []NodeTargetGroup   `json:"node_groups"`
+	NodeTargets  []NodeTarget        `json:"node_targets,omitempty"`
+	SiteSettings *SiteSettings       `json:"site_settings,omitempty"`
 }
 
 type ConfigNode struct {
@@ -99,7 +101,15 @@ func (s *Store) ExportConfig(ctx context.Context, now time.Time) (ConfigSnapshot
 	if err != nil {
 		return ConfigSnapshot{}, err
 	}
-	snapshot := ConfigSnapshot{Version: ConfigSnapshotVersion, ExportedAt: now.UTC(), GroupMembers: members, NodeGroups: nodeGroups}
+	nodeTargets, err := s.ListNodeTargets(ctx)
+	if err != nil {
+		return ConfigSnapshot{}, err
+	}
+	settings, err := s.GetSiteSettings(ctx)
+	if err != nil {
+		return ConfigSnapshot{}, err
+	}
+	snapshot := ConfigSnapshot{Version: ConfigSnapshotVersion, ExportedAt: now.UTC(), GroupMembers: members, NodeGroups: nodeGroups, NodeTargets: nodeTargets, SiteSettings: &settings}
 	for _, item := range nodes {
 		snapshot.Nodes = append(snapshot.Nodes, ConfigNode{ID: item.ID, Name: item.Name, SortOrder: item.SortOrder, Hidden: item.Hidden, Tags: item.Tags, CountryCode: item.CountryCode, Currency: item.Currency, PriceMinor: item.PriceMinor, BillingCycle: item.BillingCycle, ExpiresAt: item.ExpiresAt, TrafficResetDay: item.TrafficResetDay, UseSinceBoot: item.UseSinceBoot, LatencyMode: item.LatencyMode, CustomHTML: item.CustomHTML, CustomBadges: item.CustomBadges, CustomLinks: item.CustomLinks, CollectionSeconds: item.CollectionSeconds, ReportSeconds: item.ReportSeconds})
 	}
@@ -200,6 +210,32 @@ func (s *Store) ImportConfig(ctx context.Context, snapshot ConfigSnapshot, dryRu
 			result.MembersAdded++
 		}
 	}
+	// Version 1 snapshots used group-based assignments. Materialize their
+	// effective pairs so imports continue to schedule the same probes.
+	if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO node_targets(node_id,target_id)
+		SELECT ng.node_id, gm.target_id FROM node_target_groups ng
+		JOIN target_group_members gm ON gm.group_id=ng.group_id`); err != nil {
+		return result, fmt.Errorf("materialize legacy target assignments: %w", err)
+	}
+	for _, item := range snapshot.NodeTargets {
+		changed, err := insertPair(ctx, tx, "node_targets", "node_id", item.NodeID, "target_id", item.TargetID)
+		if err != nil {
+			return result, fmt.Errorf("import node target assignment: %w", err)
+		}
+		if changed {
+			result.MembersAdded++
+		}
+	}
+	if snapshot.SiteSettings != nil {
+		settings, err := normalizeSiteSettings(*snapshot.SiteSettings)
+		if err != nil {
+			return result, fmt.Errorf("import site settings: %w", err)
+		}
+		encoded, _ := json.Marshal(settings)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO settings(key,value_json,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at`, siteSettingsKey, string(encoded), now); err != nil {
+			return result, err
+		}
+	}
 	var mismatched int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM target_group_members gm JOIN target_groups g ON g.id=gm.group_id JOIN targets t ON t.id=gm.target_id WHERE g.kind<>t.kind`).Scan(&mismatched); err != nil {
 		return result, err
@@ -221,7 +257,7 @@ func validateConfigSnapshot(snapshot ConfigSnapshot) error {
 	if snapshot.Version != ConfigSnapshotVersion {
 		return fmt.Errorf("unsupported config version %d", snapshot.Version)
 	}
-	if len(snapshot.Nodes) > 10000 || len(snapshot.Targets) > 10000 || len(snapshot.TargetGroups) > 10000 || len(snapshot.GroupMembers)+len(snapshot.NodeGroups) > 100000 {
+	if len(snapshot.Nodes) > 10000 || len(snapshot.Targets) > 10000 || len(snapshot.TargetGroups) > 10000 || len(snapshot.GroupMembers)+len(snapshot.NodeGroups)+len(snapshot.NodeTargets) > 100000 {
 		return errors.New("configuration exceeds import limits")
 	}
 	seen := make(map[string]string)

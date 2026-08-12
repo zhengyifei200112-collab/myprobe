@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import type { NodeMetadata } from './types'
-import type { AdminGroup, AdminTarget, AlertEvent, AlertKind, AlertRule, AuditEntry, ChartShare, ConfigImportResult, LatencyConfig, NotificationChannel } from './admin-api'
+import type { AdminTarget, AlertEvent, AlertKind, AlertRule, AuditEntry, ChartShare, ConfigImportResult, LatencyConfig, NotificationChannel, SiteSettings } from './admin-api'
 import {
-  changePassword, createAlertRule, createChannel, createChartShare, createGroup, createNode, createTarget, deleteAlertRule, deleteChannel, deleteChartShare,
-  deleteGroup, deleteNode, deleteTarget, loadAlertEvents, loadAlertRules, loadChannels, loadLatencyConfig,
-  downloadConfiguration, downloadDatabaseBackup, importConfiguration, loadAudit, loadChartShares, loadNodes, login, LoginError, logout, restoreSession, rotateNodeToken, setGroupTarget, setNodeGroup, testChannel, uploadDatabaseRestore,
-  updateAlertRule, updateChannel, updateChartShare, updateGroup, updateNode, updateTarget,
+  changePassword, createAlertRule, createChannel, createChartShare, createNode, createTarget, deleteAlertRule, deleteChannel, deleteChartShare,
+  deleteNode, deleteTarget, loadAlertEvents, loadAlertRules, loadChannels, loadLatencyConfig, loadSiteSettings,
+  downloadConfiguration, downloadDatabaseBackup, importConfiguration, loadAudit, loadChartShares, loadNodes, login, LoginError, logout, restoreSession, rotateNodeToken, setNodeTarget, testChannel, uploadDatabaseRestore,
+  updateAlertRule, updateChannel, updateChartShare, updateNode, updateSiteSettings, updateTarget,
 } from './admin-api'
 
-type Tab = 'nodes' | 'targets' | 'groups' | 'alerts' | 'shares' | 'maintenance' | 'security'
+type Tab = 'nodes' | 'targets' | 'settings' | 'alerts' | 'shares' | 'maintenance' | 'security'
 const authenticated = ref(false)
 const booting = ref(true)
 const busy = ref(false)
@@ -22,7 +22,8 @@ const captchaID = ref('')
 const captchaPrompt = ref('')
 const captchaAnswer = ref('')
 const nodes = ref<NodeMetadata[]>([])
-const config = ref<LatencyConfig>({ targets: [], groups: [], group_members: [], node_groups: [] })
+const config = ref<LatencyConfig>({ targets: [], groups: [], group_members: [], node_groups: [], node_targets: [] })
+const siteSettings = reactive<SiteSettings>({ agent_url: '', site_title: '', site_description: '', header_html: '', footer_html: '' })
 const channels = ref<NotificationChannel[]>([])
 const rules = ref<AlertRule[]>([])
 const events = ref<AlertEvent[]>([])
@@ -48,16 +49,16 @@ function shellQuote(value: string) {
 }
 
 const agentInstallCommand = computed(() => token.value
-  ? `curl -fsSL ${shellQuote(installerURL)} | sudo env MYPROBE_SERVER=${shellQuote(location.origin)} MYPROBE_TOKEN=${shellQuote(token.value)} bash -s -- agent`
+  ? `curl -fsSL ${shellQuote(installerURL)} | sudo env MYPROBE_SERVER=${shellQuote(siteSettings.agent_url || location.origin)} MYPROBE_TOKEN=${shellQuote(token.value)} bash -s -- agent`
   : '')
 
 const emptyNode = () => ({ name: '', tags: '', country_code: '', collection_seconds: 5, report_seconds: 5 })
 const nodeCreate = reactive(emptyNode())
 const nodeEdit = ref<NodeMetadata | null>(null)
+const nodeTargetIDs = ref<string[]>([])
 const customEdit = ref<NodeMetadata | null>(null)
 const emptyTarget = (): Omit<AdminTarget, 'id'> => ({ name: '', kind: 'ping', host: '', interval_seconds: 60, timeout_ms: 3000, enabled: true, sort_order: 0 })
-const targetForm = reactive(emptyTarget() as Omit<AdminTarget, 'id'> & { id?: string })
-const groupForm = reactive({ id: '', name: '', kind: 'ping' as 'ping' | 'tcping' })
+const targetForm = reactive({ ...emptyTarget(), node_ids: [] as string[] } as Omit<AdminTarget, 'id'> & { id?: string; node_ids: string[] })
 const emptyChannel = () => ({ id: '', name: '', kind: 'webhook' as 'webhook' | 'telegram', url: '', bot_token: '', chat_id: '', enabled: true })
 const channelForm = reactive(emptyChannel())
 const emptyRule = () => ({ id: '', node_id: '', channel_id: '', kind: 'offline' as AlertKind, threshold: 60, cooldown_seconds: 900, enabled: true })
@@ -70,11 +71,12 @@ function showError(value: unknown) {
 }
 
 async function refresh() {
-  const [nodeResult, latencyResult, channelResult, ruleResult, eventResult, shareResult, auditResult] = await Promise.all([
-    loadNodes(), loadLatencyConfig(), loadChannels(), loadAlertRules(), loadAlertEvents(), loadChartShares(), loadAudit(),
+  const [nodeResult, latencyResult, settingsResult, channelResult, ruleResult, eventResult, shareResult, auditResult] = await Promise.all([
+    loadNodes(), loadLatencyConfig(), loadSiteSettings(), loadChannels(), loadAlertRules(), loadAlertEvents(), loadChartShares(), loadAudit(),
   ])
   nodes.value = nodeResult.nodes
   config.value = latencyResult
+  Object.assign(siteSettings, settingsResult.settings)
   channels.value = channelResult.channels
   rules.value = ruleResult.rules
   events.value = eventResult.events
@@ -171,6 +173,7 @@ function editNode(item: NodeMetadata) {
     copy.expires_at = new Date(date.getTime() - offset).toISOString().slice(0, 16)
   }
   nodeEdit.value = copy
+  nodeTargetIDs.value = config.value.node_targets.filter(x => x.node_id === item.id).map(x => x.target_id)
 }
 
 function addCustomBadge() {
@@ -213,6 +216,7 @@ async function saveNode() {
       expires_at: item.expires_at ? new Date(item.expires_at).toISOString() : null,
       traffic_reset_day: item.traffic_reset_day || null,
     })
+    await syncNodeTargets(item.id, nodeTargetIDs.value)
     nodeEdit.value = null
     await refresh()
   }, '节点配置已保存。')
@@ -233,14 +237,31 @@ async function rotateToken(item: NodeMetadata) {
 }
 
 function editTarget(item?: AdminTarget) {
-  Object.assign(targetForm, item ? { ...item } : emptyTarget(), { id: item?.id })
+  Object.assign(targetForm, item ? { ...item } : emptyTarget(), {
+    id: item?.id,
+    node_ids: item ? config.value.node_targets.filter(x => x.target_id === item.id).map(x => x.node_id) : [],
+  })
+}
+
+async function syncNodeTargetsForTarget(targetID: string, wanted: string[]) {
+  const current = new Set(config.value.node_targets.filter(x => x.target_id === targetID).map(x => x.node_id))
+  const desired = new Set(wanted)
+  await Promise.all(nodes.value.map(node => current.has(node.id) === desired.has(node.id) ? Promise.resolve() : setNodeTarget(node.id, targetID, desired.has(node.id))))
+}
+
+async function syncNodeTargets(nodeID: string, wanted: string[]) {
+  const current = new Set(config.value.node_targets.filter(x => x.node_id === nodeID).map(x => x.target_id))
+  const desired = new Set(wanted)
+  await Promise.all(config.value.targets.map(target => current.has(target.id) === desired.has(target.id) ? Promise.resolve() : setNodeTarget(nodeID, target.id, desired.has(target.id))))
 }
 
 async function saveTarget() {
   await run(async () => {
     const payload = { ...targetForm, port: targetForm.kind === 'tcping' ? Number(targetForm.port || 0) : null }
-    if (targetForm.id) await updateTarget(targetForm.id, payload)
-    else await createTarget(payload)
+    let targetID = targetForm.id
+    if (targetID) await updateTarget(targetID, payload)
+    else targetID = (await createTarget(payload)).target.id
+    await syncNodeTargetsForTarget(targetID, targetForm.node_ids)
     editTarget()
     await refresh()
   }, targetForm.id ? '探测目标已更新。' : '探测目标已创建。')
@@ -251,39 +272,11 @@ async function removeTarget(item: AdminTarget) {
   await run(async () => { await deleteTarget(item.id); await refresh() }, '探测目标已删除。')
 }
 
-function editGroup(item?: AdminGroup) {
-  Object.assign(groupForm, item ? { ...item } : { id: '', name: '', kind: 'ping' })
-}
-
-async function saveGroup() {
+async function saveSiteSettings() {
   await run(async () => {
-    const payload = { name: groupForm.name, kind: groupForm.kind }
-    if (groupForm.id) await updateGroup(groupForm.id, payload)
-    else await createGroup(payload)
-    editGroup()
-    await refresh()
-  }, groupForm.id ? '目标组已更新。' : '目标组已创建。')
-}
-
-async function removeGroup(item: AdminGroup) {
-  if (!confirm(`确认删除目标组“${item.name}”？`)) return
-  await run(async () => { await deleteGroup(item.id); await refresh() }, '目标组已删除。')
-}
-
-function isGroupTarget(groupID: string, targetID: string) {
-  return config.value.group_members.some(item => item.group_id === groupID && item.target_id === targetID)
-}
-
-function isNodeGroup(nodeID: string, groupID: string) {
-  return config.value.node_groups.some(item => item.node_id === nodeID && item.group_id === groupID)
-}
-
-async function toggleGroupTarget(group: AdminGroup, target: AdminTarget, assigned: boolean) {
-  await run(async () => { await setGroupTarget(group.id, target.id, assigned); await refresh() }, assigned ? '目标已加入分组。' : '目标已移出分组。')
-}
-
-async function toggleNodeGroup(node: NodeMetadata, group: AdminGroup, assigned: boolean) {
-  await run(async () => { await setNodeGroup(node.id, group.id, assigned); await refresh() }, assigned ? '目标组已分配。' : '目标组已取消。')
+    const result = await updateSiteSettings({ ...siteSettings })
+    Object.assign(siteSettings, result.settings)
+  }, '站点设置已保存。')
 }
 
 function editChannel(item?: NotificationChannel) {
@@ -504,7 +497,7 @@ onMounted(async () => {
       <nav v-if="authenticated" class="admin-tabs">
         <button :class="{ active: tab === 'nodes' }" @click="tab = 'nodes'">节点</button>
         <button :class="{ active: tab === 'targets' }" @click="tab = 'targets'">探测目标</button>
-        <button :class="{ active: tab === 'groups' }" @click="tab = 'groups'">目标组</button>
+        <button :class="{ active: tab === 'settings' }" @click="tab = 'settings'">站点设置</button>
         <button :class="{ active: tab === 'alerts' }" @click="tab = 'alerts'">告警</button>
         <button :class="{ active: tab === 'shares' }" @click="tab = 'shares'">分享</button>
         <button :class="{ active: tab === 'maintenance' }" @click="tab = 'maintenance'">维护</button>
@@ -530,7 +523,7 @@ onMounted(async () => {
       <div v-if="error" class="admin-alert error">{{ error }}</div><div v-if="notice" class="admin-alert success">{{ notice }}</div>
 
       <template v-if="tab === 'nodes'">
-        <section class="admin-heading"><div><span class="eyebrow">INFRASTRUCTURE</span><h1>节点管理</h1><p>创建 Agent 身份、调整公开展示与采集策略，并分配延迟探测组。</p></div><span class="count-pill">{{ nodes.length }} 个节点</span></section>
+        <section class="admin-heading"><div><span class="eyebrow">INFRASTRUCTURE</span><h1>节点管理</h1><p>创建 Agent 身份、调整公开展示与采集策略；探测目标可在节点编辑中直接分配。</p></div><span class="count-pill">{{ nodes.length }} 个节点</span></section>
         <form class="admin-panel compact-form" @submit.prevent="submitNodeCreate">
           <h2>添加节点</h2><div class="form-grid four"><label>名称<input v-model="nodeCreate.name" required></label><label>标签（逗号分隔）<input v-model="nodeCreate.tags" placeholder="香港, 生产"></label><label>国家/地区代码<input v-model="nodeCreate.country_code" maxlength="2" placeholder="HK"></label><label>上报间隔（秒）<input v-model.number="nodeCreate.report_seconds" type="number" min="1" max="3600" required></label></div>
           <button class="primary-button" :disabled="busy">创建节点</button>
@@ -539,7 +532,7 @@ onMounted(async () => {
           <article v-for="item in nodes" :key="item.id" class="admin-panel entity-card">
             <div class="entity-title"><div><strong>{{ item.name }}</strong><code>{{ item.id }}</code></div><span :class="['status-label', item.hidden ? 'muted' : 'active']">{{ item.hidden ? '已隐藏' : '公开' }}</span></div>
             <div class="entity-meta"><span>{{ item.country_code || '未设置地区' }}</span><span>采集 {{ item.collection_seconds }}s / 上报 {{ item.report_seconds }}s</span><span>{{ item.latency_mode.toUpperCase() }}</span></div>
-            <div class="assignment-box"><b>分配目标组</b><label v-for="group in config.groups" :key="group.id" class="check-chip"><input type="checkbox" :checked="isNodeGroup(item.id, group.id)" :disabled="busy" @change="toggleNodeGroup(item, group, ($event.target as HTMLInputElement).checked)">{{ group.name }}</label><span v-if="!config.groups.length" class="empty-inline">请先创建目标组</span></div>
+            <div class="assignment-box"><b>延迟监测</b><span v-for="target in config.targets.filter(x => config.node_targets.some(a => a.node_id === item.id && a.target_id === x.id))" :key="target.id" class="check-chip static">{{ target.name }}</span><span v-if="!config.node_targets.some(a => a.node_id === item.id)" class="empty-inline">未分配探测目标</span></div>
             <div class="entity-actions"><button @click="editNode(item)">编辑</button><button @click="editCustomDisplay(item)">自定义展示</button><button @click="rotateToken(item)">轮换 Token</button><button class="danger" @click="removeNode(item)">删除</button></div>
           </article>
         </section>
@@ -549,16 +542,24 @@ onMounted(async () => {
         <section class="admin-heading"><div><span class="eyebrow">LATENCY PROBES</span><h1>探测目标</h1><p>配置由 Agent 执行的 ICMP Ping 或 TCPing 目标。</p></div><span class="count-pill">{{ config.targets.length }} 个目标</span></section>
         <form class="admin-panel compact-form" @submit.prevent="saveTarget">
           <h2>{{ targetForm.id ? '编辑目标' : '添加目标' }}</h2><div class="form-grid six"><label>名称<input v-model="targetForm.name" required></label><label>类型<select v-model="targetForm.kind"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label><label>主机<input v-model="targetForm.host" required placeholder="example.com"></label><label>端口<input v-model.number="targetForm.port" type="number" min="1" max="65535" :required="targetForm.kind === 'tcping'" :disabled="targetForm.kind === 'ping'"></label><label>间隔（秒）<input v-model.number="targetForm.interval_seconds" type="number" min="5" max="86400"></label><label>超时（毫秒）<input v-model.number="targetForm.timeout_ms" type="number" min="1"></label><label>排序<input v-model.number="targetForm.sort_order" type="number"></label></div>
+          <div class="assignment-box"><b>应用于节点</b><label v-for="item in nodes" :key="item.id" class="check-chip"><input v-model="targetForm.node_ids" type="checkbox" :value="item.id">{{ item.name }}</label><span v-if="!nodes.length" class="empty-inline">暂无可分配节点</span></div>
           <div v-if="targetForm.id" class="switch-row"><label><input v-model="targetForm.enabled" type="checkbox"> 启用此目标</label></div>
           <div class="form-actions"><button class="primary-button" :disabled="busy">{{ targetForm.id ? '保存修改' : '创建目标' }}</button><button v-if="targetForm.id" type="button" @click="editTarget()">取消</button></div>
         </form>
         <section class="admin-list"><article v-for="item in config.targets" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ item.name }}</strong><code>{{ item.host }}{{ item.port ? `:${item.port}` : '' }}</code></div><span class="status-label active">{{ item.kind.toUpperCase() }}</span></div><div class="entity-meta"><span>每 {{ item.interval_seconds }} 秒</span><span>超时 {{ item.timeout_ms }}ms</span><span>{{ item.enabled ? '已启用' : '已停用' }}</span></div><div class="entity-actions"><button @click="editTarget(item)">编辑</button><button class="danger" @click="removeTarget(item)">删除</button></div></article></section>
       </template>
 
-      <template v-else-if="tab === 'groups'">
-        <section class="admin-heading"><div><span class="eyebrow">ASSIGNMENTS</span><h1>目标组</h1><p>将同类目标组成策略组，再分配给一个或多个节点。</p></div><span class="count-pill">{{ config.groups.length }} 个分组</span></section>
-        <form class="admin-panel compact-form" @submit.prevent="saveGroup"><h2>{{ groupForm.id ? '编辑分组' : '添加分组' }}</h2><div class="form-grid two"><label>名称<input v-model="groupForm.name" required></label><label>类型<select v-model="groupForm.kind"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label></div><div class="form-actions"><button class="primary-button" :disabled="busy">{{ groupForm.id ? '保存修改' : '创建分组' }}</button><button v-if="groupForm.id" type="button" @click="editGroup()">取消</button></div></form>
-        <section class="admin-list"><article v-for="group in config.groups" :key="group.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ group.name }}</strong><code>{{ group.kind.toUpperCase() }}</code></div><span class="status-label active">{{ config.group_members.filter(x => x.group_id === group.id).length }} 个目标</span></div><div class="assignment-box"><b>组内目标</b><label v-for="targetItem in config.targets.filter(x => x.kind === group.kind)" :key="targetItem.id" class="check-chip"><input type="checkbox" :checked="isGroupTarget(group.id, targetItem.id)" :disabled="busy" @change="toggleGroupTarget(group, targetItem, ($event.target as HTMLInputElement).checked)">{{ targetItem.name }}</label><span v-if="!config.targets.some(x => x.kind === group.kind)" class="empty-inline">没有兼容目标</span></div><div class="entity-actions"><button @click="editGroup(group)">编辑</button><button class="danger" @click="removeGroup(group)">删除</button></div></article></section>
+      <template v-else-if="tab === 'settings'">
+        <section class="admin-heading"><div><span class="eyebrow">SITE &amp; AGENT</span><h1>站点设置</h1><p>统一管理 Agent 对外连接地址和公开面板的自定义内容。</p></div></section>
+        <form class="admin-panel compact-form site-settings-form" @submit.prevent="saveSiteSettings">
+          <h2>连接与公开展示</h2>
+          <div class="form-grid two"><label>Agent 连接地址<input v-model="siteSettings.agent_url" type="url" placeholder="留空则使用当前访问域名"></label><label>站点标题<input v-model="siteSettings.site_title" maxlength="80" placeholder="服务器运行概览"></label></div>
+          <label>站点说明<input v-model="siteSettings.site_description" maxlength="300" placeholder="节点状态、资源占用、实时速率与网络延迟集中展示。"></label>
+          <label class="html-field">自定义头部内容<textarea v-model="siteSettings.header_html" maxlength="16384" rows="6" placeholder="显示在公开面板概览标题下方；支持安全的文本、链接和基础格式"></textarea></label>
+          <label class="html-field">自定义底部内容<textarea v-model="siteSettings.footer_html" maxlength="16384" rows="4" placeholder="显示在公开面板页脚上方"></textarea></label>
+          <p class="security-hint">自定义 HTML 会在服务端经过白名单清洗；脚本、样式、事件属性和危险链接不会保存。</p>
+          <button class="primary-button" :disabled="busy">保存站点设置</button>
+        </form>
       </template>
 
       <template v-else-if="tab === 'alerts'">
@@ -622,7 +623,7 @@ onMounted(async () => {
       </template>
     </main>
 
-    <div v-if="nodeEdit" class="admin-overlay" @click.self="nodeEdit = null"><form class="admin-panel edit-dialog" @submit.prevent="saveNode"><header><div><span class="eyebrow">NODE SETTINGS</span><h2>{{ nodeEdit.name }}</h2></div><button type="button" class="close-button" @click="nodeEdit = null">×</button></header><div class="form-grid two"><label>名称<input v-model="nodeEdit.name" required></label><label>排序<input v-model.number="nodeEdit.sort_order" type="number"></label><label>国家/地区代码<input v-model="nodeEdit.country_code" maxlength="2"></label><label>标签（逗号分隔显示）<input :value="nodeEdit.tags.join(', ')" @input="nodeEdit!.tags = ($event.target as HTMLInputElement).value.split(',').map(x => x.trim()).filter(Boolean)"></label><label>采集间隔（秒）<input v-model.number="nodeEdit.collection_seconds" type="number" min="1" max="3600"></label><label>上报间隔（秒）<input v-model.number="nodeEdit.report_seconds" type="number" min="1" max="3600"></label><label>延迟模式<select v-model="nodeEdit.latency_mode"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label><label>流量重置日<input v-model.number="nodeEdit.traffic_reset_day" type="number" min="1" max="31" placeholder="自然月"></label><label>货币<input v-model="nodeEdit.currency" maxlength="3" placeholder="USD"></label><label>价格（最小货币单位）<input v-model.number="nodeEdit.price_minor" type="number" min="0"></label><label>计费周期<input v-model="nodeEdit.billing_cycle" placeholder="monthly"></label><label>到期时间<input v-model="nodeEdit.expires_at" type="datetime-local"></label></div><div class="switch-row"><label><input v-model="nodeEdit.hidden" type="checkbox"> 从公开面板隐藏</label><label><input v-model="nodeEdit.use_since_boot" type="checkbox"> 使用开机以来流量</label></div><div class="form-actions"><button class="primary-button" :disabled="busy">保存节点</button><button type="button" @click="nodeEdit = null">取消</button></div></form></div>
+    <div v-if="nodeEdit" class="admin-overlay" @click.self="nodeEdit = null"><form class="admin-panel edit-dialog" @submit.prevent="saveNode"><header><div><span class="eyebrow">NODE SETTINGS</span><h2>{{ nodeEdit.name }}</h2></div><button type="button" class="close-button" @click="nodeEdit = null">×</button></header><div class="form-grid two"><label>名称<input v-model="nodeEdit.name" required></label><label>排序<input v-model.number="nodeEdit.sort_order" type="number"></label><label>国家/地区代码<input v-model="nodeEdit.country_code" maxlength="2"></label><label>标签（逗号分隔显示）<input :value="nodeEdit.tags.join(', ')" @input="nodeEdit!.tags = ($event.target as HTMLInputElement).value.split(',').map(x => x.trim()).filter(Boolean)"></label><label>采集间隔（秒）<input v-model.number="nodeEdit.collection_seconds" type="number" min="1" max="3600"></label><label>上报间隔（秒）<input v-model.number="nodeEdit.report_seconds" type="number" min="1" max="3600"></label><label>延迟模式<select v-model="nodeEdit.latency_mode"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label><label>流量重置日<input v-model.number="nodeEdit.traffic_reset_day" type="number" min="1" max="31" placeholder="自然月"></label><label>货币<input v-model="nodeEdit.currency" maxlength="3" placeholder="USD"></label><label>价格（最小货币单位）<input v-model.number="nodeEdit.price_minor" type="number" min="0"></label><label>计费周期<input v-model="nodeEdit.billing_cycle" placeholder="monthly"></label><label>到期时间<input v-model="nodeEdit.expires_at" type="datetime-local"></label></div><div class="assignment-box dialog-assignment"><b>延迟监测目标</b><label v-for="target in config.targets" :key="target.id" class="check-chip"><input v-model="nodeTargetIDs" type="checkbox" :value="target.id">{{ target.name }} · {{ target.kind === 'tcping' ? 'TCP' : 'Ping' }}</label><span v-if="!config.targets.length" class="empty-inline">请先创建探测目标</span></div><div class="switch-row"><label><input v-model="nodeEdit.hidden" type="checkbox"> 从公开面板隐藏</label><label><input v-model="nodeEdit.use_since_boot" type="checkbox"> 使用开机以来流量</label></div><div class="form-actions"><button class="primary-button" :disabled="busy">保存节点</button><button type="button" @click="nodeEdit = null">取消</button></div></form></div>
 
     <div v-if="customEdit" class="admin-overlay" @click.self="customEdit = null">
       <form class="admin-panel edit-dialog custom-dialog" @submit.prevent="saveCustomDisplay">
