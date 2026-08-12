@@ -11,9 +11,15 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Node creation and Agent token rotation now show a ready-to-copy Linux one-click
   Agent installation command using the current Server URL.
+- Site settings now support a custom reverse-proxy-safe Agent connection address,
+  public dashboard title/description, and sanitized header/footer content.
+- Ping and TCPing targets can now be assigned directly to selected nodes from either
+  the target editor or the node editor.
 
 ### Changed
 
+- Removed the standalone target-group screen from the administration UI; existing
+  group assignments are migrated forward into direct node-target assignments.
 - Redesigned the public dashboard to match the ZJM information hierarchy and visual
   density, including the unified overview, compact and detailed node-card modes,
   typography, badges, traffic, resource, latency, and responsive layouts.

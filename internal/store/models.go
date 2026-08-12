@@ -201,6 +201,11 @@ type NodeTargetGroup struct {
 	GroupID string `json:"group_id"`
 }
 
+type NodeTarget struct {
+	NodeID   string `json:"node_id"`
+	TargetID string `json:"target_id"`
+}
+
 type LatestLatency struct {
 	TargetID  string     `json:"target_id"`
 	Name      string     `json:"name"`

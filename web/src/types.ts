@@ -1,6 +1,15 @@
 export interface ApiResponse {
   nodes: PublicNode[]
+  settings: SiteSettings
   server_time: string
+}
+
+export interface SiteSettings {
+  agent_url: string
+  site_title: string
+  site_description: string
+  header_html: string
+  footer_html: string
 }
 
 export interface PublicNode {
@@ -111,5 +120,5 @@ export interface NetworkMetric {
 }
 
 export type RealtimeEvent =
-  | { type: 'snapshot'; nodes: PublicNode[] }
+  | { type: 'snapshot'; nodes: PublicNode[]; settings?: SiteSettings }
   | { type: 'node_metrics'; node: PublicNode }

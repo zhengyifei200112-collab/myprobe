@@ -33,6 +33,46 @@ func TestSecurityHeadersDisallowInlineScripts(t *testing.T) {
 	}
 }
 
+func TestPublicNodesIncludesOnlySanitizedSiteSettings(t *testing.T) {
+	ctx := context.Background()
+	database, err := store.Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	settings, err := database.UpdateSiteSettings(ctx, store.SiteSettings{
+		AgentURL:   "https://agent.example.com",
+		SiteTitle:  "Fleet",
+		HeaderHTML: `<p>Notice<script>alert(1)</script></p>`,
+		FooterHTML: `<a href="javascript:alert(2)">unsafe</a>`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hub := agentgateway.NewHub()
+	api := New(config.Config{}, database, auth.New(database, time.Hour), agentgateway.New(database, hub), hub)
+	response := httptest.NewRecorder()
+	api.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/public/nodes", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("public nodes = %d %s", response.Code, response.Body.String())
+	}
+	var payload struct {
+		Settings store.SiteSettings `json:"settings"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Settings != settings {
+		t.Fatalf("public settings = %#v, want %#v", payload.Settings, settings)
+	}
+	encoded := strings.ToLower(response.Body.String())
+	for _, forbidden := range []string{"<script", "javascript:", "onclick="} {
+		if strings.Contains(encoded, forbidden) {
+			t.Fatalf("public response contains %q: %s", forbidden, encoded)
+		}
+	}
+}
+
 func TestAgentWebSocketHandshake(t *testing.T) {
 	ctx := context.Background()
 	database, err := store.Open(ctx, ":memory:")

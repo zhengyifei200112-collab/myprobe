@@ -23,6 +23,15 @@ export interface LatencyConfig {
   groups: AdminGroup[]
   group_members: Array<{ group_id: string; target_id: string }>
   node_groups: Array<{ node_id: string; group_id: string }>
+  node_targets: Array<{ node_id: string; target_id: string }>
+}
+
+export interface SiteSettings {
+  agent_url: string
+  site_title: string
+  site_description: string
+  header_html: string
+  footer_html: string
 }
 
 export interface NotificationChannel {
@@ -147,6 +156,8 @@ export async function logout(): Promise<void> {
 
 export const loadNodes = () => request<{ nodes: NodeMetadata[] }>('/api/v1/admin/nodes')
 export const loadLatencyConfig = () => request<LatencyConfig>('/api/v1/admin/latency-config')
+export const loadSiteSettings = () => request<{ settings: SiteSettings }>('/api/v1/admin/site-settings')
+export const updateSiteSettings = (payload: SiteSettings) => request<{ settings: SiteSettings }>('/api/v1/admin/site-settings', { method: 'PATCH', body: JSON.stringify(payload) })
 
 export const createNode = (payload: unknown) => request<{ node: NodeMetadata; agent_token: string }>('/api/v1/admin/nodes', { method: 'POST', body: JSON.stringify(payload) })
 export const updateNode = (id: string, payload: unknown) => request<{ node: NodeMetadata }>(`/api/v1/admin/nodes/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
@@ -163,6 +174,7 @@ export const deleteGroup = (id: string) => request<void>(`/api/v1/admin/target-g
 
 export const setGroupTarget = (groupID: string, targetID: string, assigned: boolean) => request<void>(`/api/v1/admin/target-groups/${encodeURIComponent(groupID)}/targets/${encodeURIComponent(targetID)}`, { method: assigned ? 'PUT' : 'DELETE' })
 export const setNodeGroup = (nodeID: string, groupID: string, assigned: boolean) => request<void>(`/api/v1/admin/nodes/${encodeURIComponent(nodeID)}/target-groups/${encodeURIComponent(groupID)}`, { method: assigned ? 'PUT' : 'DELETE' })
+export const setNodeTarget = (nodeID: string, targetID: string, assigned: boolean) => request<void>(`/api/v1/admin/nodes/${encodeURIComponent(nodeID)}/targets/${encodeURIComponent(targetID)}`, { method: assigned ? 'PUT' : 'DELETE' })
 
 export const loadChannels = () => request<{ channels: NotificationChannel[] }>('/api/v1/admin/notification-channels')
 export const createChannel = (payload: unknown) => request<{ channel: NotificationChannel }>('/api/v1/admin/notification-channels', { method: 'POST', body: JSON.stringify(payload) })

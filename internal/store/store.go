@@ -442,7 +442,9 @@ func (s *Store) AddTargetToGroup(ctx context.Context, groupID, targetID string) 
 			return ErrNotFound
 		}
 	}
-	return nil
+	_, err = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO node_targets(node_id,target_id)
+		SELECT ng.node_id, ? FROM node_target_groups ng WHERE ng.group_id=?`, targetID, groupID)
+	return err
 }
 
 func (s *Store) AssignTargetGroup(ctx context.Context, nodeID, groupID string) error {
@@ -458,7 +460,46 @@ func (s *Store) AssignTargetGroup(ctx context.Context, nodeID, groupID string) e
 			return ErrNotFound
 		}
 	}
+	_, err = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO node_targets(node_id,target_id)
+		SELECT ?, gm.target_id FROM target_group_members gm WHERE gm.group_id=?`, nodeID, groupID)
+	return err
+}
+
+func (s *Store) AssignTarget(ctx context.Context, nodeID, targetID string) error {
+	result, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO node_targets(node_id, target_id)
+		SELECT n.id, t.id FROM nodes n CROSS JOIN targets t WHERE n.id = ? AND t.id = ?`, nodeID, targetID)
+	if err != nil {
+		return err
+	}
+	count, _ := result.RowsAffected()
+	if count == 0 {
+		var exists int
+		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM node_targets WHERE node_id=? AND target_id=?`, nodeID, targetID).Scan(&exists); err != nil || exists == 0 {
+			return ErrNotFound
+		}
+	}
 	return nil
+}
+
+func (s *Store) UnassignTarget(ctx context.Context, nodeID, targetID string) error {
+	return deletePair(ctx, s.db, "node_targets", "node_id", nodeID, "target_id", targetID)
+}
+
+func (s *Store) ListNodeTargets(ctx context.Context) ([]NodeTarget, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT node_id, target_id FROM node_targets ORDER BY node_id, target_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]NodeTarget, 0)
+	for rows.Next() {
+		var item NodeTarget
+		if err := rows.Scan(&item.NodeID, &item.TargetID); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
 }
 
 func (s *Store) ListTargets(ctx context.Context) ([]Target, error) {
@@ -543,12 +584,11 @@ func (s *Store) ListNodeTargetGroups(ctx context.Context) ([]NodeTargetGroup, er
 }
 
 func (s *Store) ListTargetAssignments(ctx context.Context) ([]TargetAssignment, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT ng.node_id, t.id, t.name, t.kind, t.host, t.port,
+	rows, err := s.db.QueryContext(ctx, `SELECT nt.node_id, t.id, t.name, t.kind, t.host, t.port,
 		t.interval_seconds, t.timeout_ms, t.enabled, t.sort_order, t.created_at, t.updated_at
-		FROM node_target_groups ng
-		JOIN target_group_members gm ON gm.group_id = ng.group_id
-		JOIN targets t ON t.id = gm.target_id
-		WHERE t.enabled = 1 ORDER BY ng.node_id, t.sort_order, t.name`)
+		FROM node_targets nt
+		JOIN targets t ON t.id = nt.target_id
+		WHERE t.enabled = 1 ORDER BY nt.node_id, t.sort_order, t.name`)
 	if err != nil {
 		return nil, err
 	}
@@ -590,8 +630,7 @@ func (s *Store) SaveLatencyResult(ctx context.Context, nodeID, kind string, resu
 	stored, err := s.db.ExecContext(ctx, `INSERT INTO latency_samples(node_id, target_id, kind, captured_at, success, latency_ms, error_class)
 		SELECT ?, t.id, t.kind, ?, ?, ?, ? FROM targets t
 		WHERE t.id = ? AND t.kind = ? AND EXISTS (
-			SELECT 1 FROM target_group_members gm JOIN node_target_groups ng ON ng.group_id = gm.group_id
-			WHERE gm.target_id = t.id AND ng.node_id = ?
+			SELECT 1 FROM node_targets nt WHERE nt.target_id=t.id AND nt.node_id=?
 		)`, nodeID, formatTime(result.CompletedAt), result.Success, latency, result.ErrorClass, result.TargetID, kind, nodeID)
 	if err != nil {
 		return err
@@ -606,10 +645,9 @@ func (s *Store) SaveLatencyResult(ctx context.Context, nodeID, kind string, resu
 func (s *Store) ListLatestLatency(ctx context.Context, nodeID string) ([]LatestLatency, error) {
 	rows, err := s.db.QueryContext(ctx, `WITH assigned AS (
 		SELECT DISTINCT t.id, t.name, t.kind, t.sort_order
-		FROM node_target_groups ng
-		JOIN target_group_members gm ON gm.group_id = ng.group_id
-		JOIN targets t ON t.id = gm.target_id
-		WHERE ng.node_id = ? AND t.enabled = 1
+		FROM node_targets nt
+		JOIN targets t ON t.id = nt.target_id
+		WHERE nt.node_id = ? AND t.enabled = 1
 	)
 	SELECT a.id, a.name, a.kind, l.captured_at, l.success, l.latency_ms, l.error_class
 	FROM assigned a LEFT JOIN latency_samples l ON l.id = (

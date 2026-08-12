@@ -19,16 +19,17 @@
 | Capacity | CPU model/cores, memory and disk totals and utilization | Agent integration test | Implemented |
 | Network | Current up/down rate, lifetime and billing-cycle traffic | Counter-reset and interval tests | Implemented |
 | Commercial metadata | Price, billing period, expiry date and remaining days | Exact, leap-day and past/future boundary tests | Implemented |
-| Latency | Ping/TCPing targets, groups, display mode and current results | Scheduled task integration test | Implemented |
+| Latency | Reusable Ping/TCPing targets, direct node assignment and current results | Scheduled task integration test | Implemented |
 | Theme | Light, dark, and system preference | Browser theme tests | Implemented |
 | Realtime | WebSocket updates, reconnect, cached last-known data | Disconnect/recovery test | Implemented |
 | Charts | Ping, TCPing, upload, download, and total traffic history | 1h/12h/1d/3d/7d/30d queries | Implemented |
 | Chart sharing | Group-scoped password protected chart views | Authentication and rate-limit tests | Implemented |
 | Node administration | Register, edit, order, hide, delete, rotate token, generate one-click Agent install command | Admin API and browser clipboard verification | Implemented |
-| Target administration | Ping/TCPing target and group CRUD | API and scheduler tests | Implemented |
+| Target administration | Ping/TCPing target CRUD and assignment from target/node editors | API and scheduler tests | Implemented |
 | Notifications | Telegram bot and generic webhook channels | Mock receiver tests | Implemented |
 | Alerts | Offline/recovery, CPU, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Implemented |
 | Custom display | Structured badges/links and sanitized advanced HTML | Sanitizer, persistence and CSP tests | Implemented |
+| Site customization | Agent public URL, title/description, sanitized header/footer | Store and browser rendering tests | Implemented |
 | Configuration | Versioned merge import/export and encrypted database backup/restore | Round-trip, tamper, dry-run and recovery tests | Implemented |
 | Authentication | Password login/logout/change, CSRF, persistent throttling and CAPTCHA | Security integration and restart tests | Implemented |
 | Audit | Administrative action log and cursor-paginated viewer | API and management UI verification | Implemented |

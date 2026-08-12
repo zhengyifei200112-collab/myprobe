@@ -104,6 +104,8 @@ func (s *Server) routes() {
 	admin.PATCH("/nodes/:nodeID", s.updateNode)
 	admin.DELETE("/nodes/:nodeID", s.deleteNode)
 	admin.POST("/nodes/:nodeID/rotate-token", s.rotateNodeToken)
+	admin.GET("/site-settings", s.getSiteSettings)
+	admin.PATCH("/site-settings", s.updateSiteSettings)
 	admin.GET("/latency-config", s.latencyConfig)
 	admin.POST("/targets", s.createTarget)
 	admin.PATCH("/targets/:targetID", s.updateTarget)
@@ -115,6 +117,8 @@ func (s *Server) routes() {
 	admin.DELETE("/target-groups/:groupID/targets/:targetID", s.removeTargetFromGroup)
 	admin.PUT("/nodes/:nodeID/target-groups/:groupID", s.assignTargetGroup)
 	admin.DELETE("/nodes/:nodeID/target-groups/:groupID", s.unassignTargetGroup)
+	admin.PUT("/nodes/:nodeID/targets/:targetID", s.assignTarget)
+	admin.DELETE("/nodes/:nodeID/targets/:targetID", s.unassignTarget)
 	admin.GET("/notification-channels", s.listNotificationChannels)
 	admin.POST("/notification-channels", s.createNotificationChannel)
 	admin.PATCH("/notification-channels/:channelID", s.updateNotificationChannel)
@@ -142,7 +146,12 @@ func (s *Server) publicNodes(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list nodes"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"nodes": nodes, "server_time": time.Now().UTC()})
+	settings, err := s.store.GetSiteSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read site settings"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"nodes": nodes, "settings": settings, "server_time": time.Now().UTC()})
 }
 
 func (s *Server) publicNodeHistory(c *gin.Context) {
@@ -215,7 +224,8 @@ func (s *Server) publicWebSocket(w http.ResponseWriter, r *http.Request) {
 	ctx := connection.CloseRead(r.Context())
 
 	nodes, err := s.store.ListPublicNodes(ctx, time.Now().UTC())
-	if err != nil || wsjson.Write(ctx, connection, map[string]any{"type": "snapshot", "nodes": nodes}) != nil {
+	settings, settingsErr := s.store.GetSiteSettings(ctx)
+	if err != nil || settingsErr != nil || wsjson.Write(ctx, connection, map[string]any{"type": "snapshot", "nodes": nodes, "settings": settings}) != nil {
 		return
 	}
 	events, unsubscribe := s.hub.Subscribe()
@@ -388,6 +398,31 @@ func (s *Server) adminNodes(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"nodes": nodes})
 }
 
+func (s *Server) getSiteSettings(c *gin.Context) {
+	settings, err := s.store.GetSiteSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read site settings"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"settings": settings})
+}
+
+func (s *Server) updateSiteSettings(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 40<<10)
+	var request store.SiteSettings
+	if json.NewDecoder(c.Request.Body).Decode(&request) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	settings, err := s.store.UpdateSiteSettings(c.Request.Context(), request)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	s.audit(c, "update", "site_settings", "site", nil)
+	c.JSON(http.StatusOK, gin.H{"settings": settings})
+}
+
 func (s *Server) updateNode(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32<<10)
 	var r struct {
@@ -467,9 +502,14 @@ func (s *Server) latencyConfig(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list node groups"})
 		return
 	}
+	nodeTargets, err := s.store.ListNodeTargets(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list direct target assignments"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"targets": targets, "groups": groups, "assignments": assignments,
-		"group_members": groupMembers, "node_groups": nodeGroups,
+		"group_members": groupMembers, "node_groups": nodeGroups, "node_targets": nodeTargets,
 	})
 }
 
@@ -610,6 +650,24 @@ func (s *Server) unassignTargetGroup(c *gin.Context) {
 		return
 	}
 	s.audit(c, "unassign_group", "node", c.Param("nodeID"), gin.H{"group_id": c.Param("groupID")})
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) assignTarget(c *gin.Context) {
+	if err := s.store.AssignTarget(c.Request.Context(), c.Param("nodeID"), c.Param("targetID")); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "node or target not found"})
+		return
+	}
+	s.audit(c, "assign_target", "node", c.Param("nodeID"), gin.H{"target_id": c.Param("targetID")})
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) unassignTarget(c *gin.Context) {
+	if err := s.store.UnassignTarget(c.Request.Context(), c.Param("nodeID"), c.Param("targetID")); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+		return
+	}
+	s.audit(c, "unassign_target", "node", c.Param("nodeID"), gin.H{"target_id": c.Param("targetID")})
 	c.Status(http.StatusNoContent)
 }
 
