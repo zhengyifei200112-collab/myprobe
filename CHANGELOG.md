@@ -17,6 +17,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Redesigned the public dashboard to match the ZJM information hierarchy and visual
   density, including the unified overview, compact and detailed node-card modes,
   typography, badges, traffic, resource, latency, and responsive layouts.
+- Increased dashboard typography and numeric hierarchy, tightened the node-toolbar
+  spacing, and replaced character glyphs with a consistent responsive SVG icon set.
 - Replaced platform-dependent flag emoji with bundled country flag artwork.
 
 ## [0.2.1] - 2026-07-22
