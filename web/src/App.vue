@@ -356,28 +356,28 @@ onBeforeUnmount(() => {
 
       <section class="overview-grid" aria-label="总览">
         <article class="overview-card overview-time-card">
-          <div class="overview-head"><span class="overview-icon">◷</span><span class="overview-title">当前时间</span></div>
+          <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3.5 2"/></svg></span><span class="overview-title">当前时间</span></div>
           <div class="overview-content">
             <strong class="overview-value clock">{{ now.toLocaleTimeString('zh-CN', { hour12: false }) }}</strong>
             <small>{{ now.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' }) }}</small>
           </div>
         </article>
         <article class="overview-card overview-status-card" :title="`当前筛选：总数 ${visibleNodes.length} • 在线 ${onlineCount} • 离线 ${visibleNodes.length - onlineCount}`">
-          <div class="overview-head"><span class="overview-icon">▦</span><span class="overview-title">服务器概况</span></div>
+          <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="6" rx="2"/><rect x="4" y="13.5" width="16" height="6" rx="2"/><path d="M8 7.5h.01M8 16.5h.01M12 7.5h5M12 16.5h5"/></svg></span><span class="overview-title">服务器概况</span></div>
           <div class="overview-content">
             <div class="overview-main-row"><strong class="overview-main-number">{{ visibleNodes.length }}</strong><span>台节点</span></div>
             <div class="status-breakdown"><span><b class="dot online"></b>在线 <strong>{{ onlineCount }}</strong></span><span><b class="dot offline"></b>离线 <strong>{{ visibleNodes.length - onlineCount }}</strong></span></div>
           </div>
         </article>
         <article class="overview-card overview-traffic-card">
-          <div class="overview-head"><span class="overview-icon">▥</span><span class="overview-title">累计流量</span></div>
+          <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M10 19V5M15 19v-7M20 19V7"/><path d="M3.5 19.5h18"/></svg></span><span class="overview-title">累计流量</span></div>
           <div class="overview-content overview-pairline">
             <span><small><i class="up-arrow">↑</i> 上传</small><strong class="overview-value">{{ formatBytes(totalTraffic.up) }}</strong></span>
             <span><small><i class="down-arrow">↓</i> 下载</small><strong class="overview-value">{{ formatBytes(totalTraffic.down) }}</strong></span>
           </div>
         </article>
         <article class="overview-card overview-speed-card">
-          <div class="overview-head"><span class="overview-icon">⌁</span><span class="overview-title">实时速率</span></div>
+          <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5h4l2.2-4 4.2 15 2.5-8h4.1"/></svg></span><span class="overview-title">实时速率</span></div>
           <div class="overview-content overview-pairline">
             <span><small><i class="up-arrow">↑</i> 上传</small><strong class="overview-value">{{ formatBytes(totalRate.up, '/s') }}</strong></span>
             <span><small><i class="down-arrow">↓</i> 下载</small><strong class="overview-value">{{ formatBytes(totalRate.down, '/s') }}</strong></span>
@@ -452,13 +452,13 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="quick-facts" aria-label="节点基础信息">
-            <div><span class="quick-icon">◎</span><span><small>公网 IP</small><strong>{{ maskedIP(item.report?.public_ip) }}</strong></span></div>
-            <div><span class="quick-icon clock-icon">◷</span><span><small>在线时长</small><strong>{{ formatUptime(item.report?.uptime_seconds) }}</strong></span></div>
+            <div><span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.8 12h16.4M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5S14.4 18.2 12 20.5M12 3.5C9.6 5.8 8.4 8.6 8.4 12s1.2 6.2 3.6 8.5"/></svg></span><span><small>公网 IP</small><strong>{{ maskedIP(item.report?.public_ip) }}</strong></span></div>
+            <div><span class="quick-icon clock-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3.5 2"/></svg></span><span><small>在线时长</small><strong>{{ formatUptime(item.report?.uptime_seconds) }}</strong></span></div>
           </div>
 
           <div class="detail-content">
             <section class="network-panel" aria-label="网络流量">
-              <header><strong><span class="section-icon">⌁</span>网络流量</strong><small>{{ item.node.traffic_reset_day ? `每月${item.node.traffic_reset_day}日重置` : '自然月重置' }}</small></header>
+              <header><strong><span class="section-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5h4l2.2-4 4.2 15 2.5-8h4.1"/></svg></span>网络流量</strong><small>{{ item.node.traffic_reset_day ? `每月${item.node.traffic_reset_day}日重置` : '自然月重置' }}</small></header>
               <div class="network-grid">
                 <div><small>实时速率</small><span><b class="up-arrow">↑</b><strong>{{ formatBytes(aggregate(item).txRate, '/s') }}</strong></span><span><b class="down-arrow">↓</b><strong>{{ formatBytes(aggregate(item).rxRate, '/s') }}</strong></span></div>
                 <div><small>{{ item.node.use_since_boot ? '开机累计' : '累计流量' }}</small><span><b class="up-arrow">↑</b><strong>{{ formatBytes(aggregate(item).txTotal) }}</strong></span><span><b class="down-arrow">↓</b><strong>{{ formatBytes(aggregate(item).rxTotal) }}</strong></span></div>
@@ -468,8 +468,8 @@ onBeforeUnmount(() => {
 
             <section class="resource-panel" aria-label="资源使用">
               <header>
-                <strong><span class="section-icon">◉</span>资源使用</strong>
-                <div class="hardware-line"><span>◉ {{ item.report?.cpu.logical_cores || '—' }}C</span><span>▤ {{ formatBytes(item.report?.memory.total_bytes || 0) }}</span><span>▰ {{ formatBytes(aggregate(item).diskTotal) }}</span></div>
+                <strong><span class="section-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2M5.8 17.8l2.1-2.1"/></svg></span>资源使用</strong>
+                <div class="hardware-line"><span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>{{ item.report?.cpu.logical_cores || '—' }}C</span><span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="16" height="10" rx="2"/><path d="M8 10v4M12 10v4M16 10v4M7 4v3M17 4v3M7 17v3M17 17v3"/></svg>{{ formatBytes(item.report?.memory.total_bytes || 0) }}</span><span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 14h16M8 17h.01"/></svg>{{ formatBytes(aggregate(item).diskTotal) }}</span></div>
               </header>
               <div class="resource-grid">
                 <div><span><b>CPU</b><strong>{{ percent(item.report?.cpu.usage_percent) }}</strong></span><div class="bar"><i :class="barClass(item.report?.cpu.usage_percent)" :style="{ width: percent(item.report?.cpu.usage_percent) }"></i></div></div>
@@ -479,7 +479,7 @@ onBeforeUnmount(() => {
             </section>
 
             <section class="latency-panel" :class="{ empty: !item.latency?.length }" aria-label="网络延迟">
-              <header><strong><span class="section-icon">▥</span>网络延迟</strong><small>最近探测</small></header>
+              <header><strong><span class="section-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18v-3M8 18v-6M12 18V9M16 18V6M20 18V3"/></svg></span>网络延迟</strong><small>最近探测</small></header>
               <div class="latency-grid" :style="{ '--latency-columns': Math.min(item.latency?.length || 1, 3) }">
                 <div v-for="latency in item.latency?.slice(0, 3)" :key="latency.target_id" class="latency-item">
                   <small><i :class="{ failed: latency.success === false }"></i>{{ latency.name }}</small>

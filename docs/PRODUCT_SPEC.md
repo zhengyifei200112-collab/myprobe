@@ -47,7 +47,8 @@
   cards additionally show live/lifetime/cycle traffic, capacity utilization, latency,
   custom actions, operating system, last update, and history access.
 - Node cards use soft elevated surfaces, restrained gradients, rounded corners,
-  tabular numeric values, and accessible warning colors.
+  tabular numeric values, an integrated SVG icon language, and accessible warning
+  colors. Overview totals remain visually dominant over their online/offline breakdown.
 - Empty, loading, offline, reconnecting, and stale-data states are first-class UI states.
 
 ## Node metadata
