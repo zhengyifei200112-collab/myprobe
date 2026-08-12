@@ -15,7 +15,7 @@
 | --- | --- | --- | --- |
 | Public overview | Current time, online/offline counts, aggregate traffic and rate | Responsive browser tests and live API data | Implemented |
 | Public filtering | Tag/region pills with counts and horizontal mobile scrolling | UI test at 360/768/1440 px | Implemented |
-| Node cards | Flag, name, status, masked IP, OS, uptime, last update | Metadata persistence, privacy and API contract tests | Implemented |
+| Node cards | Bundled country flag artwork, name, status, masked IP, OS, uptime, last update | Metadata persistence, privacy, API contract, and browser rendering tests | Implemented |
 | Capacity | CPU model/cores, memory and disk totals and utilization | Agent integration test | Implemented |
 | Network | Current up/down rate, lifetime and billing-cycle traffic | Counter-reset and interval tests | Implemented |
 | Commercial metadata | Price, billing period, expiry date and remaining days | Exact, leap-day and past/future boundary tests | Implemented |
