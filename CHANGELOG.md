@@ -9,6 +9,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A unified Vue design system with semantic light/dark/system-ready tokens and
+  accessible primitives for controls, surfaces, overlays, navigation, and feedback.
 - Node creation and Agent token rotation now show a ready-to-copy Linux one-click
   Agent installation command using the current Server URL.
 - Site settings now support a custom reverse-proxy-safe Agent connection address,

@@ -1,49 +1,4 @@
-:root {
-  color-scheme: light;
-  --font: Inter, 'Noto Sans SC', 'Microsoft YaHei UI', 'PingFang SC', system-ui, sans-serif;
-  --page: #edf2f8;
-  --surface: rgba(246, 249, 253, .88);
-  --surface-strong: #fff;
-  --surface-inset: #e8eef5;
-  --text: #172033;
-  --muted: #77849a;
-  --subtle: #9ba8ba;
-  --border: rgba(66, 83, 112, .09);
-  --blue: #4f7ef7;
-  --cyan: #35c5e2;
-  --green: #2fc781;
-  --orange: #f3a648;
-  --red: #ef6470;
-  --purple: #8668ec;
-  --shadow: 10px 12px 28px rgba(68, 88, 120, .11), -8px -8px 22px rgba(255, 255, 255, .82);
-  --shadow-soft: 5px 7px 16px rgba(68, 88, 120, .09), -5px -5px 14px rgba(255, 255, 255, .75);
-  --inset: inset 3px 3px 8px rgba(77, 96, 126, .10), inset -3px -3px 8px rgba(255, 255, 255, .88);
-}
-
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --page: #09101d;
-  --surface: rgba(18, 28, 45, .88);
-  --surface-strong: #172236;
-  --surface-inset: #0c1524;
-  --text: #edf4ff;
-  --muted: #9aa8be;
-  --subtle: #718098;
-  --border: rgba(202, 221, 255, .08);
-  --blue: #74a0ff;
-  --cyan: #45d1e9;
-  --green: #42d996;
-  --orange: #f5b65d;
-  --red: #ff7b87;
-  --purple: #a28af6;
-  --shadow: 12px 14px 30px rgba(0, 0, 0, .38), -6px -6px 18px rgba(255, 255, 255, .018);
-  --shadow-soft: 6px 8px 18px rgba(0, 0, 0, .32), -4px -4px 12px rgba(255, 255, 255, .018);
-  --inset: inset 3px 3px 8px rgba(0, 0, 0, .32), inset -3px -3px 8px rgba(255, 255, 255, .025);
-}
-
 * { box-sizing: border-box; }
-html { min-height: 100%; background: var(--page); }
-body { margin: 0; min-width: 320px; min-height: 100vh; font-family: var(--font); color: var(--text); background: var(--page); }
 button, a { font: inherit; }
 button { color: inherit; }
 
@@ -102,52 +57,7 @@ main { width: min(1440px, 100%); margin: auto; padding: 24px clamp(16px, 3vw, 32
 @media (max-width: 899px) { .node-grid { grid-template-columns: 1fr; gap: 16px; } }
 @media (max-width: 720px) { .navbar { height: 62px; }.brand small, .connection-state { display: none; }.admin-link { padding-inline: 11px; }.overview-grid { gap: 12px; }.overview-card { min-height: 105px; padding: 15px; border-radius: 18px; }.overview-card strong { font-size: 17px; }.metric-pair { align-items: flex-start !important; flex-direction: column; gap: 2px !important; }.node-card { padding: 16px; }.soft-button { height: 36px; padding: 0 11px; } }
 @media (max-width: 390px) { main { padding-inline: 12px; }.navbar-inner { padding-inline: 12px; }.overview-grid { grid-template-columns: 1fr; }.overview-card { padding: 13px; }.overview-label { font-size: 12px; }.overview-card strong { font-size: 17px; }.soft-button { font-size: 12px; }.brand { gap: 6px; font-size: 16px; }.brand-mark { min-width: 34px; }.filter-bar { margin-top: 16px; }.node-title strong { font-size: 16px; }.meta-grid strong { font-size: 12px; white-space: normal; } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
-
 /* Public dashboard — compact information architecture matching the ZJM reference. */
-:root {
-  --page: #f4f6f8;
-  --surface: #fff;
-  --surface-strong: #fff;
-  --surface-soft: #f7f8fa;
-  --surface-inset: #edf0f4;
-  --text: #14161b;
-  --muted: #59606c;
-  --subtle: #757e8b;
-  --border: #e1e5ea;
-  --blue: #5552e9;
-  --cyan: #367af6;
-  --green: #18a058;
-  --orange: #f29a43;
-  --red: #dc3d49;
-  --purple: #884ff1;
-  --shadow: 0 1px 2px rgba(20,22,27,.05), 0 12px 34px rgba(16,24,40,.043);
-  --shadow-soft: 0 1px 2px rgba(16,24,40,.04), 0 7px 20px rgba(16,24,40,.04);
-  --inset: inset 0 0 0 1px rgba(228,231,235,.72);
-  --font: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-}
-
-:root[data-theme='dark'] {
-  --page: #101216;
-  --surface: #181b20;
-  --surface-strong: #1d2026;
-  --surface-soft: #20242b;
-  --surface-inset: #282d35;
-  --text: #f2f4f7;
-  --muted: #b1b7c2;
-  --subtle: #858e9c;
-  --border: #2c313a;
-  --blue: #8886ff;
-  --cyan: #64a3ff;
-  --green: #35c979;
-  --orange: #f5ad60;
-  --red: #ff7079;
-  --purple: #ab7bff;
-  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 14px 38px rgba(0,0,0,.24);
-  --shadow-soft: 0 1px 2px rgba(0,0,0,.28), 0 7px 20px rgba(0,0,0,.18);
-  --inset: inset 0 0 0 1px rgba(255,255,255,.035);
-}
-
 .app-shell {
   background:
     radial-gradient(900px 380px at 5% 0, color-mix(in srgb, var(--blue) 5%, transparent), transparent 72%),
