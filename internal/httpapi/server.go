@@ -78,6 +78,7 @@ func (s *Server) routes() {
 	})
 
 	public := s.router.Group("/api/v1/public")
+	public.GET("/settings", s.publicSettings)
 	public.GET("/nodes", s.publicNodes)
 	public.GET("/nodes/:nodeID/history", s.publicNodeHistory)
 
@@ -152,6 +153,15 @@ func (s *Server) publicNodes(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"nodes": nodes, "settings": settings, "server_time": time.Now().UTC()})
+}
+
+func (s *Server) publicSettings(c *gin.Context) {
+	settings, err := s.store.GetSiteSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read site settings"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"settings": settings})
 }
 
 func (s *Server) publicNodeHistory(c *gin.Context) {
@@ -1040,7 +1050,7 @@ func securityHeaders() gin.HandlerFunc {
 		c.Header("X-Frame-Options", "DENY")
 		c.Header("Referrer-Policy", "same-origin")
 		c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-		c.Header("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:")
+		c.Header("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:")
 		c.Next()
 	}
 }

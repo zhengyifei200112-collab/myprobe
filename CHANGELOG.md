@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A server-persisted Settings Center for site identity, dashboard copy, browser title,
+  logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
+  independent public, admin, and login background presentation.
+- A public read-only settings endpoint so branding and appearance can load before
+  authentication without exposing administrator-only data.
 - A unified Vue design system with semantic light/dark/system-ready tokens and
   accessible primitives for controls, surfaces, overlays, navigation, and feedback.
 - Node creation and Agent token rotation now show a ready-to-copy Linux one-click
@@ -20,6 +25,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Existing site settings JSON upgrades in place with complete defaults and legacy
+  dashboard-copy compatibility; no database table migration is required.
 - Redesigned the administration shell and node-management workspace with a calmer
   responsive layout, focused node metadata, grouped settings navigation, an add-node
   sheet, read-only configuration summaries, compact action menus, and accessible

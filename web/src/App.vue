@@ -4,13 +4,13 @@ import { connectRealtime, fetchHistory, fetchNodes } from './api'
 import { DsCard, DsEmptyState, DsLoading, DsTabs } from './design-system'
 import PublicNodeCard from './public-dashboard/PublicNodeCard.vue'
 import { aggregateNode as aggregate, formatBytes } from './public-dashboard/metrics'
-import type { HistoryRange, HistoryResponse, PublicNode, RealtimeEvent, SiteSettings } from './types'
+import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
+import { defaultSiteSettings, normalizeSiteSettings, type HistoryRange, type HistoryResponse, type PublicNode, type RealtimeEvent, type SiteSettings, type ThemeMode } from './types'
 
-type Theme = 'light' | 'dark'
 type DisplayMode = 'compact' | 'detailed'
 
 const nodes = ref<PublicNode[]>([])
-const siteSettings = ref<SiteSettings>({ agent_url: '', site_title: '', site_description: '', header_html: '', footer_html: '' })
+const siteSettings = ref<SiteSettings>(defaultSiteSettings())
 const activeTag = ref('__all__')
 const loading = ref(true)
 const error = ref('')
@@ -25,8 +25,8 @@ const latencyChartElement = ref<HTMLElement>()
 const trafficChartElement = ref<HTMLElement>()
 const chartDialogElement = ref<HTMLElement>()
 const historyRanges: HistoryRange[] = ['1h', '12h', '1d', '3d', '7d', '30d', '1y']
-const initialTheme = localStorage.getItem('myprobe-theme') as Theme | null
-const theme = ref<Theme>(initialTheme ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
+const initialTheme = localStorage.getItem('myprobe-theme') as ThemeMode | null
+const theme = ref<ThemeMode>(['light', 'dark', 'system'].includes(initialTheme || '') ? initialTheme! : 'system')
 const initialDisplayMode = localStorage.getItem('myprobe-display-mode') as DisplayMode | null
 const displayMode = ref<DisplayMode>(initialDisplayMode === 'detailed' ? 'detailed' : 'compact')
 let disconnect: (() => void) | undefined
@@ -52,11 +52,17 @@ const visibleNodes = computed(() => activeTag.value === '__all__'
 const onlineCount = computed(() => visibleNodes.value.filter((item) => item.online).length)
 const totalRate = computed(() => sumNetwork(visibleNodes.value, 'rate'))
 const totalTraffic = computed(() => sumNetwork(visibleNodes.value, 'total'))
+const publicBackgroundStyle = computed(() => ({ ...backgroundVariables(siteSettings.value.public_background), '--site-has-background': siteSettings.value.public_background.url ? '1' : '0' }))
+const themeAction = computed(() => theme.value === 'light' ? '深色' : theme.value === 'dark' ? '系统' : '浅色')
 
 function mergeEvent(event: RealtimeEvent) {
   if (event.type === 'snapshot') {
     nodes.value = event.nodes
-    if (event.settings) siteSettings.value = event.settings
+    if (event.settings) {
+      siteSettings.value = normalizeSiteSettings(event.settings)
+      cacheAppearance(event.settings)
+      applyAppearance(event.settings, theme.value)
+    }
     return
   }
   if (event.type === 'node_metrics') {
@@ -70,8 +76,10 @@ async function load() {
   try {
     const response = await fetchNodes()
     nodes.value = response.nodes
-    siteSettings.value = response.settings ?? siteSettings.value
-    if (siteSettings.value.site_title) document.title = `${siteSettings.value.site_title} · MyProbe`
+    siteSettings.value = normalizeSiteSettings(response.settings ?? siteSettings.value)
+    if (!initialTheme) theme.value = siteSettings.value.theme_mode
+    cacheAppearance(siteSettings.value)
+    applyAppearance(siteSettings.value, theme.value)
     localStorage.setItem('myprobe-nodes', JSON.stringify(nodes.value))
     error.value = ''
   } catch {
@@ -86,8 +94,8 @@ async function load() {
 }
 
 function toggleTheme() {
-  theme.value = theme.value === 'light' ? 'dark' : 'light'
-  document.documentElement.dataset.theme = theme.value
+  theme.value = theme.value === 'light' ? 'dark' : theme.value === 'dark' ? 'system' : 'light'
+  applyAppearance(siteSettings.value, theme.value)
   localStorage.setItem('myprobe-theme', theme.value)
   if (chartNode.value) void loadHistory()
 }
@@ -235,13 +243,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell site-background" :style="publicBackgroundStyle">
     <header class="navbar">
       <div class="navbar-inner">
-        <a class="brand" href="/" aria-label="MyProbe 首页">
-          <span class="brand-mark">MP</span>
+        <a class="brand" href="/" :aria-label="`${siteSettings.site_name || 'MyProbe'} 首页`">
+          <img v-if="siteSettings.logo_url" class="brand-logo" :src="siteSettings.logo_url" alt="">
+          <span v-else class="brand-mark">MP</span>
           <span class="brand-copy">
-            <span class="brand-title">MyProbe</span>
+            <span class="brand-title">{{ siteSettings.site_name || 'MyProbe' }}</span>
             <span class="brand-subtitle">Server Monitor</span>
           </span>
         </a>
@@ -259,12 +268,12 @@ onBeforeUnmount(() => {
             </span>
             {{ displayMode === 'compact' ? '详情' : '简洁' }}
           </button>
-          <button class="soft-button" type="button" :aria-label="theme === 'light' ? '切换到暗色主题' : '切换到亮色主题'" @click="toggleTheme">
+          <button class="soft-button" type="button" :aria-label="`切换到${themeAction}主题`" @click="toggleTheme">
             <span class="button-icon" aria-hidden="true">
               <svg v-if="theme === 'light'" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.6" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.4 1.4M11.55 11.55l1.4 1.4M12.95 3.05l-1.4 1.4M4.45 11.55l-1.4 1.4" /></svg>
               <svg v-else viewBox="0 0 16 16"><path d="M13.5 10.6A6 6 0 0 1 5.4 2.5 6 6 0 1 0 13.5 10.6Z" /></svg>
             </span>
-            {{ theme === 'light' ? '暗色' : '亮色' }}
+            {{ themeAction }}
           </button>
           <a class="soft-button admin-link" href="/admin"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M9 3h4v10H9M7 5l3 3-3 3M10 8H2" /></svg></span>后台</a>
         </div>
@@ -275,8 +284,8 @@ onBeforeUnmount(() => {
       <section class="dashboard-intro" aria-labelledby="dashboard-title">
         <div>
           <div class="dashboard-eyebrow">Infrastructure overview</div>
-          <h1 id="dashboard-title">{{ siteSettings.site_title || '服务器运行概览' }}</h1>
-          <p>{{ siteSettings.site_description || '节点状态、资源占用、实时速率与网络延迟集中展示。' }}</p>
+          <h1 id="dashboard-title">{{ siteSettings.dashboard_title || siteSettings.site_title }}</h1>
+          <p>{{ siteSettings.dashboard_description || siteSettings.site_description }}</p>
         </div>
         <div class="live-badge" :class="{ reconnecting: !connected }" :title="connected ? 'WebSocket 实时连接正常' : '正在重新连接实时数据'">
           <span class="live-dot" aria-hidden="true"></span>
@@ -372,6 +381,11 @@ onBeforeUnmount(() => {
     </div>
 
     <section v-if="siteSettings.footer_html" class="site-custom-block site-custom-footer" v-html="siteSettings.footer_html"></section>
-    <footer class="site-footer">© {{ now.getFullYear() }} MyProbe · 自托管服务器监控</footer>
+    <footer class="site-footer">
+      <span>{{ siteSettings.copyright_text || `© ${now.getFullYear()} ${siteSettings.site_name || 'MyProbe'} · 自托管服务器监控` }}</span>
+      <span v-if="siteSettings.footer_text">{{ siteSettings.footer_text }}</span>
+      <span v-if="siteSettings.contact">{{ siteSettings.contact }}</span>
+      <nav v-if="siteSettings.github_url || siteSettings.blog_url || siteSettings.custom_links.length" aria-label="站点链接"><a v-if="siteSettings.github_url" :href="siteSettings.github_url" target="_blank" rel="noopener noreferrer">GitHub</a><a v-if="siteSettings.blog_url" :href="siteSettings.blog_url" target="_blank" rel="noopener noreferrer">博客</a><a v-for="link in siteSettings.custom_links" :key="link.url" :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.label }}</a></nav>
+    </footer>
   </div>
 </template>

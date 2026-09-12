@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,9 @@ func TestSecurityHeadersDisallowInlineScripts(t *testing.T) {
 	policy := response.Header().Get("Content-Security-Policy")
 	if !strings.Contains(policy, "script-src 'self'") || strings.Contains(policy, "'unsafe-eval'") || strings.Contains(policy, "script-src 'self' 'unsafe-inline'") {
 		t.Fatalf("content security policy = %q", policy)
+	}
+	if !strings.Contains(policy, "img-src 'self' data: https: http:") {
+		t.Fatalf("content security policy does not allow configured HTTP(S) images: %q", policy)
 	}
 }
 
@@ -62,7 +66,7 @@ func TestPublicNodesIncludesOnlySanitizedSiteSettings(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.Settings != settings {
+	if !reflect.DeepEqual(payload.Settings, settings) {
 		t.Fatalf("public settings = %#v, want %#v", payload.Settings, settings)
 	}
 	encoded := strings.ToLower(response.Body.String())
@@ -70,6 +74,22 @@ func TestPublicNodesIncludesOnlySanitizedSiteSettings(t *testing.T) {
 		if strings.Contains(encoded, forbidden) {
 			t.Fatalf("public response contains %q: %s", forbidden, encoded)
 		}
+	}
+}
+
+func TestPublicSettingsEndpointDoesNotRequireAuthentication(t *testing.T) {
+	ctx := context.Background()
+	database, err := store.Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	hub := agentgateway.NewHub()
+	api := New(config.Config{}, database, auth.New(database, time.Hour), agentgateway.New(database, hub), hub)
+	response := httptest.NewRecorder()
+	api.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/public/settings", nil))
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"theme_mode":"system"`) {
+		t.Fatalf("public settings = %d %s", response.Code, response.Body.String())
 	}
 }
 

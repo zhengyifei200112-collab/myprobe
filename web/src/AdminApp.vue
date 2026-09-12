@@ -2,6 +2,10 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import type { NodeMetadata } from './types'
 import { DsButton, DsConfirmDialog, DsDialog, DsDropdown, DsEmptyState, DsSheet, DsStatusIndicator } from './design-system'
+import SettingsCenter from './settings-center/SettingsCenter.vue'
+import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
+import { fetchSiteSettings } from './api'
+import { defaultSiteSettings, normalizeSiteSettings } from './types'
 import type { AdminTarget, AlertEvent, AlertKind, AlertRule, AuditEntry, ChartShare, ConfigImportResult, LatencyConfig, NotificationChannel, SiteSettings } from './admin-api'
 import {
   changePassword, createAlertRule, createChannel, createChartShare, createNode, createTarget, deleteAlertRule, deleteChannel, deleteChartShare,
@@ -24,7 +28,7 @@ const captchaPrompt = ref('')
 const captchaAnswer = ref('')
 const nodes = ref<NodeMetadata[]>([])
 const config = ref<LatencyConfig>({ targets: [], groups: [], group_members: [], node_groups: [], node_targets: [] })
-const siteSettings = reactive<SiteSettings>({ agent_url: '', site_title: '', site_description: '', header_html: '', footer_html: '' })
+const siteSettings = reactive<SiteSettings>(defaultSiteSettings())
 const channels = ref<NotificationChannel[]>([])
 const rules = ref<AlertRule[]>([])
 const events = ref<AlertEvent[]>([])
@@ -56,6 +60,8 @@ function shellQuote(value: string) {
 const agentInstallCommand = computed(() => token.value
   ? `curl -fsSL ${shellQuote(installerURL)} | sudo env MYPROBE_SERVER=${shellQuote(siteSettings.agent_url || location.origin)} MYPROBE_TOKEN=${shellQuote(token.value)} bash -s -- agent`
   : '')
+const activeBackground = computed(() => authenticated.value ? siteSettings.admin_background : siteSettings.login_background)
+const adminBackgroundStyle = computed(() => ({ ...backgroundVariables(activeBackground.value), '--site-has-background': activeBackground.value.url ? '1' : '0' }))
 
 const emptyNode = () => ({ name: '', tags: '', country_code: '', collection_seconds: 5, report_seconds: 5 })
 const nodeCreate = reactive(emptyNode())
@@ -81,7 +87,7 @@ async function refresh() {
   ])
   nodes.value = nodeResult.nodes
   config.value = latencyResult
-  Object.assign(siteSettings, settingsResult.settings)
+  Object.assign(siteSettings, normalizeSiteSettings(settingsResult.settings))
   channels.value = channelResult.channels
   rules.value = ruleResult.rules
   events.value = eventResult.events
@@ -312,11 +318,17 @@ async function removeTarget(item: AdminTarget) {
   await run(async () => { await deleteTarget(item.id); await refresh() }, '探测目标已删除。')
 }
 
-async function saveSiteSettings() {
+async function saveSiteSettings(next: SiteSettings = siteSettings) {
   await run(async () => {
-    const result = await updateSiteSettings({ ...siteSettings })
-    Object.assign(siteSettings, result.settings)
+    const result = await updateSiteSettings(next)
+    Object.assign(siteSettings, normalizeSiteSettings(result.settings))
+    cacheAppearance(result.settings)
+    applyAppearance(result.settings)
   }, '站点设置已保存。')
+}
+
+function previewSiteSettings(next: SiteSettings) {
+  applyAppearance(next)
 }
 
 function editChannel(item?: NotificationChannel) {
@@ -522,6 +534,12 @@ async function stageRestore() {
 }
 
 onMounted(async () => {
+  try {
+    const publicSettings = await fetchSiteSettings()
+    Object.assign(siteSettings, normalizeSiteSettings(publicSettings))
+    cacheAppearance(publicSettings)
+    applyAppearance(publicSettings)
+  } catch { applyAppearance(siteSettings) }
   authenticated.value = await restoreSession()
   if (authenticated.value) {
     try { await refresh() } catch (value) { showError(value) }
@@ -531,20 +549,15 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="admin-shell">
+  <div class="admin-shell site-background" :style="adminBackgroundStyle">
     <header class="admin-nav">
-      <a class="brand" href="/"><span class="brand-mark">MP</span><span>MyProbe <small>管理中心</small></span></a>
+      <a class="brand" href="/"><img v-if="siteSettings.logo_url" class="brand-logo" :src="siteSettings.logo_url" alt=""><span v-else class="brand-mark">MP</span><span>{{ siteSettings.site_name || 'MyProbe' }} <small>管理中心</small></span></a>
       <nav v-if="authenticated" class="admin-tabs">
         <button :class="{ active: tab === 'nodes' }" @click="tab = 'nodes'">节点</button>
         <button :class="{ active: tab === 'targets' }" @click="tab = 'targets'">探测目标</button>
         <button :class="{ active: tab === 'alerts' }" @click="tab = 'alerts'">告警</button>
         <button :class="{ active: tab === 'shares' }" @click="tab = 'shares'">分享</button>
-        <DsDropdown label="设置" align="end">
-          <template #trigger><span :class="{ active: ['settings', 'maintenance', 'security'].includes(tab) }">设置</span></template>
-          <button role="menuitem" @click="tab = 'settings'">站点设置</button>
-          <button role="menuitem" @click="tab = 'maintenance'">迁移与备份</button>
-          <button role="menuitem" @click="tab = 'security'">安全与审计</button>
-        </DsDropdown>
+        <button :class="{ active: ['settings', 'maintenance', 'security'].includes(tab) }" @click="tab = 'settings'">设置</button>
       </nav>
       <div class="nav-actions"><a class="soft-button" href="/">公开面板</a><button v-if="authenticated" class="soft-button" @click="signOut">退出</button></div>
     </header>
@@ -622,16 +635,7 @@ onMounted(async () => {
       </template>
 
       <template v-else-if="tab === 'settings'">
-        <section class="admin-heading"><div><span class="eyebrow">SITE &amp; AGENT</span><h1>站点设置</h1><p>统一管理 Agent 对外连接地址和公开面板的自定义内容。</p></div></section>
-        <form class="admin-panel compact-form site-settings-form" @submit.prevent="saveSiteSettings">
-          <h2>连接与公开展示</h2>
-          <div class="form-grid two"><label>Agent 连接地址<input v-model="siteSettings.agent_url" type="url" placeholder="留空则使用当前访问域名"></label><label>站点标题<input v-model="siteSettings.site_title" maxlength="80" placeholder="服务器运行概览"></label></div>
-          <label>站点说明<input v-model="siteSettings.site_description" maxlength="300" placeholder="节点状态、资源占用、实时速率与网络延迟集中展示。"></label>
-          <label class="html-field">自定义头部内容<textarea v-model="siteSettings.header_html" maxlength="16384" rows="6" placeholder="显示在公开面板概览标题下方；支持安全的文本、链接和基础格式"></textarea></label>
-          <label class="html-field">自定义底部内容<textarea v-model="siteSettings.footer_html" maxlength="16384" rows="4" placeholder="显示在公开面板页脚上方"></textarea></label>
-          <p class="security-hint">自定义 HTML 会在服务端经过白名单清洗；脚本、样式、事件属性和危险链接不会保存。</p>
-          <button class="primary-button" :disabled="busy">保存站点设置</button>
-        </form>
+        <SettingsCenter :settings="siteSettings" :busy="busy" @save="saveSiteSettings" @preview="previewSiteSettings" @open-legacy="value => tab = value" />
       </template>
 
       <template v-else-if="tab === 'alerts'">

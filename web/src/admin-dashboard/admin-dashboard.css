@@ -1,7 +1,8 @@
 .admin-shell {
   min-height: 100vh;
-  background: var(--background);
+  background: color-mix(in srgb, var(--background) 88%, transparent);
 }
+.brand-logo { width: 2.25rem; height: 2.25rem; flex: 0 0 auto; border-radius: .65rem; object-fit: contain; }
 
 .admin-nav {
   min-height: 4.5rem;

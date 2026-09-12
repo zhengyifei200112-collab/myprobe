@@ -1,4 +1,5 @@
-import type { NodeMetadata } from './types'
+import type { NodeMetadata, SiteSettings } from './types'
+export type { SiteSettings } from './types'
 
 export interface AdminTarget {
   id: string
@@ -24,14 +25,6 @@ export interface LatencyConfig {
   group_members: Array<{ group_id: string; target_id: string }>
   node_groups: Array<{ node_id: string; group_id: string }>
   node_targets: Array<{ node_id: string; target_id: string }>
-}
-
-export interface SiteSettings {
-  agent_url: string
-  site_title: string
-  site_description: string
-  header_html: string
-  footer_html: string
 }
 
 export interface NotificationChannel {

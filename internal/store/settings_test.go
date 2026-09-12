@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -33,8 +34,64 @@ func TestSiteSettingsRoundTripAndSanitize(t *testing.T) {
 		}
 	}
 	loaded, err := database.GetSiteSettings(ctx)
-	if err != nil || loaded != updated {
+	if err != nil || !reflect.DeepEqual(loaded, updated) {
 		t.Fatalf("loaded settings = %#v, error = %v", loaded, err)
+	}
+}
+
+func TestSiteSettingsDefaultsAndAppearanceValidation(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+
+	defaults, err := database.GetSiteSettings(ctx)
+	if err != nil || defaults.ThemeMode != "system" || defaults.AccentColor != "blue" || defaults.PublicBackground.Opacity != 1 {
+		t.Fatalf("default settings = %#v, error = %v", defaults, err)
+	}
+	valid := defaults
+	valid.ThemeMode = "dark"
+	valid.AccentColor = "purple"
+	valid.LogoURL = "https://cdn.example.com/logo.png?v=2"
+	valid.PublicBackground = BackgroundSettings{URL: "https://cdn.example.com/background.jpg", Fit: "cover", Position: "top", Blur: 8, Opacity: .8, Overlay: .25}
+	valid.CustomLinks = []SiteLink{{Label: "Docs", URL: "https://docs.example.com"}}
+	if _, err := database.UpdateSiteSettings(ctx, valid); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, mutate := range map[string]func(*SiteSettings){
+		"theme":       func(value *SiteSettings) { value.ThemeMode = "automatic" },
+		"accent":      func(value *SiteSettings) { value.AccentColor = "rainbow" },
+		"image URL":   func(value *SiteSettings) { value.PublicBackground.URL = "javascript:alert(1)" },
+		"image range": func(value *SiteSettings) { value.PublicBackground.Blur = 100 },
+		"link credentials": func(value *SiteSettings) {
+			value.CustomLinks = []SiteLink{{Label: "bad", URL: "https://user:secret@example.com"}}
+		},
+	} {
+		candidate := valid
+		mutate(&candidate)
+		if _, err := database.UpdateSiteSettings(ctx, candidate); err == nil {
+			t.Fatalf("invalid %s was accepted", name)
+		}
+	}
+}
+
+func TestSiteSettingsMigratesLegacyDashboardCopy(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	_, err = database.db.ExecContext(ctx, `INSERT INTO settings(key,value_json,updated_at) VALUES(?,?,?)`, siteSettingsKey, `{"site_title":"Legacy Fleet","site_description":"Legacy description"}`, nowText())
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings, err := database.GetSiteSettings(ctx)
+	if err != nil || settings.DashboardTitle != "Legacy Fleet" || settings.DashboardDescription != "Legacy description" || settings.ThemeMode != "system" {
+		t.Fatalf("migrated settings = %#v, error = %v", settings, err)
 	}
 }
 
