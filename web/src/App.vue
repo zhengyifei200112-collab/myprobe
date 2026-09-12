@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { connectRealtime, fetchHistory, fetchNodes } from './api'
+import { DsCard, DsEmptyState, DsLoading, DsTabs } from './design-system'
+import PublicNodeCard from './public-dashboard/PublicNodeCard.vue'
+import { aggregateNode as aggregate, formatBytes } from './public-dashboard/metrics'
 import type { HistoryRange, HistoryResponse, PublicNode, RealtimeEvent, SiteSettings } from './types'
 
 type Theme = 'light' | 'dark'
@@ -20,6 +23,7 @@ const chartError = ref('')
 const resourceChartElement = ref<HTMLElement>()
 const latencyChartElement = ref<HTMLElement>()
 const trafficChartElement = ref<HTMLElement>()
+const chartDialogElement = ref<HTMLElement>()
 const historyRanges: HistoryRange[] = ['1h', '12h', '1d', '3d', '7d', '30d', '1y']
 const initialTheme = localStorage.getItem('myprobe-theme') as Theme | null
 const theme = ref<Theme>(initialTheme ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
@@ -30,6 +34,7 @@ let clock: number | undefined
 let resourceChart: any
 let latencyChart: any
 let trafficChart: any
+let historyTrigger: HTMLElement | null = null
 
 const sortedNodes = computed(() => [...nodes.value].sort((a, b) => a.node.sort_order - b.node.sort_order || a.node.name.localeCompare(b.node.name)))
 const tags = computed(() => {
@@ -37,6 +42,10 @@ const tags = computed(() => {
   for (const item of nodes.value) for (const tag of item.node.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1)
   return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b, 'zh-CN', { numeric: true }))
 })
+const filterTabs = computed(() => [
+  { value: '__all__', label: `全部 ${nodes.value.length}` },
+  ...tags.value.map(([tag, count]) => ({ value: tag, label: `${tag} ${count}` })),
+])
 const visibleNodes = computed(() => activeTag.value === '__all__'
   ? sortedNodes.value
   : sortedNodes.value.filter((item) => item.node.tags?.includes(activeTag.value)))
@@ -88,22 +97,6 @@ function toggleDisplayMode() {
   localStorage.setItem('myprobe-display-mode', displayMode.value)
 }
 
-function aggregate(item: PublicNode) {
-  const report = item.report
-  const disks = report?.disks ?? []
-  const networks = report?.networks ?? []
-  const diskTotal = disks.reduce((sum, disk) => sum + disk.total_bytes, 0)
-  const diskUsed = disks.reduce((sum, disk) => sum + disk.used_bytes, 0)
-  return {
-    diskTotal,
-    diskPercent: diskTotal ? diskUsed / diskTotal * 100 : 0,
-    rxRate: networks.reduce((sum, network) => sum + network.rx_bytes_per_second, 0),
-    txRate: networks.reduce((sum, network) => sum + network.tx_bytes_per_second, 0),
-    rxTotal: networks.reduce((sum, network) => sum + network.rx_total_bytes, 0),
-    txTotal: networks.reduce((sum, network) => sum + network.tx_total_bytes, 0),
-  }
-}
-
 function sumNetwork(items: PublicNode[], kind: 'rate' | 'total') {
   let up = 0
   let down = 0
@@ -115,83 +108,12 @@ function sumNetwork(items: PublicNode[], kind: 'rate' | 'total') {
   return { up, down }
 }
 
-function formatBytes(value: number, suffix = '') {
-  if (!Number.isFinite(value) || value <= 0) return '—'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
-  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1)
-  const scaled = value / 1024 ** index
-  return `${scaled >= 100 ? scaled.toFixed(0) : scaled >= 10 ? scaled.toFixed(1) : scaled.toFixed(2)} ${units[index]}${suffix}`
-}
-
-function formatUptime(seconds = 0) {
-  if (!seconds) return '—'
-  const days = Math.floor(seconds / 86400)
-  const hours = Math.floor(seconds % 86400 / 3600)
-  const minutes = Math.floor(seconds % 3600 / 60)
-  return days ? `${days}天${hours}时` : hours ? `${hours}时${minutes}分` : `${minutes}分钟`
-}
-
-function countryCode(code: string) {
-  const normalized = code?.trim().toLowerCase()
-  return /^[a-z]{2}$/.test(normalized) ? normalized : ''
-}
-
-function maskedIP(value?: string) {
-  if (!value) return '—'
-  const parts = value.split('.')
-  return parts.length === 4 ? `${parts[0]}.${parts[1]}.**` : value.replace(/:[^:]+$/, ':****')
-}
-
-function percent(value = 0) {
-  return `${Math.max(0, Math.min(100, value)).toFixed(value >= 10 ? 0 : 1)}%`
-}
-
-function barClass(value = 0) {
-  return value >= 90 ? 'danger' : value >= 75 ? 'warning' : ''
-}
-
-function price(item: PublicNode) {
-  if (item.node.price_minor == null || !item.node.currency) return '未设置价格'
-  return new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: item.node.currency,
-    currencyDisplay: 'narrowSymbol',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-    useGrouping: false,
-  }).format(item.node.price_minor / 100)
-}
-
-function expiry(item: PublicNode) {
-  if (!item.node.expires_at) return '无到期时间'
-  if (!item.commercial) return '到期状态未知'
-  return item.commercial.expired ? `已过期${item.commercial.days}天` : `剩${item.commercial.days}天`
-}
-
-function expiryDate(item: PublicNode) {
-  if (!item.node.expires_at) return ''
-  const parsed = new Date(item.node.expires_at)
-  if (Number.isNaN(parsed.getTime())) return ''
-  return `${parsed.getFullYear()}/${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}到期`
-}
-
-function osName(item: PublicNode) {
-  const value = item.node.agent?.platform || item.node.agent?.operating_system || ''
-  if (!value) return '等待 Agent 上报'
-  return value.charAt(0).toUpperCase() + value.slice(1)
-}
-
-function latencyText(success?: boolean, latency?: number, errorClass?: string) {
-  if (success === undefined) return '等待首次探测'
-  if (!success) return errorClass ? `失败 · ${errorClass}` : '探测失败'
-  if (latency === undefined) return '已连通'
-  return `${latency < 10 ? latency.toFixed(2) : latency.toFixed(1)} ms`
-}
-
 async function openHistory(item: PublicNode) {
+  historyTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
   chartNode.value = item
   chartRange.value = '1h'
   await nextTick()
+  chartDialogElement.value?.querySelector<HTMLButtonElement>('button')?.focus()
   await loadHistory()
 }
 
@@ -279,6 +201,10 @@ function closeHistory() {
   resourceChart = undefined
   latencyChart = undefined
   trafficChart = undefined
+  void nextTick(() => {
+    historyTrigger?.focus()
+    historyTrigger = null
+  })
 }
 
 function resizeCharts() {
@@ -350,7 +276,7 @@ onBeforeUnmount(() => {
         <div>
           <div class="dashboard-eyebrow">Infrastructure overview</div>
           <h1 id="dashboard-title">{{ siteSettings.site_title || '服务器运行概览' }}</h1>
-          <p>{{ siteSettings.site_description || '节点状态、资源占用、实时速率与网络延迟集中展示，数据自动刷新。' }}</p>
+          <p>{{ siteSettings.site_description || '节点状态、资源占用、实时速率与网络延迟集中展示。' }}</p>
         </div>
         <div class="live-badge" :class="{ reconnecting: !connected }" :title="connected ? 'WebSocket 实时连接正常' : '正在重新连接实时数据'">
           <span class="live-dot" aria-hidden="true"></span>
@@ -361,34 +287,34 @@ onBeforeUnmount(() => {
       <section v-if="siteSettings.header_html" class="site-custom-block site-custom-header" v-html="siteSettings.header_html"></section>
 
       <section class="overview-grid" aria-label="总览">
-        <article class="overview-card overview-time-card">
+        <DsCard as="article" padding="medium" class="overview-card overview-time-card">
           <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3.5 2"/></svg></span><span class="overview-title">当前时间</span></div>
           <div class="overview-content">
             <strong class="overview-value clock">{{ now.toLocaleTimeString('zh-CN', { hour12: false }) }}</strong>
             <small>{{ now.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' }) }}</small>
           </div>
-        </article>
-        <article class="overview-card overview-status-card" :title="`当前筛选：总数 ${visibleNodes.length} • 在线 ${onlineCount} • 离线 ${visibleNodes.length - onlineCount}`">
+        </DsCard>
+        <DsCard as="article" padding="medium" class="overview-card overview-status-card" :title="`当前筛选：总数 ${visibleNodes.length} • 在线 ${onlineCount} • 离线 ${visibleNodes.length - onlineCount}`">
           <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="6" rx="2"/><rect x="4" y="13.5" width="16" height="6" rx="2"/><path d="M8 7.5h.01M8 16.5h.01M12 7.5h5M12 16.5h5"/></svg></span><span class="overview-title">服务器概况</span></div>
           <div class="overview-content">
             <div class="overview-main-row"><strong class="overview-main-number">{{ visibleNodes.length }}</strong><span>台节点</span></div>
             <div class="status-breakdown"><span><b class="dot online"></b>在线 <strong>{{ onlineCount }}</strong></span><span><b class="dot offline"></b>离线 <strong>{{ visibleNodes.length - onlineCount }}</strong></span></div>
           </div>
-        </article>
-        <article class="overview-card overview-traffic-card">
+        </DsCard>
+        <DsCard as="article" padding="medium" class="overview-card overview-traffic-card">
           <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M10 19V5M15 19v-7M20 19V7"/><path d="M3.5 19.5h18"/></svg></span><span class="overview-title">累计流量</span></div>
           <div class="overview-content overview-pairline">
             <span><small><i class="up-arrow">↑</i> 上传</small><strong class="overview-value">{{ formatBytes(totalTraffic.up) }}</strong></span>
             <span><small><i class="down-arrow">↓</i> 下载</small><strong class="overview-value">{{ formatBytes(totalTraffic.down) }}</strong></span>
           </div>
-        </article>
-        <article class="overview-card overview-speed-card">
+        </DsCard>
+        <DsCard as="article" padding="medium" class="overview-card overview-speed-card">
           <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5h4l2.2-4 4.2 15 2.5-8h4.1"/></svg></span><span class="overview-title">实时速率</span></div>
           <div class="overview-content overview-pairline">
             <span><small><i class="up-arrow">↑</i> 上传</small><strong class="overview-value">{{ formatBytes(totalRate.up, '/s') }}</strong></span>
             <span><small><i class="down-arrow">↓</i> 下载</small><strong class="overview-value">{{ formatBytes(totalRate.down, '/s') }}</strong></span>
           </div>
-        </article>
+        </DsCard>
       </section>
 
       <section class="nodes-section" aria-labelledby="nodes-title">
@@ -397,121 +323,30 @@ onBeforeUnmount(() => {
             <div><span class="section-kicker">Infrastructure</span><h2 id="nodes-title">节点列表</h2></div>
             <div class="section-counter"><strong>{{ visibleNodes.length }}</strong> 个节点</div>
           </div>
-          <div class="filter-section">
-            <div class="filter-bar" aria-label="标签筛选">
-              <button :class="{ active: activeTag === '__all__' }" @click="activeTag = '__all__'">全部 <span>{{ nodes.length }}</span></button>
-              <button v-for="([tag, count]) in tags" :key="tag" :class="{ active: activeTag === tag }" @click="activeTag = tag">
-                {{ tag }} <span>{{ count }}</span>
-              </button>
-            </div>
-          </div>
+          <div class="filter-section"><DsTabs v-model="activeTag" :items="filterTabs" label="按标签筛选节点" /></div>
         </div>
       </section>
 
       <div v-if="error" class="notice">{{ error }}，当前展示最后缓存数据。</div>
-      <div v-if="loading" class="state-panel">
-        <span class="loader"></span><strong>正在读取节点…</strong>
-      </div>
-      <div v-else-if="visibleNodes.length === 0" class="state-panel empty">
-        <div class="empty-icon">◇</div>
-        <strong>还没有可显示的节点</strong>
-        <p>在管理后台注册第一台服务器后，数据会实时出现在这里。</p>
-      </div>
+      <DsLoading v-if="loading" label="正在读取节点" />
+      <DsEmptyState v-else-if="visibleNodes.length === 0" title="还没有可显示的节点" description="在管理后台注册第一台服务器后，数据会实时出现在这里。">
+        <template #icon><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="6" rx="2"/><rect x="4" y="14" width="16" height="5" rx="2"/><path d="M8 8h.01M8 16.5h.01"/></svg></template>
+      </DsEmptyState>
 
       <section v-else class="node-grid" :class="displayMode" aria-live="polite">
-        <article
+        <PublicNodeCard
           v-for="item in visibleNodes"
           :key="item.node.id"
-          class="node-card"
-          :class="{ offline: !item.online, stale: item.stale }"
-          role="button"
-          tabindex="0"
-          :aria-label="`${item.node.name} 详情卡片`"
-          @click="openHistory(item)"
-          @keydown.enter="openHistory(item)"
-          @keydown.space.prevent="openHistory(item)"
-        >
-          <header class="node-header">
-            <div class="node-title">
-              <span
-                class="flag"
-                role="img"
-                :aria-label="countryCode(item.node.country_code) ? `${item.node.country_code.toUpperCase()} 国旗` : '未设置国家或地区'"
-              >
-                <span
-                  v-if="countryCode(item.node.country_code)"
-                  class="country-flag"
-                  :class="`flag:${countryCode(item.node.country_code).toUpperCase()}`"
-                  aria-hidden="true"
-                ></span>
-                <span v-else aria-hidden="true">🌐</span>
-              </span>
-              <strong>{{ item.node.name }}</strong>
-            </div>
-            <span class="node-status" :class="{ online: item.online }" role="status"><i></i>{{ item.online ? '在线' : '离线' }}</span>
-          </header>
-
-          <div class="node-badges">
-            <span class="price-badge">{{ price(item) }}<template v-if="item.node.billing_cycle">/{{ item.node.billing_cycle }}</template></span>
-            <span :class="{ overdue: item.commercial?.expired }">{{ expiry(item) }}</span>
-            <span v-if="expiryDate(item)" class="expiry-date">{{ expiryDate(item) }}</span>
-          </div>
-
-          <div class="quick-facts" aria-label="节点基础信息">
-            <div><span class="quick-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.8 12h16.4M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5S14.4 18.2 12 20.5M12 3.5C9.6 5.8 8.4 8.6 8.4 12s1.2 6.2 3.6 8.5"/></svg></span><span><small>公网 IP</small><strong>{{ maskedIP(item.report?.public_ip) }}</strong></span></div>
-            <div><span class="quick-icon clock-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3.5 2"/></svg></span><span><small>在线时长</small><strong>{{ formatUptime(item.report?.uptime_seconds) }}</strong></span></div>
-          </div>
-
-          <div class="detail-content">
-            <section class="network-panel" aria-label="网络流量">
-              <header><strong><span class="section-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5h4l2.2-4 4.2 15 2.5-8h4.1"/></svg></span>网络流量</strong><small>{{ item.node.traffic_reset_day ? `每月${item.node.traffic_reset_day}日重置` : '自然月重置' }}</small></header>
-              <div class="network-grid">
-                <div><small>实时速率</small><span><b class="up-arrow">↑</b><strong>{{ formatBytes(aggregate(item).txRate, '/s') }}</strong></span><span><b class="down-arrow">↓</b><strong>{{ formatBytes(aggregate(item).rxRate, '/s') }}</strong></span></div>
-                <div><small>{{ item.node.use_since_boot ? '开机累计' : '累计流量' }}</small><span><b class="up-arrow">↑</b><strong>{{ formatBytes(aggregate(item).txTotal) }}</strong></span><span><b class="down-arrow">↓</b><strong>{{ formatBytes(aggregate(item).rxTotal) }}</strong></span></div>
-                <div><small>本周期</small><span><b class="up-arrow">↑</b><strong>{{ formatBytes(item.traffic?.tx_bytes || 0) }}</strong></span><span><b class="down-arrow">↓</b><strong>{{ formatBytes(item.traffic?.rx_bytes || 0) }}</strong></span></div>
-              </div>
-            </section>
-
-            <section class="resource-panel" aria-label="资源使用">
-              <header>
-                <strong><span class="section-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2M5.8 17.8l2.1-2.1"/></svg></span>资源使用</strong>
-                <div class="hardware-line"><span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>{{ item.report?.cpu.logical_cores || '—' }}C</span><span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="16" height="10" rx="2"/><path d="M8 10v4M12 10v4M16 10v4M7 4v3M17 4v3M7 17v3M17 17v3"/></svg>{{ formatBytes(item.report?.memory.total_bytes || 0) }}</span><span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 14h16M8 17h.01"/></svg>{{ formatBytes(aggregate(item).diskTotal) }}</span></div>
-              </header>
-              <div class="resource-grid">
-                <div><span><b>CPU</b><strong>{{ percent(item.report?.cpu.usage_percent) }}</strong></span><div class="bar"><i :class="barClass(item.report?.cpu.usage_percent)" :style="{ width: percent(item.report?.cpu.usage_percent) }"></i></div></div>
-                <div><span><b>内存</b><strong>{{ percent(item.report?.memory.usage_percent) }}</strong></span><div class="bar"><i :class="barClass(item.report?.memory.usage_percent)" :style="{ width: percent(item.report?.memory.usage_percent) }"></i></div></div>
-                <div><span><b>硬盘</b><strong>{{ percent(aggregate(item).diskPercent) }}</strong></span><div class="bar"><i :class="barClass(aggregate(item).diskPercent)" :style="{ width: percent(aggregate(item).diskPercent) }"></i></div></div>
-              </div>
-            </section>
-
-            <section class="latency-panel" :class="{ empty: !item.latency?.length }" aria-label="网络延迟">
-              <header><strong><span class="section-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18v-3M8 18v-6M12 18V9M16 18V6M20 18V3"/></svg></span>网络延迟</strong><small>最近探测</small></header>
-              <div class="latency-grid" :style="{ '--latency-columns': Math.min(item.latency?.length || 1, 3) }">
-                <div v-for="latency in item.latency?.slice(0, 3)" :key="latency.target_id" class="latency-item">
-                  <small><i :class="{ failed: latency.success === false }"></i>{{ latency.name }}</small>
-                  <strong :class="{ failed: latency.success === false }">{{ latencyText(latency.success, latency.latency_ms, latency.error_class) }}</strong>
-                </div>
-                <div v-if="!item.latency?.length" class="latency-item empty-item"><small><i></i>{{ item.node.latency_mode === 'tcping' ? 'TCPing' : 'Ping' }}</small><strong>等待后台分配目标</strong></div>
-              </div>
-            </section>
-
-            <div v-if="item.node.custom_badges?.length || item.node.custom_links?.length || item.node.custom_html" class="custom-display">
-              <div v-if="item.node.custom_badges?.length" class="custom-badges"><span v-for="badge in item.node.custom_badges" :key="`${badge.label}-${badge.color}`" :class="`custom-badge ${badge.color}`">{{ badge.label }}</span></div>
-              <div v-if="item.node.custom_links?.length" class="custom-links" @click.stop><a v-for="link in item.node.custom_links" :key="link.url" :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.label }}</a></div>
-              <div v-if="item.node.custom_html" class="custom-html" @click.stop v-html="item.node.custom_html"></div>
-            </div>
-
-            <footer>
-              <span>{{ osName(item) }}</span>
-              <time>{{ item.report?.captured_at ? `最后更新：${new Date(item.report.captured_at).toLocaleString('zh-CN', { hour12: false })}` : '暂无上报数据' }}</time>
-            </footer>
-          </div>
-        </article>
+          :item="item"
+          :display-mode="displayMode"
+          :now="now"
+          @open="openHistory(item)"
+        />
       </section>
     </main>
 
-    <div v-if="chartNode" class="chart-overlay" @click.self="closeHistory">
-      <section class="chart-dialog" role="dialog" aria-modal="true" :aria-label="`${chartNode.node.name} 历史图表`">
+    <div v-if="chartNode" class="chart-overlay" @click.self="closeHistory" @keydown.esc="closeHistory">
+      <section ref="chartDialogElement" class="chart-dialog" role="dialog" aria-modal="true" :aria-label="`${chartNode.node.name} 历史图表`">
         <header>
           <div><small>节点历史</small><strong>{{ chartNode.node.name }}</strong></div>
           <button type="button" aria-label="关闭历史图表" @click="closeHistory">×</button>

@@ -20,6 +20,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Redesigned the public dashboard around four focused summary cards and responsive
+  two-column node cards that prioritize health, resources, network rate, and clear
+  offline reporting while preserving detailed traffic, latency, and history views.
 - Removed the standalone target-group screen from the administration UI; existing
   group assignments are migrated forward into direct node-target assignments.
 - Redesigned the public dashboard to match the ZJM information hierarchy and visual
