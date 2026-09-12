@@ -7,6 +7,7 @@ import './design-system/tokens.css'
 import './design-system/base.css'
 import './style.css'
 import './public-dashboard/public-dashboard.css'
+import './admin-dashboard/admin-dashboard.css'
 
 const root = location.pathname.startsWith('/admin') ? AdminApp : location.pathname.startsWith('/share/') ? ShareApp : App
 createApp(root).mount('#app')

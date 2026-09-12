@@ -49,7 +49,7 @@ watch(() => props.open, async (open) => {
   if (open) {
     previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
     await nextTick()
-    ;(focusable()[0] ?? panel.value)?.focus()
+    ;(panel.value?.querySelector<HTMLElement>('[autofocus]') ?? focusable()[0] ?? panel.value)?.focus()
   } else {
     previousFocus?.focus()
     previousFocus = null

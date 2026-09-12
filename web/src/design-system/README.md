@@ -23,4 +23,4 @@ All icon-only buttons need an accessible label through the `label` slot or `aria
 
 ## Boundaries
 
-These primitives contain no API, authentication, notification, node, or persistence logic. The public business-facing node composition now lives in `public-dashboard/PublicNodeCard.vue`; any future admin variant remains a separate Phase 5 composition built from the same primitives.
+These primitives contain no API, authentication, notification, node, or persistence logic. The public business-facing node composition lives in `public-dashboard/PublicNodeCard.vue`; the Phase 5 administration composition uses the same primitives with page-specific hierarchy and responsive rules in `admin-dashboard/`.

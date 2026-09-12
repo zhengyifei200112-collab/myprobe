@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import type { NodeMetadata } from './types'
+import { DsButton, DsConfirmDialog, DsDialog, DsDropdown, DsEmptyState, DsSheet, DsStatusIndicator } from './design-system'
 import type { AdminTarget, AlertEvent, AlertKind, AlertRule, AuditEntry, ChartShare, ConfigImportResult, LatencyConfig, NotificationChannel, SiteSettings } from './admin-api'
 import {
   changePassword, createAlertRule, createChannel, createChartShare, createNode, createTarget, deleteAlertRule, deleteChannel, deleteChartShare,
@@ -30,6 +31,7 @@ const events = ref<AlertEvent[]>([])
 const shares = ref<ChartShare[]>([])
 const token = ref('')
 const tokenNode = ref('')
+const tokenNodeID = ref('')
 const configFile = ref<File | null>(null)
 const configDocument = ref<unknown>(null)
 const configPreview = ref<ConfigImportResult | null>(null)
@@ -42,6 +44,9 @@ const nextAuditID = ref<number | undefined>()
 const currentPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
+const nodeCreateOpen = ref(false)
+const nodeConfig = ref<NodeMetadata | null>(null)
+const pendingNodeAction = ref<{ kind: 'delete' | 'rotate'; node: NodeMetadata } | null>(null)
 const installerURL = 'https://raw.githubusercontent.com/zhengyifei200112-collab/myprobe/main/install.sh'
 
 function shellQuote(value: string) {
@@ -158,7 +163,9 @@ async function submitNodeCreate() {
     const result = await createNode({ ...nodeCreate, tags: nodeCreate.tags.split(',').map(x => x.trim()).filter(Boolean) })
     token.value = result.agent_token
     tokenNode.value = result.node.name
+    tokenNodeID.value = result.node.id
     Object.assign(nodeCreate, emptyNode())
+    nodeCreateOpen.value = false
     await refresh()
   }, '节点已创建，请立即保存 Agent Token。')
 }
@@ -223,17 +230,50 @@ async function saveNode() {
 }
 
 async function removeNode(item: NodeMetadata) {
-  if (!confirm(`确认删除节点“${item.name}”？相关历史数据也会删除。`)) return
   await run(async () => { await deleteNode(item.id); await refresh() }, '节点已删除。')
 }
 
 async function rotateToken(item: NodeMetadata) {
-  if (!confirm(`确认轮换“${item.name}”的 Agent Token？旧 Token 会立即失效。`)) return
   await run(async () => {
     const result = await rotateNodeToken(item.id)
     token.value = result.agent_token
     tokenNode.value = item.name
+    tokenNodeID.value = item.id
   }, 'Token 已轮换，请立即更新 Agent。')
+}
+
+async function requestNodeAction(kind: 'delete' | 'rotate', node: NodeMetadata, event: MouseEvent) {
+  const trigger = (event.currentTarget as HTMLElement).closest('.ds-dropdown')?.querySelector<HTMLElement>('.ds-dropdown__trigger')
+  await nextTick()
+  trigger?.focus()
+  pendingNodeAction.value = { kind, node }
+}
+
+async function confirmNodeAction() {
+  const action = pendingNodeAction.value
+  if (!action) return
+  pendingNodeAction.value = null
+  if (action.kind === 'delete') await removeNode(action.node)
+  else await rotateToken(action.node)
+}
+
+function assignedTargets(item: NodeMetadata) {
+  const targetIDs = new Set(config.value.node_targets.filter(link => link.node_id === item.id).map(link => link.target_id))
+  return config.value.targets.filter(target => targetIDs.has(target.id))
+}
+
+function formatAdminTime(value?: string) {
+  if (!value) return '尚未上报'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '时间未知' : date.toLocaleString('zh-CN', { hour12: false })
+}
+
+async function copyAvailableToken(item: NodeMetadata) {
+  if (!token.value || tokenNodeID.value !== item.id) {
+    error.value = '出于安全考虑，既有 Token 不可再次读取。如已遗失，请使用“轮换 Token”生成新 Token。'
+    return
+  }
+  await copyToken()
 }
 
 function editTarget(item?: AdminTarget) {
@@ -497,11 +537,14 @@ onMounted(async () => {
       <nav v-if="authenticated" class="admin-tabs">
         <button :class="{ active: tab === 'nodes' }" @click="tab = 'nodes'">节点</button>
         <button :class="{ active: tab === 'targets' }" @click="tab = 'targets'">探测目标</button>
-        <button :class="{ active: tab === 'settings' }" @click="tab = 'settings'">站点设置</button>
         <button :class="{ active: tab === 'alerts' }" @click="tab = 'alerts'">告警</button>
         <button :class="{ active: tab === 'shares' }" @click="tab = 'shares'">分享</button>
-        <button :class="{ active: tab === 'maintenance' }" @click="tab = 'maintenance'">维护</button>
-        <button :class="{ active: tab === 'security' }" @click="tab = 'security'">安全</button>
+        <DsDropdown label="设置" align="end">
+          <template #trigger><span :class="{ active: ['settings', 'maintenance', 'security'].includes(tab) }">设置</span></template>
+          <button role="menuitem" @click="tab = 'settings'">站点设置</button>
+          <button role="menuitem" @click="tab = 'maintenance'">迁移与备份</button>
+          <button role="menuitem" @click="tab = 'security'">安全与审计</button>
+        </DsDropdown>
       </nav>
       <div class="nav-actions"><a class="soft-button" href="/">公开面板</a><button v-if="authenticated" class="soft-button" @click="signOut">退出</button></div>
     </header>
@@ -523,19 +566,48 @@ onMounted(async () => {
       <div v-if="error" class="admin-alert error">{{ error }}</div><div v-if="notice" class="admin-alert success">{{ notice }}</div>
 
       <template v-if="tab === 'nodes'">
-        <section class="admin-heading"><div><span class="eyebrow">INFRASTRUCTURE</span><h1>节点管理</h1><p>创建 Agent 身份、调整公开展示与采集策略；探测目标可在节点编辑中直接分配。</p></div><span class="count-pill">{{ nodes.length }} 个节点</span></section>
-        <form class="admin-panel compact-form" @submit.prevent="submitNodeCreate">
-          <h2>添加节点</h2><div class="form-grid four"><label>名称<input v-model="nodeCreate.name" required></label><label>标签（逗号分隔）<input v-model="nodeCreate.tags" placeholder="香港, 生产"></label><label>国家/地区代码<input v-model="nodeCreate.country_code" maxlength="2" placeholder="HK"></label><label>上报间隔（秒）<input v-model.number="nodeCreate.report_seconds" type="number" min="1" max="3600" required></label></div>
-          <button class="primary-button" :disabled="busy">创建节点</button>
-        </form>
-        <section class="admin-list">
-          <article v-for="item in nodes" :key="item.id" class="admin-panel entity-card">
-            <div class="entity-title"><div><strong>{{ item.name }}</strong><code>{{ item.id }}</code></div><span :class="['status-label', item.hidden ? 'muted' : 'active']">{{ item.hidden ? '已隐藏' : '公开' }}</span></div>
-            <div class="entity-meta"><span>{{ item.country_code || '未设置地区' }}</span><span>采集 {{ item.collection_seconds }}s / 上报 {{ item.report_seconds }}s</span><span>{{ item.latency_mode.toUpperCase() }}</span></div>
-            <div class="assignment-box"><b>延迟监测</b><span v-for="target in config.targets.filter(x => config.node_targets.some(a => a.node_id === item.id && a.target_id === x.id))" :key="target.id" class="check-chip static">{{ target.name }}</span><span v-if="!config.node_targets.some(a => a.node_id === item.id)" class="empty-inline">未分配探测目标</span></div>
-            <div class="entity-actions"><button @click="editNode(item)">编辑</button><button @click="editCustomDisplay(item)">自定义展示</button><button @click="rotateToken(item)">轮换 Token</button><button class="danger" @click="removeNode(item)">删除</button></div>
+        <section class="admin-heading">
+          <div><span class="eyebrow">INFRASTRUCTURE</span><h1>节点管理</h1><p>集中管理 Agent 身份、采集策略、公开状态与延迟探测。</p></div>
+          <div class="admin-heading__actions"><span class="count-pill">{{ nodes.length }} 个节点</span><DsButton variant="primary" @click="nodeCreateOpen = true">＋ 添加节点</DsButton></div>
+        </section>
+        <section v-if="nodes.length" class="admin-node-grid" aria-label="节点列表">
+          <article v-for="item in nodes" :key="item.id" class="admin-panel admin-node-card">
+            <header class="admin-node-card__header">
+              <div class="admin-node-card__identity">
+                <span class="admin-node-card__flag" aria-hidden="true">{{ item.country_code || '—' }}</span>
+                <div><h2>{{ item.name }}</h2><p>{{ item.id }}</p></div>
+              </div>
+              <DsStatusIndicator :status="item.hidden ? 'neutral' : 'online'" :label="item.hidden ? '已隐藏' : '公开展示'" />
+            </header>
+            <dl class="admin-node-card__facts">
+              <div><dt>国家 / 地区</dt><dd>{{ item.country_code || '未设置' }}</dd></div>
+              <div><dt>探测类型</dt><dd>{{ item.latency_mode.toUpperCase() }}</dd></div>
+              <div><dt>采集间隔</dt><dd>{{ item.collection_seconds }} 秒</dd></div>
+              <div><dt>上报间隔</dt><dd>{{ item.report_seconds }} 秒</dd></div>
+              <div><dt>延迟目标</dt><dd>{{ assignedTargets(item).length }} 个</dd></div>
+              <div><dt>Agent</dt><dd>{{ item.agent?.agent_version || '待连接' }}</dd></div>
+            </dl>
+            <div class="admin-node-card__targets">
+              <span>延迟监测目标</span>
+              <div class="admin-node-card__target-list"><span v-for="target in assignedTargets(item)" :key="target.id" class="admin-node-card__target">{{ target.name }}</span><span v-if="!assignedTargets(item).length" class="admin-node-card__empty">未分配探测目标</span></div>
+            </div>
+            <footer class="admin-node-card__footer">
+              <span class="admin-node-card__report">最后上报：{{ formatAdminTime(item.last_seen_at) }}</span>
+              <div class="admin-node-card__actions">
+                <DsButton size="small" variant="ghost" @click="editNode(item)">编辑</DsButton>
+                <DsButton size="small" @click="nodeConfig = item">查看配置</DsButton>
+                <DsDropdown label="更多操作" align="end">
+                  <template #trigger><span aria-hidden="true">•••</span><span class="ds-visually-hidden">更多操作</span></template>
+                  <button role="menuitem" @click="editCustomDisplay(item)">自定义展示</button>
+                  <button role="menuitem" @click="requestNodeAction('rotate', item, $event)">轮换 Token</button>
+                  <button role="menuitem" @click="copyAvailableToken(item)">复制 Token</button>
+                  <button role="menuitem" class="admin-node-card__menu-danger" @click="requestNodeAction('delete', item, $event)">删除节点</button>
+                </DsDropdown>
+              </div>
+            </footer>
           </article>
         </section>
+        <DsEmptyState v-else title="还没有节点" description="添加第一个节点后，安装 Agent 即可开始接收监控数据。"><DsButton variant="primary" @click="nodeCreateOpen = true">添加节点</DsButton></DsEmptyState>
       </template>
 
       <template v-else-if="tab === 'targets'">
@@ -622,6 +694,44 @@ onMounted(async () => {
         </div>
       </template>
     </main>
+
+    <DsSheet :open="nodeCreateOpen" title="添加节点" description="创建 Agent 身份并设置基础采集参数。" @close="nodeCreateOpen = false">
+      <form id="node-create-form" class="admin-sheet-form" @submit.prevent="submitNodeCreate">
+        <div class="form-grid">
+          <label>名称<input v-model="nodeCreate.name" required autofocus></label>
+          <label>标签（逗号分隔）<input v-model="nodeCreate.tags" placeholder="香港, 生产"></label>
+          <label>国家 / 地区代码<input v-model="nodeCreate.country_code" maxlength="2" placeholder="HK"></label>
+          <label>采集间隔（秒）<input v-model.number="nodeCreate.collection_seconds" type="number" min="1" max="3600" required></label>
+          <label>上报间隔（秒）<input v-model.number="nodeCreate.report_seconds" type="number" min="1" max="3600" required></label>
+        </div>
+      </form>
+      <template #footer><div class="admin-sheet-form__footer"><DsButton variant="ghost" :disabled="busy" @click="nodeCreateOpen = false">取消</DsButton><DsButton type="submit" form="node-create-form" variant="primary" :loading="busy">创建节点</DsButton></div></template>
+    </DsSheet>
+
+    <DsDialog :open="Boolean(nodeConfig)" :title="nodeConfig?.name || '节点配置'" description="当前节点的只读连接与采集摘要。" @close="nodeConfig = null">
+      <dl v-if="nodeConfig" class="node-config-grid">
+        <div><dt>节点 ID</dt><dd>{{ nodeConfig.id }}</dd></div>
+        <div><dt>公开状态</dt><dd>{{ nodeConfig.hidden ? '已从公开面板隐藏' : '公开展示' }}</dd></div>
+        <div><dt>采集 / 上报</dt><dd>{{ nodeConfig.collection_seconds }} 秒 / {{ nodeConfig.report_seconds }} 秒</dd></div>
+        <div><dt>探测模式</dt><dd>{{ nodeConfig.latency_mode.toUpperCase() }}</dd></div>
+        <div><dt>Agent 主机</dt><dd>{{ nodeConfig.agent?.hostname || '尚未连接' }}</dd></div>
+        <div><dt>Agent 版本</dt><dd>{{ nodeConfig.agent?.agent_version || '尚未报告' }}</dd></div>
+        <div><dt>最后上报</dt><dd>{{ formatAdminTime(nodeConfig.last_seen_at) }}</dd></div>
+        <div><dt>探测目标</dt><dd>{{ assignedTargets(nodeConfig).map(target => target.name).join('、') || '未分配' }}</dd></div>
+      </dl>
+      <template #footer><DsButton @click="nodeConfig = null">完成</DsButton></template>
+    </DsDialog>
+
+    <DsConfirmDialog
+      :open="Boolean(pendingNodeAction)"
+      :title="pendingNodeAction?.kind === 'delete' ? '删除节点？' : '轮换 Agent Token？'"
+      :description="pendingNodeAction?.kind === 'delete' ? `节点“${pendingNodeAction?.node.name || ''}”及相关历史数据将被永久删除。` : `节点“${pendingNodeAction?.node.name || ''}”的旧 Token 会立即失效，Agent 必须更新后才能继续上报。`"
+      :confirm-label="pendingNodeAction?.kind === 'delete' ? '删除节点' : '确认轮换'"
+      :danger="true"
+      :busy="busy"
+      @cancel="pendingNodeAction = null"
+      @confirm="confirmNodeAction"
+    />
 
     <div v-if="nodeEdit" class="admin-overlay" @click.self="nodeEdit = null"><form class="admin-panel edit-dialog" @submit.prevent="saveNode"><header><div><span class="eyebrow">NODE SETTINGS</span><h2>{{ nodeEdit.name }}</h2></div><button type="button" class="close-button" @click="nodeEdit = null">×</button></header><div class="form-grid two"><label>名称<input v-model="nodeEdit.name" required></label><label>排序<input v-model.number="nodeEdit.sort_order" type="number"></label><label>国家/地区代码<input v-model="nodeEdit.country_code" maxlength="2"></label><label>标签（逗号分隔显示）<input :value="nodeEdit.tags.join(', ')" @input="nodeEdit!.tags = ($event.target as HTMLInputElement).value.split(',').map(x => x.trim()).filter(Boolean)"></label><label>采集间隔（秒）<input v-model.number="nodeEdit.collection_seconds" type="number" min="1" max="3600"></label><label>上报间隔（秒）<input v-model.number="nodeEdit.report_seconds" type="number" min="1" max="3600"></label><label>延迟模式<select v-model="nodeEdit.latency_mode"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label><label>流量重置日<input v-model.number="nodeEdit.traffic_reset_day" type="number" min="1" max="31" placeholder="自然月"></label><label>货币<input v-model="nodeEdit.currency" maxlength="3" placeholder="USD"></label><label>价格（最小货币单位）<input v-model.number="nodeEdit.price_minor" type="number" min="0"></label><label>计费周期<input v-model="nodeEdit.billing_cycle" placeholder="monthly"></label><label>到期时间<input v-model="nodeEdit.expires_at" type="datetime-local"></label></div><div class="assignment-box dialog-assignment"><b>延迟监测目标</b><label v-for="target in config.targets" :key="target.id" class="check-chip"><input v-model="nodeTargetIDs" type="checkbox" :value="target.id">{{ target.name }} · {{ target.kind === 'tcping' ? 'TCP' : 'Ping' }}</label><span v-if="!config.targets.length" class="empty-inline">请先创建探测目标</span></div><div class="switch-row"><label><input v-model="nodeEdit.hidden" type="checkbox"> 从公开面板隐藏</label><label><input v-model="nodeEdit.use_since_boot" type="checkbox"> 使用开机以来流量</label></div><div class="form-actions"><button class="primary-button" :disabled="busy">保存节点</button><button type="button" @click="nodeEdit = null">取消</button></div></form></div>
 

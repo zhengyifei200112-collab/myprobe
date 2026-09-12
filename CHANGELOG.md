@@ -20,6 +20,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Redesigned the administration shell and node-management workspace with a calmer
+  responsive layout, focused node metadata, grouped settings navigation, an add-node
+  sheet, read-only configuration summaries, compact action menus, and accessible
+  confirmations for destructive node operations.
 - Redesigned the public dashboard around four focused summary cards and responsive
   two-column node cards that prioritize health, resources, network rate, and clear
   offline reporting while preserving detailed traffic, latency, and history views.
