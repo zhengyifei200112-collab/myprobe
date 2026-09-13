@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,6 +65,40 @@ func TestRetentionBuildsBothRollupsAndKeepsHistoryQueryable(t *testing.T) {
 	assertCount(t, database, "SELECT COUNT(*) FROM metric_rollups WHERE bucket_seconds=60", 1)
 	assertCount(t, database, "SELECT sample_count FROM metric_rollups WHERE bucket_seconds=300", 2)
 	assertCount(t, database, "SELECT sample_count FROM metric_rollups WHERE bucket_seconds=60", 2)
+}
+
+func TestMetricHistoryQueryDoesNotCorrelateEveryRawSampleWithRollups(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	node, _, err := database.CreateNode(ctx, CreateNodeParams{Name: "history-plan"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := database.db.QueryContext(ctx, "EXPLAIN QUERY PLAN "+metricHistoryQuery,
+		node.ID, formatTime(time.Now().UTC().Add(-time.Hour)),
+		node.ID, formatTime(time.Now().UTC().Add(-time.Hour)), 60, 60)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, parent, unused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(strings.ToUpper(detail), "CORRELATED") {
+			t.Fatalf("metric history query still contains a correlated scan: %s", detail)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestRetentionRejectsUnorderedDurationsWithoutMutation(t *testing.T) {
