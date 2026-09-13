@@ -30,13 +30,16 @@ export interface LatencyConfig {
 export interface NotificationChannel {
   id: string
   name: string
-  kind: 'webhook' | 'telegram'
+  kind: 'webhook' | 'telegram' | 'discord' | 'smtp'
   enabled: boolean
+  last_test_status?: 'success' | 'failed'
+  last_test_error?: string
+  last_test_at?: string
   created_at: string
   updated_at: string
 }
 
-export type AlertKind = 'offline' | 'cpu' | 'bandwidth' | 'cycle_traffic' | 'expiry'
+export type AlertKind = 'offline' | 'cpu' | 'memory' | 'disk' | 'latency' | 'bandwidth' | 'cycle_traffic' | 'expiry'
 
 export interface AlertRule {
   id: string
@@ -48,7 +51,11 @@ export interface AlertRule {
     threshold_percent?: number
     threshold_bytes_per_second?: number
     threshold_bytes?: number
+    threshold_milliseconds?: number
     days_before?: number
+    duration_seconds?: number
+    repeat_seconds?: number
+    template_id?: string
   }
   enabled: boolean
   cooldown_seconds: number
@@ -65,6 +72,20 @@ export interface AlertEvent {
   delivery_error?: string
   created_at: string
   delivered_at?: string
+  channel_id?: string
+  channel_name?: string
+  provider?: string
+}
+
+export interface NotificationTemplate {
+  id: string
+  name: string
+  event_kind: string
+  title_template: string
+  body_template: string
+  is_default: boolean
+  created_at: string
+  updated_at: string
 }
 
 export interface ChartShare {
@@ -180,6 +201,11 @@ export const createAlertRule = (payload: unknown) => request<{ rule: AlertRule }
 export const updateAlertRule = (id: string, payload: unknown) => request<{ rule: AlertRule }>(`/api/v1/admin/alert-rules/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
 export const deleteAlertRule = (id: string) => request<void>(`/api/v1/admin/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const loadAlertEvents = () => request<{ events: AlertEvent[] }>('/api/v1/admin/alert-events')
+export const loadNotificationTemplates = () => request<{ templates: NotificationTemplate[] }>('/api/v1/admin/notification-templates')
+export const createNotificationTemplate = (payload: unknown) => request<{ template: NotificationTemplate }>('/api/v1/admin/notification-templates', { method: 'POST', body: JSON.stringify(payload) })
+export const updateNotificationTemplate = (id: string, payload: unknown) => request<{ template: NotificationTemplate }>(`/api/v1/admin/notification-templates/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
+export const deleteNotificationTemplate = (id: string) => request<void>(`/api/v1/admin/notification-templates/${encodeURIComponent(id)}`, { method: 'DELETE' })
+export const testNotificationTemplate = (id: string, channelID: string) => request<void>(`/api/v1/admin/notification-templates/${encodeURIComponent(id)}/test`, { method: 'POST', body: JSON.stringify({ channel_id: channelID }) })
 
 export const loadChartShares = () => request<{ shares: ChartShare[] }>('/api/v1/admin/chart-shares')
 export const createChartShare = (payload: unknown) => request<{ share: ChartShare; path: string }>('/api/v1/admin/chart-shares', { method: 'POST', body: JSON.stringify(payload) })

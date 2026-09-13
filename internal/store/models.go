@@ -235,13 +235,27 @@ type LatencyHistoryPoint struct {
 }
 
 type NotificationChannel struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	Kind            string    `json:"kind"`
-	ConfigEncrypted string    `json:"-"`
-	Enabled         bool      `json:"enabled"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID              string     `json:"id"`
+	Name            string     `json:"name"`
+	Kind            string     `json:"kind"`
+	ConfigEncrypted string     `json:"-"`
+	Enabled         bool       `json:"enabled"`
+	LastTestStatus  string     `json:"last_test_status,omitempty"`
+	LastTestError   string     `json:"last_test_error,omitempty"`
+	LastTestAt      *time.Time `json:"last_test_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+type NotificationTemplate struct {
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	EventKind     string    `json:"event_kind"`
+	TitleTemplate string    `json:"title_template"`
+	BodyTemplate  string    `json:"body_template"`
+	IsDefault     bool      `json:"is_default"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 type AlertRule struct {
@@ -266,6 +280,7 @@ type AlertState struct {
 	LastDeliveredAt *time.Time
 	LastError       string
 	UpdatedAt       time.Time
+	PendingSince    *time.Time
 }
 
 type AlertEvent struct {
@@ -278,6 +293,9 @@ type AlertEvent struct {
 	DeliveryError string     `json:"delivery_error,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
 	DeliveredAt   *time.Time `json:"delivered_at,omitempty"`
+	ChannelID     string     `json:"channel_id,omitempty"`
+	ChannelName   string     `json:"channel_name,omitempty"`
+	Provider      string     `json:"provider,omitempty"`
 }
 
 type ChartShare struct {

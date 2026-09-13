@@ -112,6 +112,45 @@ func TestFailedDeliveryRetriesOnlyAfterCooldown(t *testing.T) {
 	}
 }
 
+func TestAlertDurationSurvivesEvaluationTicks(t *testing.T) {
+	ctx := context.Background()
+	database, _ := store.Open(ctx, ":memory:")
+	defer database.Close()
+	node, _, _ := database.CreateNode(ctx, store.CreateNodeParams{Name: "edge"})
+	now := time.Now().UTC().Truncate(time.Second)
+	expiry := now.Add(time.Hour)
+	node = updateNodeExpiry(t, database, node, &expiry)
+	recorder := &recordingSender{}
+	service := New(database, strings.Repeat("s", 32), recorder, nil)
+	channel, _ := service.CreateChannel(ctx, "ops", "webhook", ChannelConfig{URL: "https://example.com/hook"})
+	_, _ = service.CreateRule(ctx, node.ID, channel.ID, "expiry", RuleConfig{DaysBefore: 1, DurationSeconds: 60}, 300)
+	_ = service.Tick(ctx, now)
+	_ = service.Tick(ctx, now.Add(59*time.Second))
+	if recorder.count() != 0 {
+		t.Fatalf("delivered before duration: %d", recorder.count())
+	}
+	_ = service.Tick(ctx, now.Add(61*time.Second))
+	if recorder.count() != 1 {
+		t.Fatalf("not delivered after duration: %d", recorder.count())
+	}
+}
+
+func TestChannelTestResultIsPersisted(t *testing.T) {
+	ctx := context.Background()
+	database, _ := store.Open(ctx, ":memory:")
+	defer database.Close()
+	service := New(database, strings.Repeat("s", 32), &recordingSender{}, nil)
+	channel, _ := service.CreateChannel(ctx, "ops", "webhook", ChannelConfig{URL: "https://example.com/hook"})
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := service.TestChannel(ctx, channel.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	saved, _ := database.NotificationChannel(ctx, channel.ID)
+	if saved.LastTestStatus != "success" || saved.LastTestAt == nil {
+		t.Fatalf("test status = %#v", saved)
+	}
+}
+
 func TestOfflineEvaluationUsesLastSeenThreshold(t *testing.T) {
 	ctx := context.Background()
 	database, _ := store.Open(ctx, ":memory:")
@@ -145,6 +184,25 @@ func TestChangingChannelTypeRequiresNewCredentials(t *testing.T) {
 	updated, err := service.UpdateChannel(ctx, channel.ID, channel.Name, "telegram", &ChannelConfig{BotToken: "abc:123", ChatID: "-100"}, true)
 	if err != nil || updated.Kind != "telegram" {
 		t.Fatalf("updated = %#v, error = %v", updated, err)
+	}
+}
+
+func TestUpdatingChannelMetadataPreservesEncryptedSecret(t *testing.T) {
+	ctx := context.Background()
+	database, _ := store.Open(ctx, ":memory:")
+	defer database.Close()
+	service := New(database, strings.Repeat("s", 32), &recordingSender{}, nil)
+	channel, err := service.CreateChannel(ctx, "ops", "telegram", ChannelConfig{BotToken: "abc:123", ChatID: "-100"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := service.UpdateChannel(ctx, channel.ID, "ops topics", "telegram", &ChannelConfig{ParseMode: "HTML"}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config, err := service.decryptConfig(updated)
+	if err != nil || config.BotToken != "abc:123" || config.ParseMode != "HTML" {
+		t.Fatalf("config = %#v, err = %v", config, err)
 	}
 }
 

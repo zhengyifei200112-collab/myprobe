@@ -130,6 +130,11 @@ func (s *Server) routes() {
 	admin.PATCH("/alert-rules/:ruleID", s.updateAlertRule)
 	admin.DELETE("/alert-rules/:ruleID", s.deleteAlertRule)
 	admin.GET("/alert-events", s.listAlertEvents)
+	admin.GET("/notification-templates", s.listNotificationTemplates)
+	admin.POST("/notification-templates", s.createNotificationTemplate)
+	admin.PATCH("/notification-templates/:templateID", s.updateNotificationTemplate)
+	admin.DELETE("/notification-templates/:templateID", s.deleteNotificationTemplate)
+	admin.POST("/notification-templates/:templateID/test", s.testNotificationTemplate)
 	admin.GET("/chart-shares", s.listChartShares)
 	admin.POST("/chart-shares", s.createChartShare)
 	admin.PATCH("/chart-shares/:shareID", s.updateChartShare)
@@ -822,6 +827,77 @@ func (s *Server) listAlertEvents(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"events": items})
+}
+
+func (s *Server) listNotificationTemplates(c *gin.Context) {
+	items, err := s.store.ListNotificationTemplates(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list notification templates"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"templates": items})
+}
+
+func (s *Server) createNotificationTemplate(c *gin.Context) {
+	s.saveNotificationTemplate(c, "")
+}
+
+func (s *Server) updateNotificationTemplate(c *gin.Context) {
+	s.saveNotificationTemplate(c, c.Param("templateID"))
+}
+
+func (s *Server) saveNotificationTemplate(c *gin.Context, id string) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	var request struct {
+		Name          string `json:"name"`
+		EventKind     string `json:"event_kind"`
+		TitleTemplate string `json:"title_template"`
+		BodyTemplate  string `json:"body_template"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&request) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	item, err := s.store.SaveNotificationTemplate(c.Request.Context(), id, request.Name, request.EventKind, request.TitleTemplate, request.BodyTemplate)
+	if err != nil {
+		writeAlertError(c, err)
+		return
+	}
+	action := "create"
+	status := http.StatusCreated
+	if id != "" {
+		action = "update"
+		status = http.StatusOK
+	}
+	s.audit(c, action, "notification_template", item.ID, gin.H{"name": item.Name, "event_kind": item.EventKind})
+	c.JSON(status, gin.H{"template": item})
+}
+
+func (s *Server) deleteNotificationTemplate(c *gin.Context) {
+	id := c.Param("templateID")
+	if err := s.store.DeleteNotificationTemplate(c.Request.Context(), id); err != nil {
+		writeAlertError(c, err)
+		return
+	}
+	s.audit(c, "delete", "notification_template", id, nil)
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) testNotificationTemplate(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4<<10)
+	var request struct {
+		ChannelID string `json:"channel_id"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&request) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if err := s.alerts.TestTemplate(c.Request.Context(), c.Param("templateID"), request.ChannelID, time.Now().UTC()); err != nil {
+		writeAlertError(c, err)
+		return
+	}
+	s.audit(c, "test", "notification_template", c.Param("templateID"), gin.H{"channel_id": request.ChannelID})
+	c.Status(http.StatusNoContent)
 }
 
 func (s *Server) listChartShares(c *gin.Context) {
