@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { connectRealtime, fetchHistory, fetchNodes } from './api'
 import { DsCard, DsEmptyState, DsLoading, DsTabs } from './design-system'
 import PublicNodeCard from './public-dashboard/PublicNodeCard.vue'
-import { aggregateNode as aggregate, formatBytes } from './public-dashboard/metrics'
+import { aggregateNode as aggregate, commonByteUnit, formatBytes, formatBytesInUnit } from './public-dashboard/metrics'
 import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
 import { defaultSiteSettings, normalizeSiteSettings, type HistoryRange, type HistoryResponse, type PublicNode, type RealtimeEvent, type SiteSettings, type ThemeMode } from './types'
 
@@ -190,9 +190,12 @@ async function renderHistory(history: HistoryResponse) {
     yAxis: { type: 'value', min: 0, axisLabel: { color: text, formatter: '{value} ms' }, splitLine: { lineStyle: { color: border } } },
     series: [...targets.values()].map((target) => ({ name: target.name, type: 'line', connectNulls: false, showSymbol: false, smooth: true, data: target.points })),
   })
+  const trafficUnit = commonByteUnit(history.traffic.map((point) => point.total_bytes))
+  const trafficValue = (value: number) => formatBytesInUnit(value, trafficUnit)
   trafficChart.setOption({
     ...common,
-    yAxis: { type: 'value', min: 0, axisLabel: { color: text, formatter: (value: number) => formatBytes(value) }, splitLine: { lineStyle: { color: border } } },
+    tooltip: { ...common.tooltip, valueFormatter: trafficValue },
+    yAxis: { type: 'value', min: 0, name: `单位：${trafficUnit.label}`, nameTextStyle: { color: text }, axisLabel: { color: text, formatter: trafficValue }, splitLine: { lineStyle: { color: border } } },
     series: [
       { name: '上传累计', type: 'line', showSymbol: false, data: history.traffic.map((p) => [p.time, p.tx_bytes]), lineStyle: { color: orange }, itemStyle: { color: orange } },
       { name: '下载累计', type: 'line', showSymbol: false, data: history.traffic.map((p) => [p.time, p.rx_bytes]), lineStyle: { color: green }, itemStyle: { color: green } },

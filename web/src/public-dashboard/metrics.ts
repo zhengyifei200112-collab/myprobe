@@ -24,6 +24,26 @@ export function formatBytes(value: number, suffix = '') {
   return `${scaled >= 100 ? scaled.toFixed(0) : scaled >= 10 ? scaled.toFixed(1) : scaled.toFixed(2)} ${units[index]}${suffix}`
 }
 
+export interface ByteDisplayUnit {
+  label: string
+  divisor: number
+}
+
+export function commonByteUnit(values: number[]): ByteDisplayUnit {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+  const maximum = Math.max(0, ...values.filter(Number.isFinite))
+  const index = maximum > 0
+    ? Math.min(Math.floor(Math.log(maximum) / Math.log(1024)), units.length - 1)
+    : 0
+  return { label: units[index], divisor: 1024 ** index }
+}
+
+export function formatBytesInUnit(value: number, unit: ByteDisplayUnit, suffix = '') {
+  const scaled = Math.max(0, Number.isFinite(value) ? value : 0) / unit.divisor
+  const precision = scaled >= 100 ? 0 : scaled >= 10 ? 1 : 2
+  return `${scaled.toFixed(precision)} ${unit.label}${suffix}`
+}
+
 export function formatUptime(seconds = 0) {
   if (!seconds) return '—'
   const days = Math.floor(seconds / 86400)
