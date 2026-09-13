@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import type { NodeMetadata } from './types'
 import { DsButton, DsConfirmDialog, DsDialog, DsDropdown, DsEmptyState, DsSheet, DsStatusIndicator } from './design-system'
 import SettingsCenter from './settings-center/SettingsCenter.vue'
+import AuthSettingsPanel from './settings-center/AuthSettingsPanel.vue'
 import NotificationCenter from './notification-center/NotificationCenter.vue'
 import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
 import { fetchSiteSettings } from './api'
@@ -11,7 +12,7 @@ import type { AdminTarget, AuditEntry, ChartShare, ConfigImportResult, LatencyCo
 import {
   changePassword, createChartShare, createNode, createTarget, deleteChartShare,
   deleteNode, deleteTarget, loadLatencyConfig, loadSiteSettings,
-  downloadConfiguration, downloadDatabaseBackup, importConfiguration, loadAudit, loadChartShares, loadNodes, login, LoginError, logout, restoreSession, rotateNodeToken, setNodeTarget, uploadDatabaseRestore,
+  downloadConfiguration, downloadDatabaseBackup, importConfiguration, loadAudit, loadChartShares, loadGitHubStatus, loadNodes, login, LoginError, logout, restoreSession, rotateNodeToken, setNodeTarget, uploadDatabaseRestore,
   updateChartShare, updateNode, updateSiteSettings, updateTarget,
 } from './admin-api'
 
@@ -27,6 +28,7 @@ const password = ref('')
 const captchaID = ref('')
 const captchaPrompt = ref('')
 const captchaAnswer = ref('')
+const githubEnabled = ref(false)
 const nodes = ref<NodeMetadata[]>([])
 const config = ref<LatencyConfig>({ targets: [], groups: [], group_members: [], node_groups: [], node_targets: [] })
 const siteSettings = reactive<SiteSettings>(defaultSiteSettings())
@@ -468,10 +470,16 @@ onMounted(async () => {
     cacheAppearance(publicSettings)
     applyAppearance(publicSettings)
   } catch { applyAppearance(siteSettings) }
+  try { githubEnabled.value = (await loadGitHubStatus()).enabled } catch { githubEnabled.value = false }
   authenticated.value = await restoreSession()
   if (authenticated.value) {
     try { await refresh() } catch (value) { showError(value) }
   }
+  const oauth = new URLSearchParams(location.search)
+  if (oauth.get('oauth') === 'github') notice.value = 'GitHub 登录验证成功。'
+  const oauthError = oauth.get('oauth_error')
+  if (oauthError) error.value = oauthError === 'not_allowed' ? '当前 GitHub 账号不在管理员白名单中。' : oauthError === 'unavailable' ? 'GitHub 登录尚未正确配置。' : 'GitHub 登录失败或授权已取消。'
+  if (oauth.has('oauth') || oauth.has('oauth_error')) history.replaceState(null, '', '/admin')
   booting.value = false
 })
 </script>
@@ -492,15 +500,11 @@ onMounted(async () => {
 
     <main v-if="booting" class="state-panel"><div class="loader"></div><p>正在恢复管理会话…</p></main>
     <main v-else-if="!authenticated" class="login-wrap">
-      <form class="admin-panel login-card" @submit.prevent="submitLogin">
-        <span class="eyebrow">SECURE CONSOLE</span><h1>登录管理中心</h1><p>使用初始化时配置的管理员账号登录。</p>
-        <label>用户名<input v-model="username" autocomplete="username" required></label>
-        <label>密码<input v-model="password" type="password" autocomplete="current-password" required></label>
-        <label v-if="captchaPrompt">安全验证：{{ captchaPrompt }}<input v-model="captchaAnswer" inputmode="numeric" autocomplete="off" required></label>
-        <p v-if="notice" class="form-message success">{{ notice }}</p>
-        <p v-if="error" class="form-message error">{{ error }}</p>
-        <button class="primary-button" :disabled="busy">{{ busy ? '登录中…' : '登录' }}</button>
-      </form>
+      <section class="admin-panel login-card">
+        <header><span class="eyebrow">SECURE CONSOLE</span><h1>登录管理中心</h1><p>使用管理员密码，或通过已授权的 GitHub 账号继续。</p></header>
+        <form @submit.prevent="submitLogin"><label>用户名<input v-model="username" autocomplete="username" required></label><label>密码<input v-model="password" type="password" autocomplete="current-password" required></label><label v-if="captchaPrompt">安全验证：{{ captchaPrompt }}<input v-model="captchaAnswer" inputmode="numeric" autocomplete="off" required></label><p v-if="notice" class="form-message success">{{ notice }}</p><p v-if="error" class="form-message error">{{ error }}</p><button class="primary-button" :disabled="busy">{{ busy ? '登录中…' : '使用密码登录' }}</button></form>
+        <div v-if="githubEnabled" class="login-divider"><span>或</span></div><a v-if="githubEnabled" class="github-login-button" href="/api/v1/auth/github/start"><span aria-hidden="true">GH</span>使用 GitHub 登录</a><p class="login-security-note">受 HttpOnly 会话、CSRF 防护与登录限速保护</p>
+      </section>
     </main>
 
     <main v-else class="admin-main">
@@ -603,6 +607,7 @@ onMounted(async () => {
       <template v-else>
         <section class="admin-heading"><div><span class="eyebrow">ACCESS &amp; ACCOUNTABILITY</span><h1>安全与审计</h1><p>修改管理员凭据，并检查所有管理操作、来源地址和结构化详情。</p></div><span class="count-pill">{{ auditEntries.length }} 条已载入</span></section>
         <div class="security-layout">
+          <AuthSettingsPanel @notice="value => { notice = value; error = '' }" @error="showError" />
           <form class="admin-panel compact-form password-card" @submit.prevent="submitPasswordChange">
             <span class="eyebrow">PASSWORD</span><h2>修改管理员密码</h2><p>新密码至少 12 个字符。修改成功后所有管理会话都会立即撤销。</p>
             <div class="form-grid one"><label>当前密码<input v-model="currentPassword" type="password" autocomplete="current-password" required></label><label>新密码<input v-model="newPassword" type="password" minlength="12" autocomplete="new-password" required></label><label>确认新密码<input v-model="confirmPassword" type="password" minlength="12" autocomplete="new-password" required></label></div>

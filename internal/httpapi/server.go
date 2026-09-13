@@ -24,11 +24,13 @@ import (
 )
 
 const sessionCookie = "myprobe_session"
+const githubStateCookie = "myprobe_github_state"
 
 type Server struct {
 	config  config.Config
 	store   *store.Store
 	auth    *auth.Service
+	github  *auth.GitHubService
 	gateway *agentgateway.Gateway
 	hub     *agentgateway.Hub
 	alerts  *alerts.Service
@@ -45,7 +47,8 @@ func New(cfg config.Config, database *store.Store, authService *auth.Service, ga
 		_ = router.SetTrustedProxies(nil)
 	}
 	router.Use(gin.Recovery(), securityHeaders())
-	server := &Server{config: cfg, store: database, auth: authService, gateway: gateway, hub: hub, alerts: alerts.New(database, cfg.EncryptionKey, nil, nil), sharing: sharing.New(database, 12*time.Hour), router: router}
+	github, _ := auth.NewGitHubService(database, cfg.EncryptionKey, cfg.SessionTTL, nil)
+	server := &Server{config: cfg, store: database, auth: authService, github: github, gateway: gateway, hub: hub, alerts: alerts.New(database, cfg.EncryptionKey, nil, nil), sharing: sharing.New(database, 12*time.Hour), router: router}
 	server.routes()
 	mux := http.NewServeMux()
 	// WebSocket upgrades bypass Gin's wrapped ResponseWriter. coder/websocket uses
@@ -90,6 +93,9 @@ func (s *Server) routes() {
 	authRoutes.POST("/logout", s.requireSession(true), s.logout)
 	authRoutes.GET("/me", s.requireSession(false), s.me)
 	authRoutes.POST("/password", s.requireSession(true), s.changePassword)
+	authRoutes.GET("/github/status", s.githubStatus)
+	authRoutes.GET("/github/start", s.githubStart)
+	authRoutes.GET("/github/callback", s.githubCallback)
 
 	share := s.router.Group("/api/v1/share/:shareID")
 	share.Use(privateNoStore())
@@ -144,6 +150,8 @@ func (s *Server) routes() {
 	admin.POST("/maintenance/backup", s.exportDatabaseBackup)
 	admin.POST("/maintenance/restore", s.stageDatabaseRestore)
 	admin.GET("/audit", s.listAudit)
+	admin.GET("/auth-settings", s.getAuthSettings)
+	admin.PATCH("/auth-settings", s.updateAuthSettings)
 }
 
 func (s *Server) publicNodes(c *gin.Context) {
@@ -307,10 +315,7 @@ func (s *Server) login(c *gin.Context) {
 		return
 	}
 	_ = s.store.ClearLoginFailures(c.Request.Context(), request.Username, remoteIP)
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: s.config.CookieSecure,
-		SameSite: http.SameSiteLaxMode, Expires: session.ExpiresAt,
-	})
+	s.setSessionCookie(c, token, session.ExpiresAt)
 	c.JSON(http.StatusOK, gin.H{"csrf_token": session.CSRFToken, "expires_at": session.ExpiresAt})
 }
 
@@ -358,6 +363,99 @@ func (s *Server) changePassword(c *gin.Context) {
 	s.audit(c, "change_password", "user", session.UserID, nil)
 	http.SetCookie(c.Writer, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", HttpOnly: true, Secure: s.config.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: -1})
 	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) githubStatus(c *gin.Context) {
+	if s.github == nil {
+		c.JSON(http.StatusOK, gin.H{"enabled": false})
+		return
+	}
+	enabled, err := s.github.PublicStatus(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read login providers"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"enabled": enabled})
+}
+
+func (s *Server) githubStart(c *gin.Context) {
+	if s.github == nil {
+		c.Redirect(http.StatusFound, "/admin?oauth_error=unavailable")
+		return
+	}
+	target, state, err := s.github.Begin(c.Request.Context(), time.Now().UTC())
+	if err != nil {
+		c.Redirect(http.StatusFound, "/admin?oauth_error=unavailable")
+		return
+	}
+	http.SetCookie(c.Writer, &http.Cookie{Name: githubStateCookie, Value: state, Path: "/api/v1/auth/github", HttpOnly: true, Secure: s.config.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: 600})
+	c.Header("Cache-Control", "no-store")
+	c.Redirect(http.StatusFound, target)
+}
+
+func (s *Server) githubCallback(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	cookieState, _ := c.Cookie(githubStateCookie)
+	http.SetCookie(c.Writer, &http.Cookie{Name: githubStateCookie, Value: "", Path: "/api/v1/auth/github", HttpOnly: true, Secure: s.config.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: -1})
+	if s.github == nil || c.Query("error") != "" {
+		c.Redirect(http.StatusFound, "/admin?oauth_error=denied")
+		return
+	}
+	session, token, login, err := s.github.Complete(c.Request.Context(), c.Query("state"), cookieState, c.Query("code"), time.Now().UTC())
+	if err != nil {
+		reason := "failed"
+		if errors.Is(err, auth.ErrOAuthDenied) {
+			reason = "not_allowed"
+		}
+		c.Redirect(http.StatusFound, "/admin?oauth_error="+reason)
+		return
+	}
+	s.setSessionCookie(c, token, session.ExpiresAt)
+	_ = s.store.LogAudit(c.Request.Context(), session.UserID, "login", "auth_provider", "github", c.ClientIP(), gin.H{"github_username": login})
+	c.Redirect(http.StatusFound, "/admin?oauth=github")
+}
+
+func (s *Server) getAuthSettings(c *gin.Context) {
+	if s.github == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "encryption key is required for OAuth"})
+		return
+	}
+	item, err := s.github.Settings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read authentication settings"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"password_enabled": true, "github": item})
+}
+
+func (s *Server) updateAuthSettings(c *gin.Context) {
+	if s.github == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "encryption key is required for OAuth"})
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32<<10)
+	var request struct {
+		Enabled           bool     `json:"enabled"`
+		ClientID          string   `json:"client_id"`
+		ClientSecret      string   `json:"client_secret"`
+		CallbackURL       string   `json:"callback_url"`
+		UsernameAllowlist []string `json:"username_allowlist"`
+	}
+	if json.NewDecoder(c.Request.Body).Decode(&request) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	item, err := s.github.UpdateSettings(c.Request.Context(), request.Enabled, request.ClientID, request.ClientSecret, request.CallbackURL, request.UsernameAllowlist)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	s.audit(c, "update", "auth_provider", "github", gin.H{"enabled": item.Enabled, "client_id_changed": request.ClientID != "", "secret_changed": request.ClientSecret != "", "allowlist_count": len(item.UsernameAllowlist)})
+	c.JSON(http.StatusOK, gin.H{"password_enabled": true, "github": item})
+}
+
+func (s *Server) setSessionCookie(c *gin.Context, token string, expires time.Time) {
+	http.SetCookie(c.Writer, &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: s.config.CookieSecure, SameSite: http.SameSiteLaxMode, Expires: expires})
 }
 
 func (s *Server) listAudit(c *gin.Context) {

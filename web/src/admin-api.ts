@@ -127,6 +127,18 @@ export interface AuditEntry {
   created_at: string
 }
 
+export interface GitHubOAuthSettings {
+  enabled: boolean
+  client_id: string
+  client_secret_set: boolean
+  callback_url: string
+  username_allowlist: string[]
+  verified_at?: string
+  updated_at: string
+}
+
+export interface AuthSettings { password_enabled: true; github: GitHubOAuthSettings }
+
 let csrfToken = ''
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -212,6 +224,9 @@ export const createChartShare = (payload: unknown) => request<{ share: ChartShar
 export const updateChartShare = (id: string, payload: unknown) => request<{ share: ChartShare; path: string }>(`/api/v1/admin/chart-shares/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
 export const deleteChartShare = (id: string) => request<void>(`/api/v1/admin/chart-shares/${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const changePassword = (currentPassword: string, newPassword: string) => request<void>('/api/v1/auth/password', { method: 'POST', body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) })
+export const loadGitHubStatus = () => request<{ enabled: boolean }>('/api/v1/auth/github/status')
+export const loadAuthSettings = () => request<AuthSettings>('/api/v1/admin/auth-settings')
+export const updateAuthSettings = (payload: unknown) => request<AuthSettings>('/api/v1/admin/auth-settings', { method: 'PATCH', body: JSON.stringify(payload) })
 export const loadAudit = (beforeID?: number) => request<{ entries: AuditEntry[]; next_before_id?: number }>(`/api/v1/admin/audit?limit=50${beforeID ? `&before_id=${beforeID}` : ''}`)
 
 async function downloadRequest(path: string, options: RequestInit = {}): Promise<{ blob: Blob; filename: string }> {

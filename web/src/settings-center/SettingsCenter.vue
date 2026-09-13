@@ -129,13 +129,13 @@ const backgrounds: Array<{ key: 'public_background' | 'admin_background' | 'logi
 
       <DsCard v-else padding="large" class="settings-placeholder">
         <span class="eyebrow">PROGRESSIVE DELIVERY</span>
-        <h2>{{ section === 'notifications' ? '通知系统将在 Phase 7 完善' : section === 'security' ? '登录与安全将在 Phase 8 完善' : section === 'maintenance' ? '现有维护工具已可使用' : '系统信息' }}</h2>
-        <p v-if="section === 'notifications'">现有通知与告警能力保持可用，下一阶段将在此整合 Provider、规则、模板和历史。</p>
-        <p v-else-if="section === 'security'">现有密码与审计能力保持可用，GitHub OAuth 和登录安全将在 Phase 8 实施。</p>
+        <h2>{{ section === 'notifications' ? '通知系统已启用' : section === 'security' ? '登录与安全' : section === 'maintenance' ? '现有维护工具已可使用' : '系统信息' }}</h2>
+        <p v-if="section === 'notifications'">管理 Provider、告警规则、消息模板和发送历史。</p>
+        <p v-else-if="section === 'security'">管理密码登录、GitHub OAuth 白名单、会话安全与审计记录。</p>
         <p v-else-if="section === 'maintenance'">配置迁移和加密数据库备份未发生变化，可继续使用现有工具。</p>
         <p v-else>MyProbe 的运行配置沿用当前安全默认值；本阶段不修改服务端部署参数。</p>
         <DsButton v-if="section === 'notifications'" @click="emit('openLegacy', 'alerts')">打开当前告警页面</DsButton>
-        <DsButton v-else-if="section === 'security'" @click="emit('openLegacy', 'security')">打开安全与审计</DsButton>
+        <DsButton v-else-if="section === 'security'" @click="emit('openLegacy', 'security')">打开登录与安全</DsButton>
         <DsButton v-else-if="section === 'maintenance'" @click="emit('openLegacy', 'maintenance')">打开迁移与备份</DsButton>
       </DsCard>
     </section>

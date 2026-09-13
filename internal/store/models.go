@@ -27,6 +27,17 @@ type LoginGuard struct {
 	BlockedUntil    *time.Time
 }
 
+type GitHubOAuthSettings struct {
+	Enabled               bool       `json:"enabled"`
+	ClientID              string     `json:"client_id"`
+	ClientSecretEncrypted string     `json:"-"`
+	ClientSecretSet       bool       `json:"client_secret_set"`
+	CallbackURL           string     `json:"callback_url"`
+	UsernameAllowlist     []string   `json:"username_allowlist"`
+	VerifiedAt            *time.Time `json:"verified_at,omitempty"`
+	UpdatedAt             time.Time  `json:"updated_at"`
+}
+
 type AuditEntry struct {
 	ID         int64           `json:"id"`
 	UserID     *string         `json:"user_id,omitempty"`
