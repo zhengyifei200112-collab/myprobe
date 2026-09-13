@@ -89,6 +89,37 @@ The named `myprobe-data` volume contains SQLite and must be included in host bac
 Keep `MYPROBE_ENCRYPTION_KEY` in a separate secret backup because encrypted notification
 credentials cannot be recovered without it.
 
+### Nginx + Cloudflare HTTPS
+
+The reviewed production templates for `probe.20011008.xyz` are in `deploy/nginx/`.
+Install `cloudflare-real-ip.conf` as
+`/etc/nginx/snippets/myprobe-cloudflare-real-ip.conf`, install the HTTP bootstrap
+site first, and obtain the initial certificate with:
+
+```sh
+certbot certonly --webroot -w /var/www/letsencrypt \
+  -d probe.20011008.xyz --email you@example.com \
+  --non-interactive --agree-tos
+```
+
+Then replace the bootstrap site with `myprobe.conf`, run `nginx -t`, and reload
+Nginx. Install `reload-nginx.sh` in
+`/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh` with mode `0755`, so a
+successfully renewed certificate is picked up only after the Nginx configuration
+passes validation. The site passes WebSocket upgrades for both the public dashboard and Agent,
+disables proxy buffering, preserves the HTTPS scheme, and accepts visitor IPs only
+from Cloudflare's published networks. Refresh the checked-in Cloudflare network list
+from its authoritative source when Cloudflare announces a change.
+
+At Cloudflare, use a proxied `A` record and **Full (strict)** SSL. Never use Flexible
+SSL. Set `MYPROBE_COOKIE_SECURE=true` after HTTPS is verified. When Nginx connects
+through a Docker-published port, set `MYPROBE_TRUSTED_PROXIES` to the exact Docker
+bridge gateway observed by the container; do not trust arbitrary public proxies.
+
+Keep the direct port available until dashboard, admin, OAuth, Agent WebSocket, and
+rollback access have all been verified. A later maintenance window can bind the port
+to loopback after every external Agent has moved to the HTTPS domain.
+
 The Server listens on `:25775` inside its container so Docker port forwarding can reach
 it. If the host mapping remains on `127.0.0.1`, the Server's public-HTTP startup warning
 describes the container listener and does not mean the host port is public. Do not
