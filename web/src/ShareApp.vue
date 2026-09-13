@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { commonByteUnit, formatBytesInUnit } from './public-dashboard/metrics'
+import { commonByteUnit, formatBytesInUnit, formatMilliseconds, formatPercent } from './public-dashboard/metrics'
 import type { HistoryRange, HistoryResponse, PublicNode } from './types'
 
 type Theme = 'light' | 'dark'
@@ -117,16 +117,18 @@ async function renderCharts(history: HistoryResponse) {
   const color = (name: string) => styles.getPropertyValue(name).trim()
   const text = color('--muted'), border = color('--border'), blue = color('--blue'), cyan = color('--cyan'), green = color('--green'), orange = color('--orange'), purple = color('--purple')
   const common = { animationDuration: 300, textStyle: { color: text, fontFamily: 'inherit' }, tooltip: { trigger: 'axis', backgroundColor: color('--surface-strong'), borderColor: border, textStyle: { color: color('--text') } }, legend: { top: 0, textStyle: { color: text } }, grid: { left: 48, right: 52, top: 38, bottom: 28 }, xAxis: { type: 'time', splitNumber: 4, axisLine: { lineStyle: { color: border } }, axisLabel: { color: text, fontSize: 9, hideOverlap: true } } }
-  resourceChart.setOption({ ...common, yAxis: [{ type: 'value', min: 0, max: 100, axisLabel: { color: text, formatter: '{value}%' }, splitLine: { lineStyle: { color: border } } }, { type: 'value', min: 0, axisLabel: { color: text, formatter: (value: number) => formatBytes(value, '/s') }, splitLine: { show: false } }], series: [
-    { name: 'CPU', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map(p => [p.time, p.cpu_percent]), lineStyle: { color: blue } },
-    { name: '内存', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map(p => [p.time, p.memory_percent]), lineStyle: { color: cyan } },
-    { name: '硬盘', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map(p => [p.time, p.disk_percent]), lineStyle: { color: purple } },
-    { name: '上传', type: 'line', yAxisIndex: 1, showSymbol: false, data: history.metrics.map(p => [p.time, p.tx_bytes_per_second]), lineStyle: { color: orange } },
-    { name: '下载', type: 'line', yAxisIndex: 1, showSymbol: false, data: history.metrics.map(p => [p.time, p.rx_bytes_per_second]), lineStyle: { color: green } },
+  const rateUnit = commonByteUnit(history.metrics.flatMap(point => [point.tx_bytes_per_second, point.rx_bytes_per_second]))
+  const rateValue = (value: number) => formatBytesInUnit(value, rateUnit, '/s')
+  resourceChart.setOption({ ...common, yAxis: [{ type: 'value', min: 0, max: 100, axisLabel: { color: text, formatter: '{value}%' }, splitLine: { lineStyle: { color: border } } }, { type: 'value', min: 0, name: `单位：${rateUnit.label}/s`, nameTextStyle: { color: text }, axisLabel: { color: text, formatter: rateValue }, splitLine: { show: false } }], series: [
+    { name: 'CPU', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map(p => [p.time, p.cpu_percent]), tooltip: { valueFormatter: formatPercent }, lineStyle: { color: blue } },
+    { name: '内存', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map(p => [p.time, p.memory_percent]), tooltip: { valueFormatter: formatPercent }, lineStyle: { color: cyan } },
+    { name: '硬盘', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map(p => [p.time, p.disk_percent]), tooltip: { valueFormatter: formatPercent }, lineStyle: { color: purple } },
+    { name: '上传', type: 'line', yAxisIndex: 1, showSymbol: false, data: history.metrics.map(p => [p.time, p.tx_bytes_per_second]), tooltip: { valueFormatter: rateValue }, lineStyle: { color: orange } },
+    { name: '下载', type: 'line', yAxisIndex: 1, showSymbol: false, data: history.metrics.map(p => [p.time, p.rx_bytes_per_second]), tooltip: { valueFormatter: rateValue }, lineStyle: { color: green } },
   ] })
   const targets = new Map<string, { name: string; points: Array<[string, number | null]> }>()
   for (const point of history.latency) { const item = targets.get(point.target_id) ?? { name: `${point.kind === 'tcping' ? 'TCP' : 'Ping'} · ${point.name}`, points: [] }; item.points.push([point.time, point.latency_ms ?? null]); targets.set(point.target_id, item) }
-  latencyChart.setOption({ ...common, yAxis: { type: 'value', min: 0, axisLabel: { color: text, formatter: '{value} ms' }, splitLine: { lineStyle: { color: border } } }, series: [...targets.values()].map(item => ({ name: item.name, type: 'line', connectNulls: false, showSymbol: false, smooth: true, data: item.points })) })
+  latencyChart.setOption({ ...common, yAxis: { type: 'value', min: 0, axisLabel: { color: text, formatter: '{value} ms' }, splitLine: { lineStyle: { color: border } } }, series: [...targets.values()].map(item => ({ name: item.name, type: 'line', connectNulls: false, showSymbol: false, smooth: true, data: item.points, tooltip: { valueFormatter: formatMilliseconds } })) })
   const trafficUnit = commonByteUnit(history.traffic.map(point => point.total_bytes))
   const trafficValue = (value: number) => formatBytesInUnit(value, trafficUnit)
   trafficChart.setOption({ ...common, tooltip: { ...common.tooltip, valueFormatter: trafficValue }, yAxis: { type: 'value', min: 0, name: `单位：${trafficUnit.label}`, nameTextStyle: { color: text }, axisLabel: { color: text, formatter: trafficValue }, splitLine: { lineStyle: { color: border } } }, series: [
@@ -136,7 +138,6 @@ async function renderCharts(history: HistoryResponse) {
   ] })
 }
 
-function formatBytes(value = 0, suffix = '') { const units = ['B', 'KB', 'MB', 'GB', 'TB']; let size = Math.max(0, value), index = 0; while (size >= 1024 && index < units.length - 1) { size /= 1024; index++ } return `${size.toFixed(index === 0 ? 0 : size >= 100 ? 0 : 1)} ${units[index]}${suffix}` }
 function disposeCharts() { resourceChart?.dispose(); latencyChart?.dispose(); trafficChart?.dispose(); resourceChart = latencyChart = trafficChart = undefined }
 function toggleTheme() { theme.value = theme.value === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = theme.value; localStorage.setItem('myprobe-theme', theme.value); void nextTick().then(loadHistory) }
 function resize() { resourceChart?.resize(); latencyChart?.resize(); trafficChart?.resize() }

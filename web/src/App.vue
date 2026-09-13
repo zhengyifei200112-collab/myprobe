@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { connectRealtime, fetchHistory, fetchNodes } from './api'
 import { DsCard, DsEmptyState, DsLoading, DsTabs } from './design-system'
 import PublicNodeCard from './public-dashboard/PublicNodeCard.vue'
-import { aggregateNode as aggregate, commonByteUnit, formatBytes, formatBytesInUnit } from './public-dashboard/metrics'
+import { aggregateNode as aggregate, commonByteUnit, formatBytesInUnit, formatMilliseconds, formatPercent } from './public-dashboard/metrics'
 import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
 import { defaultSiteSettings, normalizeSiteSettings, type HistoryRange, type HistoryResponse, type PublicNode, type RealtimeEvent, type SiteSettings, type ThemeMode } from './types'
 
@@ -52,6 +52,8 @@ const visibleNodes = computed(() => activeTag.value === '__all__'
 const onlineCount = computed(() => visibleNodes.value.filter((item) => item.online).length)
 const totalRate = computed(() => sumNetwork(visibleNodes.value, 'rate'))
 const totalTraffic = computed(() => sumNetwork(visibleNodes.value, 'total'))
+const totalRateUnit = computed(() => commonByteUnit([totalRate.value.up, totalRate.value.down]))
+const totalTrafficUnit = computed(() => commonByteUnit([totalTraffic.value.up, totalTraffic.value.down]))
 const publicBackgroundStyle = computed(() => ({ ...backgroundVariables(siteSettings.value.public_background), '--site-has-background': siteSettings.value.public_background.url ? '1' : '0' }))
 const themeAction = computed(() => theme.value === 'light' ? '深色' : theme.value === 'dark' ? '系统' : '浅色')
 
@@ -165,18 +167,21 @@ async function renderHistory(history: HistoryResponse) {
     grid: { left: 44, right: 48, top: 38, bottom: 28 },
     xAxis: { type: 'time', splitNumber: 4, axisLine: { lineStyle: { color: border } }, axisLabel: { color: text, fontSize: 9, hideOverlap: true } },
   }
+  const rateUnit = commonByteUnit(history.metrics.flatMap((point) => [point.tx_bytes_per_second, point.rx_bytes_per_second]))
+  const rateValue = (value: number) => formatBytesInUnit(value, rateUnit, '/s')
   resourceChart.setOption({
     ...common,
+    tooltip: { ...common.tooltip },
     yAxis: [
       { type: 'value', min: 0, max: 100, axisLabel: { color: text, formatter: '{value}%' }, splitLine: { lineStyle: { color: border } } },
-      { type: 'value', min: 0, axisLabel: { color: text, formatter: (value: number) => formatBytes(value, '/s') }, splitLine: { show: false } },
+      { type: 'value', min: 0, name: `单位：${rateUnit.label}/s`, nameTextStyle: { color: text }, axisLabel: { color: text, formatter: rateValue }, splitLine: { show: false } },
     ],
     series: [
-      { name: 'CPU', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map((p) => [p.time, p.cpu_percent]), lineStyle: { color: blue }, itemStyle: { color: blue } },
-      { name: '内存', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map((p) => [p.time, p.memory_percent]), lineStyle: { color: cyan }, itemStyle: { color: cyan } },
-      { name: '硬盘', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map((p) => [p.time, p.disk_percent]), lineStyle: { color: purple }, itemStyle: { color: purple } },
-      { name: '上传', type: 'line', yAxisIndex: 1, showSymbol: false, data: history.metrics.map((p) => [p.time, p.tx_bytes_per_second]), lineStyle: { color: orange }, itemStyle: { color: orange } },
-      { name: '下载', type: 'line', yAxisIndex: 1, showSymbol: false, data: history.metrics.map((p) => [p.time, p.rx_bytes_per_second]), lineStyle: { color: green }, itemStyle: { color: green } },
+      { name: 'CPU', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map((p) => [p.time, p.cpu_percent]), tooltip: { valueFormatter: formatPercent }, lineStyle: { color: blue }, itemStyle: { color: blue } },
+      { name: '内存', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map((p) => [p.time, p.memory_percent]), tooltip: { valueFormatter: formatPercent }, lineStyle: { color: cyan }, itemStyle: { color: cyan } },
+      { name: '硬盘', type: 'line', showSymbol: false, smooth: true, data: history.metrics.map((p) => [p.time, p.disk_percent]), tooltip: { valueFormatter: formatPercent }, lineStyle: { color: purple }, itemStyle: { color: purple } },
+      { name: '上传', type: 'line', yAxisIndex: 1, showSymbol: false, data: history.metrics.map((p) => [p.time, p.tx_bytes_per_second]), tooltip: { valueFormatter: rateValue }, lineStyle: { color: orange }, itemStyle: { color: orange } },
+      { name: '下载', type: 'line', yAxisIndex: 1, showSymbol: false, data: history.metrics.map((p) => [p.time, p.rx_bytes_per_second]), tooltip: { valueFormatter: rateValue }, lineStyle: { color: green }, itemStyle: { color: green } },
     ],
   })
   const targets = new Map<string, { name: string; points: Array<[string, number | null]> }>()
@@ -188,7 +193,7 @@ async function renderHistory(history: HistoryResponse) {
   latencyChart.setOption({
     ...common,
     yAxis: { type: 'value', min: 0, axisLabel: { color: text, formatter: '{value} ms' }, splitLine: { lineStyle: { color: border } } },
-    series: [...targets.values()].map((target) => ({ name: target.name, type: 'line', connectNulls: false, showSymbol: false, smooth: true, data: target.points })),
+    series: [...targets.values()].map((target) => ({ name: target.name, type: 'line', connectNulls: false, showSymbol: false, smooth: true, data: target.points, tooltip: { valueFormatter: formatMilliseconds } })),
   })
   const trafficUnit = commonByteUnit(history.traffic.map((point) => point.total_bytes))
   const trafficValue = (value: number) => formatBytesInUnit(value, trafficUnit)
@@ -316,15 +321,15 @@ onBeforeUnmount(() => {
         <DsCard as="article" padding="medium" class="overview-card overview-traffic-card">
           <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M10 19V5M15 19v-7M20 19V7"/><path d="M3.5 19.5h18"/></svg></span><span class="overview-title">累计流量</span></div>
           <div class="overview-content overview-pairline">
-            <span><small><i class="up-arrow">↑</i> 上传</small><strong class="overview-value">{{ formatBytes(totalTraffic.up) }}</strong></span>
-            <span><small><i class="down-arrow">↓</i> 下载</small><strong class="overview-value">{{ formatBytes(totalTraffic.down) }}</strong></span>
+            <span><small><i class="up-arrow">↑</i> 上传</small><strong class="overview-value">{{ formatBytesInUnit(totalTraffic.up, totalTrafficUnit) }}</strong></span>
+            <span><small><i class="down-arrow">↓</i> 下载</small><strong class="overview-value">{{ formatBytesInUnit(totalTraffic.down, totalTrafficUnit) }}</strong></span>
           </div>
         </DsCard>
         <DsCard as="article" padding="medium" class="overview-card overview-speed-card">
           <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5h4l2.2-4 4.2 15 2.5-8h4.1"/></svg></span><span class="overview-title">实时速率</span></div>
           <div class="overview-content overview-pairline">
-            <span><small><i class="up-arrow">↑</i> 上传</small><strong class="overview-value">{{ formatBytes(totalRate.up, '/s') }}</strong></span>
-            <span><small><i class="down-arrow">↓</i> 下载</small><strong class="overview-value">{{ formatBytes(totalRate.down, '/s') }}</strong></span>
+            <span><small><i class="up-arrow">↑</i> 上传</small><strong class="overview-value">{{ formatBytesInUnit(totalRate.up, totalRateUnit, '/s') }}</strong></span>
+            <span><small><i class="down-arrow">↓</i> 下载</small><strong class="overview-value">{{ formatBytesInUnit(totalRate.down, totalRateUnit, '/s') }}</strong></span>
           </div>
         </DsCard>
       </section>

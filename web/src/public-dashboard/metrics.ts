@@ -31,11 +31,21 @@ export interface ByteDisplayUnit {
 
 export function commonByteUnit(values: number[]): ByteDisplayUnit {
   const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
-  const maximum = Math.max(0, ...values.filter(Number.isFinite))
+  const maximum = values.reduce((current, value) => Number.isFinite(value) ? Math.max(current, value) : current, 0)
   const index = maximum > 0
     ? Math.min(Math.floor(Math.log(maximum) / Math.log(1024)), units.length - 1)
     : 0
   return { label: units[index], divisor: 1024 ** index }
+}
+
+export function formatPercent(value = 0) {
+  const normalized = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0))
+  return `${normalized.toFixed(1)}%`
+}
+
+export function formatMilliseconds(value = 0) {
+  const normalized = Math.max(0, Number.isFinite(value) ? value : 0)
+  return `${normalized.toFixed(1)} ms`
 }
 
 export function formatBytesInUnit(value: number, unit: ByteDisplayUnit, suffix = '') {
@@ -59,7 +69,7 @@ export function maskedIP(value?: string) {
 }
 
 export function percent(value = 0) {
-  return `${Math.max(0, Math.min(100, value)).toFixed(value >= 10 ? 0 : 1)}%`
+  return formatPercent(value)
 }
 
 export function resourceTone(value = 0): 'accent' | 'warning' | 'danger' {

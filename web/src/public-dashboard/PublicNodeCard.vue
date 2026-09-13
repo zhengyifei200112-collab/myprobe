@@ -7,10 +7,12 @@ import {
   expiry,
   expiryDate,
   formatBytes,
+  formatBytesInUnit,
   formatUptime,
   lastReport,
   latencyText,
   maskedIP,
+  commonByteUnit,
   offlineDuration,
   osName,
   percent,
@@ -22,6 +24,10 @@ const props = defineProps<{ item: PublicNode; displayMode: 'compact' | 'detailed
 defineEmits<{ open: [] }>()
 
 const metrics = computed(() => aggregateNode(props.item))
+const rateUnit = computed(() => commonByteUnit([metrics.value.txRate, metrics.value.rxRate]))
+const totalUnit = computed(() => commonByteUnit([metrics.value.txTotal, metrics.value.rxTotal]))
+const cycleUnit = computed(() => commonByteUnit([props.item.traffic?.tx_bytes || 0, props.item.traffic?.rx_bytes || 0]))
+const capacityUnit = computed(() => commonByteUnit([props.item.report?.memory.total_bytes || 0, metrics.value.diskTotal]))
 const status = computed(() => !props.item.online ? 'offline' : props.item.stale ? 'warning' : 'online')
 const statusLabel = computed(() => !props.item.online ? '离线' : props.item.stale ? '数据延迟' : '在线')
 const healthTitle = computed(() => !props.item.online ? '节点离线' : props.item.stale ? '连接在线，数据可能延迟' : '运行正常')
@@ -103,20 +109,20 @@ function countryCode(code: string) {
       <section class="public-node-card__network" aria-label="网络实时速率">
         <div><span>网络实时速率</span><small>{{ item.node.traffic_reset_day ? `每月 ${item.node.traffic_reset_day} 日重置` : '自然月重置' }}</small></div>
         <div class="public-node-card__rates">
-          <span><i aria-hidden="true">↑</i><small>上传</small><strong class="ds-tabular">{{ formatBytes(metrics.txRate, '/s') }}</strong></span>
-          <span><i aria-hidden="true">↓</i><small>下载</small><strong class="ds-tabular">{{ formatBytes(metrics.rxRate, '/s') }}</strong></span>
+          <span><i aria-hidden="true">↑</i><small>上传</small><strong class="ds-tabular">{{ formatBytesInUnit(metrics.txRate, rateUnit, '/s') }}</strong></span>
+          <span><i aria-hidden="true">↓</i><small>下载</small><strong class="ds-tabular">{{ formatBytesInUnit(metrics.rxRate, rateUnit, '/s') }}</strong></span>
         </div>
       </section>
 
       <div v-if="displayMode === 'detailed'" class="public-node-card__details">
         <dl class="public-node-card__hardware" aria-label="硬件概况">
           <div><dt>处理器</dt><dd>{{ item.report?.cpu.logical_cores || '—' }} 核</dd></div>
-          <div><dt>内存容量</dt><dd>{{ formatBytes(item.report?.memory.total_bytes || 0) }}</dd></div>
-          <div><dt>磁盘容量</dt><dd>{{ formatBytes(metrics.diskTotal) }}</dd></div>
+          <div><dt>内存容量</dt><dd>{{ formatBytesInUnit(item.report?.memory.total_bytes || 0, capacityUnit) }}</dd></div>
+          <div><dt>磁盘容量</dt><dd>{{ formatBytesInUnit(metrics.diskTotal, capacityUnit) }}</dd></div>
         </dl>
         <section class="public-node-card__traffic" aria-label="流量详情">
-          <div><span>{{ item.node.use_since_boot ? '开机累计' : '累计流量' }}</span><strong>↑ {{ formatBytes(metrics.txTotal) }} · ↓ {{ formatBytes(metrics.rxTotal) }}</strong></div>
-          <div><span>本周期</span><strong>↑ {{ formatBytes(item.traffic?.tx_bytes || 0) }} · ↓ {{ formatBytes(item.traffic?.rx_bytes || 0) }}</strong></div>
+          <div><span>{{ item.node.use_since_boot ? '开机累计' : '累计流量' }}</span><strong>↑ {{ formatBytesInUnit(metrics.txTotal, totalUnit) }} · ↓ {{ formatBytesInUnit(metrics.rxTotal, totalUnit) }}</strong></div>
+          <div><span>本周期</span><strong>↑ {{ formatBytesInUnit(item.traffic?.tx_bytes || 0, cycleUnit) }} · ↓ {{ formatBytesInUnit(item.traffic?.rx_bytes || 0, cycleUnit) }}</strong></div>
         </section>
 
         <section class="public-node-card__latency" aria-label="网络延迟">
