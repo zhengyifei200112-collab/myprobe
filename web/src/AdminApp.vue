@@ -486,9 +486,10 @@ onMounted(async () => {
 
 <template>
   <div class="admin-shell site-background" :style="adminBackgroundStyle">
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
     <header class="admin-nav">
       <a class="brand" href="/"><img v-if="siteSettings.logo_url" class="brand-logo" :src="siteSettings.logo_url" alt=""><span v-else class="brand-mark">MP</span><span>{{ siteSettings.site_name || 'MyProbe' }} <small>管理中心</small></span></a>
-      <nav v-if="authenticated" class="admin-tabs">
+      <nav v-if="authenticated" class="admin-tabs" aria-label="管理中心导航">
         <button :class="{ active: tab === 'nodes' }" @click="tab = 'nodes'">节点</button>
         <button :class="{ active: tab === 'targets' }" @click="tab = 'targets'">探测目标</button>
         <button :class="{ active: tab === 'alerts' }" @click="tab = 'alerts'">告警</button>
@@ -498,17 +499,17 @@ onMounted(async () => {
       <div class="nav-actions"><a class="soft-button" href="/">公开面板</a><button v-if="authenticated" class="soft-button" @click="signOut">退出</button></div>
     </header>
 
-    <main v-if="booting" class="state-panel"><div class="loader"></div><p>正在恢复管理会话…</p></main>
-    <main v-else-if="!authenticated" class="login-wrap">
+    <main v-if="booting" id="main-content" class="state-panel" tabindex="-1" role="status"><div class="loader"></div><p>正在恢复管理会话…</p></main>
+    <main v-else-if="!authenticated" id="main-content" class="login-wrap" tabindex="-1">
       <section class="admin-panel login-card">
         <header><span class="eyebrow">SECURE CONSOLE</span><h1>登录管理中心</h1><p>使用管理员密码，或通过已授权的 GitHub 账号继续。</p></header>
-        <form @submit.prevent="submitLogin"><label>用户名<input v-model="username" autocomplete="username" required></label><label>密码<input v-model="password" type="password" autocomplete="current-password" required></label><label v-if="captchaPrompt">安全验证：{{ captchaPrompt }}<input v-model="captchaAnswer" inputmode="numeric" autocomplete="off" required></label><p v-if="notice" class="form-message success">{{ notice }}</p><p v-if="error" class="form-message error">{{ error }}</p><button class="primary-button" :disabled="busy">{{ busy ? '登录中…' : '使用密码登录' }}</button></form>
+        <form @submit.prevent="submitLogin"><label>用户名<input v-model="username" autocomplete="username" required></label><label>密码<input v-model="password" type="password" autocomplete="current-password" required></label><label v-if="captchaPrompt">安全验证：{{ captchaPrompt }}<input v-model="captchaAnswer" inputmode="numeric" autocomplete="off" required></label><p v-if="notice" class="form-message success" role="status">{{ notice }}</p><p v-if="error" class="form-message error" role="alert">{{ error }}</p><button class="primary-button" :disabled="busy">{{ busy ? '登录中…' : '使用密码登录' }}</button></form>
         <div v-if="githubEnabled" class="login-divider"><span>或</span></div><a v-if="githubEnabled" class="github-login-button" href="/api/v1/auth/github/start"><span aria-hidden="true">GH</span>使用 GitHub 登录</a><p class="login-security-note">受 HttpOnly 会话、CSRF 防护与登录限速保护</p>
       </section>
     </main>
 
-    <main v-else class="admin-main">
-      <div v-if="error" class="admin-alert error">{{ error }}</div><div v-if="notice" class="admin-alert success">{{ notice }}</div>
+    <main v-else id="main-content" class="admin-main" tabindex="-1">
+      <div v-if="error" class="admin-alert error" role="alert">{{ error }}</div><div v-if="notice" class="admin-alert success" role="status">{{ notice }}</div>
 
       <template v-if="tab === 'nodes'">
         <section class="admin-heading">

@@ -18,9 +18,19 @@ async function toggle() {
   } else document.removeEventListener('pointerdown', outside)
 }
 function outside(event: PointerEvent) { if (!root.value?.contains(event.target as Node)) close() }
+const items = () => Array.from(root.value?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? [])
 function keydown(event: KeyboardEvent) {
   if (event.key === 'Escape') { close(); root.value?.querySelector<HTMLElement>('.ds-dropdown__trigger')?.focus() }
-  if (event.key === 'ArrowDown' && open.value) { event.preventDefault(); root.value?.querySelector<HTMLElement>('[role="menuitem"]')?.focus() }
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+    if (event.key === 'Tab') close()
+    return
+  }
+  event.preventDefault()
+  const menuItems = items()
+  if (!open.value) { void toggle().then(() => items()[event.key === 'ArrowUp' ? items().length - 1 : 0]?.focus()); return }
+  const current = menuItems.indexOf(document.activeElement as HTMLElement)
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? menuItems.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + menuItems.length) % menuItems.length
+  menuItems[next]?.focus()
 }
 onBeforeUnmount(() => document.removeEventListener('pointerdown', outside))
 defineExpose({ close })

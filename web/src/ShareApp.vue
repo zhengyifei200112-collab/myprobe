@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { commonByteUnit, formatBytesInUnit, formatMilliseconds, formatPercent } from './public-dashboard/metrics'
+import { updateThemeColor } from './appearance'
 import type { HistoryRange, HistoryResponse, PublicNode } from './types'
 
 type Theme = 'light' | 'dark'
@@ -116,7 +117,7 @@ async function renderCharts(history: HistoryResponse) {
   const styles = getComputedStyle(document.documentElement)
   const color = (name: string) => styles.getPropertyValue(name).trim()
   const text = color('--muted'), border = color('--border'), blue = color('--blue'), cyan = color('--cyan'), green = color('--green'), orange = color('--orange'), purple = color('--purple')
-  const common = { animationDuration: 300, textStyle: { color: text, fontFamily: 'inherit' }, tooltip: { trigger: 'axis', backgroundColor: color('--surface-strong'), borderColor: border, textStyle: { color: color('--text') } }, legend: { top: 0, textStyle: { color: text } }, grid: { left: 48, right: 52, top: 38, bottom: 28 }, xAxis: { type: 'time', splitNumber: 4, axisLine: { lineStyle: { color: border } }, axisLabel: { color: text, fontSize: 9, hideOverlap: true } } }
+  const common = { animationDuration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300, textStyle: { color: text, fontFamily: 'inherit' }, tooltip: { trigger: 'axis', backgroundColor: color('--surface-strong'), borderColor: border, textStyle: { color: color('--text') } }, legend: { top: 0, textStyle: { color: text } }, grid: { left: 48, right: 52, top: 38, bottom: 28 }, xAxis: { type: 'time', splitNumber: 4, axisLine: { lineStyle: { color: border } }, axisLabel: { color: text, fontSize: 9, hideOverlap: true } } }
   const rateUnit = commonByteUnit(history.metrics.flatMap(point => [point.tx_bytes_per_second, point.rx_bytes_per_second]))
   const rateValue = (value: number) => formatBytesInUnit(value, rateUnit, '/s')
   resourceChart.setOption({ ...common, yAxis: [{ type: 'value', min: 0, max: 100, axisLabel: { color: text, formatter: '{value}%' }, splitLine: { lineStyle: { color: border } } }, { type: 'value', min: 0, name: `单位：${rateUnit.label}/s`, nameTextStyle: { color: text }, axisLabel: { color: text, formatter: rateValue }, splitLine: { show: false } }], series: [
@@ -139,19 +140,20 @@ async function renderCharts(history: HistoryResponse) {
 }
 
 function disposeCharts() { resourceChart?.dispose(); latencyChart?.dispose(); trafficChart?.dispose(); resourceChart = latencyChart = trafficChart = undefined }
-function toggleTheme() { theme.value = theme.value === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = theme.value; localStorage.setItem('myprobe-theme', theme.value); void nextTick().then(loadHistory) }
+function toggleTheme() { theme.value = theme.value === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = theme.value; updateThemeColor(); localStorage.setItem('myprobe-theme', theme.value); void nextTick().then(loadHistory) }
 function resize() { resourceChart?.resize(); latencyChart?.resize(); trafficChart?.resize() }
 
-onMounted(() => { document.documentElement.dataset.theme = theme.value; window.addEventListener('resize', resize); void loadMeta() })
+onMounted(() => { document.documentElement.dataset.theme = theme.value; updateThemeColor(); window.addEventListener('resize', resize); void loadMeta() })
 onBeforeUnmount(() => { window.removeEventListener('resize', resize); disposeCharts() })
 </script>
 
 <template>
   <div class="share-shell">
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
     <header class="admin-nav"><a class="brand" href="/"><span class="brand-mark">MP</span><span>MyProbe <small>安全共享</small></span></a><div class="nav-actions"><button class="soft-button" @click="toggleTheme">{{ theme === 'light' ? '深色' : '浅色' }}</button><button v-if="authenticated" class="soft-button" @click="logout">退出</button></div></header>
-    <main v-if="loading" class="state-panel"><div class="loader"></div><p>正在验证分享链接…</p></main>
-    <main v-else-if="!available" class="state-panel"><div class="empty-icon">×</div><p>{{ error || '分享链接不存在或已停用。' }}</p></main>
-    <main v-else-if="!authenticated" class="login-wrap"><form class="admin-panel login-card" @submit.prevent="login"><span class="eyebrow">PROTECTED CHARTS</span><h1>{{ name }}</h1><p>此图表由密码保护，请输入分享密码继续。</p><label>分享密码<input v-model="password" type="password" autocomplete="current-password" required autofocus></label><p v-if="error" class="form-message error">{{ error }}</p><button class="primary-button" :disabled="busy">{{ busy ? '验证中…' : '查看图表' }}</button></form></main>
-    <main v-else class="share-main"><section class="admin-heading"><div><span class="eyebrow">READ-ONLY MONITORING</span><h1>{{ name }}</h1><p>仅展示分享范围内的节点历史数据。</p></div><span class="count-pill">{{ nodes.length }} 个节点</span></section><div v-if="error" class="admin-alert error">{{ error }}</div><div v-if="!nodes.length" class="admin-panel empty-admin">分享范围内暂无可用节点</div><template v-else><nav class="share-controls admin-panel"><label>节点<select v-model="selectedID" @change="loadHistory"><option v-for="item in nodes" :key="item.node.id" :value="item.node.id">{{ item.node.name }}</option></select></label><div class="range-switch"><button v-for="item in ranges" :key="item" :class="{ active: range === item }" :disabled="busy" @click="range = item; loadHistory()">{{ item }}</button></div></nav><section class="share-chart-grid"><article class="chart-block"><h3>资源与实时速率</h3><div ref="resourceElement" class="chart-canvas"></div></article><article class="chart-block"><h3>Ping / TCPing 延迟</h3><div ref="latencyElement" class="chart-canvas"></div></article><article class="chart-block full"><h3>上传 / 下载 / 总流量累计</h3><div ref="trafficElement" class="chart-canvas"></div></article></section></template></main>
+    <main v-if="loading" id="main-content" class="state-panel" tabindex="-1" role="status"><div class="loader"></div><p>正在验证分享链接…</p></main>
+    <main v-else-if="!available" id="main-content" class="state-panel" tabindex="-1"><div class="empty-icon">×</div><p role="alert">{{ error || '分享链接不存在或已停用。' }}</p></main>
+    <main v-else-if="!authenticated" id="main-content" class="login-wrap" tabindex="-1"><form class="admin-panel login-card" @submit.prevent="login"><span class="eyebrow">PROTECTED CHARTS</span><h1>{{ name }}</h1><p>此图表由密码保护，请输入分享密码继续。</p><label>分享密码<input v-model="password" type="password" autocomplete="current-password" required autofocus></label><p v-if="error" class="form-message error" role="alert">{{ error }}</p><button class="primary-button" :disabled="busy">{{ busy ? '验证中…' : '查看图表' }}</button></form></main>
+    <main v-else id="main-content" class="share-main" tabindex="-1"><section class="admin-heading"><div><span class="eyebrow">READ-ONLY MONITORING</span><h1>{{ name }}</h1><p>仅展示分享范围内的节点历史数据。</p></div><span class="count-pill">{{ nodes.length }} 个节点</span></section><div v-if="error" class="admin-alert error" role="alert">{{ error }}</div><div v-if="!nodes.length" class="admin-panel empty-admin">分享范围内暂无可用节点</div><template v-else><nav class="share-controls admin-panel" aria-label="历史图表筛选"><label>节点<select v-model="selectedID" @change="loadHistory"><option v-for="item in nodes" :key="item.node.id" :value="item.node.id">{{ item.node.name }}</option></select></label><div class="range-switch"><button v-for="item in ranges" :key="item" :class="{ active: range === item }" :aria-pressed="range === item" :disabled="busy" @click="range = item; loadHistory()">{{ item }}</button></div></nav><section class="share-chart-grid"><article class="chart-block"><h3>资源与实时速率</h3><div ref="resourceElement" class="chart-canvas" role="img" aria-label="CPU、内存、硬盘使用率和上传下载实时速率历史图表"></div></article><article class="chart-block"><h3>Ping / TCPing 延迟</h3><div ref="latencyElement" class="chart-canvas" role="img" aria-label="Ping 和 TCPing 延迟历史图表"></div></article><article class="chart-block full"><h3>上传 / 下载 / 总流量累计</h3><div ref="trafficElement" class="chart-canvas" role="img" aria-label="上传、下载和总流量累计历史图表"></div></article></section></template></main>
   </div>
 </template>

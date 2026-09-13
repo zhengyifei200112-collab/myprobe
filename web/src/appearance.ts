@@ -17,6 +17,7 @@ export function applyAppearance(settings: SiteSettings, localTheme?: ThemeMode) 
   root.style.setProperty('--accent-hover', accent.hover)
   root.style.setProperty('--accent-pressed', accent.pressed)
   root.style.setProperty('--accent-soft', accent.soft)
+  updateThemeColor()
   document.title = settings.browser_title || `${settings.site_name || 'MyProbe'} · 服务器探针`
   updateFavicon(settings.favicon_url)
 }
@@ -36,7 +37,18 @@ export function applyCachedAppearance() {
     root.style.setProperty('--accent-hover', accent.hover)
     root.style.setProperty('--accent-pressed', accent.pressed)
     root.style.setProperty('--accent-soft', accent.soft)
+    updateThemeColor()
   } catch { document.documentElement.dataset.theme = 'system' }
+}
+
+export function updateThemeColor() {
+  let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+  if (!meta) {
+    meta = document.createElement('meta')
+    meta.name = 'theme-color'
+    document.head.appendChild(meta)
+  }
+  meta.content = getComputedStyle(document.documentElement).getPropertyValue('--background').trim() || '#f5f5f7'
 }
 
 export function backgroundVariables(background?: BackgroundSettings) {

@@ -14,6 +14,7 @@ const panel = ref<HTMLElement>()
 const titleID = useId()
 const descriptionID = useId()
 let previousFocus: HTMLElement | null = null
+let locked = false
 
 const focusable = () => Array.from(panel.value?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])') ?? [])
 
@@ -47,16 +48,18 @@ function keydown(event: KeyboardEvent) {
 
 watch(() => props.open, async (open) => {
   if (open) {
+    if (!locked) { document.body.classList.add('has-modal'); locked = true }
     previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
     await nextTick()
     ;(panel.value?.querySelector<HTMLElement>('[autofocus]') ?? focusable()[0] ?? panel.value)?.focus()
   } else {
+    if (locked) { document.body.classList.remove('has-modal'); locked = false }
     previousFocus?.focus()
     previousFocus = null
   }
 }, { immediate: true })
 
-onBeforeUnmount(() => previousFocus?.focus())
+onBeforeUnmount(() => { previousFocus?.focus(); if (locked) document.body.classList.remove('has-modal') })
 </script>
 
 <template>

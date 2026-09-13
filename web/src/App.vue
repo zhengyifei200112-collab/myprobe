@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { connectRealtime, fetchHistory, fetchNodes } from './api'
 import { DsCard, DsEmptyState, DsLoading, DsTabs } from './design-system'
 import PublicNodeCard from './public-dashboard/PublicNodeCard.vue'
@@ -35,6 +35,7 @@ let resourceChart: any
 let latencyChart: any
 let trafficChart: any
 let historyTrigger: HTMLElement | null = null
+const systemTheme = matchMedia('(prefers-color-scheme: dark)')
 
 const sortedNodes = computed(() => [...nodes.value].sort((a, b) => a.node.sort_order - b.node.sort_order || a.node.name.localeCompare(b.node.name)))
 const tags = computed(() => {
@@ -160,7 +161,7 @@ async function renderHistory(history: HistoryResponse) {
   const orange = styles.getPropertyValue('--orange').trim()
   const purple = styles.getPropertyValue('--purple').trim()
   const common = {
-    animationDuration: 300,
+    animationDuration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300,
     textStyle: { color: text, fontFamily: 'inherit' },
     tooltip: { trigger: 'axis', backgroundColor: styles.getPropertyValue('--surface-strong').trim(), borderColor: border, textStyle: { color: styles.getPropertyValue('--text').trim() } },
     legend: { top: 0, textStyle: { color: text } },
@@ -223,11 +224,30 @@ function closeHistory() {
   })
 }
 
+function chartKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') { event.preventDefault(); closeHistory(); return }
+  if (event.key !== 'Tab' || !chartDialogElement.value) return
+  const focusable = Array.from(chartDialogElement.value.querySelectorAll<HTMLElement>('button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'))
+  if (!focusable.length) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+}
+
 function resizeCharts() {
   resourceChart?.resize()
   latencyChart?.resize()
   trafficChart?.resize()
 }
+
+function systemThemeChanged() {
+  if (theme.value !== 'system') return
+  applyAppearance(siteSettings.value, theme.value)
+  if (chartNode.value) void loadHistory()
+}
+
+watch(chartNode, (open) => document.body.classList.toggle('has-modal', Boolean(open)))
 
 onMounted(() => {
   document.documentElement.dataset.theme = theme.value
@@ -238,12 +258,15 @@ onMounted(() => {
   }, (state) => { connected.value = state })
   clock = window.setInterval(() => { now.value = new Date() }, 1000)
   window.addEventListener('resize', resizeCharts)
+  systemTheme.addEventListener('change', systemThemeChanged)
 })
 
 onBeforeUnmount(() => {
   disconnect?.()
   if (clock !== undefined) window.clearInterval(clock)
   window.removeEventListener('resize', resizeCharts)
+  systemTheme.removeEventListener('change', systemThemeChanged)
+  document.body.classList.remove('has-modal')
   resourceChart?.dispose()
   latencyChart?.dispose()
   trafficChart?.dispose()
@@ -252,6 +275,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="app-shell site-background" :style="publicBackgroundStyle">
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
     <header class="navbar">
       <div class="navbar-inner">
         <a class="brand" href="/" :aria-label="`${siteSettings.site_name || 'MyProbe'} 首页`">
@@ -288,14 +312,14 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <main>
+    <main id="main-content" tabindex="-1">
       <section class="dashboard-intro" aria-labelledby="dashboard-title">
         <div>
           <div class="dashboard-eyebrow">Infrastructure overview</div>
           <h1 id="dashboard-title">{{ siteSettings.dashboard_title || siteSettings.site_title }}</h1>
           <p>{{ siteSettings.dashboard_description || siteSettings.site_description }}</p>
         </div>
-        <div class="live-badge" :class="{ reconnecting: !connected }" :title="connected ? 'WebSocket 实时连接正常' : '正在重新连接实时数据'">
+        <div class="live-badge" :class="{ reconnecting: !connected }" role="status" aria-live="polite" :title="connected ? 'WebSocket 实时连接正常' : '正在重新连接实时数据'">
           <span class="live-dot" aria-hidden="true"></span>
           {{ connected ? '实时监控中' : '正在重连' }}
         </div>
@@ -344,7 +368,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <div v-if="error" class="notice">{{ error }}，当前展示最后缓存数据。</div>
+      <div v-if="error" class="notice" role="alert">{{ error }}，当前展示最后缓存数据。</div>
       <DsLoading v-if="loading" label="正在读取节点" />
       <DsEmptyState v-else-if="visibleNodes.length === 0" title="还没有可显示的节点" description="在管理后台注册第一台服务器后，数据会实时出现在这里。">
         <template #icon><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="6" rx="2"/><rect x="4" y="14" width="16" height="5" rx="2"/><path d="M8 8h.01M8 16.5h.01"/></svg></template>
@@ -362,7 +386,7 @@ onBeforeUnmount(() => {
       </section>
     </main>
 
-    <div v-if="chartNode" class="chart-overlay" @click.self="closeHistory" @keydown.esc="closeHistory">
+    <div v-if="chartNode" class="chart-overlay" @click.self="closeHistory" @keydown="chartKeydown">
       <section ref="chartDialogElement" class="chart-dialog" role="dialog" aria-modal="true" :aria-label="`${chartNode.node.name} 历史图表`">
         <header>
           <div><small>节点历史</small><strong>{{ chartNode.node.name }}</strong></div>
@@ -371,19 +395,19 @@ onBeforeUnmount(() => {
         <nav class="range-switch" aria-label="历史时间范围">
           <button v-for="item in historyRanges" :key="item" type="button" :class="{ active: chartRange === item }" @click="chartRange = item; loadHistory()">{{ item }}</button>
         </nav>
-        <p v-if="chartError" class="chart-message error">{{ chartError }}</p>
-        <p v-else-if="chartLoading" class="chart-message">正在读取并聚合历史数据…</p>
+        <p v-if="chartError" class="chart-message error" role="alert">{{ chartError }}</p>
+        <p v-else-if="chartLoading" class="chart-message" role="status" aria-live="polite">正在读取并聚合历史数据…</p>
         <div class="chart-block">
           <h3>资源与实时速率</h3>
-          <div ref="resourceChartElement" class="chart-canvas"></div>
+          <div ref="resourceChartElement" class="chart-canvas" role="img" aria-label="CPU、内存、硬盘使用率和上传下载实时速率历史图表"></div>
         </div>
         <div class="chart-block">
           <h3>Ping / TCPing 延迟</h3>
-          <div ref="latencyChartElement" class="chart-canvas"></div>
+          <div ref="latencyChartElement" class="chart-canvas" role="img" aria-label="Ping 和 TCPing 延迟历史图表"></div>
         </div>
         <div class="chart-block">
           <h3>上传 / 下载 / 总流量累计</h3>
-          <div ref="trafficChartElement" class="chart-canvas"></div>
+          <div ref="trafficChartElement" class="chart-canvas" role="img" aria-label="上传、下载和总流量累计历史图表"></div>
         </div>
       </section>
     </div>
