@@ -22,6 +22,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   public dashboard title/description, and sanitized header/footer content.
 - Ping and TCPing targets can now be assigned directly to selected nodes from either
   the target editor or the node editor.
+- A unified notification workspace supports encrypted Webhook, Telegram, Discord, and
+  STARTTLS SMTP channels, test delivery, alert rules, reusable templates, recovery
+  notifications, cooldowns, deduplication, and delivery history.
+- Optional GitHub OAuth authentication uses single-use expiring state values and a
+  case-insensitive username allowlist while retaining password login as a safe fallback.
+- Reviewed Nginx and Cloudflare configuration provides the production HTTPS domain,
+  WebSocket upgrades, real-client-IP handling, HSTS, and certificate renewal hooks.
 
 ### Changed
 
@@ -42,6 +49,15 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Increased dashboard typography and numeric hierarchy, tightened the node-toolbar
   spacing, and replaced character glyphs with a consistent responsive SVG icon set.
 - Replaced platform-dependent flag emoji with bundled country flag artwork.
+- Standardized percentages, byte totals, transfer rates, latency, temperatures, load,
+  process counts, uptime, and chart tooltips across the dashboard and history views.
+- Polished public and administration layouts at phone, tablet, laptop, desktop, and
+  ultra-wide breakpoints, including safe-area handling and reduced-motion behavior.
+
+### Fixed
+
+- Reworked long-range history aggregation to avoid a correlated rollup scan that could
+  leave node history charts waiting indefinitely on larger SQLite databases.
 
 ## [0.2.1] - 2026-07-22
 

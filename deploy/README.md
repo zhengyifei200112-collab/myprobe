@@ -89,6 +89,29 @@ The named `myprobe-data` volume contains SQLite and must be included in host bac
 Keep `MYPROBE_ENCRYPTION_KEY` in a separate secret backup because encrypted notification
 credentials cannot be recovered without it.
 
+### Safe container upgrades and rollback
+
+Before changing the Server image, create an online, consistent SQLite snapshot outside
+the Git checkout and protect it with mode `0600`:
+
+```sh
+volume_path="$(docker volume inspect myprobe_myprobe-data --format '{{.Mountpoint}}')"
+backup_dir="/opt/myprobe/backups/$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -m 0700 "$backup_dir"
+sqlite3 "$volume_path/myprobe.db" ".timeout 30000" ".backup '$backup_dir/myprobe.db'"
+chmod 0600 "$backup_dir/myprobe.db"
+sqlite3 -readonly "$backup_dir/myprobe.db" 'PRAGMA integrity_check;'
+sha256sum "$backup_dir/myprobe.db"
+```
+
+Pin `MYPROBE_IMAGE` to an immutable image tag, run
+`docker compose up -d --no-build myprobe`, and verify `/healthz`, database integrity,
+node counts, current Agent reports, and the canonical HTTPS URL. Database migrations are
+forward-only. To roll back across a migration boundary, stop only the Server container,
+preserve the failed database, restore the verified pre-upgrade snapshot to
+`myprobe.db` with ownership matching the volume, pin the previous image, and start the
+Server again. Do not replace the database while the Server is writing to it.
+
 ### Nginx + Cloudflare HTTPS
 
 The reviewed production templates for `probe.20011008.xyz` are in `deploy/nginx/`.
