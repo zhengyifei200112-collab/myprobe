@@ -58,6 +58,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Reworked long-range history aggregation to avoid a correlated rollup scan that could
   leave node history charts waiting indefinitely on larger SQLite databases.
+- Aligned public node facts, resource usage, network rates, and hardware capacity to a
+  shared three-column grid so detailed cards remain orderly across node states.
 
 ## [0.2.1] - 2026-07-22
 

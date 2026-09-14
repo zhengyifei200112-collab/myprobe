@@ -169,7 +169,7 @@ function countryCode(code: string) {
 .public-node-card--warning::before { background: var(--warning); }
 .public-node-card--offline::before { background: var(--danger); }
 .public-node-card--offline { background: color-mix(in srgb, var(--danger) 2.5%, var(--surface)); }
-.public-node-card__inner { padding: var(--space-6); display: grid; gap: var(--space-5); }
+.public-node-card__inner { --metric-grid-gap: var(--space-4); padding: var(--space-6); display: grid; gap: var(--space-5); }
 .public-node-card__header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
 .public-node-card__identity { min-width: 0; display: flex; align-items: center; gap: var(--space-3); }
 .public-node-card__identity > div { min-width: 0; display: grid; gap: var(--space-1); }
@@ -183,26 +183,26 @@ function countryCode(code: string) {
 .public-node-card__health p { margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); }
 .public-node-card__offline { padding: var(--space-3) var(--space-4); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); border: 1px solid color-mix(in srgb, var(--danger) 22%, var(--border)); border-radius: var(--radius-control); background: var(--danger-soft); color: var(--danger); font-size: var(--font-size-xs); }
 .public-node-card__offline strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
-.public-node-card__facts { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.public-node-card__facts { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--metric-grid-gap); }
 .public-node-card__facts > div { min-width: 0; padding: var(--space-3); border-radius: var(--radius-control); background: var(--surface-secondary); }
 .public-node-card__facts dt { color: var(--text-tertiary); font-size: var(--font-size-xs); }
 .public-node-card__facts dd { margin: var(--space-1) 0 0; overflow: hidden; color: var(--text-primary); text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); }
-.public-node-card__resources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+.public-node-card__resources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--metric-grid-gap); }
 .public-node-card__resources > div { min-width: 0; }
 .public-node-card__resources > div > span { margin-bottom: var(--space-2); display: flex; justify-content: space-between; gap: var(--space-2); color: var(--text-secondary); font-size: var(--font-size-xs); }
 .public-node-card__resources b { font-weight: var(--font-weight-medium); }
 .public-node-card__resources strong { color: var(--text-primary); }
-.public-node-card__network { padding-top: var(--space-4); display: grid; grid-template-columns: minmax(8rem, .75fr) minmax(0, 1.25fr); align-items: center; gap: var(--space-4); border-top: 1px solid var(--border); }
+.public-node-card__network { padding-top: var(--space-4); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: var(--metric-grid-gap); border-top: 1px solid var(--border); }
 .public-node-card__network > div:first-child { display: grid; gap: var(--space-1); }
 .public-node-card__network > div:first-child > span { color: var(--text-primary); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); }
 .public-node-card__network small { color: var(--text-tertiary); font-size: var(--font-size-xs); }
-.public-node-card__rates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.public-node-card__rates { display: contents; }
 .public-node-card__rates > span { min-width: 0; display: grid; grid-template-columns: auto auto; align-items: baseline; justify-content: start; gap: var(--space-1); }
 .public-node-card__rates i { color: var(--accent); font-style: normal; }
 .public-node-card__rates > span:last-child i { color: var(--info); }
 .public-node-card__rates strong { grid-column: 1 / -1; overflow: hidden; color: var(--text-primary); text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-sm); }
 .public-node-card__details { display: grid; gap: var(--space-4); }
-.public-node-card__hardware { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.public-node-card__hardware { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--metric-grid-gap); }
 .public-node-card__hardware div { min-width: 0; }
 .public-node-card__hardware dt { color: var(--text-tertiary); font-size: var(--font-size-xs); }
 .public-node-card__hardware dd { margin: var(--space-1) 0 0; overflow: hidden; color: var(--text-primary); text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); }
@@ -243,6 +243,7 @@ function countryCode(code: string) {
   .public-node-card__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .public-node-card__facts > div:last-child { grid-column: 1 / -1; }
   .public-node-card__network { grid-template-columns: 1fr; }
+  .public-node-card__rates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--metric-grid-gap); }
   .public-node-card__latency-grid { grid-template-columns: 1fr; }
   .public-node-card__footer { align-items: flex-start; }
 }
