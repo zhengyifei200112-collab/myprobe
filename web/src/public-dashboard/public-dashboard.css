@@ -131,7 +131,7 @@
 .filter-section { min-width: 0; max-width: 62%; overflow-x: auto; scrollbar-width: none; }
 .filter-section::-webkit-scrollbar { display: none; }
 .app-shell .notice { margin: 0 0 var(--space-5); padding: var(--space-3) var(--space-4); border: 1px solid color-mix(in srgb, var(--warning) 22%, var(--border)); border-radius: var(--radius-control); background: var(--warning-soft); color: var(--warning); font-size: var(--font-size-xs); }
-.app-shell .node-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--space-5); }
+.app-shell .node-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: var(--space-5); }
 .app-shell .ds-empty__icon svg { width: 1.5rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
 
 .chart-overlay { background: var(--overlay); backdrop-filter: blur(8px); }
@@ -143,12 +143,20 @@
   .app-shell .overview-card:nth-child(-n+2) { border-bottom: 1px solid var(--border); }
 }
 
+@media (min-width: 1800px) {
+  .app-shell .node-grid.compact { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1099px) {
+  .app-shell .node-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 900px) {
   .nodes-toolbar { align-items: stretch; flex-direction: column; gap: var(--space-4); }
   .filter-section { max-width: 100%; }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 899px) {
   .app-shell .node-grid { grid-template-columns: 1fr; }
 }
 
