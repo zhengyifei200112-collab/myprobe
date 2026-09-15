@@ -5,6 +5,57 @@ html, body, #app, .app-shell, .admin-shell, .share-shell { max-width: 100%; over
 .admin-node-card__identity > div { min-width: 0; }
 .site-background > .chart-overlay { position: fixed; z-index: var(--z-overlay); }
 
+/* Keep feature forms visually aligned with the design-system controls. These
+   screens still use native form elements because their fields change by provider. */
+:is(.notification-center .editor, .notification-center .history-filters, .auth-form)
+  :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  outline: 0;
+  background: var(--surface-solid);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-xs);
+  font-size: var(--font-size-sm);
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+:is(.notification-center .editor, .notification-center .history-filters, .auth-form)
+  :is(input:not([type='checkbox']):not([type='radio']), select) {
+  height: var(--control-height);
+  min-height: var(--control-height);
+  padding: 0 var(--space-4);
+}
+
+:is(.notification-center .editor, .auth-form) textarea {
+  min-height: calc(var(--control-height) * 2);
+  padding: var(--space-3) var(--space-4);
+  resize: vertical;
+  line-height: var(--line-height-body);
+}
+
+:is(.notification-center .editor, .notification-center .history-filters, .auth-form)
+  :is(input:not([type='checkbox']):not([type='radio']), textarea)::placeholder {
+  color: var(--text-tertiary);
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :is(.notification-center .editor, .notification-center .history-filters, .auth-form)
+    :is(input:not([type='checkbox']):not([type='radio']), select, textarea):hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--text-tertiary) 45%, var(--border));
+  }
+}
+
+:is(.notification-center .editor, .notification-center .history-filters, .auth-form)
+  :is(input:not([type='checkbox']):not([type='radio']), select, textarea):focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
 .skip-link {
   position: fixed;
   top: var(--space-3);

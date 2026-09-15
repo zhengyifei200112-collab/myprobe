@@ -57,6 +57,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Unified notification and GitHub OAuth form controls with the larger design-system
+  sizing, rounded surfaces, spacing, hover states, and accessible focus treatment.
 - Reworked long-range history aggregation to avoid a correlated rollup scan that could
   leave node history charts waiting indefinitely on larger SQLite databases.
 - Aligned public node facts, resource usage, network rates, and hardware capacity to a
