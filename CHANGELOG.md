@@ -38,14 +38,15 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   responsive layout, focused node metadata, grouped settings navigation, an add-node
   sheet, read-only configuration summaries, compact action menus, and accessible
   confirmations for destructive node operations.
-- Redesigned the public dashboard around four focused summary cards and responsive
-  two-column node cards that prioritize health, resources, network rate, and clear
-  offline reporting while preserving detailed traffic, latency, and history views.
+- Redesigned the public dashboard around four focused summary cards and adaptive
+  one/two/three-column node cards, with an optional four-column compact ultra-wide
+  layout, prioritizing health, resources, network rate, and clear offline reporting
+  while preserving detailed traffic, latency, and history views.
 - Removed the standalone target-group screen from the administration UI; existing
   group assignments are migrated forward into direct node-target assignments.
-- Redesigned the public dashboard to match the ZJM information hierarchy and visual
-  density, including the unified overview, compact and detailed node-card modes,
-  typography, badges, traffic, resource, latency, and responsive layouts.
+- Unified the public dashboard's Apple-inspired information hierarchy across compact
+  and detailed node-card modes, typography, badges, traffic, resources, latency, and
+  responsive layouts.
 - Increased dashboard typography and numeric hierarchy, tightened the node-toolbar
   spacing, and replaced character glyphs with a consistent responsive SVG icon set.
 - Replaced platform-dependent flag emoji with bundled country flag artwork.

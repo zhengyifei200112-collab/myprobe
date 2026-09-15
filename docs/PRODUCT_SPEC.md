@@ -2,8 +2,8 @@
 
 ## Product principles
 
-1. Match the complete observable ZJM feature set without copying its source, assets,
-   branding, or implementation details.
+1. Provide a calm, information-first Apple-inspired monitoring experience without
+   copying third-party source, assets, branding, or implementation details.
 2. Keep the agent small, outbound-only, and safe by default.
 3. Make every public metric explainable from a typed protocol field.
 4. Preserve a one-command deployment and a single server binary release.
@@ -26,12 +26,12 @@
 | Chart sharing | Group-scoped password protected chart views | Authentication and rate-limit tests | Implemented |
 | Node administration | Register, edit, order, hide, delete, rotate token, generate one-click Agent install command | Admin API and browser clipboard verification | Implemented |
 | Target administration | Ping/TCPing target CRUD and assignment from target/node editors | API and scheduler tests | Implemented |
-| Notifications | Telegram bot and generic webhook channels | Mock receiver tests | Implemented |
+| Notifications | Encrypted Webhook, Telegram, Discord, and SMTP channels with rules, templates, recovery delivery, cooldowns, and history | Mock receiver and alert-state tests | Implemented |
 | Alerts | Offline/recovery, CPU, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Implemented |
 | Custom display | Structured badges/links and sanitized advanced HTML | Sanitizer, persistence and CSP tests | Implemented |
-| Site customization | Agent public URL, title/description, sanitized header/footer | Store and browser rendering tests | Implemented |
+| Site customization | Settings Center for Agent URL, identity, titles, sanitized header/footer, links, theme, accent, and page backgrounds | Store and browser rendering tests | Implemented |
 | Configuration | Versioned merge import/export and encrypted database backup/restore | Round-trip, tamper, dry-run and recovery tests | Implemented |
-| Authentication | Password login/logout/change, CSRF, persistent throttling and CAPTCHA | Security integration and restart tests | Implemented |
+| Authentication | Password login/logout/change plus allowlisted GitHub OAuth, CSRF, single-use state, persistent throttling, CAPTCHA, and password fallback | Security integration and restart tests | Implemented |
 | Audit | Administrative action log and cursor-paginated viewer | API and management UI verification | Implemented |
 | Retention | Transactional raw, one-minute, and five-minute history tiers | Migration, idempotence, cleanup and cross-tier query tests | Implemented |
 | Deployment | One-command container startup and single-binary releases | Compose validation and tagged release workflow | Implemented |
@@ -40,14 +40,15 @@
 
 - Header: product brand, persistent compact/detail display control, theme control, and
   admin entry.
-- Overview: four cards on desktop and a 2x2 grid on mobile.
+- Overview: four cards on desktop, two columns at intermediate widths, and a single
+  column on narrow mobile screens.
 - Filter bar: `All`, dynamic tag groups, and `Other`.
-- Node grid: one column below 900 px, two columns from 900 px, and three columns
-  from 1250 px.
+- Node grid: one column through 899 px, two columns from 900–1099 px, and three
+  columns from 1100 px. Compact mode may use four columns from 1800 px.
 - Compact node cards show identity, commercial metadata, masked IP, and uptime. Detailed
   cards additionally show live/lifetime/cycle traffic, capacity utilization, latency,
   custom actions, operating system, last update, and history access.
-- Node cards use soft elevated surfaces, restrained gradients, rounded corners,
+- Node cards use soft elevated surfaces, restrained color, rounded corners,
   tabular numeric values, an integrated SVG icon language, and accessible warning
   colors. Overview totals remain visually dominant over their online/offline breakdown.
 - Empty, loading, offline, reconnecting, and stale-data states are first-class UI states.
@@ -81,5 +82,5 @@
 
 ## Explicit exclusions for v1
 
-Remote shell, arbitrary command execution, and terminal proxying are intentionally not
-part of ZJM parity and are excluded from v1 to keep the agent attack surface small.
+Remote shell, arbitrary command execution, and terminal proxying are intentionally
+excluded from v1 to keep the agent attack surface small.

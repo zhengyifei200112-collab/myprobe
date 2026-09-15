@@ -1,6 +1,6 @@
 # MyProbe Design System
 
-Phase 3 establishes framework-neutral visual rules on top of the existing Vue 3 stack. Page migrations remain in their later phases.
+The MyProbe design system provides framework-neutral visual rules on top of the existing Vue 3 stack. Public, administration, settings, notification, authentication, and sharing surfaces consume these shared foundations.
 
 ## Foundations
 
@@ -23,8 +23,8 @@ All icon-only buttons need an accessible label through the `label` slot or `aria
 
 ## Boundaries
 
-These primitives contain no API, authentication, notification, node, or persistence logic. The public business-facing node composition lives in `public-dashboard/PublicNodeCard.vue`; the Phase 5 administration composition uses the same primitives with page-specific hierarchy and responsive rules in `admin-dashboard/`.
+These primitives contain no API, authentication, notification, node, or persistence logic. The public business-facing node composition lives in `public-dashboard/PublicNodeCard.vue`; the administration composition uses the same primitives with page-specific hierarchy and responsive rules in `admin-dashboard/`.
 
-Phase 6 site, appearance, and background composition lives in `settings-center/`.
+Site, appearance, and background composition lives in `settings-center/`.
 Server settings provide the shared default theme and accent, while a visitor's
 non-sensitive local theme choice may override that default on their device.

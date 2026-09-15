@@ -3,8 +3,8 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 MyProbe is a self-hosted VPS monitoring platform with an original implementation,
-a lightweight Go agent, and a responsive dashboard inspired by the information
-architecture and visual polish of ZJM.
+a lightweight Go agent, and a calm, responsive Apple-inspired product interface built
+for clear server-health and network visibility.
 
 The product scope and acceptance evidence are tracked in
 [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md), and the versioned agent protocol is

@@ -3,8 +3,8 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 MyProbe 是一套开源、自托管的 VPS/服务器监控平台。项目采用独立实现的 Go
-Server 与轻量级 Go Agent，配套 Vue 3 响应式管理界面；公共仪表盘的信息架构和
-视觉细节参考了 ZJM 探针，但不复制其源码、资源、品牌或实现。
+Server 与轻量级 Go Agent，配套克制、清晰、响应式的 Apple-inspired Vue 3
+产品界面，重点呈现服务器健康状态与网络数据。
 
 项目功能范围与验收证据记录在
 [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md)，Agent 与 Server 之间的版本化协议
