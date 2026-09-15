@@ -1,4 +1,5 @@
-import type { NodeMetadata } from './types'
+import type { NodeMetadata, SiteSettings } from './types'
+export type { SiteSettings } from './types'
 
 export interface AdminTarget {
   id: string
@@ -26,24 +27,19 @@ export interface LatencyConfig {
   node_targets: Array<{ node_id: string; target_id: string }>
 }
 
-export interface SiteSettings {
-  agent_url: string
-  site_title: string
-  site_description: string
-  header_html: string
-  footer_html: string
-}
-
 export interface NotificationChannel {
   id: string
   name: string
-  kind: 'webhook' | 'telegram'
+  kind: 'webhook' | 'telegram' | 'discord' | 'smtp'
   enabled: boolean
+  last_test_status?: 'success' | 'failed'
+  last_test_error?: string
+  last_test_at?: string
   created_at: string
   updated_at: string
 }
 
-export type AlertKind = 'offline' | 'cpu' | 'bandwidth' | 'cycle_traffic' | 'expiry'
+export type AlertKind = 'offline' | 'cpu' | 'memory' | 'disk' | 'latency' | 'bandwidth' | 'cycle_traffic' | 'expiry'
 
 export interface AlertRule {
   id: string
@@ -55,7 +51,11 @@ export interface AlertRule {
     threshold_percent?: number
     threshold_bytes_per_second?: number
     threshold_bytes?: number
+    threshold_milliseconds?: number
     days_before?: number
+    duration_seconds?: number
+    repeat_seconds?: number
+    template_id?: string
   }
   enabled: boolean
   cooldown_seconds: number
@@ -72,6 +72,20 @@ export interface AlertEvent {
   delivery_error?: string
   created_at: string
   delivered_at?: string
+  channel_id?: string
+  channel_name?: string
+  provider?: string
+}
+
+export interface NotificationTemplate {
+  id: string
+  name: string
+  event_kind: string
+  title_template: string
+  body_template: string
+  is_default: boolean
+  created_at: string
+  updated_at: string
 }
 
 export interface ChartShare {
@@ -112,6 +126,18 @@ export interface AuditEntry {
   details: unknown
   created_at: string
 }
+
+export interface GitHubOAuthSettings {
+  enabled: boolean
+  client_id: string
+  client_secret_set: boolean
+  callback_url: string
+  username_allowlist: string[]
+  verified_at?: string
+  updated_at: string
+}
+
+export interface AuthSettings { password_enabled: true; github: GitHubOAuthSettings }
 
 let csrfToken = ''
 
@@ -187,12 +213,20 @@ export const createAlertRule = (payload: unknown) => request<{ rule: AlertRule }
 export const updateAlertRule = (id: string, payload: unknown) => request<{ rule: AlertRule }>(`/api/v1/admin/alert-rules/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
 export const deleteAlertRule = (id: string) => request<void>(`/api/v1/admin/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const loadAlertEvents = () => request<{ events: AlertEvent[] }>('/api/v1/admin/alert-events')
+export const loadNotificationTemplates = () => request<{ templates: NotificationTemplate[] }>('/api/v1/admin/notification-templates')
+export const createNotificationTemplate = (payload: unknown) => request<{ template: NotificationTemplate }>('/api/v1/admin/notification-templates', { method: 'POST', body: JSON.stringify(payload) })
+export const updateNotificationTemplate = (id: string, payload: unknown) => request<{ template: NotificationTemplate }>(`/api/v1/admin/notification-templates/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
+export const deleteNotificationTemplate = (id: string) => request<void>(`/api/v1/admin/notification-templates/${encodeURIComponent(id)}`, { method: 'DELETE' })
+export const testNotificationTemplate = (id: string, channelID: string) => request<void>(`/api/v1/admin/notification-templates/${encodeURIComponent(id)}/test`, { method: 'POST', body: JSON.stringify({ channel_id: channelID }) })
 
 export const loadChartShares = () => request<{ shares: ChartShare[] }>('/api/v1/admin/chart-shares')
 export const createChartShare = (payload: unknown) => request<{ share: ChartShare; path: string }>('/api/v1/admin/chart-shares', { method: 'POST', body: JSON.stringify(payload) })
 export const updateChartShare = (id: string, payload: unknown) => request<{ share: ChartShare; path: string }>(`/api/v1/admin/chart-shares/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
 export const deleteChartShare = (id: string) => request<void>(`/api/v1/admin/chart-shares/${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const changePassword = (currentPassword: string, newPassword: string) => request<void>('/api/v1/auth/password', { method: 'POST', body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) })
+export const loadGitHubStatus = () => request<{ enabled: boolean }>('/api/v1/auth/github/status')
+export const loadAuthSettings = () => request<AuthSettings>('/api/v1/admin/auth-settings')
+export const updateAuthSettings = (payload: unknown) => request<AuthSettings>('/api/v1/admin/auth-settings', { method: 'PATCH', body: JSON.stringify(payload) })
 export const loadAudit = (beforeID?: number) => request<{ entries: AuditEntry[]; next_before_id?: number }>(`/api/v1/admin/audit?limit=50${beforeID ? `&before_id=${beforeID}` : ''}`)
 
 async function downloadRequest(path: string, options: RequestInit = {}): Promise<{ blob: Blob; filename: string }> {

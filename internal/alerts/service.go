@@ -18,7 +18,11 @@ type RuleConfig struct {
 	ThresholdPercent        float64 `json:"threshold_percent,omitempty"`
 	ThresholdBytesPerSecond uint64  `json:"threshold_bytes_per_second,omitempty"`
 	ThresholdBytes          uint64  `json:"threshold_bytes,omitempty"`
+	ThresholdMilliseconds   float64 `json:"threshold_milliseconds,omitempty"`
 	DaysBefore              int     `json:"days_before,omitempty"`
+	DurationSeconds         int     `json:"duration_seconds,omitempty"`
+	RepeatSeconds           int     `json:"repeat_seconds,omitempty"`
+	TemplateID              string  `json:"template_id,omitempty"`
 }
 
 type Service struct {
@@ -52,6 +56,17 @@ func (s *Service) CreateChannel(ctx context.Context, name, kind string, config C
 func (s *Service) UpdateChannel(ctx context.Context, id, name, kind string, config *ChannelConfig, enabled bool) (store.NotificationChannel, error) {
 	var encrypted *string
 	if config != nil {
+		existing, err := s.store.NotificationChannel(ctx, id)
+		if err != nil {
+			return store.NotificationChannel{}, err
+		}
+		if existing.Kind != kind { // changing provider always requires a complete replacement configuration
+			if err := validateChannelConfig(kind, *config); err != nil {
+				return store.NotificationChannel{}, err
+			}
+		} else if current, err := s.decryptConfig(existing); err == nil {
+			*config = mergeChannelConfig(current, *config)
+		}
 		value, err := s.encryptConfig(kind, *config)
 		if err != nil {
 			return store.NotificationChannel{}, err
@@ -67,6 +82,55 @@ func (s *Service) UpdateChannel(ctx context.Context, id, name, kind string, conf
 		}
 	}
 	return s.store.UpdateNotificationChannel(ctx, id, name, kind, encrypted, enabled)
+}
+
+func mergeChannelConfig(current, next ChannelConfig) ChannelConfig {
+	if next.URL != "" {
+		current.URL = next.URL
+	}
+	if next.Method != "" {
+		current.Method = next.Method
+	}
+	if next.Headers != nil {
+		current.Headers = next.Headers
+	}
+	if next.BodyTemplate != "" {
+		current.BodyTemplate = next.BodyTemplate
+	}
+	if next.BotToken != "" {
+		current.BotToken = next.BotToken
+	}
+	if next.ChatID != "" {
+		current.ChatID = next.ChatID
+	}
+	if next.ThreadID != "" {
+		current.ThreadID = next.ThreadID
+	}
+	if next.ParseMode != "" {
+		current.ParseMode = next.ParseMode
+	}
+	if next.SMTPHost != "" {
+		current.SMTPHost = next.SMTPHost
+	}
+	if next.SMTPPort != 0 {
+		current.SMTPPort = next.SMTPPort
+	}
+	if next.SMTPUsername != "" {
+		current.SMTPUsername = next.SMTPUsername
+	}
+	if next.SMTPPassword != "" {
+		current.SMTPPassword = next.SMTPPassword
+	}
+	if next.SMTPFrom != "" {
+		current.SMTPFrom = next.SMTPFrom
+	}
+	if next.SMTPTo != "" {
+		current.SMTPTo = next.SMTPTo
+	}
+	if next.SMTPEncryption != "" {
+		current.SMTPEncryption = next.SMTPEncryption
+	}
+	return current
 }
 
 func (s *Service) DeleteChannel(ctx context.Context, id string) error {
@@ -86,7 +150,38 @@ func (s *Service) TestChannel(ctx context.Context, id string, now time.Time) err
 	if err != nil {
 		return err
 	}
-	return s.sender.Deliver(ctx, channel.Kind, config, Notification{Title: "MyProbe 通知测试", Message: "通知通道配置有效。", State: "test", Kind: "test", Timestamp: now.UTC()})
+	err = s.sender.Deliver(ctx, channel.Kind, config, Notification{Title: "MyProbe 通知测试", Message: "通知通道配置有效。", State: "test", Kind: "test", Timestamp: now.UTC()})
+	message := ""
+	if err != nil {
+		message = err.Error()
+	}
+	_ = s.store.RecordChannelTest(ctx, id, err == nil, message, now.UTC())
+	return err
+}
+
+func (s *Service) TestTemplate(ctx context.Context, templateID, channelID string, now time.Time) error {
+	template, err := s.store.NotificationTemplate(ctx, templateID)
+	if err != nil {
+		return err
+	}
+	channel, err := s.store.NotificationChannel(ctx, channelID)
+	if err != nil {
+		return err
+	}
+	config, err := s.decryptConfig(channel)
+	if err != nil {
+		return err
+	}
+	n := Notification{Title: "MyProbe 模板测试", Message: "这是一条模板预览消息。", State: "test", Kind: "test", NodeID: "example-node", NodeName: "Example Node", RuleID: "example-rule", Timestamp: now.UTC()}
+	n.Title = renderTemplate(template.TitleTemplate, n)
+	n.Message = renderTemplate(template.BodyTemplate, n)
+	err = s.sender.Deliver(ctx, channel.Kind, config, n)
+	message := ""
+	if err != nil {
+		message = err.Error()
+	}
+	_ = s.store.RecordChannelTest(ctx, channelID, err == nil, message, now.UTC())
+	return err
 }
 
 func (s *Service) CreateRule(ctx context.Context, nodeID, channelID, kind string, config RuleConfig, cooldown int) (store.AlertRule, error) {
@@ -174,7 +269,25 @@ func (s *Service) evaluateAndDeliver(ctx context.Context, rule store.AlertRule, 
 	if err != nil {
 		return err
 	}
-	cooldown := time.Duration(rule.CooldownSeconds) * time.Second
+	var ruleConfig RuleConfig
+	_ = json.Unmarshal(rule.Config, &ruleConfig)
+	if active && ruleConfig.DurationSeconds > 0 && (!exists || !state.Active) {
+		if !exists || state.PendingSince == nil {
+			since := now
+			return s.store.SetAlertPending(ctx, rule.ID, node.ID, fingerprint, message, &since, now)
+		}
+		if now.Sub(*state.PendingSince) < time.Duration(ruleConfig.DurationSeconds)*time.Second {
+			return nil
+		}
+	}
+	if !active && exists && !state.Active && state.PendingSince != nil {
+		return s.store.SetAlertPending(ctx, rule.ID, node.ID, fingerprint, message, nil, now)
+	}
+	repeat := rule.CooldownSeconds
+	if ruleConfig.RepeatSeconds > 0 {
+		repeat = ruleConfig.RepeatSeconds
+	}
+	cooldown := time.Duration(repeat) * time.Second
 	shouldDeliver := !exists && active
 	if exists {
 		shouldDeliver = active != state.Active
@@ -196,7 +309,14 @@ func (s *Service) evaluateAndDeliver(ctx context.Context, rule store.AlertRule, 
 			stateName = "firing"
 			title = "MyProbe 告警"
 		}
-		deliveryErr = s.sender.Deliver(ctx, channel.Kind, config, Notification{Title: title, Message: message, State: stateName, Kind: rule.Kind, NodeID: node.ID, NodeName: node.Name, RuleID: rule.ID, Timestamp: now})
+		notification := Notification{Title: title, Message: message, State: stateName, Kind: rule.Kind, NodeID: node.ID, NodeName: node.Name, RuleID: rule.ID, Timestamp: now}
+		if ruleConfig.TemplateID != "" {
+			if template, err := s.store.NotificationTemplate(ctx, ruleConfig.TemplateID); err == nil {
+				notification.Title = renderTemplate(template.TitleTemplate, notification)
+				notification.Message = renderTemplate(template.BodyTemplate, notification)
+			}
+		}
+		deliveryErr = s.sender.Deliver(ctx, channel.Kind, config, notification)
 	}
 	deliveryError := ""
 	if deliveryErr != nil {
@@ -224,7 +344,7 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 			return true, fmt.Sprintf("节点 %s 已离线，最后在线时间 %s。", node.Name, lastSeen.Local().Format("2006-01-02 15:04:05")), true, nil
 		}
 		return false, fmt.Sprintf("节点 %s 已恢复在线。", node.Name), true, nil
-	case "cpu", "bandwidth", "cycle_traffic":
+	case "cpu", "memory", "disk", "bandwidth", "cycle_traffic":
 		report, err := s.store.LatestReport(ctx, node.ID)
 		if err != nil || report == nil {
 			return false, "", false, err
@@ -232,6 +352,20 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 		if rule.Kind == "cpu" {
 			active := report.CPU.UsagePercent >= config.ThresholdPercent
 			return active, thresholdMessage(node.Name, "CPU", report.CPU.UsagePercent, config.ThresholdPercent, "%", active), true, nil
+		}
+		if rule.Kind == "memory" {
+			active := report.Memory.UsagePercent >= config.ThresholdPercent
+			return active, thresholdMessage(node.Name, "内存", report.Memory.UsagePercent, config.ThresholdPercent, "%", active), true, nil
+		}
+		if rule.Kind == "disk" {
+			value := 0.0
+			for _, disk := range report.Disks {
+				if disk.UsagePercent > value {
+					value = disk.UsagePercent
+				}
+			}
+			active := value >= config.ThresholdPercent
+			return active, thresholdMessage(node.Name, "磁盘", value, config.ThresholdPercent, "%", active), true, nil
 		}
 		if rule.Kind == "bandwidth" {
 			var rate float64
@@ -257,6 +391,24 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 			return true, fmt.Sprintf("节点 %s 将于 %s 到期。", node.Name, node.ExpiresAt.Local().Format("2006-01-02 15:04:05")), true, nil
 		}
 		return false, fmt.Sprintf("节点 %s 的到期时间已恢复到安全范围。", node.Name), true, nil
+	case "latency":
+		items, err := s.store.ListLatestLatency(ctx, node.ID)
+		if err != nil || len(items) == 0 {
+			return false, "", false, err
+		}
+		active, worst := false, 0.0
+		for _, item := range items {
+			if item.Success != nil && !*item.Success {
+				active = true
+			}
+			if item.LatencyMS != nil && *item.LatencyMS > worst {
+				worst = *item.LatencyMS
+			}
+		}
+		if worst >= config.ThresholdMilliseconds {
+			active = true
+		}
+		return active, thresholdMessage(node.Name, "网络延迟", worst, config.ThresholdMilliseconds, " ms", active), true, nil
 	default:
 		return false, "", false, errors.New("unsupported alert rule")
 	}
@@ -289,6 +441,9 @@ func (s *Service) decryptConfig(channel store.NotificationChannel) (ChannelConfi
 }
 
 func normalizeRuleConfig(kind string, config RuleConfig) (json.RawMessage, error) {
+	if config.DurationSeconds < 0 || config.DurationSeconds > 86400*30 || config.RepeatSeconds < 0 || config.RepeatSeconds > 86400*30 {
+		return nil, errors.New("invalid duration or repeat interval")
+	}
 	switch kind {
 	case "offline":
 		if config.OfflineSeconds == 0 {
@@ -297,7 +452,7 @@ func normalizeRuleConfig(kind string, config RuleConfig) (json.RawMessage, error
 		if config.OfflineSeconds < 15 || config.OfflineSeconds > 86400 {
 			return nil, errors.New("offline threshold must be between 15 and 86400 seconds")
 		}
-	case "cpu":
+	case "cpu", "memory", "disk":
 		if config.ThresholdPercent == 0 {
 			config.ThresholdPercent = 90
 		}
@@ -315,6 +470,10 @@ func normalizeRuleConfig(kind string, config RuleConfig) (json.RawMessage, error
 	case "expiry":
 		if config.DaysBefore < 0 || config.DaysBefore > 3650 {
 			return nil, errors.New("expiry days must be between 0 and 3650")
+		}
+	case "latency":
+		if config.ThresholdMilliseconds <= 0 || config.ThresholdMilliseconds > 60000 {
+			return nil, errors.New("latency threshold must be between 0 and 60000 milliseconds")
 		}
 	default:
 		return nil, errors.New("unsupported alert rule")

@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import type { NodeMetadata } from './types'
-import type { AdminTarget, AlertEvent, AlertKind, AlertRule, AuditEntry, ChartShare, ConfigImportResult, LatencyConfig, NotificationChannel, SiteSettings } from './admin-api'
+import { DsButton, DsConfirmDialog, DsDialog, DsDropdown, DsEmptyState, DsSheet, DsStatusIndicator } from './design-system'
+import SettingsCenter from './settings-center/SettingsCenter.vue'
+import AuthSettingsPanel from './settings-center/AuthSettingsPanel.vue'
+import NotificationCenter from './notification-center/NotificationCenter.vue'
+import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
+import { fetchSiteSettings } from './api'
+import { defaultSiteSettings, normalizeSiteSettings } from './types'
+import type { AdminTarget, AuditEntry, ChartShare, ConfigImportResult, LatencyConfig, SiteSettings } from './admin-api'
 import {
-  changePassword, createAlertRule, createChannel, createChartShare, createNode, createTarget, deleteAlertRule, deleteChannel, deleteChartShare,
-  deleteNode, deleteTarget, loadAlertEvents, loadAlertRules, loadChannels, loadLatencyConfig, loadSiteSettings,
-  downloadConfiguration, downloadDatabaseBackup, importConfiguration, loadAudit, loadChartShares, loadNodes, login, LoginError, logout, restoreSession, rotateNodeToken, setNodeTarget, testChannel, uploadDatabaseRestore,
-  updateAlertRule, updateChannel, updateChartShare, updateNode, updateSiteSettings, updateTarget,
+  changePassword, createChartShare, createNode, createTarget, deleteChartShare,
+  deleteNode, deleteTarget, loadLatencyConfig, loadSiteSettings,
+  downloadConfiguration, downloadDatabaseBackup, importConfiguration, loadAudit, loadChartShares, loadGitHubStatus, loadNodes, login, LoginError, logout, restoreSession, rotateNodeToken, setNodeTarget, uploadDatabaseRestore,
+  updateChartShare, updateNode, updateSiteSettings, updateTarget,
 } from './admin-api'
 
 type Tab = 'nodes' | 'targets' | 'settings' | 'alerts' | 'shares' | 'maintenance' | 'security'
@@ -21,15 +28,14 @@ const password = ref('')
 const captchaID = ref('')
 const captchaPrompt = ref('')
 const captchaAnswer = ref('')
+const githubEnabled = ref(false)
 const nodes = ref<NodeMetadata[]>([])
 const config = ref<LatencyConfig>({ targets: [], groups: [], group_members: [], node_groups: [], node_targets: [] })
-const siteSettings = reactive<SiteSettings>({ agent_url: '', site_title: '', site_description: '', header_html: '', footer_html: '' })
-const channels = ref<NotificationChannel[]>([])
-const rules = ref<AlertRule[]>([])
-const events = ref<AlertEvent[]>([])
+const siteSettings = reactive<SiteSettings>(defaultSiteSettings())
 const shares = ref<ChartShare[]>([])
 const token = ref('')
 const tokenNode = ref('')
+const tokenNodeID = ref('')
 const configFile = ref<File | null>(null)
 const configDocument = ref<unknown>(null)
 const configPreview = ref<ConfigImportResult | null>(null)
@@ -42,6 +48,9 @@ const nextAuditID = ref<number | undefined>()
 const currentPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
+const nodeCreateOpen = ref(false)
+const nodeConfig = ref<NodeMetadata | null>(null)
+const pendingNodeAction = ref<{ kind: 'delete' | 'rotate'; node: NodeMetadata } | null>(null)
 const installerURL = 'https://raw.githubusercontent.com/zhengyifei200112-collab/myprobe/main/install.sh'
 
 function shellQuote(value: string) {
@@ -51,6 +60,8 @@ function shellQuote(value: string) {
 const agentInstallCommand = computed(() => token.value
   ? `curl -fsSL ${shellQuote(installerURL)} | sudo env MYPROBE_SERVER=${shellQuote(siteSettings.agent_url || location.origin)} MYPROBE_TOKEN=${shellQuote(token.value)} bash -s -- agent`
   : '')
+const activeBackground = computed(() => authenticated.value ? siteSettings.admin_background : siteSettings.login_background)
+const adminBackgroundStyle = computed(() => ({ ...backgroundVariables(activeBackground.value), '--site-has-background': activeBackground.value.url ? '1' : '0' }))
 
 const emptyNode = () => ({ name: '', tags: '', country_code: '', collection_seconds: 5, report_seconds: 5 })
 const nodeCreate = reactive(emptyNode())
@@ -59,10 +70,6 @@ const nodeTargetIDs = ref<string[]>([])
 const customEdit = ref<NodeMetadata | null>(null)
 const emptyTarget = (): Omit<AdminTarget, 'id'> => ({ name: '', kind: 'ping', host: '', interval_seconds: 60, timeout_ms: 3000, enabled: true, sort_order: 0 })
 const targetForm = reactive({ ...emptyTarget(), node_ids: [] as string[] } as Omit<AdminTarget, 'id'> & { id?: string; node_ids: string[] })
-const emptyChannel = () => ({ id: '', name: '', kind: 'webhook' as 'webhook' | 'telegram', url: '', bot_token: '', chat_id: '', enabled: true })
-const channelForm = reactive(emptyChannel())
-const emptyRule = () => ({ id: '', node_id: '', channel_id: '', kind: 'offline' as AlertKind, threshold: 60, cooldown_seconds: 900, enabled: true })
-const ruleForm = reactive(emptyRule())
 const emptyShare = () => ({ id: '', name: '', password: '', node_ids: [] as string[], enabled: true })
 const shareForm = reactive(emptyShare())
 
@@ -71,15 +78,12 @@ function showError(value: unknown) {
 }
 
 async function refresh() {
-  const [nodeResult, latencyResult, settingsResult, channelResult, ruleResult, eventResult, shareResult, auditResult] = await Promise.all([
-    loadNodes(), loadLatencyConfig(), loadSiteSettings(), loadChannels(), loadAlertRules(), loadAlertEvents(), loadChartShares(), loadAudit(),
+  const [nodeResult, latencyResult, settingsResult, shareResult, auditResult] = await Promise.all([
+    loadNodes(), loadLatencyConfig(), loadSiteSettings(), loadChartShares(), loadAudit(),
   ])
   nodes.value = nodeResult.nodes
   config.value = latencyResult
-  Object.assign(siteSettings, settingsResult.settings)
-  channels.value = channelResult.channels
-  rules.value = ruleResult.rules
-  events.value = eventResult.events
+  Object.assign(siteSettings, normalizeSiteSettings(settingsResult.settings))
   shares.value = shareResult.shares
   auditEntries.value = auditResult.entries
   nextAuditID.value = auditResult.next_before_id
@@ -158,7 +162,9 @@ async function submitNodeCreate() {
     const result = await createNode({ ...nodeCreate, tags: nodeCreate.tags.split(',').map(x => x.trim()).filter(Boolean) })
     token.value = result.agent_token
     tokenNode.value = result.node.name
+    tokenNodeID.value = result.node.id
     Object.assign(nodeCreate, emptyNode())
+    nodeCreateOpen.value = false
     await refresh()
   }, '节点已创建，请立即保存 Agent Token。')
 }
@@ -223,17 +229,50 @@ async function saveNode() {
 }
 
 async function removeNode(item: NodeMetadata) {
-  if (!confirm(`确认删除节点“${item.name}”？相关历史数据也会删除。`)) return
   await run(async () => { await deleteNode(item.id); await refresh() }, '节点已删除。')
 }
 
 async function rotateToken(item: NodeMetadata) {
-  if (!confirm(`确认轮换“${item.name}”的 Agent Token？旧 Token 会立即失效。`)) return
   await run(async () => {
     const result = await rotateNodeToken(item.id)
     token.value = result.agent_token
     tokenNode.value = item.name
+    tokenNodeID.value = item.id
   }, 'Token 已轮换，请立即更新 Agent。')
+}
+
+async function requestNodeAction(kind: 'delete' | 'rotate', node: NodeMetadata, event: MouseEvent) {
+  const trigger = (event.currentTarget as HTMLElement).closest('.ds-dropdown')?.querySelector<HTMLElement>('.ds-dropdown__trigger')
+  await nextTick()
+  trigger?.focus()
+  pendingNodeAction.value = { kind, node }
+}
+
+async function confirmNodeAction() {
+  const action = pendingNodeAction.value
+  if (!action) return
+  pendingNodeAction.value = null
+  if (action.kind === 'delete') await removeNode(action.node)
+  else await rotateToken(action.node)
+}
+
+function assignedTargets(item: NodeMetadata) {
+  const targetIDs = new Set(config.value.node_targets.filter(link => link.node_id === item.id).map(link => link.target_id))
+  return config.value.targets.filter(target => targetIDs.has(target.id))
+}
+
+function formatAdminTime(value?: string) {
+  if (!value) return '尚未上报'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '时间未知' : date.toLocaleString('zh-CN', { hour12: false })
+}
+
+async function copyAvailableToken(item: NodeMetadata) {
+  if (!token.value || tokenNodeID.value !== item.id) {
+    error.value = '出于安全考虑，既有 Token 不可再次读取。如已遗失，请使用“轮换 Token”生成新 Token。'
+    return
+  }
+  await copyToken()
 }
 
 function editTarget(item?: AdminTarget) {
@@ -272,77 +311,20 @@ async function removeTarget(item: AdminTarget) {
   await run(async () => { await deleteTarget(item.id); await refresh() }, '探测目标已删除。')
 }
 
-async function saveSiteSettings() {
+async function saveSiteSettings(next: SiteSettings = siteSettings) {
   await run(async () => {
-    const result = await updateSiteSettings({ ...siteSettings })
-    Object.assign(siteSettings, result.settings)
+    const result = await updateSiteSettings(next)
+    Object.assign(siteSettings, normalizeSiteSettings(result.settings))
+    cacheAppearance(result.settings)
+    applyAppearance(result.settings)
   }, '站点设置已保存。')
 }
 
-function editChannel(item?: NotificationChannel) {
-  Object.assign(channelForm, emptyChannel(), item ? { id: item.id, name: item.name, kind: item.kind, enabled: item.enabled } : {})
-}
-
-async function saveChannel() {
-  const credentialConfig = channelForm.kind === 'webhook'
-    ? (channelForm.url ? { url: channelForm.url } : undefined)
-    : (channelForm.bot_token || channelForm.chat_id ? { bot_token: channelForm.bot_token, chat_id: channelForm.chat_id } : undefined)
-  await run(async () => {
-    const payload = { name: channelForm.name, kind: channelForm.kind, enabled: channelForm.enabled, config: credentialConfig }
-    if (channelForm.id) await updateChannel(channelForm.id, payload)
-    else await createChannel(payload)
-    editChannel()
-    await refresh()
-  }, channelForm.id ? '通知通道已更新。' : '通知通道已创建。')
-}
-
-async function removeChannel(item: NotificationChannel) {
-  if (!confirm(`确认删除通知通道“${item.name}”？关联告警规则也会删除。`)) return
-  await run(async () => { await deleteChannel(item.id); await refresh() }, '通知通道已删除。')
-}
-
-async function sendChannelTest(item: NotificationChannel) {
-  await run(async () => { await testChannel(item.id) }, '测试通知已发送。')
-}
-
-function thresholdLabel(kind: AlertKind) {
-  return ({ offline: '离线秒数', cpu: 'CPU 百分比', bandwidth: '总带宽 MiB/s', cycle_traffic: '周期流量 GiB', expiry: '提前天数' } as Record<AlertKind, string>)[kind]
-}
-
-function ruleConfig(kind: AlertKind, threshold: number) {
-  if (kind === 'offline') return { offline_seconds: threshold }
-  if (kind === 'cpu') return { threshold_percent: threshold }
-  if (kind === 'bandwidth') return { threshold_bytes_per_second: Math.round(threshold * 1024 * 1024) }
-  if (kind === 'cycle_traffic') return { threshold_bytes: Math.round(threshold * 1024 * 1024 * 1024) }
-  return { days_before: threshold }
-}
-
-function editRule(item?: AlertRule) {
-  if (!item) { Object.assign(ruleForm, emptyRule()); return }
-  let threshold = item.config.offline_seconds ?? item.config.threshold_percent ?? item.config.days_before ?? 0
-  if (item.kind === 'bandwidth') threshold = (item.config.threshold_bytes_per_second || 0) / 1024 / 1024
-  if (item.kind === 'cycle_traffic') threshold = (item.config.threshold_bytes || 0) / 1024 / 1024 / 1024
-  Object.assign(ruleForm, { id: item.id, node_id: item.node_id, channel_id: item.channel_id, kind: item.kind, threshold, cooldown_seconds: item.cooldown_seconds, enabled: item.enabled })
-}
-
-async function saveRule() {
-  await run(async () => {
-    const payload = { node_id: ruleForm.node_id, channel_id: ruleForm.channel_id, kind: ruleForm.kind, config: ruleConfig(ruleForm.kind, ruleForm.threshold), cooldown_seconds: ruleForm.cooldown_seconds, enabled: ruleForm.enabled }
-    if (ruleForm.id) await updateAlertRule(ruleForm.id, payload)
-    else await createAlertRule(payload)
-    editRule()
-    await refresh()
-  }, ruleForm.id ? '告警规则已更新。' : '告警规则已创建。')
-}
-
-async function removeRule(item: AlertRule) {
-  if (!confirm('确认删除此告警规则？')) return
-  await run(async () => { await deleteAlertRule(item.id); await refresh() }, '告警规则已删除。')
+function previewSiteSettings(next: SiteSettings) {
+  applyAppearance(next)
 }
 
 function nodeName(id?: string) { return nodes.value.find(item => item.id === id)?.name || id || '未知节点' }
-function channelName(id: string) { return channels.value.find(item => item.id === id)?.name || id }
-function kindName(kind: AlertKind) { return ({ offline: '离线', cpu: 'CPU', bandwidth: '带宽', cycle_traffic: '周期流量', expiry: '到期' } as Record<AlertKind, string>)[kind] }
 
 function editShare(item?: ChartShare) {
   Object.assign(shareForm, emptyShare(), item ? { id: item.id, name: item.name, node_ids: [...item.node_ids], enabled: item.enabled } : {})
@@ -482,60 +464,96 @@ async function stageRestore() {
 }
 
 onMounted(async () => {
+  try {
+    const publicSettings = await fetchSiteSettings()
+    Object.assign(siteSettings, normalizeSiteSettings(publicSettings))
+    cacheAppearance(publicSettings)
+    applyAppearance(publicSettings)
+  } catch { applyAppearance(siteSettings) }
+  try { githubEnabled.value = (await loadGitHubStatus()).enabled } catch { githubEnabled.value = false }
   authenticated.value = await restoreSession()
   if (authenticated.value) {
     try { await refresh() } catch (value) { showError(value) }
   }
+  const oauth = new URLSearchParams(location.search)
+  if (oauth.get('oauth') === 'github') notice.value = 'GitHub 登录验证成功。'
+  const oauthError = oauth.get('oauth_error')
+  if (oauthError) error.value = oauthError === 'not_allowed' ? '当前 GitHub 账号不在管理员白名单中。' : oauthError === 'unavailable' ? 'GitHub 登录尚未正确配置。' : 'GitHub 登录失败或授权已取消。'
+  if (oauth.has('oauth') || oauth.has('oauth_error')) history.replaceState(null, '', '/admin')
   booting.value = false
 })
 </script>
 
 <template>
-  <div class="admin-shell">
+  <div class="admin-shell site-background" :style="adminBackgroundStyle">
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
     <header class="admin-nav">
-      <a class="brand" href="/"><span class="brand-mark">MP</span><span>MyProbe <small>管理中心</small></span></a>
-      <nav v-if="authenticated" class="admin-tabs">
+      <a class="brand" href="/"><img v-if="siteSettings.logo_url" class="brand-logo" :src="siteSettings.logo_url" alt=""><span v-else class="brand-mark">MP</span><span>{{ siteSettings.site_name || 'MyProbe' }} <small>管理中心</small></span></a>
+      <nav v-if="authenticated" class="admin-tabs" aria-label="管理中心导航">
         <button :class="{ active: tab === 'nodes' }" @click="tab = 'nodes'">节点</button>
         <button :class="{ active: tab === 'targets' }" @click="tab = 'targets'">探测目标</button>
-        <button :class="{ active: tab === 'settings' }" @click="tab = 'settings'">站点设置</button>
         <button :class="{ active: tab === 'alerts' }" @click="tab = 'alerts'">告警</button>
         <button :class="{ active: tab === 'shares' }" @click="tab = 'shares'">分享</button>
-        <button :class="{ active: tab === 'maintenance' }" @click="tab = 'maintenance'">维护</button>
-        <button :class="{ active: tab === 'security' }" @click="tab = 'security'">安全</button>
+        <button :class="{ active: ['settings', 'maintenance', 'security'].includes(tab) }" @click="tab = 'settings'">设置</button>
       </nav>
       <div class="nav-actions"><a class="soft-button" href="/">公开面板</a><button v-if="authenticated" class="soft-button" @click="signOut">退出</button></div>
     </header>
 
-    <main v-if="booting" class="state-panel"><div class="loader"></div><p>正在恢复管理会话…</p></main>
-    <main v-else-if="!authenticated" class="login-wrap">
-      <form class="admin-panel login-card" @submit.prevent="submitLogin">
-        <span class="eyebrow">SECURE CONSOLE</span><h1>登录管理中心</h1><p>使用初始化时配置的管理员账号登录。</p>
-        <label>用户名<input v-model="username" autocomplete="username" required></label>
-        <label>密码<input v-model="password" type="password" autocomplete="current-password" required></label>
-        <label v-if="captchaPrompt">安全验证：{{ captchaPrompt }}<input v-model="captchaAnswer" inputmode="numeric" autocomplete="off" required></label>
-        <p v-if="notice" class="form-message success">{{ notice }}</p>
-        <p v-if="error" class="form-message error">{{ error }}</p>
-        <button class="primary-button" :disabled="busy">{{ busy ? '登录中…' : '登录' }}</button>
-      </form>
+    <main v-if="booting" id="main-content" class="state-panel" tabindex="-1" role="status"><div class="loader"></div><p>正在恢复管理会话…</p></main>
+    <main v-else-if="!authenticated" id="main-content" class="login-wrap" tabindex="-1">
+      <section class="admin-panel login-card">
+        <header><span class="eyebrow">SECURE CONSOLE</span><h1>登录管理中心</h1><p>使用管理员密码，或通过已授权的 GitHub 账号继续。</p></header>
+        <form @submit.prevent="submitLogin"><label>用户名<input v-model="username" autocomplete="username" required></label><label>密码<input v-model="password" type="password" autocomplete="current-password" required></label><label v-if="captchaPrompt">安全验证：{{ captchaPrompt }}<input v-model="captchaAnswer" inputmode="numeric" autocomplete="off" required></label><p v-if="notice" class="form-message success" role="status">{{ notice }}</p><p v-if="error" class="form-message error" role="alert">{{ error }}</p><button class="primary-button" :disabled="busy">{{ busy ? '登录中…' : '使用密码登录' }}</button></form>
+        <div v-if="githubEnabled" class="login-divider"><span>或</span></div><a v-if="githubEnabled" class="github-login-button" href="/api/v1/auth/github/start"><span aria-hidden="true">GH</span>使用 GitHub 登录</a><p class="login-security-note">受 HttpOnly 会话、CSRF 防护与登录限速保护</p>
+      </section>
     </main>
 
-    <main v-else class="admin-main">
-      <div v-if="error" class="admin-alert error">{{ error }}</div><div v-if="notice" class="admin-alert success">{{ notice }}</div>
+    <main v-else id="main-content" class="admin-main" tabindex="-1">
+      <div v-if="error" class="admin-alert error" role="alert">{{ error }}</div><div v-if="notice" class="admin-alert success" role="status">{{ notice }}</div>
 
       <template v-if="tab === 'nodes'">
-        <section class="admin-heading"><div><span class="eyebrow">INFRASTRUCTURE</span><h1>节点管理</h1><p>创建 Agent 身份、调整公开展示与采集策略；探测目标可在节点编辑中直接分配。</p></div><span class="count-pill">{{ nodes.length }} 个节点</span></section>
-        <form class="admin-panel compact-form" @submit.prevent="submitNodeCreate">
-          <h2>添加节点</h2><div class="form-grid four"><label>名称<input v-model="nodeCreate.name" required></label><label>标签（逗号分隔）<input v-model="nodeCreate.tags" placeholder="香港, 生产"></label><label>国家/地区代码<input v-model="nodeCreate.country_code" maxlength="2" placeholder="HK"></label><label>上报间隔（秒）<input v-model.number="nodeCreate.report_seconds" type="number" min="1" max="3600" required></label></div>
-          <button class="primary-button" :disabled="busy">创建节点</button>
-        </form>
-        <section class="admin-list">
-          <article v-for="item in nodes" :key="item.id" class="admin-panel entity-card">
-            <div class="entity-title"><div><strong>{{ item.name }}</strong><code>{{ item.id }}</code></div><span :class="['status-label', item.hidden ? 'muted' : 'active']">{{ item.hidden ? '已隐藏' : '公开' }}</span></div>
-            <div class="entity-meta"><span>{{ item.country_code || '未设置地区' }}</span><span>采集 {{ item.collection_seconds }}s / 上报 {{ item.report_seconds }}s</span><span>{{ item.latency_mode.toUpperCase() }}</span></div>
-            <div class="assignment-box"><b>延迟监测</b><span v-for="target in config.targets.filter(x => config.node_targets.some(a => a.node_id === item.id && a.target_id === x.id))" :key="target.id" class="check-chip static">{{ target.name }}</span><span v-if="!config.node_targets.some(a => a.node_id === item.id)" class="empty-inline">未分配探测目标</span></div>
-            <div class="entity-actions"><button @click="editNode(item)">编辑</button><button @click="editCustomDisplay(item)">自定义展示</button><button @click="rotateToken(item)">轮换 Token</button><button class="danger" @click="removeNode(item)">删除</button></div>
+        <section class="admin-heading">
+          <div><span class="eyebrow">INFRASTRUCTURE</span><h1>节点管理</h1><p>集中管理 Agent 身份、采集策略、公开状态与延迟探测。</p></div>
+          <div class="admin-heading__actions"><span class="count-pill">{{ nodes.length }} 个节点</span><DsButton variant="primary" @click="nodeCreateOpen = true">＋ 添加节点</DsButton></div>
+        </section>
+        <section v-if="nodes.length" class="admin-node-grid" aria-label="节点列表">
+          <article v-for="item in nodes" :key="item.id" class="admin-panel admin-node-card">
+            <header class="admin-node-card__header">
+              <div class="admin-node-card__identity">
+                <span class="admin-node-card__flag" aria-hidden="true">{{ item.country_code || '—' }}</span>
+                <div><h2>{{ item.name }}</h2><p>{{ item.id }}</p></div>
+              </div>
+              <DsStatusIndicator :status="item.hidden ? 'neutral' : 'online'" :label="item.hidden ? '已隐藏' : '公开展示'" />
+            </header>
+            <dl class="admin-node-card__facts">
+              <div><dt>国家 / 地区</dt><dd>{{ item.country_code || '未设置' }}</dd></div>
+              <div><dt>探测类型</dt><dd>{{ item.latency_mode.toUpperCase() }}</dd></div>
+              <div><dt>采集间隔</dt><dd>{{ item.collection_seconds }} 秒</dd></div>
+              <div><dt>上报间隔</dt><dd>{{ item.report_seconds }} 秒</dd></div>
+              <div><dt>延迟目标</dt><dd>{{ assignedTargets(item).length }} 个</dd></div>
+              <div><dt>Agent</dt><dd>{{ item.agent?.agent_version || '待连接' }}</dd></div>
+            </dl>
+            <div class="admin-node-card__targets">
+              <span>延迟监测目标</span>
+              <div class="admin-node-card__target-list"><span v-for="target in assignedTargets(item)" :key="target.id" class="admin-node-card__target">{{ target.name }}</span><span v-if="!assignedTargets(item).length" class="admin-node-card__empty">未分配探测目标</span></div>
+            </div>
+            <footer class="admin-node-card__footer">
+              <span class="admin-node-card__report">最后上报：{{ formatAdminTime(item.last_seen_at) }}</span>
+              <div class="admin-node-card__actions">
+                <DsButton size="small" variant="ghost" @click="editNode(item)">编辑</DsButton>
+                <DsButton size="small" @click="nodeConfig = item">查看配置</DsButton>
+                <DsDropdown label="更多操作" align="end">
+                  <template #trigger><span aria-hidden="true">•••</span><span class="ds-visually-hidden">更多操作</span></template>
+                  <button role="menuitem" @click="editCustomDisplay(item)">自定义展示</button>
+                  <button role="menuitem" @click="requestNodeAction('rotate', item, $event)">轮换 Token</button>
+                  <button role="menuitem" @click="copyAvailableToken(item)">复制 Token</button>
+                  <button role="menuitem" class="admin-node-card__menu-danger" @click="requestNodeAction('delete', item, $event)">删除节点</button>
+                </DsDropdown>
+              </div>
+            </footer>
           </article>
         </section>
+        <DsEmptyState v-else title="还没有节点" description="添加第一个节点后，安装 Agent 即可开始接收监控数据。"><DsButton variant="primary" @click="nodeCreateOpen = true">添加节点</DsButton></DsEmptyState>
       </template>
 
       <template v-else-if="tab === 'targets'">
@@ -550,31 +568,11 @@ onMounted(async () => {
       </template>
 
       <template v-else-if="tab === 'settings'">
-        <section class="admin-heading"><div><span class="eyebrow">SITE &amp; AGENT</span><h1>站点设置</h1><p>统一管理 Agent 对外连接地址和公开面板的自定义内容。</p></div></section>
-        <form class="admin-panel compact-form site-settings-form" @submit.prevent="saveSiteSettings">
-          <h2>连接与公开展示</h2>
-          <div class="form-grid two"><label>Agent 连接地址<input v-model="siteSettings.agent_url" type="url" placeholder="留空则使用当前访问域名"></label><label>站点标题<input v-model="siteSettings.site_title" maxlength="80" placeholder="服务器运行概览"></label></div>
-          <label>站点说明<input v-model="siteSettings.site_description" maxlength="300" placeholder="节点状态、资源占用、实时速率与网络延迟集中展示。"></label>
-          <label class="html-field">自定义头部内容<textarea v-model="siteSettings.header_html" maxlength="16384" rows="6" placeholder="显示在公开面板概览标题下方；支持安全的文本、链接和基础格式"></textarea></label>
-          <label class="html-field">自定义底部内容<textarea v-model="siteSettings.footer_html" maxlength="16384" rows="4" placeholder="显示在公开面板页脚上方"></textarea></label>
-          <p class="security-hint">自定义 HTML 会在服务端经过白名单清洗；脚本、样式、事件属性和危险链接不会保存。</p>
-          <button class="primary-button" :disabled="busy">保存站点设置</button>
-        </form>
+        <SettingsCenter :settings="siteSettings" :busy="busy" @save="saveSiteSettings" @preview="previewSiteSettings" @open-legacy="value => tab = value" />
       </template>
 
       <template v-else-if="tab === 'alerts'">
-        <section class="admin-heading"><div><span class="eyebrow">NOTIFICATIONS</span><h1>通知与告警</h1><p>加密保存通知凭据，并对离线、CPU、带宽、周期流量和到期状态进行去重告警。</p></div><span class="count-pill">{{ rules.length }} 条规则</span></section>
-        <div class="alert-layout">
-          <section>
-            <form class="admin-panel compact-form" @submit.prevent="saveChannel"><h2>{{ channelForm.id ? '编辑通知通道' : '添加通知通道' }}</h2><div class="form-grid two"><label>名称<input v-model="channelForm.name" required></label><label>类型<select v-model="channelForm.kind"><option value="webhook">Webhook</option><option value="telegram">Telegram</option></select></label><label v-if="channelForm.kind === 'webhook'">Webhook URL<input v-model="channelForm.url" type="url" :required="!channelForm.id" :placeholder="channelForm.id ? '留空则保留原凭据' : 'https://example.com/hook'"></label><template v-else><label>Bot Token<input v-model="channelForm.bot_token" type="password" :required="!channelForm.id" :placeholder="channelForm.id ? '留空则保留原凭据' : ''"></label><label>Chat ID<input v-model="channelForm.chat_id" :required="!channelForm.id"></label></template></div><div v-if="channelForm.id" class="switch-row"><label><input v-model="channelForm.enabled" type="checkbox"> 启用此通道</label></div><div class="form-actions"><button class="primary-button" :disabled="busy">{{ channelForm.id ? '保存通道' : '创建通道' }}</button><button v-if="channelForm.id" type="button" @click="editChannel()">取消</button></div></form>
-            <div class="admin-list single"><article v-for="item in channels" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ item.name }}</strong><code>{{ item.kind.toUpperCase() }} · 凭据已加密</code></div><span :class="['status-label', item.enabled ? 'active' : 'muted']">{{ item.enabled ? '启用' : '停用' }}</span></div><div class="entity-actions"><button @click="sendChannelTest(item)">发送测试</button><button @click="editChannel(item)">编辑</button><button class="danger" @click="removeChannel(item)">删除</button></div></article><div v-if="!channels.length" class="admin-panel empty-admin">尚未配置通知通道</div></div>
-          </section>
-          <section>
-            <form class="admin-panel compact-form" @submit.prevent="saveRule"><h2>{{ ruleForm.id ? '编辑告警规则' : '添加告警规则' }}</h2><div class="form-grid two"><label>节点<select v-model="ruleForm.node_id" required><option value="" disabled>请选择</option><option v-for="item in nodes" :key="item.id" :value="item.id">{{ item.name }}</option></select></label><label>通知通道<select v-model="ruleForm.channel_id" required><option value="" disabled>请选择</option><option v-for="item in channels.filter(x => x.enabled)" :key="item.id" :value="item.id">{{ item.name }}</option></select></label><label>规则类型<select v-model="ruleForm.kind"><option value="offline">离线/恢复</option><option value="cpu">CPU</option><option value="bandwidth">总带宽</option><option value="cycle_traffic">周期流量</option><option value="expiry">到期</option></select></label><label>{{ thresholdLabel(ruleForm.kind) }}<input v-model.number="ruleForm.threshold" type="number" min="0" step="any" required></label><label>冷却时间（秒）<input v-model.number="ruleForm.cooldown_seconds" type="number" min="30" max="2592000" required></label></div><div v-if="ruleForm.id" class="switch-row"><label><input v-model="ruleForm.enabled" type="checkbox"> 启用此规则</label></div><div class="form-actions"><button class="primary-button" :disabled="busy || !nodes.length || !channels.length">{{ ruleForm.id ? '保存规则' : '创建规则' }}</button><button v-if="ruleForm.id" type="button" @click="editRule()">取消</button></div></form>
-            <div class="admin-list single"><article v-for="item in rules" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ nodeName(item.node_id) }} · {{ kindName(item.kind) }}</strong><code>{{ channelName(item.channel_id) }} · 冷却 {{ item.cooldown_seconds }} 秒</code></div><span :class="['status-label', item.enabled ? 'active' : 'muted']">{{ item.enabled ? '监控中' : '已停用' }}</span></div><div class="entity-actions"><button @click="editRule(item)">编辑</button><button class="danger" @click="removeRule(item)">删除</button></div></article><div v-if="!rules.length" class="admin-panel empty-admin">尚未创建告警规则</div></div>
-          </section>
-        </div>
-        <section class="event-section"><h2>最近告警事件</h2><div class="event-list admin-panel"><article v-for="item in events" :key="item.id"><span :class="['event-state', item.state]">{{ item.state === 'firing' ? '告警' : item.state === 'resolved' ? '恢复' : '失败' }}</span><div><strong>{{ nodeName(item.node_id) }}</strong><p>{{ item.delivery_error || item.message }}</p></div><time>{{ new Date(item.created_at).toLocaleString('zh-CN', { hour12: false }) }}</time></article><p v-if="!events.length" class="empty-admin">暂无告警事件</p></div></section>
+        <NotificationCenter :nodes="nodes" @notice="value => { notice = value; error = '' }" @error="showError" />
       </template>
 
       <template v-else-if="tab === 'shares'">
@@ -610,6 +608,7 @@ onMounted(async () => {
       <template v-else>
         <section class="admin-heading"><div><span class="eyebrow">ACCESS &amp; ACCOUNTABILITY</span><h1>安全与审计</h1><p>修改管理员凭据，并检查所有管理操作、来源地址和结构化详情。</p></div><span class="count-pill">{{ auditEntries.length }} 条已载入</span></section>
         <div class="security-layout">
+          <AuthSettingsPanel @notice="value => { notice = value; error = '' }" @error="showError" />
           <form class="admin-panel compact-form password-card" @submit.prevent="submitPasswordChange">
             <span class="eyebrow">PASSWORD</span><h2>修改管理员密码</h2><p>新密码至少 12 个字符。修改成功后所有管理会话都会立即撤销。</p>
             <div class="form-grid one"><label>当前密码<input v-model="currentPassword" type="password" autocomplete="current-password" required></label><label>新密码<input v-model="newPassword" type="password" minlength="12" autocomplete="new-password" required></label><label>确认新密码<input v-model="confirmPassword" type="password" minlength="12" autocomplete="new-password" required></label></div>
@@ -622,6 +621,44 @@ onMounted(async () => {
         </div>
       </template>
     </main>
+
+    <DsSheet :open="nodeCreateOpen" title="添加节点" description="创建 Agent 身份并设置基础采集参数。" @close="nodeCreateOpen = false">
+      <form id="node-create-form" class="admin-sheet-form" @submit.prevent="submitNodeCreate">
+        <div class="form-grid">
+          <label>名称<input v-model="nodeCreate.name" required autofocus></label>
+          <label>标签（逗号分隔）<input v-model="nodeCreate.tags" placeholder="香港, 生产"></label>
+          <label>国家 / 地区代码<input v-model="nodeCreate.country_code" maxlength="2" placeholder="HK"></label>
+          <label>采集间隔（秒）<input v-model.number="nodeCreate.collection_seconds" type="number" min="1" max="3600" required></label>
+          <label>上报间隔（秒）<input v-model.number="nodeCreate.report_seconds" type="number" min="1" max="3600" required></label>
+        </div>
+      </form>
+      <template #footer><div class="admin-sheet-form__footer"><DsButton variant="ghost" :disabled="busy" @click="nodeCreateOpen = false">取消</DsButton><DsButton type="submit" form="node-create-form" variant="primary" :loading="busy">创建节点</DsButton></div></template>
+    </DsSheet>
+
+    <DsDialog :open="Boolean(nodeConfig)" :title="nodeConfig?.name || '节点配置'" description="当前节点的只读连接与采集摘要。" @close="nodeConfig = null">
+      <dl v-if="nodeConfig" class="node-config-grid">
+        <div><dt>节点 ID</dt><dd>{{ nodeConfig.id }}</dd></div>
+        <div><dt>公开状态</dt><dd>{{ nodeConfig.hidden ? '已从公开面板隐藏' : '公开展示' }}</dd></div>
+        <div><dt>采集 / 上报</dt><dd>{{ nodeConfig.collection_seconds }} 秒 / {{ nodeConfig.report_seconds }} 秒</dd></div>
+        <div><dt>探测模式</dt><dd>{{ nodeConfig.latency_mode.toUpperCase() }}</dd></div>
+        <div><dt>Agent 主机</dt><dd>{{ nodeConfig.agent?.hostname || '尚未连接' }}</dd></div>
+        <div><dt>Agent 版本</dt><dd>{{ nodeConfig.agent?.agent_version || '尚未报告' }}</dd></div>
+        <div><dt>最后上报</dt><dd>{{ formatAdminTime(nodeConfig.last_seen_at) }}</dd></div>
+        <div><dt>探测目标</dt><dd>{{ assignedTargets(nodeConfig).map(target => target.name).join('、') || '未分配' }}</dd></div>
+      </dl>
+      <template #footer><DsButton @click="nodeConfig = null">完成</DsButton></template>
+    </DsDialog>
+
+    <DsConfirmDialog
+      :open="Boolean(pendingNodeAction)"
+      :title="pendingNodeAction?.kind === 'delete' ? '删除节点？' : '轮换 Agent Token？'"
+      :description="pendingNodeAction?.kind === 'delete' ? `节点“${pendingNodeAction?.node.name || ''}”及相关历史数据将被永久删除。` : `节点“${pendingNodeAction?.node.name || ''}”的旧 Token 会立即失效，Agent 必须更新后才能继续上报。`"
+      :confirm-label="pendingNodeAction?.kind === 'delete' ? '删除节点' : '确认轮换'"
+      :danger="true"
+      :busy="busy"
+      @cancel="pendingNodeAction = null"
+      @confirm="confirmNodeAction"
+    />
 
     <div v-if="nodeEdit" class="admin-overlay" @click.self="nodeEdit = null"><form class="admin-panel edit-dialog" @submit.prevent="saveNode"><header><div><span class="eyebrow">NODE SETTINGS</span><h2>{{ nodeEdit.name }}</h2></div><button type="button" class="close-button" @click="nodeEdit = null">×</button></header><div class="form-grid two"><label>名称<input v-model="nodeEdit.name" required></label><label>排序<input v-model.number="nodeEdit.sort_order" type="number"></label><label>国家/地区代码<input v-model="nodeEdit.country_code" maxlength="2"></label><label>标签（逗号分隔显示）<input :value="nodeEdit.tags.join(', ')" @input="nodeEdit!.tags = ($event.target as HTMLInputElement).value.split(',').map(x => x.trim()).filter(Boolean)"></label><label>采集间隔（秒）<input v-model.number="nodeEdit.collection_seconds" type="number" min="1" max="3600"></label><label>上报间隔（秒）<input v-model.number="nodeEdit.report_seconds" type="number" min="1" max="3600"></label><label>延迟模式<select v-model="nodeEdit.latency_mode"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label><label>流量重置日<input v-model.number="nodeEdit.traffic_reset_day" type="number" min="1" max="31" placeholder="自然月"></label><label>货币<input v-model="nodeEdit.currency" maxlength="3" placeholder="USD"></label><label>价格（最小货币单位）<input v-model.number="nodeEdit.price_minor" type="number" min="0"></label><label>计费周期<input v-model="nodeEdit.billing_cycle" placeholder="monthly"></label><label>到期时间<input v-model="nodeEdit.expires_at" type="datetime-local"></label></div><div class="assignment-box dialog-assignment"><b>延迟监测目标</b><label v-for="target in config.targets" :key="target.id" class="check-chip"><input v-model="nodeTargetIDs" type="checkbox" :value="target.id">{{ target.name }} · {{ target.kind === 'tcping' ? 'TCP' : 'Ping' }}</label><span v-if="!config.targets.length" class="empty-inline">请先创建探测目标</span></div><div class="switch-row"><label><input v-model="nodeEdit.hidden" type="checkbox"> 从公开面板隐藏</label><label><input v-model="nodeEdit.use_since_boot" type="checkbox"> 使用开机以来流量</label></div><div class="form-actions"><button class="primary-button" :disabled="busy">保存节点</button><button type="button" @click="nodeEdit = null">取消</button></div></form></div>
 

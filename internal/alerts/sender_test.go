@@ -64,3 +64,34 @@ func TestHTTPSenderRejectsFailureStatusAndInvalidURL(t *testing.T) {
 		t.Fatal("non-HTTP URL was accepted")
 	}
 }
+
+func TestHTTPSenderDiscordDisablesMentions(t *testing.T) {
+	var body map[string]any
+	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer receiver.Close()
+	sender := NewHTTPSender(receiver.Client())
+	if err := sender.Deliver(context.Background(), "discord", ChannelConfig{URL: receiver.URL}, Notification{Title: "alert", Message: "@everyone offline"}); err != nil {
+		t.Fatal(err)
+	}
+	mentions := body["allowed_mentions"].(map[string]any)
+	if len(mentions["parse"].([]any)) != 0 {
+		t.Fatalf("mentions were enabled: %#v", body)
+	}
+}
+
+func TestPublicWebhookRejectsPrivateDestinations(t *testing.T) {
+	sender := NewHTTPSender(nil)
+	if err := sender.Deliver(context.Background(), "webhook", ChannelConfig{URL: "http://127.0.0.1/hook"}, Notification{}); err == nil {
+		t.Fatal("private webhook destination accepted")
+	}
+}
+
+func TestRenderTemplateUsesOnlyKnownPlaceholders(t *testing.T) {
+	got := renderTemplate("{{node.name}}: {{message}} {{unknown}}", Notification{NodeName: "edge", Message: "offline"})
+	if got != "edge: offline {{unknown}}" {
+		t.Fatalf("rendered = %q", got)
+	}
+}

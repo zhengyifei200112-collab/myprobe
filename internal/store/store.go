@@ -688,20 +688,13 @@ func (s *Store) ListLatestLatency(ctx context.Context, nodeID string) ([]LatestL
 	return result, rows.Err()
 }
 
-func (s *Store) MetricHistory(ctx context.Context, nodeID string, start time.Time, bucketSeconds int) ([]MetricHistoryPoint, error) {
-	if bucketSeconds < 1 || bucketSeconds > 86400 {
-		return nil, errors.New("invalid history bucket")
-	}
-	rows, err := s.db.QueryContext(ctx, `WITH history AS (
+const metricHistoryQuery = `WITH history AS (
 		SELECT m.node_id,m.captured_at AS sample_at,1 AS sample_count,m.cpu_usage AS cpu_sum,
 		CASE WHEN m.memory_total>0 THEN 100.0*m.memory_used/m.memory_total ELSE 0 END AS memory_sum,
 		CASE WHEN m.disk_total>0 THEN 100.0*m.disk_used/m.disk_total ELSE 0 END AS disk_sum,
 		m.net_rx_rate AS rx_sum,m.net_tx_rate AS tx_sum
 		FROM metric_samples m
-		WHERE m.node_id=? AND m.captured_at>=? AND NOT EXISTS (
-			SELECT 1 FROM metric_rollups r WHERE r.node_id=m.node_id
-			AND unixepoch(m.captured_at)>=unixepoch(r.bucket_at)
-			AND unixepoch(m.captured_at)<unixepoch(r.bucket_at)+r.bucket_seconds)
+		WHERE m.node_id=? AND m.captured_at>=?
 		UNION ALL
 		SELECT node_id,bucket_at,sample_count,cpu_sum,memory_percent_sum,disk_percent_sum,net_rx_rate_sum,net_tx_rate_sum
 		FROM metric_rollups WHERE node_id=? AND bucket_at>=?
@@ -710,7 +703,17 @@ func (s *Store) MetricHistory(ctx context.Context, nodeID string, start time.Tim
 	SUM(cpu_sum)/SUM(sample_count),SUM(memory_sum)/SUM(sample_count),SUM(disk_sum)/SUM(sample_count),
 	SUM(rx_sum)/SUM(sample_count),SUM(tx_sum)/SUM(sample_count)
 	FROM history JOIN nodes n ON n.id=history.node_id WHERE n.hidden=0
-	GROUP BY bucket ORDER BY bucket`, nodeID, formatTime(start), nodeID, formatTime(start), bucketSeconds, bucketSeconds)
+	GROUP BY bucket ORDER BY bucket`
+
+func (s *Store) MetricHistory(ctx context.Context, nodeID string, start time.Time, bucketSeconds int) ([]MetricHistoryPoint, error) {
+	if bucketSeconds < 1 || bucketSeconds > 86400 {
+		return nil, errors.New("invalid history bucket")
+	}
+	// ApplyRetention writes rollups and removes the covered raw rows in the same
+	// transaction. Reading both sources with UNION ALL is therefore sufficient;
+	// a per-sample NOT EXISTS scan is redundant and becomes quadratic on long-lived
+	// installations with tens of thousands of rollup buckets.
+	rows, err := s.db.QueryContext(ctx, metricHistoryQuery, nodeID, formatTime(start), nodeID, formatTime(start), bucketSeconds, bucketSeconds)
 	if err != nil {
 		return nil, err
 	}

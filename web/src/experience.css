@@ -1,0 +1,67 @@
+/* Phase 10 experience polish: responsive layout, dark surfaces, motion and accessibility. */
+body.has-modal { overflow: hidden; }
+html, body, #app, .app-shell, .admin-shell, .share-shell { max-width: 100%; overflow-x: clip; }
+.admin-node-card { grid-template-columns: minmax(0, 1fr); }
+.admin-node-card__identity > div { min-width: 0; }
+.site-background > .chart-overlay { position: fixed; z-index: var(--z-overlay); }
+
+.skip-link {
+  position: fixed;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: calc(var(--z-toast) + 1);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--text-primary);
+  color: var(--surface-solid);
+  box-shadow: var(--shadow-md);
+  text-decoration: none;
+  transform: translateY(calc(-100% - var(--space-6)));
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+.skip-link:focus { transform: translateY(0); }
+
+:root[data-theme='dark'] .admin-shell,
+:root[data-theme='dark'] .share-shell { background: var(--background); }
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'] .admin-shell,
+  :root[data-theme='system'] .share-shell { background: var(--background); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ds-card--interactive:hover { transform: translateY(-2px); }
+}
+
+@media (pointer: coarse) {
+  :where(button, a, input, select, textarea) { min-height: var(--touch-target); }
+}
+
+@media (max-width: 680px) {
+  .chart-overlay { padding: 0; backdrop-filter: none; }
+  .chart-dialog { width: 100%; min-height: 100dvh; margin: 0; padding: var(--space-4); border: 0; border-radius: 0; box-shadow: none; }
+  .chart-dialog > header { position: sticky; top: calc(-1 * var(--space-4)); z-index: 2; padding: var(--space-3) 0; background: color-mix(in srgb, var(--background) 94%, transparent); backdrop-filter: blur(16px); }
+  .chart-canvas { height: 15rem; }
+  .range-switch button { min-width: 3rem; min-height: var(--touch-target); }
+  .admin-main, .share-main { padding-inline: var(--space-4); }
+  .admin-heading__actions, .admin-node-card__actions, .form-actions { flex-wrap: wrap; }
+  .admin-heading__actions .ds-button { flex: 1 1 auto; }
+  .notification-card { padding: var(--space-4); }
+  .rule-item dl { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
+  .app-shell .overview-grid { grid-template-columns: 1fr; }
+  .app-shell .overview-card { min-height: auto; }
+  .overview-pairline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-intro { display: grid; gap: var(--space-4); }
+  .live-badge { width: fit-content; margin: 0; }
+  .admin-nav { gap: var(--space-2); }
+  .admin-tabs { margin-inline: calc(-1 * var(--space-2)); padding-inline: var(--space-2); }
+  .admin-tabs button { min-height: var(--touch-target); padding-inline: var(--space-3); font-size: var(--font-size-xs); }
+  .share-controls label { align-items: stretch; flex-direction: column; }
+}
+
+@media (forced-colors: active) {
+  :where(button, a, input, select, textarea):focus-visible { outline: 3px solid Highlight; }
+  .live-dot, .ds-status i { forced-color-adjust: none; }
+}

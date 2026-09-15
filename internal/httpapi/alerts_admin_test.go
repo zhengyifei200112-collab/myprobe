@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/agentgateway"
+	"github.com/zhengyifei200112-collab/myprobe/internal/alerts"
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
@@ -35,6 +36,7 @@ func TestAdminNotificationAndAlertAPIsDoNotLeakCredentials(t *testing.T) {
 	cfg := config.Config{EncryptionKey: strings.Repeat("e", 32)}
 	hub := agentgateway.NewHub()
 	server := New(cfg, database, authService, agentgateway.New(database, hub), hub)
+	server.alerts = alerts.New(database, cfg.EncryptionKey, alerts.NewHTTPSender(receiver.Client()), nil)
 
 	loginRequest := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString(`{"username":"admin","password":"correct horse battery staple"}`))
 	loginResponse := httptest.NewRecorder()

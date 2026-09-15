@@ -3,8 +3,8 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 MyProbe is a self-hosted VPS monitoring platform with an original implementation,
-a lightweight Go agent, and a responsive dashboard inspired by the information
-architecture and visual polish of ZJM.
+a lightweight Go agent, and a calm, responsive Apple-inspired product interface built
+for clear server-health and network visibility.
 
 The product scope and acceptance evidence are tracked in
 [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md), and the versioned agent protocol is
@@ -40,7 +40,8 @@ the implementation base. This repository uses an independently documented protoc
 a testable vertical architecture.
 
 The maintained v1 feature set is operational: the server bootstraps SQLite and administrator
-authentication, agents report real host metrics over authenticated WebSockets with an
+authentication, with password login always available as a safe fallback and optional
+allowlisted GitHub OAuth. Agents report real host metrics over authenticated WebSockets with an
 HTTP fallback, typed Ping/TCPing tasks are scheduled and persisted, and the embedded
 responsive dashboard provides persistent compact/detailed modes and updates metrics and
 latency in real time. Bounded historical APIs
@@ -49,7 +50,8 @@ samples to the browser. Transactional retention keeps seven days of raw samples,
 30 days of one-minute rollups, and one year of five-minute rollups. Monthly traffic accounting handles configurable reset days,
 short months, host counter resets, and persisted O(1) dashboard reads. The responsive
 management console covers login, node lifecycle and token rotation, Ping/TCPing target
-CRUD, direct latency-target assignments, configurable Agent public URL, encrypted notifications, alert rules, and
+CRUD, direct latency-target assignments, configurable Agent public URL, encrypted Webhook,
+Telegram, Discord, and SMTP notification channels, alert rules, templates, delivery history, and
 password-protected read-only chart sharing. Its maintenance area provides previewable,
 versioned configuration transfer and passphrase-encrypted full database backups with
 restart-safe staged restore and automatic preservation of the previous database. The

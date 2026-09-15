@@ -1,4 +1,10 @@
-import type { ApiResponse, HistoryRange, HistoryResponse, RealtimeEvent } from './types'
+import type { ApiResponse, HistoryRange, HistoryResponse, RealtimeEvent, SiteSettings } from './types'
+
+export async function fetchSiteSettings(signal?: AbortSignal): Promise<SiteSettings> {
+  const response = await fetch('/api/v1/public/settings', { cache: 'no-cache', headers: { Accept: 'application/json' }, signal })
+  if (!response.ok) throw new Error(`settings request failed: ${response.status}`)
+  return ((await response.json()) as { settings: SiteSettings }).settings
+}
 
 export async function fetchNodes(signal?: AbortSignal): Promise<ApiResponse> {
   const response = await fetch('/api/v1/public/nodes', {

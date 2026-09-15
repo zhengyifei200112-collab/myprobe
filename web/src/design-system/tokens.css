@@ -1,0 +1,184 @@
+:root {
+  color-scheme: light;
+
+  /* Color */
+  --background: #f5f5f7;
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-solid: #ffffff;
+  --surface-secondary: #f0f1f3;
+  --surface-tertiary: #e8e9ed;
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #86868b;
+  --accent: #007aff;
+  --accent-hover: #0071e3;
+  --accent-pressed: #0062cc;
+  --accent-soft: rgba(0, 122, 255, 0.1);
+  --success: #248a3d;
+  --success-soft: rgba(52, 199, 89, 0.11);
+  --warning: #c93400;
+  --warning-soft: rgba(255, 159, 10, 0.12);
+  --danger: #d70015;
+  --danger-soft: rgba(255, 59, 48, 0.1);
+  --info: #5856d6;
+  --info-soft: rgba(88, 86, 214, 0.1);
+  --border: rgba(0, 0, 0, 0.065);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --focus-ring: rgba(0, 122, 255, 0.18);
+  --control-hover: rgba(0, 0, 0, 0.035);
+  --control-disabled: rgba(118, 118, 128, 0.12);
+  --overlay: rgba(0, 0, 0, 0.34);
+  --backdrop: rgba(245, 245, 247, 0.78);
+
+  /* Typography: system fonts only; no private font assets are distributed. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: clamp(2rem, 4vw, 3rem);
+  --font-weight-regular: 400;
+  --font-weight-medium: 550;
+  --font-weight-semibold: 650;
+  --font-weight-bold: 750;
+  --line-height-tight: 1.2;
+  --line-height-body: 1.55;
+  --line-height-relaxed: 1.7;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Shape and elevation */
+  --radius-badge: 0.625rem;
+  --radius-control: 0.75rem;
+  --radius-button: 0.875rem;
+  --radius-card: 1.25rem;
+  --radius-dialog: 1.5rem;
+  --radius-round: 999px;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.025);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.025), 0 6px 20px rgba(0, 0, 0, 0.035);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.03), 0 12px 36px rgba(0, 0, 0, 0.055);
+  --shadow-dialog: 0 24px 80px rgba(0, 0, 0, 0.16);
+
+  /* Motion and layering */
+  --duration-fast: 140ms;
+  --duration-normal: 200ms;
+  --duration-slow: 280ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --z-dropdown: 40;
+  --z-overlay: 60;
+  --z-toast: 80;
+  --content-max: 1440px;
+  --page-gutter: clamp(1rem, 4vw, 4rem);
+  --control-height: 2.875rem;
+  --touch-target: 2.75rem;
+  /* Reference breakpoints. Keep component media queries aligned with these values. */
+  --breakpoint-compact: 42.5rem;
+  --breakpoint-tablet: 56.25rem;
+  --breakpoint-wide: 90rem;
+
+  /* Compatibility aliases for the existing UI; migrate consumers by phase. */
+  --font: var(--font-sans);
+  --page: var(--background);
+  --surface-strong: var(--surface-solid);
+  --surface-soft: var(--surface-secondary);
+  --surface-inset: var(--surface-tertiary);
+  --text: var(--text-primary);
+  --muted: var(--text-secondary);
+  --subtle: var(--text-tertiary);
+  --blue: var(--accent);
+  --cyan: #2997ff;
+  --green: var(--success);
+  --orange: var(--warning);
+  --red: var(--danger);
+  --purple: var(--info);
+  --shadow: var(--shadow-md);
+  --shadow-soft: var(--shadow-sm);
+  --inset: inset 0 0 0 1px var(--border);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --background: #0b0b0c;
+  --surface: rgba(28, 28, 30, 0.92);
+  --surface-solid: #1c1c1e;
+  --surface-secondary: #2c2c2e;
+  --surface-tertiary: #3a3a3c;
+  --text-primary: #f5f5f7;
+  --text-secondary: #a1a1a6;
+  --text-tertiary: #8e8e93;
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-pressed: #0071e3;
+  --accent-soft: rgba(10, 132, 255, 0.16);
+  --success: #30d158;
+  --success-soft: rgba(48, 209, 88, 0.14);
+  --warning: #ff9f0a;
+  --warning-soft: rgba(255, 159, 10, 0.15);
+  --danger: #ff453a;
+  --danger-soft: rgba(255, 69, 58, 0.15);
+  --info: #7d7aff;
+  --info-soft: rgba(125, 122, 255, 0.16);
+  --border: rgba(255, 255, 255, 0.085);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --focus-ring: rgba(10, 132, 255, 0.28);
+  --control-hover: rgba(255, 255, 255, 0.055);
+  --control-disabled: rgba(118, 118, 128, 0.2);
+  --overlay: rgba(0, 0, 0, 0.62);
+  --backdrop: rgba(11, 11, 12, 0.78);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22), 0 8px 24px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.28), 0 16px 42px rgba(0, 0, 0, 0.24);
+  --shadow-dialog: 0 28px 90px rgba(0, 0, 0, 0.5);
+  --cyan: #64d2ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'] {
+    color-scheme: dark;
+    --background: #0b0b0c;
+    --surface: rgba(28, 28, 30, 0.92);
+    --surface-solid: #1c1c1e;
+    --surface-secondary: #2c2c2e;
+    --surface-tertiary: #3a3a3c;
+    --text-primary: #f5f5f7;
+    --text-secondary: #a1a1a6;
+    --text-tertiary: #8e8e93;
+    --accent: #0a84ff;
+    --accent-hover: #409cff;
+    --accent-pressed: #0071e3;
+    --accent-soft: rgba(10, 132, 255, 0.16);
+    --success: #30d158;
+    --success-soft: rgba(48, 209, 88, 0.14);
+    --warning: #ff9f0a;
+    --warning-soft: rgba(255, 159, 10, 0.15);
+    --danger: #ff453a;
+    --danger-soft: rgba(255, 69, 58, 0.15);
+    --info: #7d7aff;
+    --info-soft: rgba(125, 122, 255, 0.16);
+    --border: rgba(255, 255, 255, 0.085);
+    --border-strong: rgba(255, 255, 255, 0.15);
+    --focus-ring: rgba(10, 132, 255, 0.28);
+    --control-hover: rgba(255, 255, 255, 0.055);
+    --control-disabled: rgba(118, 118, 128, 0.2);
+    --overlay: rgba(0, 0, 0, 0.62);
+    --backdrop: rgba(11, 11, 12, 0.78);
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.24);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22), 0 8px 24px rgba(0, 0, 0, 0.18);
+    --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.28), 0 16px 42px rgba(0, 0, 0, 0.24);
+    --shadow-dialog: 0 28px 90px rgba(0, 0, 0, 0.5);
+    --cyan: #64d2ff;
+  }
+}
