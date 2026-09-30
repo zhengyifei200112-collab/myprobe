@@ -2,6 +2,9 @@
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert=require('node:assert/strict');
 (async()=>{
+ const target=new URL(process.env.MYPROBE_QA_URL || 'http://127.0.0.1:25776');
+ assert.ok(['127.0.0.1','localhost','[::1]'].includes(target.hostname), 'Use a disposable local test server');
+ assert.ok(process.env.MYPROBE_QA_PASSWORD, 'Set MYPROBE_QA_PASSWORD');
  const browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL || 'msedge',headless:true});
  const context=await browser.newContext({baseURL:process.env.MYPROBE_QA_URL || 'http://127.0.0.1:25776'});
  const login=await context.request.post('/api/v1/auth/login',{data:{username:'admin',password:process.env.MYPROBE_QA_PASSWORD}});
@@ -43,7 +46,3 @@ const assert=require('node:assert/strict');
  await context.request.delete('/api/v1/admin/nodes/'+node.id,{headers});
  await browser.close(); console.log('PASS: monetary round-trip, legacy cycle, expiry seconds, units, unsafe input and six viewport/theme combinations');
 })().catch(e=>{console.error(e);process.exit(1)});
-
-
-
-
