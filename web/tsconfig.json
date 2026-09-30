@@ -14,5 +14,6 @@
     "skipLibCheck": true,
     "noEmit": true
   },
+  "exclude": ["src/**/*.test.ts"],
   "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"]
 }

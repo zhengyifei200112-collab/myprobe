@@ -1,3 +1,4 @@
+import { currencyFactor } from '../forms/units'
 import type { PublicNode } from '../types'
 
 export function aggregateNode(item: PublicNode) {
@@ -78,14 +79,13 @@ export function resourceTone(value = 0): 'accent' | 'warning' | 'danger' {
 
 export function price(item: PublicNode) {
   if (item.node.price_minor == null || !item.node.currency) return '未设置价格'
-  return new Intl.NumberFormat('zh-CN', {
+  try { return new Intl.NumberFormat('zh-CN', {
     style: 'currency',
     currency: item.node.currency,
     currencyDisplay: 'narrowSymbol',
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
     useGrouping: false,
-  }).format(item.node.price_minor / 100)
+  }).format(item.node.price_minor / currencyFactor(item.node.currency)) } catch { return '价格配置无效' }
 }
 
 export function expiry(item: PublicNode) {
