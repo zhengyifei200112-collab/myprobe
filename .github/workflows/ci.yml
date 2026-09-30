@@ -26,6 +26,7 @@ jobs:
       - name: Build embedded frontend
         run: |
           npm --prefix web ci
+          npm --prefix web test
           npm --prefix web run build
           git diff --exit-code -- internal/webui/dist
 

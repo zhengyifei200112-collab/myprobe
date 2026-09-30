@@ -55,6 +55,21 @@
 
 ## Node metadata
 
+### Administrative quantity inputs
+
+Node prices are entered as decimal amounts and stored as integer minor units using
+the currency's fraction digits. Changing currency preserves the entered amount,
+without exchange-rate conversion. Standard billing cycles have presets; existing
+custom cycle text remains editable. Expiry inputs identify the browser timezone,
+store UTC, and preserve the original timestamp when unchanged.
+
+Bandwidth, traffic and alert duration inputs expose unit selectors. Mbps uses
+decimal bits, GB/TB decimal bytes, and GiB/TiB binary bytes. Unit changes preserve
+the stored integer, and values exceeding JavaScript's safe integer range or below
+the base-unit precision are rejected. Non-terminating conversions retain the
+previous unit with an explanation. Existing API, schema and Agent protocol stay
+unchanged.
+
 - Stable UUID, display name, sort order, visibility, tags, and country override.
 - Price in minor currency units, ISO currency code, billing period, expiration date.
 - Traffic reset day, lifetime/cycle display choice, latency display mode.
