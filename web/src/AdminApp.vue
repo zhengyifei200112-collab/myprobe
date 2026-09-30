@@ -178,6 +178,7 @@ async function submitNodeCreate() {
 
 function editNode(item: NodeMetadata) {
   const copy = JSON.parse(JSON.stringify(item)) as NodeMetadata
+  copy.tags ||= []
   copy.custom_badges ||= []
   copy.custom_links ||= []
   if (copy.expires_at) {

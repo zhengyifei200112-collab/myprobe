@@ -47,8 +47,8 @@ function changeUnit(event: Event) {
 
 <template>
   <div class="quantity-field">
-    <label><span>{{ label }}</span><input ref="input" :value="text" inputmode="decimal" :required="!optional" :aria-invalid="!!problem" @input="edit"></label>
-    <label v-if="units.length > 1"><span>{{ label }}单位</span><select :value="factor" @change="changeUnit"><option v-for="unit in units" :key="unit.label" :value="unit.factor">{{ unit.label }}</option></select></label>
+    <label><span>{{ label }}</span><input ref="input" :aria-label="label" :value="text" inputmode="decimal" :required="!optional" :aria-invalid="!!problem" @input="edit"></label>
+    <label v-if="units.length > 1"><span>单位</span><select :aria-label="`${label}单位`" :value="factor" @change="changeUnit"><option v-for="unit in units" :key="unit.label" :value="unit.factor">{{ unit.label }}</option></select></label>
     <small v-else>{{ units[0]?.label }}</small>
     <small v-if="problem || switchNotice" class="quantity-message" role="status">{{ problem || switchNotice }}</small>
   </div>
