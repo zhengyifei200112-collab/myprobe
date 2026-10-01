@@ -46,3 +46,21 @@ func (h *Hub) Publish(event Event) {
 		}
 	}
 }
+
+// PublishRefresh replaces queued metrics with a signal to read a current public
+// snapshot. Unlike best-effort samples, visibility changes must not be dropped.
+func (h *Hub) PublishRefresh() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for subscriber := range h.subscribers {
+	drain:
+		for {
+			select {
+			case <-subscriber:
+			default:
+				break drain
+			}
+		}
+		subscriber <- Event{Type: "refresh"}
+	}
+}

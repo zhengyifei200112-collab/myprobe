@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Transactional node batch configuration previews with ownership, ten-minute
+  expiry, revision conflicts, persistent idempotency and atomic audit recording.
+- Administrative batch selection across pages for tags, visibility, sampling
+  configuration and additive/removal/replacement probe-target assignment.
+
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
   independent public, admin, and login background presentation.
