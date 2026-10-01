@@ -38,6 +38,29 @@
 
 ## Public dashboard layout
 
+### Discovery and comparison
+
+The dashboard supports case-insensitive name/tag search intersected with tag and
+state filters. Attention means interrupted reports, stale samples, current CPU,
+memory or any disk at least 90%, expired nodes, or expiry within seven days. These
+are explicit public display heuristics, not administrator alert policy disclosure.
+Waiting nodes do not count as interrupted reports or healthy resource samples.
+
+Sort by configured order, name, CPU, memory, a selected latency target, or expiry.
+Missing/stale numeric values sort last and ties use node IDs. Dynamic ranks refresh
+every five seconds and pause while a pointer, keyboard focus or history dialog is
+using the list. Filter changes apply immediately; metrics continue updating.
+
+Query parameters preserve search, tag, state, sorting, target and cards/table view;
+explicit URL values override locally remembered view, sort and target preferences.
+Unknown targets/tags remain explainable and can be cleared. Copying a query link
+includes defaults so the recipient's preferences cannot override the shared view.
+
+The table offers name/history access, state/reasons, CPU, memory, upload/download,
+selected-target latency and expiry. Narrow screens scroll the table horizontally
+while retaining the identity column. Filtered and total node counts are distinct.
+Browser disconnection is a global connection notice, not evidence all nodes failed.
+
 - Header: product brand, persistent compact/detail display control, theme control, and
   admin entry.
 - Overview: four cards on desktop, two columns at intermediate widths, and a single

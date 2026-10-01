@@ -9,6 +9,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Public dashboard search, intersecting tag/status filters, explicit target-based
+  sorting, shareable query links and remembered presentation preferences.
+- A keyboard-accessible node comparison table with a sticky identity column on
+  small screens, and throttled live ordering that pauses during list interaction.
+- Distinct waiting, interrupted-report and stale-data states, public attention
+  reasons, and filtered totals that exclude stale samples from live rates.
+
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
   independent public, admin, and login background presentation.
