@@ -19,8 +19,9 @@ func TestClampPercent(t *testing.T) {
 }
 
 func TestDiskUsagePathUsesHostRootForAbsoluteMounts(t *testing.T) {
-	hostRoot := filepath.Join(string(filepath.Separator), "host")
-	mount := filepath.Join(string(filepath.Separator), "var", "lib")
+	root := filepath.VolumeName(t.TempDir()) + string(filepath.Separator)
+	hostRoot := filepath.Join(root, "host")
+	mount := filepath.Join(root, "var", "lib")
 	want := filepath.Join(hostRoot, "var", "lib")
 	if got := diskUsagePath(hostRoot, mount); got != want {
 		t.Fatalf("diskUsagePath() = %q, want %q", got, want)
@@ -28,7 +29,8 @@ func TestDiskUsagePathUsesHostRootForAbsoluteMounts(t *testing.T) {
 }
 
 func TestDiskUsagePathPreservesLogicalPathsWithoutHostRoot(t *testing.T) {
-	mount := filepath.Join(string(filepath.Separator), "var", "lib")
+	root := filepath.VolumeName(t.TempDir()) + string(filepath.Separator)
+	mount := filepath.Join(root, "var", "lib")
 	if got := diskUsagePath("", mount); got != mount {
 		t.Fatalf("diskUsagePath() = %q, want %q", got, mount)
 	}
