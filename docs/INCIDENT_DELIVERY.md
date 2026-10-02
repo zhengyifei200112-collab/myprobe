@@ -122,3 +122,18 @@ Next work is administrator APIs/UI, and additional
 end-to-end/browser validation.
 A freshness change after claiming defers the job but consumes that reserved
 attempt, retaining an explicit canceled attempt for diagnosis.
+
+## Administrator read API
+
+- `GET /api/v1/admin/incidents`: optional `state` (pending/firing/resolved),
+  `node_id`, `before` (exclusive sequence cursor) and `limit` (1–100, default 50).
+  Returns `incidents` and `next_before` (zero when the page is shorter than limit).
+- `GET /api/v1/admin/incidents/:incidentID/deliveries`: same pagination; returns
+  `deliveries` and `next_before`. A missing incident returns 404.
+
+Both require administrator authentication. Results are newest sequence first;
+filters apply to current incident state, so these are live queries, not snapshots.
+A full last page may return a cursor followed by an empty page. Payloads, rule
+snapshots, lease tokens and idempotency keys are omitted from these responses.
+API tests cover authentication, invalid pagination, missing incidents and private
+field exclusion. Store tests cover cursor ordering and combined filters.

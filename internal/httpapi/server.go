@@ -136,6 +136,8 @@ func (s *Server) routes() {
 	admin.PATCH("/alert-rules/:ruleID", s.updateAlertRule)
 	admin.DELETE("/alert-rules/:ruleID", s.deleteAlertRule)
 	admin.GET("/alert-events", s.listAlertEvents)
+	admin.GET("/incidents", s.listIncidents)
+	admin.GET("/incidents/:incidentID/deliveries", s.incidentDeliveries)
 	admin.GET("/notification-templates", s.listNotificationTemplates)
 	admin.POST("/notification-templates", s.createNotificationTemplate)
 	admin.PATCH("/notification-templates/:templateID", s.updateNotificationTemplate)

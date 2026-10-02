@@ -75,6 +75,44 @@ func TestAdminNotificationAndAlertAPIsDoNotLeakCredentials(t *testing.T) {
 	if eventsResponse.Code != http.StatusOK || eventsResponse.Body.String() != "{\"events\":[]}" {
 		t.Fatalf("events response = %d %s", eventsResponse.Code, eventsResponse.Body.String())
 	}
+	// Incident endpoints share the administrator authentication boundary.
+	var ruleBody struct {
+		Rule store.AlertRule `json:"rule"`
+	}
+	if err := json.Unmarshal(ruleResponse.Body.Bytes(), &ruleBody); err != nil {
+		t.Fatal(err)
+	}
+	incident, err := database.ObserveAlert(ctx, ruleBody.Rule, node, store.AlertObservation{At: time.Now().UTC(), Known: true, Active: true, Message: "synthetic outage"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/api/v1/admin/incidents", "/api/v1/admin/incidents/" + incident.ID + "/deliveries"} {
+		anonymous := httptest.NewRecorder()
+		server.Handler().ServeHTTP(anonymous, httptest.NewRequest(http.MethodGet, path, nil))
+		if anonymous.Code != http.StatusUnauthorized {
+			t.Fatalf("anonymous %s: %d", path, anonymous.Code)
+		}
+		response := authenticatedRequest(t, server.Handler(), cookie, loginBody.CSRFToken, http.MethodGet, path, "")
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", path, response.Code, response.Body.String())
+		}
+		for _, private := range []string{"config_encrypted", "rule_snapshot", "lease_token", "idempotency_key", receiver.URL} {
+			if strings.Contains(response.Body.String(), private) {
+				t.Fatalf("%s leaks %s", path, private)
+			}
+		}
+	}
+	for _, query := range []string{"limit=101", "limit=0", "before=-1", "before=abc", "state=invalid"} {
+		response := authenticatedRequest(t, server.Handler(), cookie, loginBody.CSRFToken, http.MethodGet, "/api/v1/admin/incidents?"+query, "")
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("invalid %s accepted: %d", query, response.Code)
+		}
+	}
+	missing := authenticatedRequest(t, server.Handler(), cookie, loginBody.CSRFToken, http.MethodGet, "/api/v1/admin/incidents/missing/deliveries", "")
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("missing incident: %d", missing.Code)
+	}
+
 }
 
 func TestNotificationChannelRequiresEncryptionKey(t *testing.T) {
