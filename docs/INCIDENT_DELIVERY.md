@@ -98,5 +98,18 @@ raw old provider errors are not copied into new payloads.
 
 Store, alert, HTTP API and backup package tests pass with the new schema. The
 existing engine has not yet been replaced: this branch is not ready to deploy.
-Next work is the transactional observation/outbox path, bounded leased worker,
-new administrator APIs/UI, and end-to-end failure and browser validation.
+The transactional observation/outbox repositories and a single-job worker are
+implemented and covered by package tests. Coverage includes concurrent creation
+and claiming, transaction rollback, stale observations, recovery windows,
+configuration changes, expired leases, stale completions, retry budgets and
+sanitized compatibility history. HTTP failures distinguish permanent client
+errors from timeouts, throttling and server failures; Retry-After supports delta
+seconds and HTTP dates with overflow protection. Backoff uses positive jitter.
+The worker performs network I/O outside database transactions and rechecks its
+lease and observation freshness immediately before sending.
+
+The scheduler still uses the legacy engine; the new worker is not started by
+production service execution yet. Next work is service integration, bounded
+worker concurrency, administrator APIs/UI, and end-to-end/browser validation.
+A freshness change after claiming defers the job but consumes that reserved
+attempt, retaining an explicit canceled attempt for diagnosis.

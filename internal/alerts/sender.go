@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -218,7 +217,7 @@ func (s *HTTPSender) smtp(ctx context.Context, config ChannelConfig, notificatio
 	}
 	if config.SMTPUsername != "" {
 		if err := client.Auth(smtp.PlainAuth("", config.SMTPUsername, config.SMTPPassword, config.SMTPHost)); err != nil {
-			return errors.New("SMTP authentication failed")
+			return &DeliveryError{Class: "smtp_authentication", Permanent: true}
 		}
 	}
 	if err := client.Mail(config.SMTPFrom); err != nil {
@@ -243,12 +242,12 @@ func (s *HTTPSender) smtp(ctx context.Context, config ChannelConfig, notificatio
 func (s *HTTPSender) do(request *http.Request) error {
 	response, err := s.client.Do(request)
 	if err != nil {
-		return errors.New("notification delivery failed")
+		return &DeliveryError{Class: "transport_error"}
 	}
 	defer response.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("notification receiver returned HTTP %d", response.StatusCode)
+		return classifyHTTPFailure(response.StatusCode, response.Header.Get("Retry-After"), time.Now())
 	}
 	return nil
 }
