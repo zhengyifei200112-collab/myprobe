@@ -264,14 +264,14 @@ export async function uploadDatabaseRestore(file: File, passphrase: string): Pro
 export interface Incident {
   seq: number; id: string; node_id: string; node_name: string; kind: string
   state: 'pending' | 'firing' | 'resolved'; started_at: string; resolved_at?: string
-  observation_stale: boolean; message: string; origin: string; approximate_start: boolean
+  observation_stale: boolean; message: string; origin: string; approximate_start: boolean; resolution_reason?: string
 }
 export interface IncidentDelivery {
   seq: number; id: string; channel_name: string; provider: string
   notification_type: string; status: string; attempt_count: number
   created_at: string; available_at: string; error_class?: string
 }
-export const loadIncidents = (state = '', before = 0) => request<{ incidents: Incident[]; next_before: number }>(`/api/v1/admin/incidents?limit=25&state=${encodeURIComponent(state)}&before=${before}`)
+export const loadIncidents = (state = '', before = 0, nodeID = '') => request<{ incidents: Incident[]; next_before: number }>(`/api/v1/admin/incidents?limit=25&state=${encodeURIComponent(state)}&before=${before}&node_id=${encodeURIComponent(nodeID)}`)
 export const loadIncidentDeliveries = (id: string, before = 0) => request<{ deliveries: IncidentDelivery[]; next_before: number }>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/deliveries?limit=25&before=${before}`)
 
 export interface DeliveryAttempt { number: number; started_at: string; completed_at?: string; outcome: string; error_class?: string }
