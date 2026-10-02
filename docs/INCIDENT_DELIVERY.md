@@ -236,3 +236,10 @@ not persisted. Authentication temporary errors are no longer always permanent.
 After successful DATA completion, QUIT failure does not turn accepted mail into
 a retry. Classification tests cover these error classes; a full TLS SMTP receiver
 integration test remains outstanding for the DATA/QUIT network sequence.
+
+An SMTP transaction test now runs the real net/smtp command exchange over an
+in-memory connection. It verifies a disconnect after DATA transmission but before
+acceptance is ambiguous, while a disconnect after DATA acceptance during QUIT is
+successful. The transaction helper is shared by production SMTP execution. This
+covers the command sequence without relaxing production TLS verification; it does
+not claim to exercise certificate negotiation.

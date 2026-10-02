@@ -225,10 +225,14 @@ func (s *HTTPSender) smtp(ctx context.Context, config ChannelConfig, notificatio
 			return classifySMTPFailure(err, "authentication", false)
 		}
 	}
-	if err := client.Mail(config.SMTPFrom); err != nil {
+	return sendSMTPMessage(client, config.SMTPFrom, config.SMTPTo, message)
+}
+
+func sendSMTPMessage(client *smtp.Client, from, to string, message []byte) error {
+	if err := client.Mail(from); err != nil {
 		return classifySMTPFailure(err, "sender", false)
 	}
-	if err := client.Rcpt(config.SMTPTo); err != nil {
+	if err := client.Rcpt(to); err != nil {
 		return classifySMTPFailure(err, "recipient", false)
 	}
 	writer, err := client.Data()
