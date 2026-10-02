@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -30,21 +31,32 @@ type Config struct {
 	AgentVersion     string
 }
 
-type Client struct {
-	config    Config
-	baseURL   *url.URL
-	collector *collector.Collector
-	logger    *slog.Logger
-	http      *http.Client
-	sequence  atomic.Uint64
-	reportNS  atomic.Int64
-	connMu    sync.RWMutex
-	writeMu   sync.Mutex
-	conn      *websocket.Conn
-	taskSlots chan struct{}
+type metricSource interface {
+	Hello(context.Context, string, int, int) (protocol.Hello, error)
+	Collect(context.Context) (protocol.Report, error)
+	UpdateConfig(collector.Config)
 }
 
-func New(config Config, source *collector.Collector, logger *slog.Logger) (*Client, error) {
+type Client struct {
+	config            Config
+	baseURL           *url.URL
+	collector         metricSource
+	logger            *slog.Logger
+	http              *http.Client
+	sequence          atomic.Uint64
+	reportNS          atomic.Int64
+	collectionNS      atomic.Int64
+	collectionChanged chan struct{}
+	reportChanged     chan struct{}
+	sampleMu          sync.RWMutex
+	sample            *protocol.Report
+	connMu            sync.RWMutex
+	writeMu           sync.Mutex
+	conn              *websocket.Conn
+	taskSlots         chan struct{}
+}
+
+func New(config Config, source metricSource, logger *slog.Logger) (*Client, error) {
 	parsed, err := url.Parse(config.ServerURL)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return nil, errors.New("server URL must use http or https and include a host")
@@ -57,16 +69,23 @@ func New(config Config, source *collector.Collector, logger *slog.Logger) (*Clie
 	}
 	client := &Client{
 		config: config, baseURL: parsed, collector: source, logger: logger,
-		http:      &http.Client{Timeout: 15 * time.Second},
-		taskSlots: make(chan struct{}, 8),
+		http:              &http.Client{Timeout: 15 * time.Second},
+		taskSlots:         make(chan struct{}, 8),
+		collectionChanged: make(chan struct{}, 1),
+		reportChanged:     make(chan struct{}, 1),
 	}
 	client.reportNS.Store(int64(config.ReportPeriod))
+	client.collectionNS.Store(int64(config.CollectionPeriod))
 	return client, nil
 }
 
 func (c *Client) Run(ctx context.Context) error {
 	var wait sync.WaitGroup
-	wait.Add(2)
+	wait.Add(3)
+	go func() {
+		defer wait.Done()
+		c.collectionLoop(ctx)
+	}()
 	go func() {
 		defer wait.Done()
 		c.connectionLoop(ctx)
@@ -129,7 +148,7 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 	negotiatedExtensions := response.Header.Get("Sec-WebSocket-Extensions")
 	connection.SetReadLimit(protocol.MaxMessageBytes)
 
-	hello, err := c.collector.Hello(ctx, c.config.AgentVersion, int(c.config.CollectionPeriod/time.Second), int(c.config.ReportPeriod/time.Second))
+	hello, err := c.collector.Hello(ctx, c.config.AgentVersion, int(time.Duration(c.collectionNS.Load())/time.Second), int(time.Duration(c.reportNS.Load())/time.Second))
 	if err != nil {
 		connection.Close(websocket.StatusInternalError, "host discovery failed")
 		return false, err
@@ -147,6 +166,12 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 		connection.Close(websocket.StatusPolicyViolation, "welcome required")
 		return false, fmt.Errorf("server did not send welcome: read_error=%v message_type=%q extensions=%q", err, welcome.Type, negotiatedExtensions)
 	}
+	settings, err := protocol.DecodePayload[protocol.Welcome](welcome)
+	if err != nil || welcome.Validate(time.Now().UTC()) != nil {
+		connection.Close(websocket.StatusPolicyViolation, "invalid welcome")
+		return false, errors.New("invalid welcome payload")
+	}
+	c.applyConfig(settings.Config)
 	c.replaceConnection(connection)
 	c.logger.Info("agent websocket connected", "server", c.baseURL.Host)
 	connectionCtx, stopHeartbeat := context.WithCancel(ctx)
@@ -245,24 +270,52 @@ func (c *Client) sendLatencyResult(ctx context.Context, kind string, result prot
 	return err
 }
 
-func (c *Client) reportLoop(ctx context.Context) {
-	for ctx.Err() == nil {
-		period := time.Duration(c.reportNS.Load())
-		timer := time.NewTimer(period)
+// waitPeriod restarts the timer when a new interval arrives, so shortening an
+// hour-long interval does not wait for the previous deadline.
+func waitPeriod(ctx context.Context, interval *atomic.Int64, changed <-chan struct{}) bool {
+	for {
+		timer := time.NewTimer(time.Duration(interval.Load()))
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return
+			return false
+		case <-changed:
+			timer.Stop()
 		case <-timer.C:
+			return true
 		}
-		collectCtx, cancel := context.WithTimeout(ctx, min(period, 15*time.Second))
+	}
+}
+
+func (c *Client) collectionLoop(ctx context.Context) {
+	for ctx.Err() == nil {
+		collectCtx, cancel := context.WithTimeout(ctx, min(time.Duration(c.collectionNS.Load()), 15*time.Second))
 		report, err := c.collector.Collect(collectCtx)
 		cancel()
 		if err != nil {
 			c.logger.Warn("collect metrics", "error", err)
+		} else {
+			c.sampleMu.Lock()
+			c.sample = &report
+			c.sampleMu.Unlock()
+		}
+		if !waitPeriod(ctx, &c.collectionNS, c.collectionChanged) {
+			return
+		}
+	}
+}
+
+func (c *Client) reportLoop(ctx context.Context) {
+	for waitPeriod(ctx, &c.reportNS, c.reportChanged) {
+		c.sampleMu.RLock()
+		sample := c.sample
+		c.sampleMu.RUnlock()
+		if sample == nil {
 			continue
 		}
-		if err := c.sendReport(ctx, report); err != nil {
+		// Preserve the capture timestamp when resending a cached sample: it is not
+		// a new measurement. The server deduplicates it while recording liveness.
+		if err := c.sendReport(ctx, *sample); err != nil {
 			c.logger.Warn("upload report", "error", err)
 		}
 	}
@@ -313,11 +366,22 @@ func (c *Client) sendHTTP(ctx context.Context, envelope protocol.Envelope) error
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return fmt.Errorf("HTTP fallback status %d", response.StatusCode)
 	}
+	var ack protocol.Acknowledgement
+	if err := json.NewDecoder(io.LimitReader(response.Body, protocol.MaxMessageBytes)).Decode(&ack); err != nil {
+		// Older endpoints can return an empty success body.
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return fmt.Errorf("decode HTTP acknowledgement: %w", err)
+	}
+	if ack.Config != nil {
+		c.applyConfig(*ack.Config)
+	}
 	return nil
 }
 
 func (c *Client) sendHelloHTTP(ctx context.Context) error {
-	hello, err := c.collector.Hello(ctx, c.config.AgentVersion, int(c.config.CollectionPeriod/time.Second), int(c.config.ReportPeriod/time.Second))
+	hello, err := c.collector.Hello(ctx, c.config.AgentVersion, int(time.Duration(c.collectionNS.Load())/time.Second), int(time.Duration(c.reportNS.Load())/time.Second))
 	if err != nil {
 		return err
 	}
@@ -329,9 +393,20 @@ func (c *Client) sendHelloHTTP(ctx context.Context) error {
 }
 
 func (c *Client) applyConfig(config protocol.Config) {
-	if config.ReportSeconds >= 1 && config.ReportSeconds <= 3600 {
-		c.reportNS.Store(int64(time.Duration(config.ReportSeconds) * time.Second))
+	setInterval := func(seconds int, value *atomic.Int64, changed chan struct{}) {
+		if seconds < 1 || seconds > 3600 {
+			return
+		}
+		next := int64(time.Duration(seconds) * time.Second)
+		if value.Swap(next) != next {
+			select {
+			case changed <- struct{}{}:
+			default:
+			}
+		}
 	}
+	setInterval(config.CollectionSeconds, &c.collectionNS, c.collectionChanged)
+	setInterval(config.ReportSeconds, &c.reportNS, c.reportChanged)
 	c.collector.UpdateConfig(collector.Config{Interfaces: config.Interfaces, Mounts: config.Mounts})
 }
 

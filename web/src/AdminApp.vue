@@ -5,6 +5,7 @@ import { DsButton, DsConfirmDialog, DsDialog, DsDropdown, DsEmptyState, DsSheet,
 import SettingsCenter from './settings-center/SettingsCenter.vue'
 import AuthSettingsPanel from './settings-center/AuthSettingsPanel.vue'
 import NotificationCenter from './notification-center/NotificationCenter.vue'
+import NodeBatchManager from './NodeBatchManager.vue'
 import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
 import { fetchSiteSettings } from './api'
 import { defaultSiteSettings, normalizeSiteSettings } from './types'
@@ -516,6 +517,7 @@ onMounted(async () => {
           <div><span class="eyebrow">INFRASTRUCTURE</span><h1>节点管理</h1><p>集中管理 Agent 身份、采集策略、公开状态与延迟探测。</p></div>
           <div class="admin-heading__actions"><span class="count-pill">{{ nodes.length }} 个节点</span><DsButton variant="primary" @click="nodeCreateOpen = true">＋ 添加节点</DsButton></div>
         </section>
+        <NodeBatchManager :nodes="nodes" :targets="config.targets" @applied="run(refresh)" />
         <section v-if="nodes.length" class="admin-node-grid" aria-label="节点列表">
           <article v-for="item in nodes" :key="item.id" class="admin-panel admin-node-card">
             <header class="admin-node-card__header">

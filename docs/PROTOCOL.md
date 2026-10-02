@@ -51,11 +51,32 @@ Confirms authentication, server time, reporting interval, and connection ID.
 
 ### `ack`
 
-Acknowledges the latest accepted sequence.
+Acknowledges the latest accepted sequence. HTTP hello/report responses remain plain
+acknowledgement objects and may additionally contain `config` with the current
+collection/report intervals. Older agents ignore this optional field; newer agents
+accept older responses without it, including empty HTTP success responses.
 
 ### `config`
 
 Updates collection/report intervals, monitored interfaces and mount points.
+Intervals are independently validated in the range 1–3600 seconds. An omitted or
+invalid interval leaves its current value unchanged. Omitted interface/mount lists
+preserve local Agent selections; explicit empty lists reset to automatic discovery.
+
+Agents advertising `config.intervals.v1` apply both welcome and subsequent config
+messages. They collect independently of reporting, retain only the latest successful
+sample, and preserve its `captured_at` on repeat uploads. Intermediate samples are
+not buffered for replay when collection is faster than reporting. Shortening an
+interval restarts its timer immediately; an already running collection or upload
+finishes within its existing timeout. Collection starts immediately on Agent startup.
+
+The server refreshes desired WebSocket intervals on the next report or heartbeat
+(the Agent heartbeat interval is 25 seconds). HTTP fallback receives them on the
+next hello/report response. This is eventual application, not a synchronous Agent
+acknowledgement of a management save. Cached or older samples refresh last contact
+but do not add history, overwrite newer metrics, or modify traffic accounting.
+Capture time remains the basis for determining data freshness. Agents released
+before this capability must be upgraded to obtain independent interval behavior.
 
 ### `task`
 

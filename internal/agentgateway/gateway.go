@@ -92,7 +92,7 @@ func (g *Gateway) HTTPReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to store report"})
 		return
 	}
-	writeJSON(w, http.StatusOK, protocol.Acknowledgement{Sequence: envelope.Sequence})
+	writeJSON(w, http.StatusOK, protocol.Acknowledgement{Sequence: envelope.Sequence, Config: &protocol.Config{CollectionSeconds: node.CollectionSeconds, ReportSeconds: node.ReportSeconds}})
 }
 
 func (g *Gateway) HTTPHello(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +116,7 @@ func (g *Gateway) HTTPHello(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to store agent metadata"})
 		return
 	}
-	writeJSON(w, http.StatusOK, protocol.Acknowledgement{Sequence: envelope.Sequence})
+	writeJSON(w, http.StatusOK, protocol.Acknowledgement{Sequence: envelope.Sequence, Config: &protocol.Config{CollectionSeconds: node.CollectionSeconds, ReportSeconds: node.ReportSeconds}})
 }
 
 func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
@@ -185,6 +185,20 @@ func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 		if err := envelope.Validate(time.Now().UTC()); err != nil {
 			g.writeProtocolError(ctx, session, "invalid_envelope", err.Error())
 			continue
+		}
+		if envelope.Type == protocol.TypeReport || envelope.Type == protocol.TypeHeartbeat {
+			settings, err := g.store.AgentConfig(ctx, node.ID)
+			if err != nil {
+				return
+			}
+			if settings.CollectionSeconds != node.CollectionSeconds || settings.ReportSeconds != node.ReportSeconds {
+				update, _ := protocol.NewEnvelope(protocol.TypeConfiguration, 0, settings)
+				if err := session.write(ctx, update); err != nil {
+					return
+				}
+				node.CollectionSeconds = settings.CollectionSeconds
+				node.ReportSeconds = settings.ReportSeconds
+			}
 		}
 		switch envelope.Type {
 		case protocol.TypeReport:
@@ -272,13 +286,14 @@ func (g *Gateway) isTrustedProxy(address netip.Addr) bool {
 }
 
 func (g *Gateway) publishNode(ctx context.Context, nodeID string) {
+	revision := g.hub.Revision()
 	items, err := g.store.ListPublicNodes(ctx, time.Now().UTC())
 	if err != nil {
 		return
 	}
 	for _, item := range items {
 		if item.Node.ID == nodeID {
-			g.hub.Publish(Event{Type: "node_metrics", Node: item})
+			g.hub.Publish(revision, Event{Type: "node_metrics", Node: item})
 			break
 		}
 	}
