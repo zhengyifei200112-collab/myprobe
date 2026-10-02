@@ -243,3 +243,11 @@ acceptance is ambiguous, while a disconnect after DATA acceptance during QUIT is
 successful. The transaction helper is shared by production SMTP execution. This
 covers the command sequence without relaxing production TLS verification; it does
 not claim to exercise certificate negotiation.
+
+Production scheduler regression now blocks all four senders, adds a fifth rule,
+and verifies its firing incident is still evaluated before any sender completes.
+Cancellation stops the service and blocked senders. Fresh npm ci, TypeScript,
+production build, Go vet/build and alert tests pass. npm audit reports inherited
+nanoid (<3.3.18) and postcss (<=8.5.22) advisories; package manifests and lockfile
+are unchanged from origin/main. Dependency remediation belongs in a separate
+reviewable change; this observation is not a runtime exploitability assessment.
