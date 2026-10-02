@@ -173,3 +173,11 @@ matcher including native select option text; a role/name matcher passed.
 This evidence does not yet cover keyboard focus, network-error UI, queued/retrying
 and recovered events in the browser, or visual inspection of every screenshot.
 Those remain required before this PR is ready.
+
+A follow-up browser pass verified Enter activation moves focus to the delivery
+heading, making details reachable after long lists. Injected HTTP 503 responses
+for list and delivery queries displayed their errors; retrying against the real
+API cleared the errors. Existing list records remained visible after a refresh
+failure. Type checking and regenerated production assets pass after the focus fix.
+Queued/retrying/recovered browser scenarios and remaining visual review are still
+outstanding; this is not a complete PR acceptance claim.

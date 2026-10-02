@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { loadIncidents, loadIncidentDeliveries, type Incident, type IncidentDelivery } from '../admin-api'
 import { DsButton, DsSelect, DsEmptyState } from '../design-system'
 
 const state = ref(''), items = ref<Incident[]>([]), next = ref(0)
 const selected = ref<Incident | null>(null), deliveries = ref<IncidentDelivery[]>([]), deliveryNext = ref(0)
 const busy = ref(false), detailBusy = ref(false), error = ref(''), detailError = ref('')
+const detailHeading = ref<HTMLElement | null>(null)
 let detailGeneration = 0
 const labels: Record<string, string> = { pending: '等待触发', firing: '故障持续', resolved: '已恢复或结束', inflight: '发送中', delivered: '已送达', failed: '发送失败', canceled: '已取消' }
 const date = (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false })
@@ -23,6 +24,7 @@ async function inspect(item: Incident, more = false) {
   const generation = ++detailGeneration
   selected.value = item; detailBusy.value = true; detailError.value = ''
   if (!more) { deliveries.value = []; deliveryNext.value = 0 }
+  if (!more) { await nextTick(); detailHeading.value?.focus() }
   try {
     const result = await loadIncidentDeliveries(item.id, more ? deliveryNext.value : 0)
     if (generation !== detailGeneration) return
@@ -41,7 +43,7 @@ onMounted(() => refresh())
     <article v-for="item in items" :key="item.id"><h3>{{ item.node_name }} · {{ labels[item.state] }}</h3><p>{{ item.message }}</p><p v-if="item.observation_stale">数据已过期，等待新观测；当前状态不表示已经恢复。</p><p>开始：{{ date(item.started_at) }}{{ item.approximate_start ? '（旧记录迁移，时间近似）' : '' }}</p><p v-if="item.resolved_at">结束：{{ date(item.resolved_at) }}</p><DsButton size="small" @click="inspect(item)">查看 {{ item.node_name }} 的投递记录</DsButton></article>
     <DsEmptyState v-if="!busy && !error && !items.length" title="暂无匹配事件" description="告警满足触发条件后会记录在这里。" />
     <DsButton v-if="next" :disabled="busy" @click="refresh(true)">加载更多事件</DsButton>
-    <section v-if="selected" class="delivery-detail" aria-label="事件投递记录" aria-live="polite"><h3>{{ selected.node_name }} · 投递记录</h3><p v-if="detailError" role="alert">{{ detailError }}</p><DsButton :disabled="detailBusy" @click="inspect(selected)">刷新投递记录</DsButton><p v-if="detailBusy" role="status">正在加载投递记录…</p><article v-for="job in deliveries" :key="job.id"><strong>{{ job.channel_name }} · {{ job.status === 'pending' ? '等待发送' : labels[job.status] || job.status }}</strong><p>{{ job.notification_type === 'firing' ? '故障通知' : '恢复通知' }} · 已尝试 {{ job.attempt_count }} 次</p><p>{{ date(job.created_at) }}</p><p v-if="job.error_class">错误分类：{{ job.error_class }}</p></article><p v-if="!detailBusy && !detailError && !deliveries.length">暂无投递任务；事件记录不依赖通知渠道可用性。</p><DsButton v-if="deliveryNext" :disabled="detailBusy" @click="inspect(selected, true)">加载更多投递记录</DsButton></section>
+    <section v-if="selected" class="delivery-detail" aria-label="事件投递记录" aria-live="polite"><h3 ref="detailHeading" tabindex="-1">{{ selected.node_name }} · 投递记录</h3><p v-if="detailError" role="alert">{{ detailError }}</p><DsButton :disabled="detailBusy" @click="inspect(selected)">刷新投递记录</DsButton><p v-if="detailBusy" role="status">正在加载投递记录…</p><article v-for="job in deliveries" :key="job.id"><strong>{{ job.channel_name }} · {{ job.status === 'pending' ? '等待发送' : labels[job.status] || job.status }}</strong><p>{{ job.notification_type === 'firing' ? '故障通知' : '恢复通知' }} · 已尝试 {{ job.attempt_count }} 次</p><p>{{ date(job.created_at) }}</p><p v-if="job.error_class">错误分类：{{ job.error_class }}</p></article><p v-if="!detailBusy && !detailError && !deliveries.length">暂无投递任务；事件记录不依赖通知渠道可用性。</p><DsButton v-if="deliveryNext" :disabled="detailBusy" @click="inspect(selected, true)">加载更多投递记录</DsButton></section>
   </section>
 </template>
 
