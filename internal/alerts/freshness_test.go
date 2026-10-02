@@ -94,3 +94,59 @@ func TestResourceEvaluationDoesNotRecoverFromMissingOrStaleSamples(t *testing.T)
 		t.Fatalf("stale CPU: %v %v", known, err)
 	}
 }
+
+func TestLatencyRecoveryRequiresEveryTargetToBeFresh(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	node, _, err := db.CreateNode(ctx, store.CreateNodeParams{Name: "latency fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New(db, "", &recordingSender{}, nil)
+	rule := store.AlertRule{Kind: "latency", Config: json.RawMessage(`{"threshold_milliseconds":100}`)}
+	now := time.Now().UTC()
+	check := func(at time.Time, wantActive, wantKnown bool) {
+		t.Helper()
+		active, _, known, err := s.evaluate(ctx, rule, node, at)
+		if err != nil || active != wantActive || known != wantKnown {
+			t.Fatalf("active=%v known=%v err=%v; want %v/%v", active, known, err, wantActive, wantKnown)
+		}
+	}
+	check(now, false, false)
+	var targets []store.Target
+	for i := 0; i < 2; i++ {
+		target, err := db.CreateTarget(ctx, store.CreateTargetParams{Name: "fixture", Kind: protocol.TaskKindPing, Host: "example.com", IntervalSeconds: 60, TimeoutMS: 1000})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.AssignTarget(ctx, node.ID, target.ID); err != nil {
+			t.Fatal(err)
+		}
+		targets = append(targets, target)
+	}
+	save := func(index int, success bool, latency float64, at time.Time) {
+		t.Helper()
+		result := protocol.LatencyResult{TaskID: "fixture", TargetID: targets[index].ID, Success: success, LatencyMS: latency, CompletedAt: at}
+		if !success {
+			result.ErrorClass = "timeout"
+		}
+		if err := db.SaveLatencyResult(ctx, node.ID, protocol.TaskKindPing, result); err != nil {
+			t.Fatal(err)
+		}
+	}
+	check(now, false, false)
+	save(0, true, 10, now)
+	check(now, false, false) // another target has never reported
+	save(0, false, 0, now.Add(time.Second))
+	check(now.Add(time.Second), true, true) // a known failure proves a fault
+	save(0, true, 10, now.Add(2*time.Second))
+	save(1, true, 20, now.Add(2*time.Second))
+	check(now.Add(2*time.Second), false, true)
+	check(now.Add(183*time.Second), false, false) // both samples stale
+	save(1, true, 150, now.Add(3*time.Second))
+	check(now.Add(3*time.Second), true, true)
+}

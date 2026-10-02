@@ -264,3 +264,9 @@ consumers. Initial evaluation failures retry on the evaluation interval without
 sending queued messages. A restart regression seeds a due resource-fault job with
 no current metric sample and confirms evaluation marks it stale before any send,
 without consuming an attempt. Saturated-worker and shutdown tests still pass.
+
+Latency evaluator regression uses persisted results for two directly assigned
+targets. No targets, missing results and stale samples are unknown; one fresh
+failure or threshold breach establishes a fault; recovery is known only after
+both targets return fresh successful measurements. The test uses real store
+assignment and result paths rather than mocking evaluator return values.
