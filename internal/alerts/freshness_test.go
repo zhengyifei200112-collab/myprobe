@@ -30,6 +30,38 @@ func TestObservationFreshBoundaries(t *testing.T) {
 	}
 }
 
+func TestRecoveryConfigurationPreservesExplicitZero(t *testing.T) {
+	for _, value := range []int{0, 20, 2592000} {
+		raw, err := normalizeRuleConfig("cpu", RuleConfig{DurationSeconds: 60, RecoverySeconds: &value})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded RuleConfig
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if decoded.RecoverySeconds == nil || *decoded.RecoverySeconds != value {
+			t.Fatalf("recovery lost: %s", raw)
+		}
+	}
+	raw, err := normalizeRuleConfig("cpu", RuleConfig{DurationSeconds: 60})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded RuleConfig
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.RecoverySeconds == nil || *decoded.RecoverySeconds != 60 {
+		t.Fatalf("default: %s", raw)
+	}
+	for _, invalid := range []int{-1, 2592001} {
+		if _, err := normalizeRuleConfig("cpu", RuleConfig{RecoverySeconds: &invalid}); err == nil {
+			t.Fatalf("accepted %d", invalid)
+		}
+	}
+}
+
 func TestResourceEvaluationDoesNotRecoverFromMissingOrStaleSamples(t *testing.T) {
 	ctx := context.Background()
 	db, err := store.Open(ctx, ":memory:")

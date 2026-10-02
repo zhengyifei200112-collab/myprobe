@@ -54,6 +54,7 @@ export interface AlertRule {
     threshold_milliseconds?: number
     days_before?: number
     duration_seconds?: number
+    recovery_seconds?: number
     repeat_seconds?: number
     template_id?: string
   }
@@ -259,3 +260,16 @@ export async function uploadDatabaseRestore(file: File, passphrase: string): Pro
   }
   return response.json()
 }
+
+export interface Incident {
+  seq: number; id: string; node_id: string; node_name: string; kind: string
+  state: 'pending' | 'firing' | 'resolved'; started_at: string; resolved_at?: string
+  observation_stale: boolean; message: string; origin: string; approximate_start: boolean
+}
+export interface IncidentDelivery {
+  seq: number; id: string; channel_name: string; provider: string
+  notification_type: string; status: string; attempt_count: number
+  created_at: string; available_at: string; error_class?: string
+}
+export const loadIncidents = (state = '', before = 0) => request<{ incidents: Incident[]; next_before: number }>(`/api/v1/admin/incidents?limit=25&state=${encodeURIComponent(state)}&before=${before}`)
+export const loadIncidentDeliveries = (id: string, before = 0) => request<{ deliveries: IncidentDelivery[]; next_before: number }>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/deliveries?limit=25&before=${before}`)

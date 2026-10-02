@@ -137,3 +137,13 @@ A full last page may return a cursor followed by an empty page. Payloads, rule
 snapshots, lease tokens and idempotency keys are omitted from these responses.
 API tests cover authentication, invalid pagination, missing incidents and private
 field exclusion. Store tests cover cursor ordering and combined filters.
+
+## Notification center integration (browser acceptance pending)
+
+The notification center has a separate incident tab with state filtering, cursor
+pagination, stale-data and approximate-import notices, and per-incident delivery
+history. Loading and retry errors remain visible; overlapping detail requests
+cannot replace the latest selected incident. Existing delivery history remains.
+The rule editor preserves explicit recovery duration, including zero; rule cards
+display that duration. TypeScript and production build pass. Responsive/theme,
+keyboard, real-server lifecycle and failure browser acceptance are still pending.
