@@ -121,3 +121,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 [0.2.0]: https://github.com/zhengyifei200112-collab/myprobe/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/zhengyifei200112-collab/myprobe/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/zhengyifei200112-collab/myprobe/releases/tag/v0.1.0
+
+### Incident queue development (unreleased)
+
+- Decouple incident evaluation from notification delivery with transactional jobs,
+  four leased workers, bounded retries, safe error classifications and Retry-After.
+- Preserve incident tracking when channel decryption is unavailable. This draft
+  work still requires freshness validation and administrator workflow completion.

@@ -10,6 +10,25 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
+func (s *Service) runDeliveryWorker(ctx context.Context) {
+	for ctx.Err() == nil {
+		worked, err := s.DeliverOne(ctx, time.Now().UTC())
+		if err != nil && ctx.Err() == nil {
+			s.logger.Warn("notification queue operation failed")
+		}
+		if worked && err == nil {
+			continue
+		}
+		timer := time.NewTimer(time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+	}
+}
+
 // DeliverOne performs network I/O outside database transactions. An ambiguous
 // completion remains leased until recovery; delivery is at least once.
 func (s *Service) DeliverOne(ctx context.Context, now time.Time) (bool, error) {

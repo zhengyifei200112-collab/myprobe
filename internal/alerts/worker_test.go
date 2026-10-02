@@ -65,3 +65,44 @@ func TestRetryDelayBounds(t *testing.T) {
 		}
 	}
 }
+
+func TestTickRecordsIncidentsWithoutSendingOrDecrypting(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	node, _, err := db.CreateNode(ctx, store.CreateNodeParams{Name: "independent evaluation"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	expiry := now.Add(time.Hour)
+	node = updateNodeExpiry(t, db, node, &expiry)
+	recorder := &recordingSender{}
+	configured := New(db, strings.Repeat("s", 32), recorder, nil)
+	channel, err := configured.CreateChannel(ctx, "ops", "webhook", ChannelConfig{URL: "https://example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = configured.CreateRule(ctx, node.ID, channel.ID, "expiry", RuleConfig{DaysBefore: 1}, 300)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withoutKey := New(db, "", recorder, nil)
+	if err := withoutKey.Tick(ctx, now); err != nil {
+		t.Fatal(err)
+	}
+	if recorder.count() != 0 {
+		t.Fatal("evaluation performed network I/O")
+	}
+	job, err := db.ClaimDelivery(ctx, now, time.Minute)
+	if err != nil || job == nil {
+		t.Fatalf("incident did not enqueue without key: %v %v", job, err)
+	}
+	incident, err := db.Incident(ctx, job.IncidentID)
+	if err != nil || incident.State != "firing" {
+		t.Fatalf("incident: %+v %v", incident, err)
+	}
+}
