@@ -279,6 +279,26 @@ func (s *Store) SaveReport(ctx context.Context, nodeID string, report protocol.R
 		return err
 	}
 	defer tx.Rollback()
+	// Reserve the SQLite writer before checking the previous sample. Retries and
+	// cached reports prove liveness but must not add historical samples or make
+	// traffic counters move backwards.
+	if _, err = tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", nowText(), nowText(), nodeID); err != nil {
+		return err
+	}
+	var previous string
+	err = tx.QueryRowContext(ctx, "SELECT captured_at FROM metric_latest WHERE node_id = ?", nodeID).Scan(&previous)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if err == nil {
+		at, parseErr := time.Parse(time.RFC3339Nano, previous)
+		if parseErr != nil {
+			return parseErr
+		}
+		if !report.CapturedAt.After(at) {
+			return tx.Commit()
+		}
+	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO metric_latest(node_id, captured_at, report_json) VALUES(?, ?, ?)
 		ON CONFLICT(node_id) DO UPDATE SET captured_at = excluded.captured_at, report_json = excluded.report_json`,
 		nodeID, formatTime(report.CapturedAt), string(raw))
@@ -291,9 +311,6 @@ func (s *Store) SaveReport(ctx context.Context, nodeID string, report protocol.R
 		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, nodeID, formatTime(report.CapturedAt), report.CPU.UsagePercent,
 		report.Memory.UsedBytes, report.Memory.TotalBytes, diskUsed, diskTotal, rxRate, txRate, rxTotal, txTotal, string(raw))
 	if err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", nowText(), nowText(), nodeID); err != nil {
 		return err
 	}
 	if err = s.updateTrafficState(ctx, tx, nodeID, report.CapturedAt, rxTotal, txTotal); err != nil {

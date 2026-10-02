@@ -7,6 +7,16 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Agents now apply welcome configuration and independently schedule collection and
+  reporting, including interval updates on existing connections and HTTP fallback.
+  Interval-only settings preserve local interface/mount selections. Upgrade Agents
+  to obtain this behavior; management saves confirm desired configuration.
+- Cached or delayed metric reports refresh last contact without duplicating history
+  or moving the latest metrics and traffic counters backwards.
+
+
 ### Added
 
 - Transactional node batch configuration previews with ownership, ten-minute

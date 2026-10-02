@@ -61,10 +61,27 @@ target replacement and rollback when auditing fails. API tests cover login/CSRF,
 strict request parsing, public visibility and revision exclusion, refresh signaling,
 and non-duplicated audit records. Hub tests exercise refresh with a full event queue.
 
+Agent regression tests cover welcome configuration, dynamic timer interruption,
+independent cached reporting, legacy HTTP responses, and HTTP configuration.
+Gateway integration tests apply a real batch and verify configuration on an existing
+WebSocket heartbeat and HTTP hello. Store tests ensure repeated/older samples update
+liveness without duplicating history or overwriting newer measurements.
+
 Remaining before readiness: browser/API end-to-end checks at required viewports and
-themes, complete CI, and actual Agent interval consumption. The existing Agent
-currently ignores welcome configuration and collects on the reporting cadence;
-this must be repaired rather than describing a persisted interval as effective.
+themes, and complete CI for the final commit.
+
+## Interval application
+
+Upgrade Agents for the `config.intervals.v1` capability. New Agents independently
+collect and report, applying welcome settings and subsequent updates. A connected
+Agent receives changes on its next report or 25-second heartbeat; HTTP fallback
+receives them on its next hello/report response. The batch result confirms desired
+configuration persistence, not an acknowledgement that every Agent has applied it.
+Offline and older Agents may not apply the change until reconnection or upgrade.
+When collection is slower than reporting, cached timestamps are retained and duplicate
+history is suppressed. When collection is faster, only the latest sample is sent;
+this does not promise lossless delivery of all intermediate measurements.
+Omitted interface and mount selections retain local Agent settings.
 
 ## Deployment
 
