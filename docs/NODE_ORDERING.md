@@ -1,8 +1,8 @@
 # Accessible node ordering (M1 / UX-03)
 
-Status: implementation in progress.
+Status: implemented on the feature branch; merge and release determine availability.
 
-The node page will provide an order dialog with named up/down buttons, keyboard
+The node page provides an order dialog with named up/down buttons, keyboard
 activation, position announcements, cancellation and one explicit save. Hidden
 nodes remain part of the administrative order; their visibility is unchanged.
 
@@ -25,6 +25,37 @@ remain compatible. No schema or Agent protocol change is needed. Public APIs sho
 the saved order on their next fetch; a currently open public dashboard may need a
 refresh to show the complete updated order before subsequent metrics arrive.
 
-Validation must cover duplicate/omitted IDs, bounds, equal and negative sort values,
-concurrent changes/retries, unrelated metadata preservation, rollback on audit
-failure, authentication/CSRF, mobile themes and focus after keyboard moves.
+## Validation
+
+Store tests cover duplicate/omitted IDs and size bounds, equal/negative sort values,
+concurrent retry, reopen/retry, stale creation/deletion/order changes, unchanged
+integer preservation, reports that do not invalidate the order, unrelated metadata
+preservation and rollback on audit failure. API tests exercise real login, CSRF,
+strict nested fields, trailing JSON, body limits, stale responses and public order.
+
+`scripts/node_order_browser_test.cjs` uses an isolated real Server and database.
+It verifies native keyboard button activation, Alt+arrow movement, boundary buttons,
+focus following the moved node, cancel/no-op, persisted order, hidden-node metadata,
+response-loss retry with a single audit, concurrent creation conflict, reload
+recovery and Escape/focus restoration. Reload and failed saves explicitly return
+focus inside the dialog after temporarily disabled controls lose focus.
+
+Light/dark screenshots at 360/768/1440 px cover the dialog. The list scrolls while
+footer controls remain reachable. The script waits for theme transitions before
+capturing screenshots. Set `PLAYWRIGHT_MODULE` to a Playwright installation and
+install Edge; use `MYPROBE_TEST_URL` (default loopback port 25777),
+`MYPROBE_TEST_PASSWORD`, and optionally `MYPROBE_TEST_OUTPUT`. The server must use
+an empty disposable database. Test data is synthetic; do not use production.
+
+Local validation includes frontend clean install/build, Go tests/vet/build and
+`git diff --check`. The existing Windows collector absolute-path fixture fails on
+this main-based branch and is fixed separately by PR #47; Linux CI must pass the
+full suite before this PR becomes ready. No unrelated fixture changes are bundled.
+
+## Integration
+
+This feature starts from main independently of M1 form, discovery and batch PRs.
+When integrating them, retain both administration components and rebuild embedded
+assets. Batch configuration revision triggers should observe actual sort-order
+updates; the writer reservation only touches `updated_at` and does not invalidate
+configuration previews by itself. No new migration is introduced here.

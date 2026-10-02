@@ -308,7 +308,7 @@ func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNod
 		n.latency_mode, n.custom_html, n.custom_badges_json, n.custom_links_json, n.collection_seconds, n.report_seconds, n.created_at, n.updated_at,
 		n.last_seen_at, m.report_json
 		FROM nodes n LEFT JOIN metric_latest m ON m.node_id = n.id
-		WHERE n.hidden = 0 ORDER BY n.sort_order, n.name`)
+		WHERE n.hidden = 0 ORDER BY n.sort_order, n.name, n.id`)
 	if err != nil {
 		return nil, err
 	}

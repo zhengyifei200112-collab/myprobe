@@ -259,3 +259,6 @@ export async function uploadDatabaseRestore(file: File, passphrase: string): Pro
   }
   return response.json()
 }
+
+export interface NodeOrderEntry { id: string; sort_order: number }
+export const reorderNodes = (expected: NodeOrderEntry[], nodeIDs: string[]) => request<{ changed: boolean }>('/api/v1/admin/nodes/reorder', { method: 'POST', body: JSON.stringify({ expected, node_ids: nodeIDs }) })

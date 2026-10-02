@@ -25,6 +25,7 @@
 | Charts | Ping, TCPing, upload, download, and total traffic history | 1h/12h/1d/3d/7d/30d queries | Implemented |
 | Chart sharing | Group-scoped password protected chart views | Authentication and rate-limit tests | Implemented |
 | Node administration | Register, edit, order, hide, delete, rotate token, generate one-click Agent install command | Admin API and browser clipboard verification | Implemented |
+| Node ordering | Keyboard up/down and Alt+arrow movement, cancel/save, atomic conflict detection and replay | Store/API order tests and `scripts/node_order_browser_test.cjs`; see `NODE_ORDERING.md` | Implemented |
 | Target administration | Ping/TCPing target CRUD and assignment from target/node editors | API and scheduler tests | Implemented |
 | Notifications | Encrypted Webhook, Telegram, Discord, and SMTP channels with rules, templates, recovery delivery, cooldowns, and history | Mock receiver and alert-state tests | Implemented |
 | Alerts | Offline/recovery, CPU, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Implemented |
