@@ -112,7 +112,10 @@ SELECT lower(hex(randomblob(16))),i.id,c.id,c.name,COALESCE(NULLIF(c.provider,''
       'kind',r.kind,'node_id',i.node_id,'node_name',i.node_name,'rule_id',r.id,
       'incident_id',i.id,'timestamp',s.last_attempt_at),
     'pending',1,
-    CAST(strftime('%s',s.last_attempt_at) AS INTEGER)*1000+MAX(r.cooldown_seconds,30)*1000,
+    CAST(strftime('%s',s.last_attempt_at) AS INTEGER)*1000
+      +CAST(substr(strftime('%f',s.last_attempt_at),4,3) AS INTEGER)
+      +MAX(CASE WHEN json_extract(r.config_json,'$.repeat_seconds')>0
+        THEN json_extract(r.config_json,'$.repeat_seconds') ELSE r.cooldown_seconds END,30)*1000,
     s.last_attempt_at,s.updated_at,'legacy_delivery_failed'
 FROM alert_incidents i JOIN alert_states s ON s.fingerprint=i.fingerprint
 JOIN alert_rules r ON r.id=i.rule_id JOIN notification_channels c ON c.id=r.channel_id

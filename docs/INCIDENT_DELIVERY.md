@@ -93,7 +93,7 @@ failed-recovery legacy states, disabled rules, retained notification history,
 explicit legacy recovery defaults, non-duplication on migration/reopen, one-active
 incident constraints, retry/lease constraints and snapshot survival after source
 node deletion. Successful old sends create no new queued jobs. Failed attempts
-start with attempt count one and their original cooldown (minimum 30 seconds);
+start with attempt count one and their original effective repeat/cooldown (minimum 30 seconds);
 raw old provider errors are not copied into new payloads.
 
 Store, alert, HTTP API and backup package tests pass with the new schema. The
@@ -251,3 +251,10 @@ production build, Go vet/build and alert tests pass. npm audit reports inherited
 nanoid (<3.3.18) and postcss (<=8.5.22) advisories; package manifests and lockfile
 are unchanged from origin/main. Dependency remediation belongs in a separate
 reviewable change; this observation is not a runtime exploitability assessment.
+
+Legacy migration retry deadlines now preserve an explicit repeat_seconds override
+and milliseconds from the original attempt timestamp. A migration-to-claim test
+uses a 120-second repeat with a 900-second cooldown, rejects a claim one millisecond
+before the correct deadline, then resumes at attempt two exactly at the deadline.
+Migration 015 remains unreleased in this draft branch; no released migration was
+changed. Store, alert and backup tests pass after this compatibility correction.

@@ -44,6 +44,49 @@ func legacyIncidentStore(t *testing.T) *Store {
 	}
 	return &Store{db: db, path: path}
 }
+
+func TestLegacyRetryPreservesRepeatOverrideAndMilliseconds(t *testing.T) {
+	s := legacyIncidentStore(t)
+	ctx := context.Background()
+	node, _, err := s.CreateNode(ctx, CreateNodeParams{Name: "legacy retry"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	channel, err := s.CreateNotificationChannel(ctx, "legacy", ChannelKindWebhook, "placeholder")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rule, err := s.CreateAlertRule(ctx, node.ID, channel.ID, "cpu", json.RawMessage(`{"threshold_percent":90,"repeat_seconds":120}`), 900)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Date(2026, 10, 1, 12, 0, 0, 456000000, time.UTC)
+	if err := s.RecordAlertAttempt(ctx, rule.ID, node.ID, "cpu:"+rule.ID+":"+node.ID, "fault", true, false, "legacy error", at); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	items, err := s.ListIncidents(ctx, IncidentFilter{Limit: 10})
+	if err != nil || len(items) != 1 {
+		t.Fatalf("incidents: %+v %v", items, err)
+	}
+	jobs, err := s.ListIncidentDeliveries(ctx, items[0].ID, 0, 10)
+	if err != nil || len(jobs) != 1 {
+		t.Fatalf("jobs: %+v %v", jobs, err)
+	}
+	want := at.Add(120 * time.Second)
+	if !jobs[0].AvailableAt.Equal(want) {
+		t.Fatalf("deadline=%v want=%v", jobs[0].AvailableAt, want)
+	}
+	if job, err := s.ClaimDelivery(ctx, want.Add(-time.Millisecond), time.Minute); err != nil || job != nil {
+		t.Fatalf("early claim: %+v %v", job, err)
+	}
+	job, err := s.ClaimDelivery(ctx, want, time.Minute)
+	if err != nil || job == nil || job.AttemptCount != 2 {
+		t.Fatalf("continued retry: %+v %v", job, err)
+	}
+}
 func TestIncidentMigrationPreservesLegacyStatesWithoutMassResend(t *testing.T) {
 	s := legacyIncidentStore(t)
 	ctx := context.Background()
