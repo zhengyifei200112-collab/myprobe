@@ -108,6 +108,7 @@ func (s *Server) routes() {
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
 	admin.GET("/nodes", s.adminNodes)
 	admin.POST("/nodes", s.createNode)
+	admin.POST("/nodes/reorder", s.reorderNodes)
 	admin.PATCH("/nodes/:nodeID", s.updateNode)
 	admin.DELETE("/nodes/:nodeID", s.deleteNode)
 	admin.POST("/nodes/:nodeID/rotate-token", s.rotateNodeToken)

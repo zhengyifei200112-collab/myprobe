@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NodeOrderManager from './NodeOrderManager.vue'
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import type { NodeMetadata } from './types'
 import { DsButton, DsConfirmDialog, DsDialog, DsDropdown, DsEmptyState, DsSheet, DsStatusIndicator } from './design-system'
@@ -145,7 +146,7 @@ async function loadMoreAudit() {
 }
 
 function auditLabel(item: AuditEntry) {
-  const labels: Record<string, string> = { create:'创建', update:'更新', delete:'删除', rotate_token:'轮换 Token', test:'测试', import:'导入', export:'导出', stage_restore:'暂存恢复', change_password:'修改密码', attach_target:'添加目标', detach_target:'移除目标', assign_group:'分配组', unassign_group:'取消分组' }
+  const labels: Record<string, string> = { create:'创建', update:'更新', delete:'删除', rotate_token:'轮换 Token', test:'测试', import:'导入', export:'导出', stage_restore:'暂存恢复', change_password:'修改密码', attach_target:'添加目标', detach_target:'移除目标', reorder:'调整顺序', assign_group:'分配组', unassign_group:'取消分组' }
   return labels[item.action] || item.action
 }
 
@@ -514,7 +515,7 @@ onMounted(async () => {
       <template v-if="tab === 'nodes'">
         <section class="admin-heading">
           <div><span class="eyebrow">INFRASTRUCTURE</span><h1>节点管理</h1><p>集中管理 Agent 身份、采集策略、公开状态与延迟探测。</p></div>
-          <div class="admin-heading__actions"><span class="count-pill">{{ nodes.length }} 个节点</span><DsButton variant="primary" @click="nodeCreateOpen = true">＋ 添加节点</DsButton></div>
+          <div class="admin-heading__actions"><span class="count-pill">{{ nodes.length }} 个节点</span><NodeOrderManager :nodes="nodes" @saved="run(refresh, '节点顺序已保存。')" /><DsButton variant="primary" @click="nodeCreateOpen = true">＋ 添加节点</DsButton></div>
         </section>
         <section v-if="nodes.length" class="admin-node-grid" aria-label="节点列表">
           <article v-for="item in nodes" :key="item.id" class="admin-panel admin-node-card">
