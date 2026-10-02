@@ -113,7 +113,12 @@ network delivery. Four workers consume leased jobs with bounded send contexts.
 Lifecycle regression tests explicitly run evaluation and delivery separately;
 a missing-key test proves evaluation still creates a firing incident and job.
 Recovery duration is validated independently and defaults to trigger duration.
-Next work is observation freshness, administrator APIs/UI, and additional
+Resource and latency observations expire after max(60 seconds, three configured
+intervals); timestamps more than 30 seconds in the future are unknown. Empty
+disk/network samples are unknown. A fresh failing latency target can establish
+a fault, but recovery requires every assigned target to have fresh complete
+results. Boundary and resource evaluation tests cover missing/stale samples.
+Next work is administrator APIs/UI, and additional
 end-to-end/browser validation.
 A freshness change after claiming defers the job but consumes that reserved
 attempt, retaining an explicit canceled attempt for diagnosis.

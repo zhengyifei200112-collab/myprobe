@@ -295,6 +295,9 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 		if err != nil || report == nil {
 			return false, "", false, err
 		}
+		if !observationFresh(report.CapturedAt, now, max(node.CollectionSeconds, node.ReportSeconds)) {
+			return false, "", false, nil
+		}
 		if rule.Kind == "cpu" {
 			active := report.CPU.UsagePercent >= config.ThresholdPercent
 			return active, thresholdMessage(node.Name, "CPU", report.CPU.UsagePercent, config.ThresholdPercent, "%", active), true, nil
@@ -304,6 +307,9 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 			return active, thresholdMessage(node.Name, "内存", report.Memory.UsagePercent, config.ThresholdPercent, "%", active), true, nil
 		}
 		if rule.Kind == "disk" {
+			if len(report.Disks) == 0 {
+				return false, "", false, nil
+			}
 			value := 0.0
 			for _, disk := range report.Disks {
 				if disk.UsagePercent > value {
@@ -314,6 +320,9 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 			return active, thresholdMessage(node.Name, "磁盘", value, config.ThresholdPercent, "%", active), true, nil
 		}
 		if rule.Kind == "bandwidth" {
+			if len(report.Networks) == 0 {
+				return false, "", false, nil
+			}
 			var rate float64
 			for _, network := range report.Networks {
 				rate += network.RXBytesPerS + network.TXBytesPerS
@@ -342,8 +351,22 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 		if err != nil || len(items) == 0 {
 			return false, "", false, err
 		}
+		targets, err := s.store.ListTargets(ctx)
+		if err != nil {
+			return false, "", false, err
+		}
+		intervals := make(map[string]int, len(targets))
+		for _, target := range targets {
+			intervals[target.ID] = target.IntervalSeconds
+		}
+		known := true
 		active, worst := false, 0.0
 		for _, item := range items {
+			interval, exists := intervals[item.TargetID]
+			if !exists || item.Success == nil || item.UpdatedAt == nil || !observationFresh(*item.UpdatedAt, now, interval) || (*item.Success && item.LatencyMS == nil) {
+				known = false
+				continue
+			}
 			if item.Success != nil && !*item.Success {
 				active = true
 			}
@@ -354,7 +377,7 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 		if worst >= config.ThresholdMilliseconds {
 			active = true
 		}
-		return active, thresholdMessage(node.Name, "网络延迟", worst, config.ThresholdMilliseconds, " ms", active), true, nil
+		return active, thresholdMessage(node.Name, "网络延迟", worst, config.ThresholdMilliseconds, " ms", active), active || known, nil
 	default:
 		return false, "", false, errors.New("unsupported alert rule")
 	}
@@ -457,4 +480,9 @@ func validateName(value string) error {
 		return errors.New("name is required")
 	}
 	return nil
+}
+
+// Missing/old samples cannot prove recovery. Allow a small agent clock skew.
+func observationFresh(at, now time.Time, intervalSeconds int) bool {
+	return !at.IsZero() && !at.After(now.Add(30*time.Second)) && now.Sub(at) <= max(time.Minute, 3*time.Duration(intervalSeconds)*time.Second)
 }
