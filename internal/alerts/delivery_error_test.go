@@ -1,10 +1,32 @@
 package alerts
 
 import (
+	"io"
 	"net/http"
+	"net/textproto"
 	"testing"
 	"time"
 )
+
+func TestSMTPFailureClassification(t *testing.T) {
+	for _, tc := range []struct {
+		err                             error
+		stage                           string
+		afterData, permanent, ambiguous bool
+	}{
+		{&textproto.Error{Code: 535, Msg: "private credential diagnostic"}, "authentication", false, true, false},
+		{&textproto.Error{Code: 454, Msg: "temporary auth failure"}, "authentication", false, false, false},
+		{&textproto.Error{Code: 550, Msg: "private recipient"}, "recipient", false, true, false},
+		{&textproto.Error{Code: 451, Msg: "retry"}, "delivery", true, false, false},
+		{io.ErrUnexpectedEOF, "delivery", true, false, true},
+		{io.ErrUnexpectedEOF, "connection", false, false, false},
+	} {
+		got := classifySMTPFailure(tc.err, tc.stage, tc.afterData)
+		if got.Permanent != tc.permanent || got.Ambiguous != tc.ambiguous || got.Error() != "smtp_"+tc.stage {
+			t.Fatalf("%+v => %+v", tc, got)
+		}
+	}
+}
 
 func TestHTTPDeliveryFailureClassification(t *testing.T) {
 	now := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)

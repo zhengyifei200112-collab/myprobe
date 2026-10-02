@@ -229,3 +229,10 @@ asserted undelivered. This conservatively includes transport failures where the
 client cannot prove whether acceptance occurred. Explicit provider HTTP errors
 retain their classified failure outcome. Successful-and-ambiguous completion is
 rejected as an invalid store outcome.
+
+SMTP failures now distinguish explicit 5xx permanent rejection, 4xx transient
+rejection, and transport loss after DATA (unknown outcome). Raw SMTP replies are
+not persisted. Authentication temporary errors are no longer always permanent.
+After successful DATA completion, QUIT failure does not turn accepted mail into
+a retry. Classification tests cover these error classes; a full TLS SMTP receiver
+integration test remains outstanding for the DATA/QUIT network sequence.

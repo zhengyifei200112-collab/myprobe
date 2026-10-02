@@ -203,45 +203,47 @@ func (s *HTTPSender) smtp(ctx context.Context, config ChannelConfig, notificatio
 		conn, err = dialer.DialContext(ctx, "tcp", address)
 	}
 	if err != nil {
-		return errors.New("SMTP connection failed")
+		return classifySMTPFailure(err, "connection", false)
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 	client, err := smtp.NewClient(conn, config.SMTPHost)
 	if err != nil {
-		return errors.New("SMTP handshake failed")
+		return classifySMTPFailure(err, "handshake", false)
 	}
 	defer client.Close()
 	if config.SMTPEncryption == "starttls" {
 		if ok, _ := client.Extension("STARTTLS"); !ok {
-			return errors.New("SMTP server does not support STARTTLS")
+			return &DeliveryError{Class: "smtp_starttls_unavailable", Permanent: true}
 		}
 		if err := client.StartTLS(&tls.Config{ServerName: config.SMTPHost, MinVersion: tls.VersionTLS12}); err != nil {
-			return errors.New("SMTP TLS negotiation failed")
+			return classifySMTPFailure(err, "tls_negotiation", false)
 		}
 	}
 	if config.SMTPUsername != "" {
 		if err := client.Auth(smtp.PlainAuth("", config.SMTPUsername, config.SMTPPassword, config.SMTPHost)); err != nil {
-			return &DeliveryError{Class: "smtp_authentication", Permanent: true}
+			return classifySMTPFailure(err, "authentication", false)
 		}
 	}
 	if err := client.Mail(config.SMTPFrom); err != nil {
-		return errors.New("SMTP sender rejected")
+		return classifySMTPFailure(err, "sender", false)
 	}
 	if err := client.Rcpt(config.SMTPTo); err != nil {
-		return errors.New("SMTP recipient rejected")
+		return classifySMTPFailure(err, "recipient", false)
 	}
 	writer, err := client.Data()
 	if err != nil {
-		return errors.New("SMTP message rejected")
+		return classifySMTPFailure(err, "data", false)
 	}
 	if _, err = writer.Write(message); err != nil {
-		return errors.New("SMTP delivery failed")
+		return classifySMTPFailure(err, "delivery", true)
 	}
 	if err = writer.Close(); err != nil {
-		return errors.New("SMTP delivery failed")
+		return classifySMTPFailure(err, "delivery", true)
 	}
-	return client.Quit()
+	// DATA completion already confirmed acceptance. QUIT failure must not retry.
+	_ = client.Quit()
+	return nil
 }
 
 func (s *HTTPSender) do(request *http.Request) error {

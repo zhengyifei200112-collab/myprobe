@@ -1,11 +1,24 @@
 package alerts
 
 import (
+	"errors"
 	"net/http"
+	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
 )
+
+func classifySMTPFailure(err error, stage string, mayHaveDelivered bool) *DeliveryError {
+	result := &DeliveryError{Class: "smtp_" + stage, Ambiguous: mayHaveDelivered}
+	var reply *textproto.Error
+	if errors.As(err, &reply) {
+		// A protocol rejection is definitive; transport loss after DATA is not.
+		result.Ambiguous = false
+		result.Permanent = reply.Code >= 500 && reply.Code < 600
+	}
+	return result
+}
 
 // DeliveryError carries only safe classifications, never provider bodies or URLs.
 type DeliveryError struct {
