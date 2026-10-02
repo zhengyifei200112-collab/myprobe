@@ -2,8 +2,52 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"time"
 )
+
+type DeliveryAttempt struct {
+	Number      int        `json:"number"`
+	StartedAt   time.Time  `json:"started_at"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	Outcome     string     `json:"outcome"`
+	ErrorClass  string     `json:"error_class,omitempty"`
+}
+
+// Attempts are bounded by the schema's five-attempt budget. Lease tokens and
+// rendered notification payloads are deliberately excluded from this view.
+func (s *Store) ListDeliveryAttempts(ctx context.Context, deliveryID string) ([]DeliveryAttempt, error) {
+	if _, err := s.Delivery(ctx, deliveryID); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.QueryContext(ctx, "SELECT attempt_number,started_at,completed_at,outcome,error_class FROM delivery_attempts WHERE delivery_id=? ORDER BY attempt_number LIMIT 5", deliveryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]DeliveryAttempt, 0)
+	for rows.Next() {
+		var item DeliveryAttempt
+		var started string
+		var completed sql.NullString
+		if err := rows.Scan(&item.Number, &started, &completed, &item.Outcome, &item.ErrorClass); err != nil {
+			return nil, err
+		}
+		if item.StartedAt, err = parseTime(started); err != nil {
+			return nil, err
+		}
+		if completed.Valid {
+			at, err := parseTime(completed.String)
+			if err != nil {
+				return nil, err
+			}
+			item.CompletedAt = &at
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
 
 type IncidentFilter struct {
 	Before int64

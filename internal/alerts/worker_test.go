@@ -81,6 +81,20 @@ func TestWorkerProviderRetryAndPermanentFailure(t *testing.T) {
 					t.Fatalf("permanent retry: %v %v", worked, err)
 				}
 			}
+			attempts, err := db.ListDeliveryAttempts(ctx, jobs[0].ID)
+			expected := 1
+			if status == http.StatusTooManyRequests {
+				expected = 2
+			}
+			if err != nil || len(attempts) != expected {
+				t.Fatalf("attempt history: %+v %v", attempts, err)
+			}
+			if attempts[0].Number != 1 || attempts[0].Outcome != "failed" || attempts[0].CompletedAt == nil {
+				t.Fatalf("first attempt: %+v", attempts[0])
+			}
+			if expected == 2 && (attempts[1].Outcome != "delivered" || attempts[1].CompletedAt == nil) {
+				t.Fatalf("retry attempt: %+v", attempts[1])
+			}
 			current, err := db.Incident(ctx, incident.ID)
 			if err != nil || current.State != "firing" {
 				t.Fatalf("delivery changed incident: %+v %v", current, err)

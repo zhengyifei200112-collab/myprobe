@@ -9,6 +9,24 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
+func (s *Server) deliveryAttempts(c *gin.Context) {
+	id := c.Param("deliveryID")
+	if len(id) > 128 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid delivery ID"})
+		return
+	}
+	items, err := s.store.ListDeliveryAttempts(c.Request.Context(), id)
+	if errors.Is(err, store.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "delivery not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list attempts"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"attempts": items})
+}
+
 func incidentPage(c *gin.Context) (int64, int, bool) {
 	before, err := strconv.ParseInt(c.DefaultQuery("before", "0"), 10, 64)
 	limit, limitErr := strconv.Atoi(c.DefaultQuery("limit", "50"))

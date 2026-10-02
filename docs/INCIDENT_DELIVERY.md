@@ -187,3 +187,15 @@ Retry-After=120 remains queued before its deadline, then succeeds with the same
 idempotency header; a 401 terminates the job without another attempt. Both retain
 the incident's firing state, and private response diagnostics are absent from
 compatibility history. These tests exercise sender, worker and database together.
+
+## Per-attempt diagnostics
+
+`GET /api/v1/admin/notification-deliveries/:deliveryID/attempts` requires an
+administrator session and returns at most five attempts in ascending attempt
+order. Each contains number, start/completion timestamps, outcome and safe error
+classification. Missing deliveries return 404. Lease tokens and provider response
+bodies are excluded. API regression tests cover anonymous rejection, missing jobs,
+an active attempt and omitted private fields; provider integration tests cover
+failed-then-delivered history. The UI supports loading, retry errors and empty
+history, and explicitly explains that unknown outcomes may already have delivered.
+This newly added detail expansion still needs browser acceptance.

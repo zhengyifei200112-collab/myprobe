@@ -86,7 +86,22 @@ func TestAdminNotificationAndAlertAPIsDoNotLeakCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/api/v1/admin/incidents", "/api/v1/admin/incidents/" + incident.ID + "/deliveries"} {
+	job, err := database.ClaimDelivery(ctx, time.Now().UTC(), time.Minute)
+	if err != nil || job == nil {
+		t.Fatalf("claim: %+v %v", job, err)
+	}
+	attemptsPath := "/api/v1/admin/notification-deliveries/" + job.ID + "/attempts"
+	attemptsResponse := authenticatedRequest(t, server.Handler(), cookie, loginBody.CSRFToken, http.MethodGet, attemptsPath, "")
+	var attemptsBody struct {
+		Attempts []store.DeliveryAttempt `json:"attempts"`
+	}
+	if err := json.Unmarshal(attemptsResponse.Body.Bytes(), &attemptsBody); err != nil {
+		t.Fatal(err)
+	}
+	if attemptsResponse.Code != http.StatusOK || len(attemptsBody.Attempts) != 1 || attemptsBody.Attempts[0].Outcome != "started" || attemptsBody.Attempts[0].CompletedAt != nil {
+		t.Fatalf("attempt response: %s", attemptsResponse.Body.String())
+	}
+	for _, path := range []string{"/api/v1/admin/incidents", "/api/v1/admin/incidents/" + incident.ID + "/deliveries", attemptsPath} {
 		anonymous := httptest.NewRecorder()
 		server.Handler().ServeHTTP(anonymous, httptest.NewRequest(http.MethodGet, path, nil))
 		if anonymous.Code != http.StatusUnauthorized {
@@ -107,6 +122,10 @@ func TestAdminNotificationAndAlertAPIsDoNotLeakCredentials(t *testing.T) {
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("invalid %s accepted: %d", query, response.Code)
 		}
+	}
+	missingAttempt := authenticatedRequest(t, server.Handler(), cookie, loginBody.CSRFToken, http.MethodGet, "/api/v1/admin/notification-deliveries/missing/attempts", "")
+	if missingAttempt.Code != http.StatusNotFound {
+		t.Fatalf("missing attempt: %d", missingAttempt.Code)
 	}
 	missing := authenticatedRequest(t, server.Handler(), cookie, loginBody.CSRFToken, http.MethodGet, "/api/v1/admin/incidents/missing/deliveries", "")
 	if missing.Code != http.StatusNotFound {
