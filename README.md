@@ -168,3 +168,10 @@ Semantic Versioning, and forward-only database migrations. Start with
 [`AGENTS.md`](AGENTS.md) and [`CONTRIBUTING.md`](CONTRIBUTING.md); release maintainers
 should also read [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) and
 [`docs/RELEASING.md`](docs/RELEASING.md).
+
+### Incident delivery work in progress
+
+The incident-outbox branch adds independent fault incidents, durable delivery jobs
+and per-attempt diagnostics. See the [Chinese operations guide](docs/ALERT_OPERATIONS.zh-CN.md)
+and [implementation evidence](docs/INCIDENT_DELIVERY.md). This work is not released;
+scoped policies, maintenance, silence and aggregation remain subsequent work.
