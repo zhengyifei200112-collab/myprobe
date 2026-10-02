@@ -258,3 +258,9 @@ uses a 120-second repeat with a 900-second cooldown, rejects a claim one millise
 before the correct deadline, then resumes at attempt two exactly at the deadline.
 Migration 015 remains unreleased in this draft branch; no released migration was
 changed. Store, alert and backup tests pass after this compatibility correction.
+
+Startup now completes one successful incident evaluation before starting delivery
+consumers. Initial evaluation failures retry on the evaluation interval without
+sending queued messages. A restart regression seeds a due resource-fault job with
+no current metric sample and confirms evaluation marks it stale before any send,
+without consuming an attempt. Saturated-worker and shutdown tests still pass.

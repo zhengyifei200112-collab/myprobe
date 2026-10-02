@@ -204,16 +204,23 @@ func (s *Service) UpdateRule(ctx context.Context, id, nodeID, channelID, kind st
 
 func (s *Service) Run(ctx context.Context) {
 	var workers sync.WaitGroup
-	for i := 0; i < 4; i++ {
-		workers.Add(1)
-		go func() { defer workers.Done(); s.runDeliveryWorker(ctx) }()
-	}
 	defer workers.Wait()
+	workersStarted := false
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 	for {
-		if err := s.Tick(ctx, time.Now().UTC()); err != nil && !errors.Is(err, context.Canceled) {
+		err := s.Tick(ctx, time.Now().UTC())
+		if err != nil && !errors.Is(err, context.Canceled) {
 			s.logger.Error("evaluate alert rules", "error", err)
+		}
+		// Revalidate durable jobs against current observations before any send
+		// after startup. A failed initial evaluation retries without consumers.
+		if err == nil && !workersStarted && ctx.Err() == nil {
+			workersStarted = true
+			for i := 0; i < 4; i++ {
+				workers.Add(1)
+				go func() { defer workers.Done(); s.runDeliveryWorker(ctx) }()
+			}
 		}
 		select {
 		case <-ctx.Done():
