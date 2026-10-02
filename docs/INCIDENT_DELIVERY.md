@@ -157,3 +157,19 @@ proof that every channel is healthy.
 Local full Go tests pass except the existing Windows collector absolute-path
 fixture (tracked separately in PR #47). `go vet ./...` and `go build ./cmd/...`
 pass. Browser acceptance remains pending; these checks do not establish it.
+
+## Local browser evidence (2026-10-02)
+
+A separate loopback server and temporary SQLite database were exercised through
+headless Microsoft Edge/Playwright using actual authentication and APIs. Twenty-six
+synthetic offline nodes produced incidents while their channel was disabled, with
+no external notification sends. Checks passed for 25-item first page, loading all
+26 events, resolved/firing filters, per-event empty delivery history and no browser
+page errors. Screenshots were captured at 360/768/1440 px in light/dark mode; all
+six combinations passed document-width overflow checks. The 360 px dark screenshot
+was visually inspected. The first test failure was an exact accessible-label
+matcher including native select option text; a role/name matcher passed.
+
+This evidence does not yet cover keyboard focus, network-error UI, queued/retrying
+and recovered events in the browser, or visual inspection of every screenshot.
+Those remain required before this PR is ready.
