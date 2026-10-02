@@ -85,3 +85,18 @@ supported. Do not edit released migrations.
   light/dark 360/768/1440px browser workflows distinguish events from deliveries.
 - Update changelog, product spec, README, generated assets and complete repository
   checks before making the PR ready. Capacity and 24-hour evidence remain M5.
+
+## Current implementation evidence
+
+Migration 015 and upgrade tests are implemented. They cover active/pending and
+failed-recovery legacy states, disabled rules, retained notification history,
+explicit legacy recovery defaults, non-duplication on migration/reopen, one-active
+incident constraints, retry/lease constraints and snapshot survival after source
+node deletion. Successful old sends create no new queued jobs. Failed attempts
+start with attempt count one and their original cooldown (minimum 30 seconds);
+raw old provider errors are not copied into new payloads.
+
+Store, alert, HTTP API and backup package tests pass with the new schema. The
+existing engine has not yet been replaced: this branch is not ready to deploy.
+Next work is the transactional observation/outbox path, bounded leased worker,
+new administrator APIs/UI, and end-to-end failure and browser validation.

@@ -9,6 +9,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- In-development migration 015 introduces separate incident, notification delivery
+  and attempt storage, with compatibility import of existing active/pending states.
+  This foundation must ship together with the new evaluation and delivery engine;
+  it is not yet a completed incident-center release.
+
+
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
   independent public, admin, and login background presentation.
