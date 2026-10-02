@@ -286,13 +286,14 @@ func (g *Gateway) isTrustedProxy(address netip.Addr) bool {
 }
 
 func (g *Gateway) publishNode(ctx context.Context, nodeID string) {
+	revision := g.hub.Revision()
 	items, err := g.store.ListPublicNodes(ctx, time.Now().UTC())
 	if err != nil {
 		return
 	}
 	for _, item := range items {
 		if item.Node.ID == nodeID {
-			g.hub.Publish(Event{Type: "node_metrics", Node: item})
+			g.hub.Publish(revision, Event{Type: "node_metrics", Node: item})
 			break
 		}
 	}

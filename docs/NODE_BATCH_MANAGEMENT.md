@@ -1,8 +1,8 @@
 # Node batch management (M1 / OPS-01 and OPS-02)
 
-Status: in development. This document describes the implemented transactional
-configuration path. Do not mark this feature ready until browser checks and Agent
-interval application have been verified as well as CI.
+Status: implemented on the feature branch; release availability depends on merge
+and release. Transactional, Agent and browser checks are recorded below. Final PR
+readiness additionally requires CI for the latest commit.
 
 ## User flow
 
@@ -51,7 +51,9 @@ database backups retain them and the revisions.
 
 Visibility changes send an internal refresh signal, replacing queued public metric
 events so a full current public snapshot removes hidden nodes without a reload.
-No new public fields or Agent protocol version is introduced by this path.
+A refresh generation also rejects in-flight publications whose snapshot read started
+before the visibility change. No new public fields or Agent protocol version is
+introduced; HTTP acknowledgement configuration is an optional v1 field.
 
 ## Validation
 
@@ -67,8 +69,23 @@ Gateway integration tests apply a real batch and verify configuration on an exis
 WebSocket heartbeat and HTTP hello. Store tests ensure repeated/older samples update
 liveness without duplicating history or overwriting newer measurements.
 
-Remaining before readiness: browser/API end-to-end checks at required viewports and
-themes, and complete CI for the final commit.
+`scripts/node_batch_browser_test.cjs` passes against an isolated Server and real
+SQLite database with 25 synthetic nodes. It exercises cross-page selection, preview
+invalidation, no-ops, atomic conflict rejection, target add/remove/empty replacement,
+interval persistence, live public visibility, and retry after a committed response
+is deliberately dropped. Screenshots cover light/dark at 360/768/1440 px, including
+the form and scrollable confirmation. The component uses shared design-system
+controls, and the preview list can receive keyboard focus.
+
+Run with `PLAYWRIGHT_MODULE` pointing to a Playwright installation, Edge installed,
+and `MYPROBE_TEST_URL` pointing to a fresh loopback Server (default port 25776).
+Set `MYPROBE_TEST_PASSWORD` to its disposable administrator password. The script
+requires an empty database and creates synthetic records; do not run on production.
+`MYPROBE_TEST_OUTPUT` optionally selects the screenshot directory.
+
+Local Go regression tests, vet and build pass except for the existing Windows
+absolute-path collector fixture, separately corrected in PR #47. Linux CI covers
+the full suite. This exception is not a failure in Agent interval application.
 
 ## Interval application
 

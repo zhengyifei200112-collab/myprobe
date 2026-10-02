@@ -14,6 +14,7 @@ type Event struct {
 type Hub struct {
 	mu          sync.RWMutex
 	subscribers map[chan Event]struct{}
+	revision    uint64
 }
 
 func NewHub() *Hub {
@@ -35,9 +36,21 @@ func (h *Hub) Subscribe() (<-chan Event, func()) {
 	}
 }
 
-func (h *Hub) Publish(event Event) {
+// Revision must be captured before reading a public node snapshot.
+func (h *Hub) Revision() uint64 {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
+	return h.revision
+}
+
+func (h *Hub) Publish(revision uint64, event Event) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	// A visibility refresh invalidates reads that started before it, including
+	// publishers still in flight when the queued events were drained.
+	if revision != h.revision {
+		return
+	}
 	for subscriber := range h.subscribers {
 		select {
 		case subscriber <- event:
@@ -52,6 +65,7 @@ func (h *Hub) Publish(event Event) {
 func (h *Hub) PublishRefresh() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.revision++
 	for subscriber := range h.subscribers {
 	drain:
 		for {
