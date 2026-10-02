@@ -169,6 +169,60 @@ func TestRetryDelayBounds(t *testing.T) {
 	}
 }
 
+func TestWorkerTimeoutAfterReceiverAcceptsIsUnknown(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	accepted := make(chan struct{})
+	release := make(chan struct{})
+	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(accepted)
+		<-release
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer receiver.Close()
+	defer close(release)
+	client := receiver.Client()
+	client.Timeout = 100 * time.Millisecond
+	s := New(db, strings.Repeat("s", 32), NewHTTPSender(client), nil)
+	node, _, err := db.CreateNode(ctx, store.CreateNodeParams{Name: "ambiguous delivery"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	channel, err := s.CreateChannel(ctx, "timeout", "webhook", ChannelConfig{URL: receiver.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rule, err := s.CreateRule(ctx, node.ID, channel.ID, "cpu", RuleConfig{ThresholdPercent: 90}, 300)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	incident, err := db.ObserveAlert(ctx, rule, node, store.AlertObservation{At: now, Known: true, Active: true, Message: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if worked, err := s.DeliverOne(ctx, now); !worked || err != nil {
+		t.Fatalf("send: %v %v", worked, err)
+	}
+	select {
+	case <-accepted:
+	default:
+		t.Fatal("receiver did not accept request")
+	}
+	jobs, err := db.ListIncidentDeliveries(ctx, incident.ID, 0, 10)
+	if err != nil || len(jobs) != 1 || jobs[0].Status != "pending" {
+		t.Fatalf("jobs: %+v %v", jobs, err)
+	}
+	attempts, err := db.ListDeliveryAttempts(ctx, jobs[0].ID)
+	if err != nil || len(attempts) != 1 || attempts[0].Outcome != "unknown" || attempts[0].ErrorClass != "transport_error" {
+		t.Fatalf("attempts: %+v %v", attempts, err)
+	}
+}
+
 func TestTickRecordsIncidentsWithoutSendingOrDecrypting(t *testing.T) {
 	ctx := context.Background()
 	db, err := store.Open(ctx, ":memory:")

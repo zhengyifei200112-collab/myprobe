@@ -221,3 +221,11 @@ unknown-outcome warning and success order; detail focus; and six viewport/theme
 width checks with no page errors. This proves presentation of these states,
 not a real network-to-browser lifecycle. Real sender/worker/store behavior is
 covered separately by provider integration tests above.
+
+HTTP transport errors now persist the attempt as `unknown` while keeping its job
+eligible for bounded retry. A local receiver test accepts the request but delays
+the response beyond the client deadline; the resulting attempt is unknown, not
+asserted undelivered. This conservatively includes transport failures where the
+client cannot prove whether acceptance occurred. Explicit provider HTTP errors
+retain their classified failure outcome. Successful-and-ambiguous completion is
+rejected as an invalid store outcome.

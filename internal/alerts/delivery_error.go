@@ -9,6 +9,7 @@ import (
 
 // DeliveryError carries only safe classifications, never provider bodies or URLs.
 type DeliveryError struct {
+	Ambiguous  bool
 	Class      string
 	Permanent  bool
 	RetryAfter time.Duration

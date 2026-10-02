@@ -255,6 +255,7 @@ func (s *Store) CheckDeliveryLease(ctx context.Context, id, token string, now ti
 }
 
 type DeliveryOutcome struct {
+	Ambiguous  bool
 	Delivered  bool
 	Permanent  bool
 	ErrorClass string
@@ -264,7 +265,7 @@ type DeliveryOutcome struct {
 var deliveryErrorClass = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
 func (s *Store) CompleteDelivery(ctx context.Context, id, token string, now time.Time, outcome DeliveryOutcome) error {
-	if now.IsZero() || (!outcome.Delivered && !deliveryErrorClass.MatchString(outcome.ErrorClass)) {
+	if (outcome.Delivered && outcome.Ambiguous) || now.IsZero() || (!outcome.Delivered && !deliveryErrorClass.MatchString(outcome.ErrorClass)) {
 		return errors.New("invalid delivery outcome")
 	}
 	now = now.UTC()
@@ -287,6 +288,9 @@ func (s *Store) CompleteDelivery(ctx context.Context, id, token string, now time
 		return ErrDeliveryLeaseLost
 	}
 	status, attemptStatus := "pending", "failed"
+	if outcome.Ambiguous {
+		attemptStatus = "unknown"
+	}
 	var finished any
 	errorClass := outcome.ErrorClass
 	available := now.UnixMilli()

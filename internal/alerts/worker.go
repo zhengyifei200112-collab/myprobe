@@ -69,6 +69,7 @@ func (s *Service) DeliverOne(ctx context.Context, now time.Time) (bool, error) {
 		var classified *DeliveryError
 		if errors.As(deliveryErr, &classified) {
 			outcome.ErrorClass, outcome.Permanent = classified.Class, classified.Permanent
+			outcome.Ambiguous = classified.Ambiguous
 			if classified.RetryAfter > delay {
 				delay = classified.RetryAfter
 			}

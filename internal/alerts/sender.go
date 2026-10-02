@@ -247,7 +247,7 @@ func (s *HTTPSender) smtp(ctx context.Context, config ChannelConfig, notificatio
 func (s *HTTPSender) do(request *http.Request) error {
 	response, err := s.client.Do(request)
 	if err != nil {
-		return &DeliveryError{Class: "transport_error"}
+		return &DeliveryError{Class: "transport_error", Ambiguous: true}
 	}
 	defer response.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
