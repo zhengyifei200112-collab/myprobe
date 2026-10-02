@@ -147,3 +147,13 @@ cannot replace the latest selected incident. Existing delivery history remains.
 The rule editor preserves explicit recovery duration, including zero; rule cards
 display that duration. TypeScript and production build pass. Responsive/theme,
 keyboard, real-server lifecycle and failure browser acceptance are still pending.
+
+Webhook deliveries include `incident_id` and an `Idempotency-Key` header stable
+across attempts of the same job. Receivers must implement deduplication to use
+that header; this does not guarantee exactly-once delivery. Notification overview
+counts explicitly describe recent delivery history, not current fault counts or
+proof that every channel is healthy.
+
+Local full Go tests pass except the existing Windows collector absolute-path
+fixture (tracked separately in PR #47). `go vet ./...` and `go build ./cmd/...`
+pass. Browser acceptance remains pending; these checks do not establish it.

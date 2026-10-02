@@ -35,14 +35,16 @@ type ChannelConfig struct {
 }
 
 type Notification struct {
-	Title     string    `json:"title"`
-	Message   string    `json:"message"`
-	State     string    `json:"state"`
-	Kind      string    `json:"kind"`
-	NodeID    string    `json:"node_id"`
-	NodeName  string    `json:"node_name"`
-	RuleID    string    `json:"rule_id"`
-	Timestamp time.Time `json:"timestamp"`
+	IncidentID     string    `json:"incident_id,omitempty"`
+	IdempotencyKey string    `json:"-"`
+	Title          string    `json:"title"`
+	Message        string    `json:"message"`
+	State          string    `json:"state"`
+	Kind           string    `json:"kind"`
+	NodeID         string    `json:"node_id"`
+	NodeName       string    `json:"node_name"`
+	RuleID         string    `json:"rule_id"`
+	Timestamp      time.Time `json:"timestamp"`
 }
 
 type Sender interface {
@@ -123,6 +125,9 @@ func (s *HTTPSender) webhook(ctx context.Context, config ChannelConfig, notifica
 			return errors.New("invalid webhook header")
 		}
 		request.Header.Set(key, value)
+	}
+	if notification.IdempotencyKey != "" {
+		request.Header.Set("Idempotency-Key", notification.IdempotencyKey)
 	}
 	return s.do(request)
 }

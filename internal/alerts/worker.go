@@ -56,6 +56,7 @@ func (s *Service) DeliverOne(ctx context.Context, now time.Time) (bool, error) {
 		return true, err
 	}
 	if deliveryErr == nil {
+		notification.IdempotencyKey = job.IdempotencyKey
 		sendCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		deliveryErr = s.sender.Deliver(sendCtx, channel.Kind, config, notification)
 		cancel()
