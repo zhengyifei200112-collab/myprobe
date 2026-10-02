@@ -128,3 +128,6 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   four leased workers, bounded retries, safe error classifications and Retry-After.
 - Preserve incident tracking when channel decryption is unavailable. This draft
   work still requires freshness validation and administrator workflow completion.
+
+- Fix notification center form save buttons to submit, and make new-rule recovery
+  windows follow trigger duration unless explicitly overridden.

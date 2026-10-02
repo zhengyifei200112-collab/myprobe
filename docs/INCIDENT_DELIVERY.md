@@ -199,3 +199,12 @@ an active attempt and omitted private fields; provider integration tests cover
 failed-then-delivered history. The UI supports loading, retry errors and empty
 history, and explicitly explains that unknown outcomes may already have delivered.
 This newly added detail expansion still needs browser acceptance.
+
+Recovery-form browser verification found that existing notification center save
+buttons inherited the design system's default button type and did not submit.
+Channel/rule/template submit buttons now explicitly use type=submit. New rules
+start with recovery linked to trigger duration; editing an explicit zero preserves
+immediate recovery. A browser test intercepted rule writes and verified a 45-second
+trigger submits a 45-second recovery by default, and an explicit override submits
+zero. The initial no-request failure was reproduced before the button fix and the
+same test passed afterward. No external notifications were sent.
