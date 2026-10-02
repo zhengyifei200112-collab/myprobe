@@ -208,3 +208,16 @@ immediate recovery. A browser test intercepted rule writes and verified a 45-sec
 trigger submits a 45-second recovery by default, and an explicit override submits
 zero. The initial no-request failure was reproduced before the button fix and the
 same test passed afterward. No external notifications were sent.
+
+## Repeatable synthetic browser regression
+
+`scripts/incident-ui-acceptance.cjs` accepts `PLAYWRIGHT_MODULE` (optional module
+path), `PROBE_TEST_URL` (loopback only), `PROBE_TEST_USERNAME` and required
+`PROBE_TEST_PASSWORD`. Start a separate server/database first. It authenticates
+normally but intercepts incident/delivery read APIs with synthetic fixtures; it
+neither creates rules nor sends notifications. The script passed pending,
+inflight, delivered, failed and canceled rendering; attempt-query 503 and retry;
+unknown-outcome warning and success order; detail focus; and six viewport/theme
+width checks with no page errors. This proves presentation of these states,
+not a real network-to-browser lifecycle. Real sender/worker/store behavior is
+covered separately by provider integration tests above.
