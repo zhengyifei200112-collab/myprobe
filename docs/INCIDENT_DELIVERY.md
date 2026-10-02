@@ -181,3 +181,9 @@ API cleared the errors. Existing list records remained visible after a refresh
 failure. Type checking and regenerated production assets pass after the focus fix.
 Queued/retrying/recovered browser scenarios and remaining visual review are still
 outstanding; this is not a complete PR acceptance claim.
+
+Provider integration tests now use a real loopback HTTP receiver: a 429 with
+Retry-After=120 remains queued before its deadline, then succeeds with the same
+idempotency header; a 401 terminates the job without another attempt. Both retain
+the incident's firing state, and private response diagnostics are absent from
+compatibility history. These tests exercise sender, worker and database together.
