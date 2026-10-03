@@ -9,7 +9,7 @@ const job = { state: 'success', completed_runs: 3, failed_runs: 0, last_success_
 const health = {
   observed_at: '2026-10-04T00:00:00Z', server: { version: 'acceptance-fixture', uptime_seconds: 3600, os: 'linux', arch: 'amd64' },
   database: { status: 'ok', schema_version: '013', database_file: { status: 'ok', bytes: 1048576 }, wal_file: { status: 'absent', bytes: 0 } },
-  retention: { job }, backup: { job: { ...job, state: 'never_run', last_success_at: undefined } }, scheduler: { job },
+  retention: { job, configuration: { status: 'available', raw_seconds: 604800, one_minute_seconds: 2592000, five_minute_seconds: 31536000, run_interval_seconds: 3600 } }, backup: { job: { ...job, state: 'never_run', completed_runs: 0, last_success_at: undefined } }, scheduler: { job },
   transport: { agent_connections: 2, pending_results: 3, expired_results: 1 }, browser_subscriptions: 1,
 }
 ;(async () => {

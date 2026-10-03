@@ -35,6 +35,18 @@ func TestRuntimeIdentityEvidence(t *testing.T) {
 	}
 }
 
+func TestRetentionConfigurationEvidence(t *testing.T) {
+	s := &Server{}
+	if s.retentionConfiguration()["status"] != "unavailable" {
+		t.Fatal("missing configuration reported as zero retention")
+	}
+	s.config.Retention = config.Retention{Raw: 48 * time.Hour, OneMinute: 96 * time.Hour, FiveMinute: 192 * time.Hour, Interval: 2 * time.Hour}
+	got := s.retentionConfiguration()
+	if got["raw_seconds"] != float64(172800) || got["one_minute_seconds"] != float64(345600) || got["five_minute_seconds"] != float64(691200) || got["run_interval_seconds"] != float64(7200) {
+		t.Fatalf("configuration differs from runtime: %+v", got)
+	}
+}
+
 func TestSystemHealthAuthorizationAndEvidence(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "private-health-database.db")

@@ -6,7 +6,7 @@ interface Health {
   observed_at: string
   server: { version?: string; uptime_seconds?: number; os: string; arch: string }
   database: { status: string; schema_version?: string; database_file: { status: string; bytes?: number }; wal_file: { status: string; bytes?: number } }
-  retention: { job: Job }
+  retention: { job: Job; configuration?: { status: string; raw_seconds?: number; one_minute_seconds?: number; five_minute_seconds?: number; run_interval_seconds?: number } }
   backup: { job: Job }
   scheduler: { job?: Job; last_cycle?: { assignments_loaded: boolean; due: number; dispatched: number; offline: number; failed: number; start_delay_seconds: number } }
   transport: { agent_connections: number; pending_results: number; expired_results: number }
@@ -54,6 +54,7 @@ let generation = 0
 const states: Record<string, string> = { never_run: '本次启动后尚未运行', running: '运行中', success: '成功', failed: '失败', cancelled: '已取消' }
 const date = (value?: string) => value ? new Date(value).toLocaleString() : '暂无记录'
 const size = (value?: number) => value === undefined ? '不可用' : `${(value / 1048576).toFixed(2)} MiB`
+const days = (value?: number) => value === undefined ? '不可用' : `${value / 86400} 天`
 const jobs = computed(() => data.value ? [
   { name: '历史数据保留', job: data.value.retention.job },
   { name: '探测调度', job: data.value.scheduler.job },
@@ -89,6 +90,7 @@ onUnmounted(() => { generation++; controller?.abort(); nodeGeneration++; nodeCon
     <template v-if="data">
       <p class="health-note">采样时间：{{ date(data.observed_at) }}。页面不会自动刷新；任务记录在 Server 重启后重置。</p>
       <div class="health-grid">
+        <article class="admin-panel"><h2>数据保留配置</h2><dl v-if="data.retention.configuration?.status === 'available'"><dt>原始样本</dt><dd>{{ days(data.retention.configuration.raw_seconds) }}</dd><dt>一分钟汇总</dt><dd>{{ days(data.retention.configuration.one_minute_seconds) }}</dd><dt>五分钟汇总</dt><dd>{{ days(data.retention.configuration.five_minute_seconds) }}</dd><dt>清理间隔</dt><dd>{{ (data.retention.configuration.run_interval_seconds ?? 0) / 3600 }} 小时</dd></dl><p v-else>当前保留配置不可用。</p></article>
         <article class="admin-panel"><h2>Server</h2><dl><dt>构建版本</dt><dd>{{ data.server.version || '不可用' }}</dd><dt>运行时间</dt><dd>{{ data.server.uptime_seconds === undefined ? '不可用' : `${Math.floor(data.server.uptime_seconds / 60)} 分钟` }}</dd><dt>平台</dt><dd>{{ data.server.os }} / {{ data.server.arch }}</dd></dl></article>
         <article class="admin-panel"><h2>数据库</h2><dl><dt>元数据读取</dt><dd>{{ data.database.status === 'ok' ? '正常' : '不可用' }}</dd><dt>Schema</dt><dd>{{ data.database.schema_version || '不可用' }}</dd><dt>数据库文件</dt><dd>{{ size(data.database.database_file.bytes) }}</dd><dt>WAL 文件</dt><dd>{{ size(data.database.wal_file.bytes) }}</dd></dl></article>
         <article class="admin-panel"><h2>连接与探测</h2><dl><dt>Agent WebSocket</dt><dd>{{ data.transport.agent_connections }}</dd><dt>浏览器订阅</dt><dd>{{ data.browser_subscriptions }}</dd><dt>待返回结果</dt><dd>{{ data.transport.pending_results }}</dd><dt>已过期结果</dt><dd>{{ data.transport.expired_results }}</dd></dl><p>HTTP 上报不计入持久连接数。</p></article>

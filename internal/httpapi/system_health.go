@@ -43,6 +43,7 @@ func (s *Server) systemHealth(c *gin.Context) {
 		"observed_at": time.Now().UTC(),
 		"database":    s.store.DatabaseDiagnostics(c.Request.Context()),
 		"retention": gin.H{
+			"configuration":     s.retentionConfiguration(),
 			"observation_scope": "process",
 			"job":               s.store.RetentionDiagnostics(),
 		},
@@ -50,6 +51,16 @@ func (s *Server) systemHealth(c *gin.Context) {
 		"browser_subscriptions": s.hub.SubscriberCount(),
 		"notification_queue":    gin.H{"status": "unavailable", "reason": "durable_outbox_not_integrated"},
 	})
+}
+
+func (s *Server) retentionConfiguration() gin.H {
+	r := s.config.Retention
+	if r.Raw <= 0 || r.OneMinute <= 0 || r.FiveMinute <= 0 || r.Interval <= 0 {
+		return gin.H{"status": "unavailable"}
+	}
+	return gin.H{"status": "available", "raw_seconds": r.Raw.Seconds(),
+		"one_minute_seconds": r.OneMinute.Seconds(), "five_minute_seconds": r.FiveMinute.Seconds(),
+		"run_interval_seconds": r.Interval.Seconds()}
 }
 
 func (s *Server) runtimeIdentity(now time.Time) gin.H {
