@@ -19,7 +19,16 @@ remove expired entries. Browser subscriptions are separate from Agent sockets.
 The notification queue reports `unavailable` with reason
 `durable_outbox_not_integrated`; it does not expose an invented zero count.
 
-Version/uptime, scheduler and backup observation, node evidence, and the health
+The `scheduler` field observes the actual running scheduler supplied by the
+Server entry point. Without an attached observer it explicitly reports unavailable.
+Its process-local job records never-run, running, success, failure and cancellation.
+`last_cycle` includes scheduled time, start delay, assignment-read success, due,
+dispatched, offline and failed counts. A failed assignment read does not establish
+zero configured tasks. Offline Agents do not make a completed dispatch cycle fail;
+other dispatch errors do. These are last-cycle counts, not durable queue totals.
+The last completed cycle remains visible while the next cycle is running.
+
+Version/uptime and backup observation, node evidence, and the health
 page remain pending. This API foundation does not complete SYS-01. Contract
 tests cover authentication, revoked sessions, cache policy, evidence semantics
 and secret exclusion; store/gateway tests cover underlying observations.

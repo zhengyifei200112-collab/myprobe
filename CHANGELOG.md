@@ -10,7 +10,7 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Administrator-only system health API with SQLite metadata, process-local
-  retention outcomes, Agent connection and pending-result counts, and browser
+  retention and scheduler outcomes, Agent connection and pending-result counts, and browser
   subscription counts. Responses exclude paths and secrets and prohibit caching.
 
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,

@@ -69,7 +69,8 @@ func main() {
 	alertService := alerts.New(database, cfg.EncryptionKey, nil, logger)
 	go alertService.Run(runCtx)
 	go runRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger)
-	api := httpapi.New(cfg, database, authService, gateway, hub)
+	api := httpapi.New(cfg, database, authService, gateway, hub,
+		httpapi.WithSchedulerHealth(func() any { return latencyScheduler.Diagnostics() }))
 	server := &http.Server{
 		Addr: cfg.ListenAddress, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 90 * time.Second,

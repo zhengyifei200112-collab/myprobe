@@ -27,19 +27,27 @@ const sessionCookie = "myprobe_session"
 const githubStateCookie = "myprobe_github_state"
 
 type Server struct {
-	config  config.Config
-	store   *store.Store
-	auth    *auth.Service
-	github  *auth.GitHubService
-	gateway *agentgateway.Gateway
-	hub     *agentgateway.Hub
-	alerts  *alerts.Service
-	sharing *sharing.Service
-	router  *gin.Engine
-	handler http.Handler
+	config          config.Config
+	store           *store.Store
+	auth            *auth.Service
+	github          *auth.GitHubService
+	gateway         *agentgateway.Gateway
+	hub             *agentgateway.Hub
+	alerts          *alerts.Service
+	sharing         *sharing.Service
+	router          *gin.Engine
+	handler         http.Handler
+	schedulerHealth func() any
 }
 
-func New(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub) *Server {
+type Option func(*Server)
+
+// WithSchedulerHealth binds the running scheduler before the HTTP server starts.
+func WithSchedulerHealth(snapshot func() any) Option {
+	return func(s *Server) { s.schedulerHealth = snapshot }
+}
+
+func New(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub, options ...Option) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	gateway.SetTrustedProxies(cfg.TrustedProxies)
@@ -49,6 +57,9 @@ func New(cfg config.Config, database *store.Store, authService *auth.Service, ga
 	router.Use(gin.Recovery(), securityHeaders())
 	github, _ := auth.NewGitHubService(database, cfg.EncryptionKey, cfg.SessionTTL, nil)
 	server := &Server{config: cfg, store: database, auth: authService, github: github, gateway: gateway, hub: hub, alerts: alerts.New(database, cfg.EncryptionKey, nil, nil), sharing: sharing.New(database, 12*time.Hour), router: router}
+	for _, option := range options {
+		option(server)
+	}
 	server.routes()
 	mux := http.NewServeMux()
 	// WebSocket upgrades bypass Gin's wrapped ResponseWriter. coder/websocket uses

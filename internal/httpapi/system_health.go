@@ -8,7 +8,12 @@ import (
 )
 
 func (s *Server) systemHealth(c *gin.Context) {
+	var schedulerHealth any = gin.H{"status": "unavailable", "reason": "observer_not_attached"}
+	if s.schedulerHealth != nil {
+		schedulerHealth = s.schedulerHealth()
+	}
 	c.JSON(http.StatusOK, gin.H{
+		"scheduler":   schedulerHealth,
 		"observed_at": time.Now().UTC(),
 		"database":    s.store.DatabaseDiagnostics(c.Request.Context()),
 		"retention": gin.H{
