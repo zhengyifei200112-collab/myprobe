@@ -14,6 +14,10 @@ func (s *Server) systemHealth(c *gin.Context) {
 		schedulerHealth = s.schedulerHealth()
 	}
 	c.JSON(http.StatusOK, gin.H{
+		"backup": gin.H{
+			"observation_scope": "process", "operation": "encrypted_file_generation",
+			"job": s.backupJob.Snapshot(), "download_saved": "unknown", "recovery_verified": "unknown",
+		},
 		"server":      s.runtimeIdentity(time.Now()),
 		"scheduler":   schedulerHealth,
 		"observed_at": time.Now().UTC(),

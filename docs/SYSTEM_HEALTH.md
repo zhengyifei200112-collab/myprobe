@@ -36,7 +36,14 @@ version, OS and architecture. Missing identity has explicit unavailable statuses
 it is not replaced by the API construction time or a guessed release version.
 This does not check for newer upstream releases or establish Agent compatibility.
 
-Backup observation, node evidence, and the health
+The `backup` field observes actual encrypted file generation after request and
+storage eligibility validation. Successful generation is recorded after encryption,
+file sync and rewind, before streaming the response. Invalid input is not a run;
+failed generation and cancelled requests are distinct. `download_saved` and
+`recovery_verified` remain `unknown`, including after a successful generation.
+These observations reset on restart and do not claim historical backup coverage.
+
+Node evidence and the health
 page remain pending. This API foundation does not complete SYS-01. Contract
 tests cover authentication, revoked sessions, cache policy, evidence semantics
 and secret exclusion; store/gateway tests cover underlying observations.

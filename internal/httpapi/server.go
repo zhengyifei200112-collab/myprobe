@@ -18,6 +18,7 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/alerts"
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
+	"github.com/zhengyifei200112-collab/myprobe/internal/diagnostics"
 	"github.com/zhengyifei200112-collab/myprobe/internal/sharing"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 	"github.com/zhengyifei200112-collab/myprobe/internal/webui"
@@ -40,6 +41,7 @@ type Server struct {
 	schedulerHealth  func() any
 	buildVersion     string
 	processStartedAt time.Time
+	backupJob        diagnostics.Job
 }
 
 type Option func(*Server)
