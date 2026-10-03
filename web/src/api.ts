@@ -23,7 +23,7 @@ export async function fetchHistory(nodeID: string, selection: HistorySelection, 
     headers: { Accept: 'application/json' },
     signal,
   })
-  if (!response.ok) throw new Error(`history request failed: ${response.status}`)
+  if (!response.ok) throw new Error(response.status === 400 ? '时间范围无效：请检查起止时间，结束时间不能晚于服务器当前时间。' : response.status === 404 ? '节点不存在或已隐藏。' : '暂时无法读取历史数据，请重试。')
   return response.json() as Promise<HistoryResponse>
 }
 

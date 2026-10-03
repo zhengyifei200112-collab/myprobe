@@ -77,8 +77,9 @@ and `end` parameters (maximum 365 days, no future end). Responses describe the
 half-open interval, bucket width and complete-retention-buckets-only policy.
 All resource, latency and traffic reads exclude samples at or beyond the end.
 Partially overlapping retained buckets are omitted, not reconstructed as precise
-samples. This API foundation is implemented; fixed node detail pages and custom
-time selection UI remain in development. See [NODE_DETAILS.md](NODE_DETAILS.md).
+samples. The public fixed node detail page provides custom time selection and
+separate linked charts. Authenticated administrator detail routes remain in
+development. See [NODE_DETAILS.md](NODE_DETAILS.md).
 
 - Latest state: in memory and persisted per node.
 - Raw samples: seven days by default.

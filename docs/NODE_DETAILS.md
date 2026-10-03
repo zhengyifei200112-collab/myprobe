@@ -44,7 +44,8 @@ server_time with no-store caching. List and single-node reads share the same
 serialization and privacy filtering; the database predicate selects only the
 requested visible node. Hidden/missing IDs share the same 404 response. API tests
 cover valid detail, masked documentation IP, token exclusion and visibility changes.
-Store and HTTP API package tests pass. Detail UI remains in progress.
+Store and HTTP API package tests pass. The public detail page is implemented;
+authenticated administrator detail routes remain in progress.
 
 The time-window parser now validates preset or paired absolute RFC3339 bounds,
 rejects duplicate/mixed selectors, reversed/future/over-one-year windows, normalizes
@@ -77,4 +78,31 @@ regenerated), store and HTTP API tests, Go vet/build and diff checks passed.
 Full Windows Go tests passed except the existing collector host-root path fixture
 (`TestDiskUsagePathUsesHostRootForAbsoluteMounts`), tracked separately in PR #47.
 The current API changes do not alter collector code. Linux CI must pass on the
-current PR head before review readiness. No detail-page UI acceptance is claimed.
+current PR head before review readiness.
+
+## Public page implementation and UI acceptance
+
+The dashboard history dialog links to `/nodes/:id`. The page reads only the
+single-node public API, never dashboard storage, and clears node/charts on failed
+revalidation. It refreshes the overview every 30 seconds while visible, and
+fetches history on navigation or explicit refresh. It does not label polling as
+a realtime connection. Preset and absolute selections survive refresh and browser
+back/forward; abort signals and generation checks prevent older responses from
+replacing a newer selection. Invalid URLs show an error with a reset action.
+
+Four charts separate percentages, network rates, latency and observed cumulative
+traffic. ECharts groups link time cursors and zoom; sliders, inside zoom and
+keyboard-accessible zoom/reset buttons are available. Missing output buckets
+insert explicit nulls and isolated observations remain visible as dots. This is
+a display of missing observations, not a claim about planned sample coverage.
+
+`node --experimental-strip-types --test web/src/node-details/history-view.test.mjs`
+checks URL contracts and gap insertion; CI runs it. The local browser script
+`scripts/node-detail-ui-acceptance.cjs` uses a loopback server and synthetic API
+fixtures, with PLAYWRIGHT_MODULE selecting the installed Playwright package.
+PROBE_TEST_URL defaults to http://127.0.0.1:5173 and PROBE_SCREENSHOT_DIR optionally
+collects screenshots. It covers 360/768/1440 light/dark, absolute-range refresh,
+back navigation, delayed stale responses, keyboard retry and hidden-node removal.
+These six combinations passed on 2026-10-03; screenshots were visually inspected.
+This fixture-based check does not replace live API integration or administrator
+authentication acceptance, which remain required before completing DETAIL-01.
