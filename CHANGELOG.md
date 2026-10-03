@@ -9,6 +9,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- In-development migration 015 introduces separate incident, notification delivery
+  and attempt storage, with compatibility import of existing active/pending states.
+  This foundation must ship together with the new evaluation and delivery engine;
+  it is not yet a completed incident-center release.
+
+
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
   independent public, admin, and login background presentation.
@@ -115,3 +121,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 [0.2.0]: https://github.com/zhengyifei200112-collab/myprobe/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/zhengyifei200112-collab/myprobe/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/zhengyifei200112-collab/myprobe/releases/tag/v0.1.0
+
+### Incident queue development (unreleased)
+
+- Decouple incident evaluation from notification delivery with transactional jobs,
+  four leased workers, bounded retries, safe error classifications and Retry-After.
+- Preserve incident tracking when channel decryption is unavailable. This draft
+  work still requires freshness validation and administrator workflow completion.
+
+- Fix notification center form save buttons to submit, and make new-rule recovery
+  windows follow trigger duration unless explicitly overridden.
