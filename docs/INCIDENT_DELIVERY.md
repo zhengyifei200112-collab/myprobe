@@ -277,3 +277,12 @@ snapshot, stages/applies that snapshot and reopens the database. The restored
 incident and rule snapshot survive; the expired lease resumes as attempt two with
 a new token and an unknown first attempt. This demonstrates both durable recovery
 and the unavoidable duplicate-delivery window when restoring an older backup.
+
+The integrated HTTP API pipeline test now evaluates a real rule, sends to a local
+HTTP receiver returning 429/Retry-After, resumes the durable job at its deadline,
+changes the underlying condition to healthy, and sends recovery. Authenticated
+administrator reads confirm firing, pending retry, delivered attempt two, the same
+resolved incident, and delivered recovery. Receiver payloads retain the incident
+ID. Browser presentation remains separately covered by real incident reads and
+synthetic delivery-state checks; this test does not claim browser-driven network
+fault injection.
