@@ -46,3 +46,12 @@ requested visible node. Hidden/missing IDs share the same 404 response. API test
 cover valid detail, masked documentation IP, token exclusion and visibility changes.
 Store and HTTP API package tests pass. Detail UI and bounded time queries remain
 in progress.
+
+The time-window parser now validates preset or paired absolute RFC3339 bounds,
+rejects duplicate/mixed selectors, reversed/future/over-one-year windows, normalizes
+time zones, and chooses existing resolutions below 2,000 points per series.
+HTTP API package tests cover these boundaries. This parser is not yet wired to
+history routes: bounded metric, latency and traffic reads must be implemented
+together first. Raw samples use [start,end); partially overlapping retained
+rollups must be excluded or explicitly reported as aligned coverage, never silently
+included as exact samples. Existing traffic accounting must retain its semantics.
