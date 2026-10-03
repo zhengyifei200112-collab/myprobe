@@ -62,8 +62,18 @@ The page includes a node selector and independent refresh. Switching nodes clear
 old results and cancels prior requests, with a generation guard against stale
 responses. `scripts/system-health-ui-acceptance.cjs` exercises synthetic API data
 in light/dark at 360/768/1440, node selection, failed-refresh notices, retry and
-401 clearing. These component checks passed; full live-server navigation,
-keyboard acceptance and configuration acknowledgement integration remain pending.
+401 clearing. These component checks passed. The companion
+`scripts/system-health-live-acceptance.cjs` passed against a disposable file-backed
+Server built with version `health-live-acceptance`: real password login, navigation,
+actual retention/scheduler observations, fixture-node lookup, keyboard activation
+of navigation and refresh, six light/dark viewport combinations without horizontal
+overflow, and revoked-session login fallback. It deletes its fixture node and does
+not use production data or notification channels. This checks keyboard activation,
+not a complete screen-reader or accessibility audit.
+
+Linux CI run `37141705827` passed for implementation commit `3db292d`; local
+`go vet ./...` and `go build ./cmd/...` also passed. Configuration acknowledgement
+and notification-outbox integration remain pending.
 This branch does not complete SYS-01. Contract
 tests cover authentication, revoked sessions, cache policy, evidence semantics
 and secret exclusion; store/gateway tests cover underlying observations.
