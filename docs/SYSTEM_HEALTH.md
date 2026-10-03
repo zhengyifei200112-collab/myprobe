@@ -82,6 +82,14 @@ not a complete screen-reader or accessibility audit.
 Linux CI run `37141705827` passed for implementation commit `3db292d`; local
 `go vet ./...` and `go build ./cmd/...` also passed. Configuration acknowledgement
 and notification-outbox integration remain pending.
+
+Additional verification: Linux CI and governance checks passed at `c9e64c6`.
+The actual WebSocket lifecycle test covers unregistered sockets, valid hello,
+replacement/old-session teardown, dispatched pending results and abrupt disconnect.
+Local full Go tests pass except the existing Windows collector path assertion
+`TestDiskUsagePathUsesHostRootForAbsoluteMounts` (handled by separate PR #47).
+Full local Go vet/build pass. The new lifecycle test does not contact any probe
+target; it verifies the task frame on a loopback WebSocket.
 This branch does not complete SYS-01. Contract
 tests cover authentication, revoked sessions, cache policy, evidence semantics
 and secret exclusion; store/gateway tests cover underlying observations.
