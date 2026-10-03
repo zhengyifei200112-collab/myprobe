@@ -2,6 +2,28 @@
 
 Status: implementation in progress on a branch from current main. Not released.
 
+## Current API contract
+
+`GET /api/v1/admin/system/health` requires an active administrator session.
+Both successful and rejected requests use `Cache-Control: private, no-store`.
+The response currently contains `observed_at`, `database`, `retention`,
+`transport`, `browser_subscriptions`, and `notification_queue`.
+
+Database inspection failures are represented by `database.status=unavailable`
+and a fixed error code, without raw errors or paths. Missing file sizes and
+unknown file sizes remain distinct. Retention observations have process scope;
+`never_run` does not establish that earlier processes never ran retention.
+Transport counts are sampled under separate locks, not a transaction spanning
+all connections. Pending results expire at their deadline; diagnostics do not
+remove expired entries. Browser subscriptions are separate from Agent sockets.
+The notification queue reports `unavailable` with reason
+`durable_outbox_not_integrated`; it does not expose an invented zero count.
+
+Version/uptime, scheduler and backup observation, node evidence, and the health
+page remain pending. This API foundation does not complete SYS-01. Contract
+tests cover authentication, revoked sessions, cache policy, evidence semantics
+and secret exclusion; store/gateway tests cover underlying observations.
+
 ## User outcome
 
 An administrator can determine whether the monitor itself is working: Server

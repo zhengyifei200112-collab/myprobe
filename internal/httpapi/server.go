@@ -105,6 +105,8 @@ func (s *Server) routes() {
 	share.GET("/nodes", s.shareNodes)
 	share.GET("/nodes/:nodeID/history", s.shareNodeHistory)
 
+	// Set cache policy before authentication so rejected diagnostics are private too.
+	s.router.GET("/api/v1/admin/system/health", privateNoStore(), s.requireSession(true), s.systemHealth)
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
 	admin.GET("/nodes", s.adminNodes)
 	admin.POST("/nodes", s.createNode)
