@@ -584,7 +584,7 @@ onMounted(async () => {
       </template>
 
       <template v-else-if="tab === 'health'">
-        <SystemHealth @unauthorized="authenticated = false" />
+        <SystemHealth :nodes="nodes" @unauthorized="authenticated = false" />
       </template>
       <template v-else-if="tab === 'maintenance'">
         <section class="admin-heading"><div><span class="eyebrow">PORTABILITY &amp; RECOVERY</span><h1>迁移与备份</h1><p>迁移可审阅配置，或创建包含全部数据的口令加密数据库备份。</p></div><span class="count-pill">版本 1</span></section>

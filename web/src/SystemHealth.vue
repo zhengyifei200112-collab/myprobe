@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 interface Job { state: string; last_success_at?: string; last_completed_at?: string; failed_runs: number; completed_runs: number }
 interface Health {
@@ -13,6 +13,39 @@ interface Health {
   browser_subscriptions: number
 }
 const emit = defineEmits<{ unauthorized: [] }>()
+defineProps<{ nodes: Array<{ id: string; name: string }> }>()
+interface NodeEvidence {
+  observed_at: string
+  websocket_connected: boolean
+  node: { agent_evidence_status: string; agent_version?: string; capabilities?: string[]; hello_received_at?: string; last_seen_at?: string; report_seconds: number }
+}
+const selectedNode = ref('')
+const nodeData = ref<NodeEvidence | null>(null)
+const nodeError = ref('')
+const nodeBusy = ref(false)
+let nodeController: AbortController | undefined
+let nodeGeneration = 0
+async function loadNode() {
+  const current = ++nodeGeneration
+  nodeController?.abort()
+  nodeData.value = null
+  nodeError.value = ''
+  nodeBusy.value = false
+  if (!selectedNode.value) return
+  nodeController = new AbortController()
+  nodeBusy.value = true
+  try {
+    const response = await fetch(`/api/v1/admin/nodes/${encodeURIComponent(selectedNode.value)}/diagnostics`, { credentials: 'same-origin', cache: 'no-store', signal: nodeController.signal })
+    if (current !== nodeGeneration) return
+    if (response.status === 401) { data.value = null; emit('unauthorized'); return }
+    if (!response.ok) throw new Error(response.status === 404 ? '节点已不存在，请重新选择。' : '节点诊断读取失败，请重试。')
+    const result = await response.json() as NodeEvidence
+    if (current === nodeGeneration) nodeData.value = result
+  } catch (reason) {
+    if (current === nodeGeneration) nodeError.value = reason instanceof Error ? reason.message : '节点诊断读取失败。'
+  } finally { if (current === nodeGeneration) nodeBusy.value = false }
+}
+watch(selectedNode, loadNode)
 const data = ref<Health | null>(null)
 const busy = ref(false)
 const error = ref('')
@@ -45,7 +78,7 @@ async function refresh() {
   } finally { if (current === generation) busy.value = false }
 }
 onMounted(refresh)
-onUnmounted(() => { generation++; controller?.abort() })
+onUnmounted(() => { generation++; controller?.abort(); nodeGeneration++; nodeController?.abort() })
 </script>
 
 <template>
@@ -64,6 +97,18 @@ onUnmounted(() => { generation++; controller?.abort() })
       <section v-if="data.scheduler.last_cycle" class="admin-panel"><h2>最近调度周期</h2><p v-if="!data.scheduler.last_cycle.assignments_loaded">未能读取探测配置，无法确认应调度的任务数量。</p><p v-else>应执行 {{ data.scheduler.last_cycle.due }} · 已发送 {{ data.scheduler.last_cycle.dispatched }} · Agent 离线 {{ data.scheduler.last_cycle.offline }} · 发送失败 {{ data.scheduler.last_cycle.failed }}</p><p>启动延迟 {{ data.scheduler.last_cycle.start_delay_seconds.toFixed(2) }} 秒</p></section>
       <p class="health-note">备份成功仅表示加密文件已生成；下载保存和恢复能力尚未验证。持久化通知队列诊断尚未集成，不能据此判断没有积压。</p>
     </template>
+    <section class="admin-panel" aria-labelledby="node-health-title" :aria-busy="nodeBusy">
+      <h2 id="node-health-title">节点诊断</h2>
+      <div class="health-heading"><label for="diagnostic-node">选择节点</label><select id="diagnostic-node" v-model="selectedNode"><option value="">请选择节点</option><option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option></select><button class="soft-button" :disabled="!selectedNode || nodeBusy" @click="loadNode">刷新节点诊断</button></div>
+      <p v-if="!nodes.length">暂无节点，请先添加节点。</p>
+      <p v-if="nodeBusy" role="status">正在读取节点诊断…</p>
+      <p v-if="nodeError" role="alert">{{ nodeError }}</p>
+      <template v-if="nodeData">
+        <p class="health-note">采样时间：{{ date(nodeData.observed_at) }}</p>
+        <dl><dt>WebSocket 连接</dt><dd>{{ nodeData.websocket_connected ? '已连接' : '未连接' }}</dd><dt>最近报告</dt><dd>{{ date(nodeData.node.last_seen_at) }}</dd><dt>配置上报间隔</dt><dd>{{ nodeData.node.report_seconds }} 秒</dd><dt>Agent 版本</dt><dd>{{ nodeData.node.agent_version || '暂无声明' }}</dd><dt>最近握手</dt><dd>{{ date(nodeData.node.hello_received_at) }}</dd><dt>声明能力</dt><dd>{{ nodeData.node.agent_evidence_status === 'advertised' ? (nodeData.node.capabilities?.join('、') || '未声明能力') : '尚未收到握手' }}</dd></dl>
+        <p class="health-note">握手信息可能早于当前连接。未连接 WebSocket 不代表没有 HTTP 上报；最近报告所用通道未知。配置确认诊断尚未集成。</p>
+      </template>
+    </section>
   </section>
 </template>
 
@@ -77,4 +122,5 @@ onUnmounted(() => { generation++; controller?.abort() })
 .system-health dl { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; }
 .system-health dt { color: var(--muted); }.system-health dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .system-health p { overflow-wrap: anywhere; }
+.system-health select { max-width: 100%; min-width: 0; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
 </style>

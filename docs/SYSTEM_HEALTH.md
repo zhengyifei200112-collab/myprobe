@@ -58,8 +58,13 @@ The management navigation now includes a system health page with manual refresh,
 last observation time, process-local job outcomes, database/transport counts and
 last scheduler cycle. A failed refresh marks retained values as stale; unauthorized
 responses clear data and return to login. Unmounting aborts in-flight requests.
-Node diagnostics UI, configuration acknowledgement integration and full browser
-acceptance remain pending. This branch does not complete SYS-01. Contract
+The page includes a node selector and independent refresh. Switching nodes clears
+old results and cancels prior requests, with a generation guard against stale
+responses. `scripts/system-health-ui-acceptance.cjs` exercises synthetic API data
+in light/dark at 360/768/1440, node selection, failed-refresh notices, retry and
+401 clearing. These component checks passed; full live-server navigation,
+keyboard acceptance and configuration acknowledgement integration remain pending.
+This branch does not complete SYS-01. Contract
 tests cover authentication, revoked sessions, cache policy, evidence semantics
 and secret exclusion; store/gateway tests cover underlying observations.
 
