@@ -1,7 +1,19 @@
 # Incident state and durable notification delivery (M2 / ALT-01, ALT-04)
 
-Status: in development. Do not release or mark implemented until the new engine,
-legacy migration, worker, API/UI and failure tests are integrated.
+Status: implemented on the feature branch, awaiting final PR checks and review;
+not merged or released. This is ALT-01/ALT-04, not completion of all M2–M5 work.
+
+Current acceptance summary (2026-10-03): state, migration, queue, worker, provider,
+API and restore tests pass; real-server incident browsing and synthetic delivery
+browser regressions pass; all six 360/768/1440 light/dark detail screenshots were
+visually inspected. Fresh dependency install and frontend build pass. Full Windows
+Go tests have only the pre-existing collector path-fixture failure fixed in #47;
+Linux CI covers the full suite. Go vet/build and diff checks pass. SMTP command
+acceptance is tested independently of TLS certificate negotiation. Browser fixture
+checks do not claim an external-provider browser end-to-end environment.
+
+The implementation notes below preserve development evidence chronologically;
+older references to pending work are superseded by later verification entries.
 
 ## Problem and scope
 
@@ -286,3 +298,7 @@ resolved incident, and delivered recovery. Receiver payloads retain the incident
 ID. Browser presentation remains separately covered by real incident reads and
 synthetic delivery-state checks; this test does not claim browser-driven network
 fault injection.
+
+The screenshot option `PROBE_SCREENSHOT_DIR` writes six deterministic detail
+screenshots with CSS animations disabled. The 2026-10-03 pass visually inspected
+all six, with readable controls, wrapping diagnostics and no horizontal overflow.

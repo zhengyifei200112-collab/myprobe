@@ -1,5 +1,7 @@
 // Run against an isolated local server. Reads synthetic API fixtures; sends no notifications.
 const assert = require('node:assert/strict')
+const fs = require('node:fs/promises')
+const path = require('node:path')
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 
 async function main() {
@@ -43,6 +45,11 @@ async function main() {
       await page.setViewportSize({ width, height: 900 })
       await page.evaluate(value => document.documentElement.dataset.theme = value, theme)
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${width}/${theme}`)
+      if (process.env.PROBE_SCREENSHOT_DIR) {
+        await fs.mkdir(process.env.PROBE_SCREENSHOT_DIR, { recursive: true })
+        await page.locator('.delivery-detail').evaluate(element => element.scrollIntoView({ block: 'start' }))
+        await page.screenshot({ animations: 'disabled', path: path.join(process.env.PROBE_SCREENSHOT_DIR, `incident-${width}-${theme}.png`) })
+      }
     }
     assert.deepEqual(errors, [])
     console.log('PASS synthetic delivery states, attempt failure/retry, unknown outcome, focus and six viewport/theme widths')
