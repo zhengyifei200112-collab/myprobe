@@ -79,7 +79,7 @@ func TestMetricHistoryQueryDoesNotCorrelateEveryRawSampleWithRollups(t *testing.
 		t.Fatal(err)
 	}
 
-	args, err := historyQueryArgs(node.ID, time.Now().UTC().Add(-time.Hour), time.Now().UTC(), 60)
+	args, err := historyQueryArgs(node.ID, time.Now().UTC().Add(-time.Hour), time.Now().UTC(), 60, false)
 	if err != nil {
 		t.Fatal(err)
 	}

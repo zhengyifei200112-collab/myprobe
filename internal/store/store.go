@@ -303,14 +303,24 @@ func (s *Store) SaveReport(ctx context.Context, nodeID string, report protocol.R
 }
 
 func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNode, error) {
-	return s.listPublicNodes(ctx, now, "")
+	return s.listNodeSnapshots(ctx, now, "", false)
 }
 
 func (s *Store) PublicNode(ctx context.Context, id string, now time.Time) (PublicNode, error) {
+	return s.nodeSnapshot(ctx, id, now, false)
+}
+
+// AdminNode includes hidden nodes and private Agent metadata, but retains IP
+// masking and never returns credentials. Callers must authenticate administrators.
+func (s *Store) AdminNode(ctx context.Context, id string, now time.Time) (PublicNode, error) {
+	return s.nodeSnapshot(ctx, id, now, true)
+}
+
+func (s *Store) nodeSnapshot(ctx context.Context, id string, now time.Time, includeHidden bool) (PublicNode, error) {
 	if id == "" {
 		return PublicNode{}, ErrNotFound
 	}
-	items, err := s.listPublicNodes(ctx, now, id)
+	items, err := s.listNodeSnapshots(ctx, now, id, includeHidden)
 	if err != nil {
 		return PublicNode{}, err
 	}
@@ -320,13 +330,13 @@ func (s *Store) PublicNode(ctx context.Context, id string, now time.Time) (Publi
 	return items[0], nil
 }
 
-func (s *Store) listPublicNodes(ctx context.Context, now time.Time, id string) ([]PublicNode, error) {
+func (s *Store) listNodeSnapshots(ctx context.Context, now time.Time, id string, includeHidden bool) ([]PublicNode, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT n.id, n.name, n.sort_order, n.hidden, n.tags_json, n.country_code,
 		n.currency, n.price_minor, n.billing_cycle, n.expires_at, n.traffic_reset_day, n.use_since_boot,
 		n.latency_mode, n.custom_html, n.custom_badges_json, n.custom_links_json, n.collection_seconds, n.report_seconds, n.created_at, n.updated_at,
 		n.last_seen_at, m.report_json
 		FROM nodes n LEFT JOIN metric_latest m ON m.node_id = n.id
-		WHERE n.hidden = 0 AND (? = '' OR n.id = ?) ORDER BY n.sort_order, n.name`, id, id)
+		WHERE (n.hidden = 0 OR ?) AND (? = '' OR n.id = ?) ORDER BY n.sort_order, n.name`, includeHidden, id, id)
 	if err != nil {
 		return nil, err
 	}
@@ -369,9 +379,11 @@ func (s *Store) listPublicNodes(ctx context.Context, now time.Time, id string) (
 	}
 	for index := range result {
 		if item, ok := metadata[result[index].Node.ID]; ok {
-			item.Hostname = ""
-			item.AgentVersion = ""
-			item.Capabilities = nil
+			if !includeHidden {
+				item.Hostname = ""
+				item.AgentVersion = ""
+				item.Capabilities = nil
+			}
 			copy := item
 			result[index].Node.Agent = &copy
 		}
@@ -720,7 +732,7 @@ const metricHistoryQuery = `WITH history AS (
 	SELECT (unixepoch(substr(sample_at,1,19)||'Z')/:bucket)*:bucket AS bucket,
 	SUM(cpu_sum)/SUM(sample_count),SUM(memory_sum)/SUM(sample_count),SUM(disk_sum)/SUM(sample_count),
 	SUM(rx_sum)/SUM(sample_count),SUM(tx_sum)/SUM(sample_count)
-	FROM history JOIN nodes n ON n.id=history.node_id WHERE n.hidden=0
+	FROM history JOIN nodes n ON n.id=history.node_id WHERE (n.hidden=0 OR :include_hidden)
 	GROUP BY bucket ORDER BY bucket`
 
 func (s *Store) MetricHistory(ctx context.Context, nodeID string, start time.Time, bucketSeconds int) ([]MetricHistoryPoint, error) {
@@ -728,7 +740,15 @@ func (s *Store) MetricHistory(ctx context.Context, nodeID string, start time.Tim
 }
 
 func (s *Store) MetricHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int) ([]MetricHistoryPoint, error) {
-	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds)
+	return s.metricHistoryRange(ctx, nodeID, start, end, bucketSeconds, false)
+}
+
+func (s *Store) AdminMetricHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int) ([]MetricHistoryPoint, error) {
+	return s.metricHistoryRange(ctx, nodeID, start, end, bucketSeconds, true)
+}
+
+func (s *Store) metricHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int, includeHidden bool) ([]MetricHistoryPoint, error) {
+	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds, includeHidden)
 	if err != nil {
 		return nil, err
 	}
@@ -759,7 +779,15 @@ func (s *Store) LatencyHistory(ctx context.Context, nodeID string, start time.Ti
 }
 
 func (s *Store) LatencyHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int) ([]LatencyHistoryPoint, error) {
-	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds)
+	return s.latencyHistoryRange(ctx, nodeID, start, end, bucketSeconds, false)
+}
+
+func (s *Store) AdminLatencyHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int) ([]LatencyHistoryPoint, error) {
+	return s.latencyHistoryRange(ctx, nodeID, start, end, bucketSeconds, true)
+}
+
+func (s *Store) latencyHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int, includeHidden bool) ([]LatencyHistoryPoint, error) {
+	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds, includeHidden)
 	if err != nil {
 		return nil, err
 	}
@@ -776,7 +804,7 @@ func (s *Store) LatencyHistoryRange(ctx context.Context, nodeID string, start, e
 		CASE WHEN SUM(latency_count)>0 THEN SUM(latency_sum)/SUM(latency_count) END,
 		100.0*SUM(success_count)/SUM(sample_count)
 	FROM history JOIN targets t ON t.id=history.target_id JOIN nodes n ON n.id=history.node_id
-	WHERE n.hidden=0 GROUP BY bucket,history.target_id,t.name,history.kind
+	WHERE (n.hidden=0 OR :include_hidden) GROUP BY bucket,history.target_id,t.name,history.kind
 	ORDER BY bucket,t.sort_order,t.name`, args...)
 	if err != nil {
 		return nil, err

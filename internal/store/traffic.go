@@ -132,16 +132,24 @@ func (s *Store) TrafficHistory(ctx context.Context, nodeID string, start, end ti
 // the first in-range counter as baseline; retained deltas are attributed to their
 // bucket, without pretending to interpolate exact transfer times.
 func (s *Store) TrafficHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int) ([]TrafficHistoryPoint, error) {
-	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds)
+	return s.trafficHistoryRange(ctx, nodeID, start, end, bucketSeconds, false)
+}
+
+func (s *Store) AdminTrafficHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int) ([]TrafficHistoryPoint, error) {
+	return s.trafficHistoryRange(ctx, nodeID, start, end, bucketSeconds, true)
+}
+
+func (s *Store) trafficHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int, includeHidden bool) ([]TrafficHistoryPoint, error) {
+	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds, includeHidden)
 	if err != nil {
 		return nil, err
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT 0,captured_at,net_rx_total,net_tx_total
 		FROM metric_samples JOIN nodes n ON n.id=node_id
-		WHERE node_id=:node AND n.hidden=0 AND `+historyRawBounds+`
+		WHERE node_id=:node AND (n.hidden=0 OR :include_hidden) AND `+historyRawBounds+`
 		UNION ALL SELECT 1,bucket_at,rx_bytes,tx_bytes
 		FROM traffic_rollups JOIN nodes n ON n.id=node_id
-		WHERE node_id=:node AND n.hidden=0 AND `+historyRollupBounds+`
+		WHERE node_id=:node AND (n.hidden=0 OR :include_hidden) AND `+historyRollupBounds+`
 		ORDER BY 2`, args...)
 	if err != nil {
 		return nil, err

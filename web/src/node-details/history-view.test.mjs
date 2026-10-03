@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readHistorySelection, selectionQuery, withGaps } from './history-view.ts'
+import { adminDetailDestination } from './navigation.ts'
 
 test('absolute windows round-trip timezone offsets through the URL', () => {
   const selection = { start: '2026-10-01T12:00:00+08:00', end: '2026-10-01T13:00:00+08:00' }
@@ -9,6 +10,11 @@ test('absolute windows round-trip timezone offsets through the URL', () => {
   for (const query of ['range=invalid', 'range=1h&range=1d', 'start=', 'start=2026-01-01&end=2026-01-02', `range=1h&${selectionQuery(selection)}`, selectionQuery({ start: selection.end, end: selection.start })]) {
     assert.throws(() => readHistorySelection(query))
   }
+})
+
+test('OAuth continuation is restricted to local administrator node paths', () => {
+  assert.equal(adminDetailDestination('/admin/nodes/example?range=7d'), '/admin/nodes/example?range=7d')
+  for (const value of [null, '', 'https://example.com/admin/nodes/test', '//example.com/admin/nodes/test', '/admin/nodes/../settings', '/admin/nodes/test/other', '/admin/nodes/\\example.com', '/api/v1/admin/nodes/test']) assert.equal(adminDetailDestination(value), null)
 })
 
 test('missing buckets break curves and preserve explicit failed observations', () => {

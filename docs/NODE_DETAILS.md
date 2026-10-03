@@ -1,6 +1,7 @@
 # Node detail routes and bounded history (DETAIL-01)
 
-Status: in development on a branch based on current main. No release claim.
+Status: implemented on a development branch, with local acceptance evidence below.
+Current-head CI and review are required before delivery. No release claim.
 
 ## Scope
 
@@ -44,8 +45,8 @@ server_time with no-store caching. List and single-node reads share the same
 serialization and privacy filtering; the database predicate selects only the
 requested visible node. Hidden/missing IDs share the same 404 response. API tests
 cover valid detail, masked documentation IP, token exclusion and visibility changes.
-Store and HTTP API package tests pass. The public detail page is implemented;
-authenticated administrator detail routes remain in progress.
+Store and HTTP API package tests pass. Both public and authenticated administrator
+detail pages are implemented.
 
 The time-window parser now validates preset or paired absolute RFC3339 bounds,
 rejects duplicate/mixed selectors, reversed/future/over-one-year windows, normalizes
@@ -104,5 +105,34 @@ PROBE_TEST_URL defaults to http://127.0.0.1:5173 and PROBE_SCREENSHOT_DIR option
 collects screenshots. It covers 360/768/1440 light/dark, absolute-range refresh,
 back navigation, delayed stale responses, keyboard retry and hidden-node removal.
 These six combinations passed on 2026-10-03; screenshots were visually inspected.
-This fixture-based check does not replace live API integration or administrator
-authentication acceptance, which remain required before completing DETAIL-01.
+
+## Administrator detail and live acceptance
+
+`/admin/nodes/:id` uses the existing login form/session restoration and only the
+authenticated `/api/v1/admin/nodes/:id` and `/history` endpoints. These endpoints
+include hidden nodes, while public/share history still uses its existing visibility
+and scope. Administrator snapshots retain private Agent metadata (such as version),
+but IP masking and credential exclusion remain in force. A lightweight existence
+query distinguishes an absent node from an existing node with no samples.
+
+Password login and expired-session login retain the current path and time query.
+On HTTP 401 the page clears private content and returns to the login form. GitHub
+login stores a tab-scoped local detail destination; a successful return to /admin
+can resume it. The destination validator rejects external paths and other admin
+routes. No new server redirect parameter or OAuth protocol change is introduced.
+
+`scripts/node-detail-live-acceptance.cjs` runs against a dedicated disposable
+loopback Server using explicit PROBE_TEST_USERNAME/PROBE_TEST_PASSWORD credentials.
+It creates one synthetic node, submits real Agent HTTP reports, exercises public
+detail before/after hiding it, then tests administrator detail in all six viewport /
+theme combinations and deletes only its created node. It verifies password login,
+absolute-range reload, the node-list entry, local OAuth continuation and private
+chart removal/relogin after actual session revocation. All six combinations passed
+on 2026-10-03; screenshots were inspected. External GitHub authorization is not part
+of this local test. Latency rendering uses the public synthetic fixture tests;
+raw/retained private latency authorization is covered by Go tests.
+
+The complete local Go suite still has only the pre-existing Windows collector path
+fixture failure tracked in PR #47. TypeScript/build, focused tests, vet/build and
+diff checks pass; final Linux CI is required. Incident timelines remain DETAIL-02,
+not part of this change.

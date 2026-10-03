@@ -68,6 +68,12 @@ func TestPasswordProtectedChartShareEnforcesNodeScope(t *testing.T) {
 		t.Fatalf("login = %d %s", loginResponse.Code, loginResponse.Body.String())
 	}
 	shareCookie := loginResponse.Result().Cookies()[0]
+	for _, suffix := range []string{"", "/history?range=1h"} {
+		private := shareRequest(t, server.Handler(), shareCookie, http.MethodGet, "/api/v1/admin/nodes/"+selected.ID+suffix)
+		if private.Code != http.StatusUnauthorized {
+			t.Fatalf("share cookie accessed administrator detail: %d", private.Code)
+		}
+	}
 
 	nodesRequest := httptest.NewRequest(http.MethodGet, "/api/v1/share/"+created.Share.ID+"/nodes", nil)
 	nodesRequest.AddCookie(shareCookie)

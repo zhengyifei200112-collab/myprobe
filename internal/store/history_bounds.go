@@ -1,12 +1,19 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
 )
 
 var historyOpenEnd = time.Date(9999, 12, 31, 23, 59, 58, 0, time.UTC)
+
+func (s *Store) NodeExists(ctx context.Context, nodeID string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM nodes WHERE id=?)`, nodeID).Scan(&exists)
+	return exists, err
+}
 
 // Stored sample timestamps are UTC RFC3339Nano, whose optional fractions do not
 // sort chronologically as text within one second. Use indexed coarse bounds,
@@ -20,7 +27,7 @@ const historyRawBounds = `captured_at>=:scan_start AND captured_at<:scan_end
 const historyRollupBounds = `bucket_at>=:rollup_start AND bucket_at<:scan_end
 	AND unixepoch(bucket_at)+bucket_seconds<=:end_second`
 
-func historyQueryArgs(nodeID string, start, end time.Time, bucketSeconds int) ([]any, error) {
+func historyQueryArgs(nodeID string, start, end time.Time, bucketSeconds int, includeHidden bool) ([]any, error) {
 	start, end = start.UTC(), end.UTC()
 	if bucketSeconds < 1 || bucketSeconds > 86400 || !start.Before(end) || start.Year() < 1970 || end.Year() > 9999 {
 		return nil, errors.New("invalid history window or bucket")
@@ -33,6 +40,7 @@ func historyQueryArgs(nodeID string, start, end time.Time, bucketSeconds int) ([
 	const seconds = "2006-01-02T15:04:05"
 	return []any{
 		sql.Named("node", nodeID),
+		sql.Named("include_hidden", includeHidden),
 		sql.Named("bucket", bucketSeconds),
 		sql.Named("scan_start", start.Format(seconds)),
 		sql.Named("scan_end", end.Truncate(time.Second).Add(time.Second).Format(seconds)),

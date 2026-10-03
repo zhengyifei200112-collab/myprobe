@@ -60,6 +60,11 @@ theme-safe structured badges, validated external links, and server-sanitized adv
 HTML. The feature-by-feature implementation and evidence matrix is maintained in the
 product specification.
 
+Fixed public and administrator node detail links support absolute time windows,
+separate linked charts, zoom/reset controls and explicit gaps. Administrator detail
+includes hidden nodes and preserves the selected destination across login and session
+expiry. See [node detail behavior and acceptance](docs/NODE_DETAILS.md).
+
 ## Deployment
 
 For Linux hosts with systemd, the one-click installer is the recommended path. It

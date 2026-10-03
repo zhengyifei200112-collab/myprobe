@@ -133,3 +133,52 @@ func TestBoundedHistoryExcludesPartialRetentionBuckets(t *testing.T) {
 		})
 	}
 }
+
+func TestHiddenHistoryScopeCoversRawAndRetainedSources(t *testing.T) {
+	database, node, target := historyFixture(t)
+	ctx := context.Background()
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for i := 0; i < 2; i++ {
+		if err := database.SaveReport(ctx, node.ID, protocol.Report{CapturedAt: base.Add(time.Duration(120+i*15) * time.Second), CPU: protocol.CPUMetric{UsagePercent: 40}, Networks: []protocol.NetworkMetric{{Interface: "test", RXTotalBytes: uint64(i * 200)}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, insert := range []struct {
+		query string
+		args  []any
+	}{
+		{`INSERT INTO metric_rollups VALUES(?,60,?,2,40,0,0,0,0)`, []any{node.ID, formatTime(base)}},
+		{`INSERT INTO latency_rollups VALUES(?,?,?,60,?,2,1,1,20)`, []any{node.ID, target.ID, protocol.TaskKindTCPing, formatTime(base)}},
+		{`INSERT INTO traffic_rollups VALUES(?,60,?,100,0)`, []any{node.ID, formatTime(base)}},
+		{`UPDATE nodes SET hidden=1 WHERE id=?`, []any{node.ID}},
+	} {
+		if _, err := database.db.ExecContext(ctx, insert.query, insert.args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	end := base.Add(3 * time.Minute)
+	metrics, err := database.MetricHistoryRange(ctx, node.ID, base, end, 60)
+	if err != nil || len(metrics) != 0 {
+		t.Fatalf("public metrics: %+v, %v", metrics, err)
+	}
+	latency, err := database.LatencyHistoryRange(ctx, node.ID, base, end, 60)
+	if err != nil || len(latency) != 0 {
+		t.Fatalf("public latency: %+v, %v", latency, err)
+	}
+	traffic, err := database.TrafficHistoryRange(ctx, node.ID, base, end, 60)
+	if err != nil || len(traffic) != 0 {
+		t.Fatalf("public traffic: %+v, %v", traffic, err)
+	}
+	metrics, err = database.AdminMetricHistoryRange(ctx, node.ID, base, end, 60)
+	if err != nil || len(metrics) != 2 || metrics[0].CPUPercent != 20 || metrics[1].CPUPercent != 40 {
+		t.Fatalf("admin metrics: %+v, %v", metrics, err)
+	}
+	latency, err = database.AdminLatencyHistoryRange(ctx, node.ID, base, end, 60)
+	if err != nil || len(latency) != 1 || latency[0].SuccessRate != 50 {
+		t.Fatalf("admin latency: %+v, %v", latency, err)
+	}
+	traffic, err = database.AdminTrafficHistoryRange(ctx, node.ID, base, end, 60)
+	if err != nil || len(traffic) != 2 || traffic[1].RXBytes != 300 {
+		t.Fatalf("admin traffic: %+v, %v", traffic, err)
+	}
+}

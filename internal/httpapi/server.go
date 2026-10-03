@@ -108,6 +108,8 @@ func (s *Server) routes() {
 
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
 	admin.GET("/nodes", s.adminNodes)
+	admin.GET("/nodes/:nodeID", s.adminNodeDetail)
+	admin.GET("/nodes/:nodeID/history", s.adminNodeHistory)
 	admin.POST("/nodes", s.createNode)
 	admin.PATCH("/nodes/:nodeID", s.updateNode)
 	admin.DELETE("/nodes/:nodeID", s.deleteNode)
@@ -170,6 +172,14 @@ func (s *Server) publicNodes(c *gin.Context) {
 }
 
 func (s *Server) publicNode(c *gin.Context) {
+	s.writeNodeDetail(c, false)
+}
+
+func (s *Server) adminNodeDetail(c *gin.Context) {
+	s.writeNodeDetail(c, true)
+}
+
+func (s *Server) writeNodeDetail(c *gin.Context, admin bool) {
 	c.Header("Cache-Control", "no-store")
 	id := c.Param("nodeID")
 	if len(id) > 128 {
@@ -177,7 +187,11 @@ func (s *Server) publicNode(c *gin.Context) {
 		return
 	}
 	now := time.Now().UTC()
-	node, err := s.store.PublicNode(c.Request.Context(), id, now)
+	read := s.store.PublicNode
+	if admin {
+		read = s.store.AdminNode
+	}
+	node, err := read(c.Request.Context(), id, now)
 	if errors.Is(err, store.ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
 		return
@@ -212,23 +226,50 @@ func (s *Server) publicNodeHistory(c *gin.Context) {
 }
 
 func (s *Server) writeNodeHistory(c *gin.Context, nodeID string) {
+	s.writeNodeHistoryForScope(c, nodeID, false)
+}
+
+func (s *Server) adminNodeHistory(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	id := c.Param("nodeID")
+	if len(id) > 128 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
+		return
+	}
+	exists, err := s.store.NodeExists(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read node"})
+		return
+	}
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
+		return
+	}
+	s.writeNodeHistoryForScope(c, id, true)
+}
+
+func (s *Server) writeNodeHistoryForScope(c *gin.Context, nodeID string, admin bool) {
 	c.Header("Cache-Control", "no-store")
 	window, err := parseHistoryWindow(c.Request.URL.Query(), time.Now().UTC())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	metrics, err := s.store.MetricHistoryRange(c.Request.Context(), nodeID, window.Start, window.End, window.BucketSeconds)
+	readMetrics, readLatency, readTraffic := s.store.MetricHistoryRange, s.store.LatencyHistoryRange, s.store.TrafficHistoryRange
+	if admin {
+		readMetrics, readLatency, readTraffic = s.store.AdminMetricHistoryRange, s.store.AdminLatencyHistoryRange, s.store.AdminTrafficHistoryRange
+	}
+	metrics, err := readMetrics(c.Request.Context(), nodeID, window.Start, window.End, window.BucketSeconds)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read metric history"})
 		return
 	}
-	latency, err := s.store.LatencyHistoryRange(c.Request.Context(), nodeID, window.Start, window.End, window.BucketSeconds)
+	latency, err := readLatency(c.Request.Context(), nodeID, window.Start, window.End, window.BucketSeconds)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read latency history"})
 		return
 	}
-	traffic, err := s.store.TrafficHistoryRange(c.Request.Context(), nodeID, window.Start, window.End, window.BucketSeconds)
+	traffic, err := readTraffic(c.Request.Context(), nodeID, window.Start, window.End, window.BucketSeconds)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read traffic history"})
 		return
