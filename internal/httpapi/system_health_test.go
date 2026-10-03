@@ -17,6 +17,24 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
+func TestRuntimeIdentityEvidence(t *testing.T) {
+	now := time.Now()
+	s := &Server{}
+	missing := s.runtimeIdentity(now)
+	if missing["version_status"] != "unavailable" || missing["uptime_status"] != "unavailable" {
+		t.Fatal("invented runtime identity")
+	}
+	WithRuntimeIdentity("v1.2.3-test", now.Add(-time.Minute))(s)
+	actual := s.runtimeIdentity(now)
+	if actual["version"] != "v1.2.3-test" || actual["uptime_seconds"] != float64(60) {
+		t.Fatalf("identity: %+v", actual)
+	}
+	WithRuntimeIdentity("dev", now.Add(time.Minute))(s)
+	if s.runtimeIdentity(now)["uptime_status"] != "unavailable" {
+		t.Fatal("negative uptime accepted")
+	}
+}
+
 func TestSystemHealthAuthorizationAndEvidence(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "private-health-database.db")

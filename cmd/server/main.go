@@ -20,7 +20,10 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
+var version = "dev"
+
 func main() {
+	startedAt := time.Now()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	cfg, err := config.Load()
 	if err != nil {
@@ -70,6 +73,7 @@ func main() {
 	go alertService.Run(runCtx)
 	go runRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger)
 	api := httpapi.New(cfg, database, authService, gateway, hub,
+		httpapi.WithRuntimeIdentity(version, startedAt),
 		httpapi.WithSchedulerHealth(func() any { return latencyScheduler.Diagnostics() }))
 	server := &http.Server{
 		Addr: cfg.ListenAddress, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second,

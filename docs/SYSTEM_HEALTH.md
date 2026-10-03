@@ -28,7 +28,15 @@ zero configured tasks. Offline Agents do not make a completed dispatch cycle fai
 other dispatch errors do. These are last-cycle counts, not durable queue totals.
 The last completed cycle remains visible while the next cycle is running.
 
-Version/uptime and backup observation, node evidence, and the health
+The `server` field reports the version supplied by the build and the start time
+captured on entry to `main`, with uptime calculated using Go's monotonic clock
+when available. Docker and release binaries inject the same release version into
+Server and Agent; ordinary source builds report `dev`. The field also includes Go
+version, OS and architecture. Missing identity has explicit unavailable statuses;
+it is not replaced by the API construction time or a guessed release version.
+This does not check for newer upstream releases or establish Agent compatibility.
+
+Backup observation, node evidence, and the health
 page remain pending. This API foundation does not complete SYS-01. Contract
 tests cover authentication, revoked sessions, cache policy, evidence semantics
 and secret exclusion; store/gateway tests cover underlying observations.

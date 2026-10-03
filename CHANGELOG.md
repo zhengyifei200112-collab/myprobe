@@ -12,6 +12,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Administrator-only system health API with SQLite metadata, process-local
   retention and scheduler outcomes, Agent connection and pending-result counts, and browser
   subscription counts. Responses exclude paths and secrets and prohibit caching.
+- Server build version, runtime platform and process uptime diagnostics; release
+  and Docker builds now inject the Server version alongside the Agent version.
 
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and

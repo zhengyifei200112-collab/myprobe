@@ -27,20 +27,27 @@ const sessionCookie = "myprobe_session"
 const githubStateCookie = "myprobe_github_state"
 
 type Server struct {
-	config          config.Config
-	store           *store.Store
-	auth            *auth.Service
-	github          *auth.GitHubService
-	gateway         *agentgateway.Gateway
-	hub             *agentgateway.Hub
-	alerts          *alerts.Service
-	sharing         *sharing.Service
-	router          *gin.Engine
-	handler         http.Handler
-	schedulerHealth func() any
+	config           config.Config
+	store            *store.Store
+	auth             *auth.Service
+	github           *auth.GitHubService
+	gateway          *agentgateway.Gateway
+	hub              *agentgateway.Hub
+	alerts           *alerts.Service
+	sharing          *sharing.Service
+	router           *gin.Engine
+	handler          http.Handler
+	schedulerHealth  func() any
+	buildVersion     string
+	processStartedAt time.Time
 }
 
 type Option func(*Server)
+
+// WithRuntimeIdentity supplies build evidence and the actual process start time.
+func WithRuntimeIdentity(version string, startedAt time.Time) Option {
+	return func(s *Server) { s.buildVersion, s.processStartedAt = version, startedAt }
+}
 
 // WithSchedulerHealth binds the running scheduler before the HTTP server starts.
 func WithSchedulerHealth(snapshot func() any) Option {
