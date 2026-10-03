@@ -74,6 +74,14 @@ func (s *Server) exportDatabaseBackup(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	complete := s.backupJob.Begin()
+	defer func() {
+		if err := c.Request.Context().Err(); err != nil {
+			complete(err)
+		} else {
+			complete(errors.New("backup generation failed"))
+		}
+	}()
 	snapshot, err := reserveTempPath(directory, ".myprobe-snapshot-*.db")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to prepare backup"})
@@ -114,6 +122,9 @@ func (s *Server) exportDatabaseBackup(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read encrypted backup"})
 		return
 	}
+	// File generation is complete before streaming. It does not prove download
+	// persistence or a verified restore; later transport errors cannot change it.
+	complete(nil)
 	s.audit(c, "export", "database_backup", "", gin.H{"encrypted": true})
 	c.Header("Cache-Control", "private, no-store")
 	name := fmt.Sprintf("myprobe-backup-%s.mpb", time.Now().UTC().Format("20060102T150405Z"))

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -12,11 +13,45 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/zhengyifei200112-collab/myprobe/internal/agentgateway"
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
+
+func TestBackupGenerationFailureDiagnostics(t *testing.T) {
+	for _, cancelled := range []bool{false, true} {
+		t.Run(fmt.Sprint("cancelled=", cancelled), func(t *testing.T) {
+			db, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "backup.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if cancelled {
+				cancel()
+			} else {
+				db.Close()
+			}
+			s := &Server{store: db}
+			response := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(response)
+			c.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"passphrase":"test backup passphrase"}`)).WithContext(ctx)
+			s.exportDatabaseBackup(c)
+			want := "failed"
+			if cancelled {
+				want = "cancelled"
+			}
+			job := s.backupJob.Snapshot()
+			if response.Code != http.StatusInternalServerError || job.State != want || job.CompletedRuns != 1 || job.LastSuccessAt != nil {
+				t.Fatalf("status=%d job=%+v", response.Code, job)
+			}
+		})
+	}
+}
 
 func TestMaintenanceConfigAndEncryptedBackupEndpoints(t *testing.T) {
 	ctx := context.Background()
@@ -72,6 +107,13 @@ func TestMaintenanceConfigAndEncryptedBackupEndpoints(t *testing.T) {
 		t.Fatalf("config preview = %d %s", preview.Code, preview.Body.String())
 	}
 
+	if server.backupJob.Snapshot().State != "never_run" {
+		t.Fatal("invented backup outcome")
+	}
+	invalidBackup := authenticatedRequest(t, server.Handler(), cookie, loginBody.CSRFToken, http.MethodPost, "/api/v1/admin/maintenance/backup", `{"passphrase":"short"}`)
+	if invalidBackup.Code != http.StatusBadRequest || server.backupJob.Snapshot().State != "never_run" {
+		t.Fatal("invalid request counted as backup generation")
+	}
 	backupResponse := authenticatedRequest(t, server.Handler(), cookie, loginBody.CSRFToken, http.MethodPost, "/api/v1/admin/maintenance/backup", `{"passphrase":"correct horse battery staple"}`)
 	if backupResponse.Code != http.StatusOK {
 		t.Fatalf("backup export = %d %s", backupResponse.Code, backupResponse.Body.String())
@@ -81,6 +123,9 @@ func TestMaintenanceConfigAndEncryptedBackupEndpoints(t *testing.T) {
 	}
 	if backupResponse.Header().Get("Content-Disposition") == "" {
 		t.Fatal("backup download filename is missing")
+	}
+	if job := server.backupJob.Snapshot(); job.State != "success" || job.CompletedRuns != 1 || job.LastSuccessAt == nil {
+		t.Fatalf("generation not observed: %+v", job)
 	}
 
 	var multipartBody bytes.Buffer

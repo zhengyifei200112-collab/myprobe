@@ -1,0 +1,62 @@
+// Use only with a disposable local Server; creates and deletes one fixture node.
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
+const assert = require('node:assert/strict')
+const fs = require('node:fs/promises')
+const path = require('node:path')
+const os = require('node:os')
+const base = process.env.HEALTH_TEST_URL || 'http://127.0.0.1:25779'
+if (!['127.0.0.1', 'localhost'].includes(new URL(base).hostname)) throw new Error('Local disposable Server required')
+;(async () => {
+  const browser = await chromium.launch({ channel: 'msedge', headless: true })
+  const context = await browser.newContext()
+  let nodeID, csrf
+  try {
+    const page = await context.newPage()
+    const errors = []
+    page.on('pageerror', error => errors.push(error.message))
+    await page.goto(base + '/admin')
+    await page.getByLabel('密码', { exact: true }).fill(process.env.HEALTH_TEST_PASSWORD || 'health-local-test-password')
+    const loginResult = page.waitForResponse(response => response.url().endsWith('/api/v1/auth/login'))
+    await page.getByRole('button', { name: '使用密码登录' }).click()
+    csrf = (await (await loginResult).json()).csrf_token
+    assert.ok(csrf)
+    const create = await context.request.post(base + '/api/v1/admin/nodes', { headers: { 'X-CSRF-Token': csrf }, data: { name: 'Health acceptance fixture', collection_seconds: 5, report_seconds: 5 } })
+    assert.equal(create.status(), 201)
+    nodeID = (await create.json()).node.id
+    await page.reload()
+    const nav = page.getByRole('button', { name: '系统健康', exact: true })
+    await nav.focus()
+    await page.keyboard.press('Enter')
+    await page.getByRole('heading', { name: '系统健康', exact: true }).waitFor()
+    await page.getByText('health-live-acceptance', { exact: true }).waitFor()
+    await page.getByLabel('选择节点').selectOption(nodeID)
+    await page.getByText('尚未收到握手', { exact: true }).waitFor()
+    const health = await (await context.request.get(base + '/api/v1/admin/system/health')).json()
+    assert.equal(health.retention.job.state, 'success')
+    assert.equal(health.scheduler.observation_scope, 'process')
+    assert.ok(health.scheduler.job.completed_runs > 0)
+    assert.equal(health.backup.job.state, 'never_run')
+    const output = path.join(os.tmpdir(), 'myprobe-health-live-ui')
+    await fs.mkdir(output, { recursive: true })
+    for (const theme of ['light', 'dark']) for (const width of [360, 768, 1440]) {
+      await page.setViewportSize({ width, height: 1000 })
+      await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
+      await page.getByRole('button', { name: '刷新节点诊断', exact: true }).focus()
+      await page.keyboard.press('Enter')
+      await page.getByText('尚未收到握手', { exact: true }).waitFor()
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${theme}/${width} overflow`)
+      await page.evaluate(() => scrollTo(0, 0))
+      await page.screenshot({ path: path.join(output, `${theme}-${width}.png`), fullPage: true })
+    }
+    assert.equal((await context.request.delete(base + '/api/v1/admin/nodes/' + nodeID, { headers: { 'X-CSRF-Token': csrf } })).ok(), true)
+    nodeID = undefined
+    await context.request.post(base + '/api/v1/auth/logout', { headers: { 'X-CSRF-Token': csrf } })
+    await page.getByRole('button', { name: '刷新诊断', exact: true }).click()
+    await page.getByRole('heading', { name: '登录管理中心', exact: true }).waitFor()
+    assert.deepEqual(errors, [])
+    console.log(`PASS: real login, health API, node diagnostics, six viewports/themes, keyboard actions and revoked session. Screenshots: ${output}`)
+  } finally {
+    if (nodeID && csrf) await context.request.delete(base + '/api/v1/admin/nodes/' + nodeID, { headers: { 'X-CSRF-Token': csrf } })
+    await browser.close()
+  }
+})().catch(error => { console.error(error); process.exitCode = 1 })

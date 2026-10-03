@@ -9,6 +9,20 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Administrator-only system health API with SQLite metadata, process-local
+  retention and scheduler outcomes, Agent connection and pending-result counts, and browser
+  subscription counts. Responses exclude paths and secrets and prohibit caching.
+- Server build version, runtime platform and process uptime diagnostics; release
+  and Docker builds now inject the Server version alongside the Agent version.
+- Encrypted backup generation outcomes in system diagnostics, distinguishing
+  generation success from unverified download persistence and recovery.
+- Private per-node diagnostics for advertised Agent version/capabilities, last
+  report time and current WebSocket presence, without hostnames or credentials.
+- Management system health page with manual refresh, stale-data notices and
+  explicit limits on backup and notification-queue evidence.
+- Effective retention configuration and actual notification-engine lifecycle
+  diagnostics, including disabled encryption configuration and evaluation failures.
+
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
   independent public, admin, and login background presentation.

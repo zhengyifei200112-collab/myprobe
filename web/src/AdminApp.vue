@@ -5,6 +5,7 @@ import { DsButton, DsConfirmDialog, DsDialog, DsDropdown, DsEmptyState, DsSheet,
 import SettingsCenter from './settings-center/SettingsCenter.vue'
 import AuthSettingsPanel from './settings-center/AuthSettingsPanel.vue'
 import NotificationCenter from './notification-center/NotificationCenter.vue'
+import SystemHealth from './SystemHealth.vue'
 import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
 import { fetchSiteSettings } from './api'
 import { defaultSiteSettings, normalizeSiteSettings } from './types'
@@ -16,7 +17,7 @@ import {
   updateChartShare, updateNode, updateSiteSettings, updateTarget,
 } from './admin-api'
 
-type Tab = 'nodes' | 'targets' | 'settings' | 'alerts' | 'shares' | 'maintenance' | 'security'
+type Tab = 'nodes' | 'targets' | 'settings' | 'alerts' | 'shares' | 'maintenance' | 'security' | 'health'
 const authenticated = ref(false)
 const booting = ref(true)
 const busy = ref(false)
@@ -494,6 +495,7 @@ onMounted(async () => {
         <button :class="{ active: tab === 'targets' }" @click="tab = 'targets'">探测目标</button>
         <button :class="{ active: tab === 'alerts' }" @click="tab = 'alerts'">告警</button>
         <button :class="{ active: tab === 'shares' }" @click="tab = 'shares'">分享</button>
+        <button :class="{ active: tab === 'health' }" @click="tab = 'health'">系统健康</button>
         <button :class="{ active: ['settings', 'maintenance', 'security'].includes(tab) }" @click="tab = 'settings'">设置</button>
       </nav>
       <div class="nav-actions"><a class="soft-button" href="/">公开面板</a><button v-if="authenticated" class="soft-button" @click="signOut">退出</button></div>
@@ -581,6 +583,9 @@ onMounted(async () => {
         <section class="admin-list"><article v-for="item in shares" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ item.name }}</strong><code>/share/{{ item.id }}</code></div><span :class="['status-label', item.enabled ? 'active' : 'muted']">{{ item.enabled ? '可访问' : '已停用' }}</span></div><div class="entity-meta"><span>{{ item.node_ids.length }} 个节点</span><span>密码保护</span><span>只读</span></div><div class="entity-actions"><a class="entity-link" :href="`/share/${item.id}`" target="_blank">打开</a><button @click="copyShare(item)">复制链接</button><button @click="editShare(item)">编辑</button><button class="danger" @click="removeShare(item)">删除</button></div></article><div v-if="!shares.length" class="admin-panel empty-admin">尚未创建图表分享</div></section>
       </template>
 
+      <template v-else-if="tab === 'health'">
+        <SystemHealth :nodes="nodes" @unauthorized="authenticated = false" />
+      </template>
       <template v-else-if="tab === 'maintenance'">
         <section class="admin-heading"><div><span class="eyebrow">PORTABILITY &amp; RECOVERY</span><h1>迁移与备份</h1><p>迁移可审阅配置，或创建包含全部数据的口令加密数据库备份。</p></div><span class="count-pill">版本 1</span></section>
         <div class="maintenance-grid">

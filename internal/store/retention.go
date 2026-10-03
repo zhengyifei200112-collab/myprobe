@@ -30,7 +30,9 @@ func (policy RetentionPolicy) Validate() error {
 
 // ApplyRetention builds both rollup levels and removes expired detail in one transaction.
 // One raw metric sample per node is retained as a traffic-counter anchor at the raw boundary.
-func (s *Store) ApplyRetention(ctx context.Context, now time.Time, policy RetentionPolicy) error {
+func (s *Store) ApplyRetention(ctx context.Context, now time.Time, policy RetentionPolicy) (result error) {
+	complete := s.retentionJob.Begin()
+	defer func() { complete(result) }()
 	if err := policy.Validate(); err != nil {
 		return err
 	}
