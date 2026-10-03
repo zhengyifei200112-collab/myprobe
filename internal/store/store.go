@@ -303,12 +303,30 @@ func (s *Store) SaveReport(ctx context.Context, nodeID string, report protocol.R
 }
 
 func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNode, error) {
+	return s.listPublicNodes(ctx, now, "")
+}
+
+func (s *Store) PublicNode(ctx context.Context, id string, now time.Time) (PublicNode, error) {
+	if id == "" {
+		return PublicNode{}, ErrNotFound
+	}
+	items, err := s.listPublicNodes(ctx, now, id)
+	if err != nil {
+		return PublicNode{}, err
+	}
+	if len(items) == 0 {
+		return PublicNode{}, ErrNotFound
+	}
+	return items[0], nil
+}
+
+func (s *Store) listPublicNodes(ctx context.Context, now time.Time, id string) ([]PublicNode, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT n.id, n.name, n.sort_order, n.hidden, n.tags_json, n.country_code,
 		n.currency, n.price_minor, n.billing_cycle, n.expires_at, n.traffic_reset_day, n.use_since_boot,
 		n.latency_mode, n.custom_html, n.custom_badges_json, n.custom_links_json, n.collection_seconds, n.report_seconds, n.created_at, n.updated_at,
 		n.last_seen_at, m.report_json
 		FROM nodes n LEFT JOIN metric_latest m ON m.node_id = n.id
-		WHERE n.hidden = 0 ORDER BY n.sort_order, n.name`)
+		WHERE n.hidden = 0 AND (? = '' OR n.id = ?) ORDER BY n.sort_order, n.name`, id, id)
 	if err != nil {
 		return nil, err
 	}

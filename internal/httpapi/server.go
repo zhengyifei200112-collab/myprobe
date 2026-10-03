@@ -83,6 +83,7 @@ func (s *Server) routes() {
 	public := s.router.Group("/api/v1/public")
 	public.GET("/settings", s.publicSettings)
 	public.GET("/nodes", s.publicNodes)
+	public.GET("/nodes/:nodeID", s.publicNode)
 	public.GET("/nodes/:nodeID/history", s.publicNodeHistory)
 
 	s.router.POST("/api/v1/agent/report", gin.WrapF(s.gateway.HTTPReport))
@@ -166,6 +167,26 @@ func (s *Server) publicNodes(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"nodes": nodes, "settings": settings, "server_time": time.Now().UTC()})
+}
+
+func (s *Server) publicNode(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	id := c.Param("nodeID")
+	if len(id) > 128 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
+		return
+	}
+	now := time.Now().UTC()
+	node, err := s.store.PublicNode(c.Request.Context(), id, now)
+	if errors.Is(err, store.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read node"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"node": node, "server_time": now})
 }
 
 func (s *Server) publicSettings(c *gin.Context) {

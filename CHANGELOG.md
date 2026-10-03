@@ -115,3 +115,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 [0.2.0]: https://github.com/zhengyifei200112-collab/myprobe/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/zhengyifei200112-collab/myprobe/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/zhengyifei200112-collab/myprobe/releases/tag/v0.1.0
+
+### Node details (in development)
+
+- Add a non-cacheable single public-node API using existing visibility and privacy
+  filtering. Fixed detail pages and bounded time selection are still in progress.

@@ -36,3 +36,13 @@ responses or claim maintenance and event timeline features before implementation
 No schema or Agent protocol change is intended. Existing public list serialization
 is the privacy authority for single-node detail. Any necessary history query
 extensions must preserve that boundary and existing chart-share authorization.
+
+## Implemented foundation
+
+`GET /api/v1/public/nodes/:nodeID` returns one existing public node projection and
+server_time with no-store caching. List and single-node reads share the same
+serialization and privacy filtering; the database predicate selects only the
+requested visible node. Hidden/missing IDs share the same 404 response. API tests
+cover valid detail, masked documentation IP, token exclusion and visibility changes.
+Store and HTTP API package tests pass. Detail UI and bounded time queries remain
+in progress.
