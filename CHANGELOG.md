@@ -16,6 +16,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and Docker builds now inject the Server version alongside the Agent version.
 - Encrypted backup generation outcomes in system diagnostics, distinguishing
   generation success from unverified download persistence and recovery.
+- Private per-node diagnostics for advertised Agent version/capabilities, last
+  report time and current WebSocket presence, without hostnames or credentials.
 
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and

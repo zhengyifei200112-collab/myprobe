@@ -1,12 +1,32 @@
 package httpapi
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
 	"runtime"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
+
+func (s *Server) nodeDiagnostics(c *gin.Context) {
+	node, err := s.store.NodeDiagnostics(c.Request.Context(), c.Param("nodeID"))
+	if errors.Is(err, sql.ErrNoRows) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read node diagnostics"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"observed_at": time.Now().UTC(), "node": node,
+		"websocket_connected":           s.gateway.NodeConnected(node.NodeID),
+		"configuration_acknowledgement": gin.H{"status": "unavailable", "reason": "acknowledgement_not_integrated"},
+		"last_report_transport":         "unknown",
+	})
+}
 
 func (s *Server) systemHealth(c *gin.Context) {
 	var schedulerHealth any = gin.H{"status": "unavailable", "reason": "observer_not_attached"}

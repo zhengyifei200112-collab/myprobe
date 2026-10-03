@@ -38,3 +38,10 @@ func (h *Hub) SubscriberCount() int {
 	defer h.mu.RUnlock()
 	return len(h.subscribers)
 }
+
+func (g *Gateway) NodeConnected(nodeID string) bool {
+	g.sessionsMu.RLock()
+	defer g.sessionsMu.RUnlock()
+	_, connected := g.sessions[nodeID]
+	return connected
+}

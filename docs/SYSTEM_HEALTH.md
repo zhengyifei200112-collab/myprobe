@@ -43,8 +43,19 @@ failed generation and cancelled requests are distinct. `download_saved` and
 `recovery_verified` remain `unknown`, including after a successful generation.
 These observations reset on restart and do not claim historical backup coverage.
 
-Node evidence and the health
-page remain pending. This API foundation does not complete SYS-01. Contract
+`GET /api/v1/admin/nodes/:nodeID/diagnostics` uses the same private administrator
+boundary. It performs one indexed node/metadata lookup and returns recent report
+time, configured reporting interval, advertised Agent version/capabilities and
+the Server receipt time of the last hello. It excludes hostname, machine ID,
+addresses and credentials. No hello is explicitly unavailable, not an empty
+capability claim; a hello is not evidence of a live connection. Current WebSocket
+presence is sampled separately. Last-report transport is unknown and configuration
+acknowledgement remains unavailable until that provider is integrated. The
+advertised metadata can be older than the current session; its timestamp matters.
+Missing nodes return 404 only after administrator authentication.
+
+The health page and configuration acknowledgement integration remain pending.
+This API foundation does not complete SYS-01. Contract
 tests cover authentication, revoked sessions, cache policy, evidence semantics
 and secret exclusion; store/gateway tests cover underlying observations.
 
