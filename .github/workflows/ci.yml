@@ -27,6 +27,7 @@ jobs:
         run: |
           npm --prefix web ci
           npm --prefix web run build
+          node --experimental-strip-types --test web/src/node-details/history-view.test.mjs
           git diff --exit-code -- internal/webui/dist
 
       - name: Set up Go

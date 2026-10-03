@@ -79,9 +79,11 @@ func TestMetricHistoryQueryDoesNotCorrelateEveryRawSampleWithRollups(t *testing.
 		t.Fatal(err)
 	}
 
-	rows, err := database.db.QueryContext(ctx, "EXPLAIN QUERY PLAN "+metricHistoryQuery,
-		node.ID, formatTime(time.Now().UTC().Add(-time.Hour)),
-		node.ID, formatTime(time.Now().UTC().Add(-time.Hour)), 60, 60)
+	args, err := historyQueryArgs(node.ID, time.Now().UTC().Add(-time.Hour), time.Now().UTC(), 60, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := database.db.QueryContext(ctx, "EXPLAIN QUERY PLAN "+metricHistoryQuery, args...)
 	if err != nil {
 		t.Fatal(err)
 	}

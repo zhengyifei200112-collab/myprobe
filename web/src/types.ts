@@ -88,9 +88,14 @@ export interface LatestLatency {
 }
 
 export type HistoryRange = '1h' | '12h' | '1d' | '3d' | '7d' | '30d' | '1y'
+export type HistorySelection = HistoryRange | { start: string; end: string }
 
 export interface HistoryResponse {
-  range: HistoryRange
+  range: HistoryRange | 'custom'
+  start: string
+  end: string
+  interval: '[start,end)'
+  rollup_boundary_policy: 'complete_buckets_only'
   bucket_seconds: number
   metrics: Array<{
     time: string

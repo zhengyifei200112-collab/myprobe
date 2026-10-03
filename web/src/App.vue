@@ -390,6 +390,7 @@ onBeforeUnmount(() => {
       <section ref="chartDialogElement" class="chart-dialog" role="dialog" aria-modal="true" :aria-label="`${chartNode.node.name} 历史图表`">
         <header>
           <div><small>节点历史</small><strong>{{ chartNode.node.name }}</strong></div>
+          <a class="soft-button" :href="`/nodes/${encodeURIComponent(chartNode.node.id)}?range=${chartRange}`">查看完整详情</a>
           <button type="button" aria-label="关闭历史图表" @click="closeHistory">×</button>
         </header>
         <nav class="range-switch" aria-label="历史时间范围">

@@ -5,6 +5,8 @@ import { DsButton, DsConfirmDialog, DsDialog, DsDropdown, DsEmptyState, DsSheet,
 import SettingsCenter from './settings-center/SettingsCenter.vue'
 import AuthSettingsPanel from './settings-center/AuthSettingsPanel.vue'
 import NotificationCenter from './notification-center/NotificationCenter.vue'
+import NodeDetailApp from './NodeDetailApp.vue'
+import { adminDetailDestination } from './node-details/navigation'
 import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
 import { fetchSiteSettings } from './api'
 import { defaultSiteSettings, normalizeSiteSettings } from './types'
@@ -36,6 +38,30 @@ const shares = ref<ChartShare[]>([])
 const token = ref('')
 const tokenNode = ref('')
 const tokenNodeID = ref('')
+const detailRoute = /^\/admin\/nodes\/[^/]+\/?$/.test(location.pathname)
+const detailReturnKey = 'myprobe-admin-detail-return'
+
+function rememberDetailDestination() {
+  try {
+    const path = adminDetailDestination(location.pathname + location.search)
+    if (path) sessionStorage.setItem(detailReturnKey, path)
+    else sessionStorage.removeItem(detailReturnKey)
+  } catch { /* Login works even if browser storage is unavailable. */ }
+}
+
+function resumeDetailDestination(): boolean {
+  try {
+    const path = adminDetailDestination(sessionStorage.getItem(detailReturnKey))
+    sessionStorage.removeItem(detailReturnKey)
+    if (path && !detailRoute) { location.replace(path); return true }
+  } catch { /* Stay in the authenticated console if storage is unavailable. */ }
+  return false
+}
+
+function detailSessionExpired() {
+  authenticated.value = false
+  error.value = '管理会话已过期，请重新登录。登录后将回到此节点和时间范围。'
+}
 const configFile = ref<File | null>(null)
 const configDocument = ref<unknown>(null)
 const configPreview = ref<ConfigImportResult | null>(null)
@@ -122,7 +148,8 @@ async function submitLogin() {
     password.value = ''
     captchaID.value = ''; captchaPrompt.value = ''; captchaAnswer.value = ''
     authenticated.value = true
-    await refresh()
+    if (resumeDetailDestination()) return
+    if (!detailRoute) await refresh()
   })
 }
 
@@ -472,14 +499,18 @@ onMounted(async () => {
   } catch { applyAppearance(siteSettings) }
   try { githubEnabled.value = (await loadGitHubStatus()).enabled } catch { githubEnabled.value = false }
   authenticated.value = await restoreSession()
-  if (authenticated.value) {
+  if (authenticated.value && new URLSearchParams(location.search).get('oauth') === 'github' && resumeDetailDestination()) return
+  if (authenticated.value && !detailRoute) {
     try { await refresh() } catch (value) { showError(value) }
   }
   const oauth = new URLSearchParams(location.search)
   if (oauth.get('oauth') === 'github') notice.value = 'GitHub 登录验证成功。'
   const oauthError = oauth.get('oauth_error')
   if (oauthError) error.value = oauthError === 'not_allowed' ? '当前 GitHub 账号不在管理员白名单中。' : oauthError === 'unavailable' ? 'GitHub 登录尚未正确配置。' : 'GitHub 登录失败或授权已取消。'
-  if (oauth.has('oauth') || oauth.has('oauth_error')) history.replaceState(null, '', '/admin')
+  if (oauth.has('oauth') || oauth.has('oauth_error')) {
+    oauth.delete('oauth'); oauth.delete('oauth_error')
+    history.replaceState(null, '', location.pathname + (oauth.size ? `?${oauth}` : ''))
+  }
   booting.value = false
 })
 </script>
@@ -489,7 +520,7 @@ onMounted(async () => {
     <a class="skip-link" href="#main-content">跳到主要内容</a>
     <header class="admin-nav">
       <a class="brand" href="/"><img v-if="siteSettings.logo_url" class="brand-logo" :src="siteSettings.logo_url" alt=""><span v-else class="brand-mark">MP</span><span>{{ siteSettings.site_name || 'MyProbe' }} <small>管理中心</small></span></a>
-      <nav v-if="authenticated" class="admin-tabs" aria-label="管理中心导航">
+      <nav v-if="authenticated && !detailRoute" class="admin-tabs" aria-label="管理中心导航">
         <button :class="{ active: tab === 'nodes' }" @click="tab = 'nodes'">节点</button>
         <button :class="{ active: tab === 'targets' }" @click="tab = 'targets'">探测目标</button>
         <button :class="{ active: tab === 'alerts' }" @click="tab = 'alerts'">告警</button>
@@ -504,10 +535,11 @@ onMounted(async () => {
       <section class="admin-panel login-card">
         <header><span class="eyebrow">SECURE CONSOLE</span><h1>登录管理中心</h1><p>使用管理员密码，或通过已授权的 GitHub 账号继续。</p></header>
         <form @submit.prevent="submitLogin"><label>用户名<input v-model="username" autocomplete="username" required></label><label>密码<input v-model="password" type="password" autocomplete="current-password" required></label><label v-if="captchaPrompt">安全验证：{{ captchaPrompt }}<input v-model="captchaAnswer" inputmode="numeric" autocomplete="off" required></label><p v-if="notice" class="form-message success" role="status">{{ notice }}</p><p v-if="error" class="form-message error" role="alert">{{ error }}</p><button class="primary-button" :disabled="busy">{{ busy ? '登录中…' : '使用密码登录' }}</button></form>
-        <div v-if="githubEnabled" class="login-divider"><span>或</span></div><a v-if="githubEnabled" class="github-login-button" href="/api/v1/auth/github/start"><span aria-hidden="true">GH</span>使用 GitHub 登录</a><p class="login-security-note">受 HttpOnly 会话、CSRF 防护与登录限速保护</p>
+        <div v-if="githubEnabled" class="login-divider"><span>或</span></div><a v-if="githubEnabled" class="github-login-button" href="/api/v1/auth/github/start" @click="rememberDetailDestination"><span aria-hidden="true">GH</span>使用 GitHub 登录</a><p class="login-security-note">受 HttpOnly 会话、CSRF 防护与登录限速保护</p>
       </section>
     </main>
 
+    <NodeDetailApp v-else-if="detailRoute" admin @session-expired="detailSessionExpired" />
     <main v-else id="main-content" class="admin-main" tabindex="-1">
       <div v-if="error" class="admin-alert error" role="alert">{{ error }}</div><div v-if="notice" class="admin-alert success" role="status">{{ notice }}</div>
 
@@ -540,6 +572,7 @@ onMounted(async () => {
             <footer class="admin-node-card__footer">
               <span class="admin-node-card__report">最后上报：{{ formatAdminTime(item.last_seen_at) }}</span>
               <div class="admin-node-card__actions">
+                <a class="soft-button" :href="`/admin/nodes/${encodeURIComponent(item.id)}`">查看详情</a>
                 <DsButton size="small" variant="ghost" @click="editNode(item)">编辑</DsButton>
                 <DsButton size="small" @click="nodeConfig = item">查看配置</DsButton>
                 <DsDropdown label="更多操作" align="end">

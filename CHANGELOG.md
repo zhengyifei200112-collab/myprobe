@@ -9,6 +9,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Node-detail API foundation: a non-cacheable single public-node endpoint reuses
+  visibility and privacy filtering. Public and scoped-share history endpoints accept
+  bounded absolute times, return interval metadata and omit partial retention buckets.
+  A fixed public detail page supports URL-persisted time selection, separate linked
+  charts, gap display and zoom/reset controls. Authenticated administrator detail
+  supports hidden nodes and preserves the destination across login and session expiry.
+
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
   independent public, admin, and login background presentation.

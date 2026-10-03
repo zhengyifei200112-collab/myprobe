@@ -72,6 +72,16 @@
 
 ## Retention
 
+History API queries accept the existing range presets or paired RFC3339 `start`
+and `end` parameters (maximum 365 days, no future end). Responses describe the
+half-open interval, bucket width and complete-retention-buckets-only policy.
+All resource, latency and traffic reads exclude samples at or beyond the end.
+Partially overlapping retained buckets are omitted, not reconstructed as precise
+samples. Public and authenticated administrator node detail pages provide custom
+time selection and separate linked charts. Administrator detail supports hidden
+nodes and retains the destination across login; public and share APIs retain their
+visibility boundaries. See [NODE_DETAILS.md](NODE_DETAILS.md).
+
 - Latest state: in memory and persisted per node.
 - Raw samples: seven days by default.
 - One-minute rollups: 30 days.
