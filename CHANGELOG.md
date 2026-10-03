@@ -20,6 +20,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   report time and current WebSocket presence, without hostnames or credentials.
 - Management system health page with manual refresh, stale-data notices and
   explicit limits on backup and notification-queue evidence.
+- Effective retention configuration and actual notification-engine lifecycle
+  diagnostics, including disabled encryption configuration and evaluation failures.
 
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and

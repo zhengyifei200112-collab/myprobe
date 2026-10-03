@@ -29,11 +29,16 @@ func (s *Server) nodeDiagnostics(c *gin.Context) {
 }
 
 func (s *Server) systemHealth(c *gin.Context) {
+	var engine any = gin.H{"status": "unavailable", "reason": "observer_not_attached"}
+	if s.alertHealth != nil {
+		engine = s.alertHealth()
+	}
 	var schedulerHealth any = gin.H{"status": "unavailable", "reason": "observer_not_attached"}
 	if s.schedulerHealth != nil {
 		schedulerHealth = s.schedulerHealth()
 	}
 	c.JSON(http.StatusOK, gin.H{
+		"notification_engine": engine,
 		"backup": gin.H{
 			"observation_scope": "process", "operation": "encrypted_file_generation",
 			"job": s.backupJob.Snapshot(), "download_saved": "unknown", "recovery_verified": "unknown",

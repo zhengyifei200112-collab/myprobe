@@ -11,6 +11,7 @@ const health = {
   database: { status: 'ok', schema_version: '013', database_file: { status: 'ok', bytes: 1048576 }, wal_file: { status: 'absent', bytes: 0 } },
   retention: { job, configuration: { status: 'available', raw_seconds: 604800, one_minute_seconds: 2592000, five_minute_seconds: 31536000, run_interval_seconds: 3600 } }, backup: { job: { ...job, state: 'never_run', completed_runs: 0, last_success_at: undefined } }, scheduler: { job },
   transport: { agent_connections: 2, pending_results: 3, expired_results: 1 }, browser_subscriptions: 1,
+  notification_engine: { status: 'disabled', reason: 'encryption_configuration_unavailable', evaluation: { ...job, state: 'never_run', completed_runs: 0, last_success_at: undefined } },
 }
 ;(async () => {
   const source = await (await fetch(base + '/src/SystemHealth.vue')).text()

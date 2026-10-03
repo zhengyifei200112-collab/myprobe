@@ -28,6 +28,14 @@ zero configured tasks. Offline Agents do not make a completed dispatch cycle fai
 other dispatch errors do. These are last-cycle counts, not durable queue totals.
 The last completed cycle remains visible while the next cycle is running.
 
+`retention.configuration` reports effective raw/minute/five-minute retention and
+run interval in seconds, displayed as days/hours. Missing configuration is
+unavailable. `notification_engine` observes the actual running alert service,
+including disabled encryption configuration, loop lifecycle and evaluation job
+outcomes. Rule-level errors mark that observation failed even when the legacy
+evaluation loop continues processing other rules. Raw error messages and key
+material are excluded. Engine status does not prove delivery or outbox health.
+
 The `server` field reports the version supplied by the build and the start time
 captured on entry to `main`, with uptime calculated using Go's monotonic clock
 when available. Docker and release binaries inject the same release version into

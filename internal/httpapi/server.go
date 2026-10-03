@@ -39,12 +39,17 @@ type Server struct {
 	router           *gin.Engine
 	handler          http.Handler
 	schedulerHealth  func() any
+	alertHealth      func() alerts.EngineDiagnostics
 	buildVersion     string
 	processStartedAt time.Time
 	backupJob        diagnostics.Job
 }
 
 type Option func(*Server)
+
+func WithAlertHealth(snapshot func() alerts.EngineDiagnostics) Option {
+	return func(s *Server) { s.alertHealth = snapshot }
+}
 
 // WithRuntimeIdentity supplies build evidence and the actual process start time.
 func WithRuntimeIdentity(version string, startedAt time.Time) Option {
