@@ -60,7 +60,8 @@ original start times. Successful legacy notifications seed reminder scheduling a
 are not re-enqueued on upgrade. Failed legacy attempts retain a bounded retry path.
 Migration and reopen must be idempotent.
 
-Rule/API compatibility and configuration transfer must preserve recovery settings.
+Rule APIs and full database backups preserve recovery settings. Configuration
+transfer v1 excludes alert rules, incidents and delivery history.
 The new incident and delivery APIs are administrator-only and paginated. A fault
 list and delivery history must clearly distinguish fault state, observation freshness
 and send outcome. Public node payloads and the Agent protocol remain unchanged.
@@ -270,3 +271,9 @@ targets. No targets, missing results and stale samples are unknown; one fresh
 failure or threshold breach establishes a fault; recovery is known only after
 both targets return fresh successful measurements. The test uses real store
 assignment and result paths rather than mocking evaluator return values.
+
+A database restore regression backs up an inflight job, completes it after the
+snapshot, stages/applies that snapshot and reopens the database. The restored
+incident and rule snapshot survive; the expired lease resumes as attempt two with
+a new token and an unknown first attempt. This demonstrates both durable recovery
+and the unavoidable duplicate-delivery window when restoring an older backup.

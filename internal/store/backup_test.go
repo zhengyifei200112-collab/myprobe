@@ -69,6 +69,51 @@ func TestDatabaseBackupStageAndApply(t *testing.T) {
 	}
 }
 
+func TestBackupRestoresIncidentAndRecoversExpiredDeliveryLease(t *testing.T) {
+	s, rule, node := incidentFixture(t, `{"threshold_percent":90,"recovery_seconds":20}`)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	incident := observe(t, s, rule, node, now, true, true)
+	job, err := s.ClaimDelivery(ctx, now, time.Minute)
+	if err != nil || job == nil {
+		t.Fatalf("claim: %+v %v", job, err)
+	}
+	snapshot := filepath.Join(t.TempDir(), "incident-snapshot.db")
+	if err := s.ConsistentBackup(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CompleteDelivery(ctx, job.ID, job.LeaseToken, now.Add(time.Second), DeliveryOutcome{Delivered: true}); err != nil {
+		t.Fatal(err)
+	}
+	path := s.path
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := StageDatabaseRestore(ctx, path, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ApplyPendingRestore(ctx, path, now.Add(2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Close()
+	current, err := restored.Incident(ctx, incident.ID)
+	if err != nil || current.State != "firing" || !sameSnapshot(current.RuleSnapshot, snapshotRule(rule)) {
+		t.Fatalf("restored incident: %+v %v", current, err)
+	}
+	reclaimed, err := restored.ClaimDelivery(ctx, now.Add(2*time.Minute), time.Minute)
+	if err != nil || reclaimed == nil || reclaimed.ID != job.ID || reclaimed.AttemptCount != 2 || reclaimed.LeaseToken == job.LeaseToken {
+		t.Fatalf("restored lease: %+v %v", reclaimed, err)
+	}
+	attempts, err := restored.ListDeliveryAttempts(ctx, job.ID)
+	if err != nil || len(attempts) != 2 || attempts[0].Outcome != "unknown" || attempts[1].Outcome != "started" {
+		t.Fatalf("restored attempts: %+v %v", attempts, err)
+	}
+}
+
 func TestStageDatabaseRestoreRejectsExistingPendingFile(t *testing.T) {
 	ctx := context.Background()
 	directory := t.TempDir()
