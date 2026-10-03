@@ -44,14 +44,37 @@ server_time with no-store caching. List and single-node reads share the same
 serialization and privacy filtering; the database predicate selects only the
 requested visible node. Hidden/missing IDs share the same 404 response. API tests
 cover valid detail, masked documentation IP, token exclusion and visibility changes.
-Store and HTTP API package tests pass. Detail UI and bounded time queries remain
-in progress.
+Store and HTTP API package tests pass. Detail UI remains in progress.
 
 The time-window parser now validates preset or paired absolute RFC3339 bounds,
 rejects duplicate/mixed selectors, reversed/future/over-one-year windows, normalizes
 time zones, and chooses existing resolutions below 2,000 points per series.
-HTTP API package tests cover these boundaries. This parser is not yet wired to
-history routes: bounded metric, latency and traffic reads must be implemented
-together first. Raw samples use [start,end); partially overlapping retained
-rollups must be excluded or explicitly reported as aligned coverage, never silently
-included as exact samples. Existing traffic accounting must retain its semantics.
+Both public and scoped share history routes use this parser and bounded metric,
+latency and traffic reads. Responses include start, end, bucket_seconds, interval
+`[start,end)` and rollup_boundary_policy `complete_buckets_only`. Requests can use
+`?range=1h` as before or paired URL-encoded `start` and `end` RFC3339 timestamps;
+mixing these selectors is rejected. All series use the same captured server clock.
+
+Raw samples use exact nanosecond boundaries, including optional timestamp fractions.
+Only fully contained retention buckets contribute. A selected edge inside a stored
+minute/five-minute bucket omits that bucket, since its original samples no longer
+exist. Returned point timestamps label aligned buckets and may precede the requested
+start; they do not assert that a sample exists at that instant. The UI must show the
+boundary policy and actual absence of data, rather than drawing implied continuity.
+
+Traffic shows cumulative observed counter deltas: the first in-range raw counter is
+a baseline, not transferred bytes. Retained deltas are attributed to their retention
+bucket and cannot reveal exact transfer times. Billing queries retain their existing
+inclusive endpoints. No database migration or protocol change is needed.
+
+Tests cover exact/fractional endpoints, same-second ordering, minute/five-minute
+partial buckets, explicit public API metadata, rejected selectors and scoped share
+authorization. TypeScript contracts and the fetch helper support absolute ranges
+and cancellation while keeping preset callers compatible.
+
+Validation on 2026-10-03: clean npm install, TypeScript/Vite build (embedded assets
+regenerated), store and HTTP API tests, Go vet/build and diff checks passed.
+Full Windows Go tests passed except the existing collector host-root path fixture
+(`TestDiskUsagePathUsesHostRootForAbsoluteMounts`), tracked separately in PR #47.
+The current API changes do not alter collector code. Linux CI must pass on the
+current PR head before review readiness. No detail-page UI acceptance is claimed.

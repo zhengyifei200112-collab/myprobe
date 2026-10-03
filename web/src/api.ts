@@ -1,4 +1,4 @@
-import type { ApiResponse, HistoryRange, HistoryResponse, RealtimeEvent, SiteSettings } from './types'
+import type { ApiResponse, HistorySelection, HistoryResponse, RealtimeEvent, SiteSettings } from './types'
 
 export async function fetchSiteSettings(signal?: AbortSignal): Promise<SiteSettings> {
   const response = await fetch('/api/v1/public/settings', { cache: 'no-cache', headers: { Accept: 'application/json' }, signal })
@@ -16,10 +16,12 @@ export async function fetchNodes(signal?: AbortSignal): Promise<ApiResponse> {
   return response.json() as Promise<ApiResponse>
 }
 
-export async function fetchHistory(nodeID: string, range: HistoryRange): Promise<HistoryResponse> {
-  const response = await fetch(`/api/v1/public/nodes/${encodeURIComponent(nodeID)}/history?range=${range}`, {
+export async function fetchHistory(nodeID: string, selection: HistorySelection, signal?: AbortSignal): Promise<HistoryResponse> {
+  const query = new URLSearchParams(typeof selection === 'string' ? { range: selection } : selection)
+  const response = await fetch(`/api/v1/public/nodes/${encodeURIComponent(nodeID)}/history?${query}`, {
     cache: 'no-cache',
     headers: { Accept: 'application/json' },
+    signal,
   })
   if (!response.ok) throw new Error(`history request failed: ${response.status}`)
   return response.json() as Promise<HistoryResponse>

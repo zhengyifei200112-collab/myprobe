@@ -712,26 +712,31 @@ const metricHistoryQuery = `WITH history AS (
 		CASE WHEN m.disk_total>0 THEN 100.0*m.disk_used/m.disk_total ELSE 0 END AS disk_sum,
 		m.net_rx_rate AS rx_sum,m.net_tx_rate AS tx_sum
 		FROM metric_samples m
-		WHERE m.node_id=? AND m.captured_at>=?
+		WHERE m.node_id=:node AND ` + historyRawBounds + `
 		UNION ALL
 		SELECT node_id,bucket_at,sample_count,cpu_sum,memory_percent_sum,disk_percent_sum,net_rx_rate_sum,net_tx_rate_sum
-		FROM metric_rollups WHERE node_id=? AND bucket_at>=?
+		FROM metric_rollups WHERE node_id=:node AND ` + historyRollupBounds + `
 	)
-	SELECT (unixepoch(sample_at)/?)*? AS bucket,
+	SELECT (unixepoch(substr(sample_at,1,19)||'Z')/:bucket)*:bucket AS bucket,
 	SUM(cpu_sum)/SUM(sample_count),SUM(memory_sum)/SUM(sample_count),SUM(disk_sum)/SUM(sample_count),
 	SUM(rx_sum)/SUM(sample_count),SUM(tx_sum)/SUM(sample_count)
 	FROM history JOIN nodes n ON n.id=history.node_id WHERE n.hidden=0
 	GROUP BY bucket ORDER BY bucket`
 
 func (s *Store) MetricHistory(ctx context.Context, nodeID string, start time.Time, bucketSeconds int) ([]MetricHistoryPoint, error) {
-	if bucketSeconds < 1 || bucketSeconds > 86400 {
-		return nil, errors.New("invalid history bucket")
+	return s.MetricHistoryRange(ctx, nodeID, start, historyOpenEnd, bucketSeconds)
+}
+
+func (s *Store) MetricHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int) ([]MetricHistoryPoint, error) {
+	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds)
+	if err != nil {
+		return nil, err
 	}
 	// ApplyRetention writes rollups and removes the covered raw rows in the same
 	// transaction. Reading both sources with UNION ALL is therefore sufficient;
 	// a per-sample NOT EXISTS scan is redundant and becomes quadratic on long-lived
 	// installations with tens of thousands of rollup buckets.
-	rows, err := s.db.QueryContext(ctx, metricHistoryQuery, nodeID, formatTime(start), nodeID, formatTime(start), bucketSeconds, bucketSeconds)
+	rows, err := s.db.QueryContext(ctx, metricHistoryQuery, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -750,24 +755,29 @@ func (s *Store) MetricHistory(ctx context.Context, nodeID string, start time.Tim
 }
 
 func (s *Store) LatencyHistory(ctx context.Context, nodeID string, start time.Time, bucketSeconds int) ([]LatencyHistoryPoint, error) {
-	if bucketSeconds < 1 || bucketSeconds > 86400 {
-		return nil, errors.New("invalid history bucket")
+	return s.LatencyHistoryRange(ctx, nodeID, start, historyOpenEnd, bucketSeconds)
+}
+
+func (s *Store) LatencyHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int) ([]LatencyHistoryPoint, error) {
+	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds)
+	if err != nil {
+		return nil, err
 	}
 	rows, err := s.db.QueryContext(ctx, `WITH history AS (
 		SELECT node_id,target_id,kind,captured_at AS sample_at,1 AS sample_count,success AS success_count,
 		CASE WHEN success=1 AND latency_ms IS NOT NULL THEN 1 ELSE 0 END AS latency_count,
 		CASE WHEN success=1 THEN COALESCE(latency_ms,0) ELSE 0 END AS latency_sum
-		FROM latency_samples WHERE node_id=? AND captured_at>=?
+		FROM latency_samples WHERE node_id=:node AND `+historyRawBounds+`
 		UNION ALL
 		SELECT node_id,target_id,kind,bucket_at,sample_count,success_count,latency_count,latency_sum
-		FROM latency_rollups WHERE node_id=? AND bucket_at>=?
+		FROM latency_rollups WHERE node_id=:node AND `+historyRollupBounds+`
 	)
-	SELECT (unixepoch(sample_at)/?)*? AS bucket,history.target_id,t.name,history.kind,
+	SELECT (unixepoch(substr(sample_at,1,19)||'Z')/:bucket)*:bucket AS bucket,history.target_id,t.name,history.kind,
 		CASE WHEN SUM(latency_count)>0 THEN SUM(latency_sum)/SUM(latency_count) END,
 		100.0*SUM(success_count)/SUM(sample_count)
 	FROM history JOIN targets t ON t.id=history.target_id JOIN nodes n ON n.id=history.node_id
 	WHERE n.hidden=0 GROUP BY bucket,history.target_id,t.name,history.kind
-	ORDER BY bucket,t.sort_order,t.name`, nodeID, formatTime(start), nodeID, formatTime(start), bucketSeconds, bucketSeconds)
+	ORDER BY bucket,t.sort_order,t.name`, args...)
 	if err != nil {
 		return nil, err
 	}

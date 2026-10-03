@@ -212,29 +212,33 @@ func (s *Server) publicNodeHistory(c *gin.Context) {
 }
 
 func (s *Server) writeNodeHistory(c *gin.Context, nodeID string) {
-	rangeName := c.DefaultQuery("range", "1h")
-	duration, bucket, ok := historyRange(rangeName)
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "range must be one of 1h, 12h, 1d, 3d, 7d, 30d, 1y"})
+	c.Header("Cache-Control", "no-store")
+	window, err := parseHistoryWindow(c.Request.URL.Query(), time.Now().UTC())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	start := time.Now().UTC().Add(-duration)
-	metrics, err := s.store.MetricHistory(c.Request.Context(), nodeID, start, bucket)
+	metrics, err := s.store.MetricHistoryRange(c.Request.Context(), nodeID, window.Start, window.End, window.BucketSeconds)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read metric history"})
 		return
 	}
-	latency, err := s.store.LatencyHistory(c.Request.Context(), nodeID, start, bucket)
+	latency, err := s.store.LatencyHistoryRange(c.Request.Context(), nodeID, window.Start, window.End, window.BucketSeconds)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read latency history"})
 		return
 	}
-	traffic, err := s.store.TrafficHistory(c.Request.Context(), nodeID, start, time.Now().UTC(), bucket)
+	traffic, err := s.store.TrafficHistoryRange(c.Request.Context(), nodeID, window.Start, window.End, window.BucketSeconds)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read traffic history"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"range": rangeName, "bucket_seconds": bucket, "metrics": metrics, "latency": latency, "traffic": traffic})
+	c.JSON(http.StatusOK, gin.H{
+		"range": window.Name, "start": window.Start, "end": window.End,
+		"bucket_seconds": window.BucketSeconds, "interval": "[start,end)",
+		"rollup_boundary_policy": "complete_buckets_only",
+		"metrics":                metrics, "latency": latency, "traffic": traffic,
+	})
 }
 
 func historyRange(name string) (time.Duration, int, bool) {

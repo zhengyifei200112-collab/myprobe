@@ -47,20 +47,21 @@ func TestHistoryWindowRejectsAmbiguousOrUnboundedQueries(t *testing.T) {
 	start := now.Add(-time.Hour).Format(time.RFC3339Nano)
 	end := now.Format(time.RFC3339Nano)
 	for name, query := range map[string]url.Values{
-		"unknown preset":    {"range": {"forever"}},
-		"duplicate preset":  {"range": {"1h", "1y"}},
-		"missing end":       {"start": {start}},
-		"missing start":     {"end": {end}},
-		"empty start":       {"start": {""}, "end": {end}},
-		"invalid timestamp": {"start": {"yesterday"}, "end": {end}},
-		"missing timezone":  {"start": {"2026-10-03T11:00:00"}, "end": {end}},
-		"mixed selectors":   {"range": {"1h"}, "start": {start}, "end": {end}},
-		"duplicate bound":   {"start": {start, start}, "end": {end}},
-		"equal bounds":      {"start": {end}, "end": {end}},
-		"reversed":          {"start": {end}, "end": {start}},
-		"future":            {"start": {start}, "end": {now.Add(time.Nanosecond).Format(time.RFC3339Nano)}},
-		"over one year":     {"start": {now.Add(-365*24*time.Hour - time.Nanosecond).Format(time.RFC3339Nano)}, "end": {end}},
-		"before epoch":      {"start": {"1969-12-31T23:00:00Z"}, "end": {"1970-01-01T00:00:00Z"}},
+		"unknown preset":      {"range": {"forever"}},
+		"duplicate preset":    {"range": {"1h", "1y"}},
+		"missing end":         {"start": {start}},
+		"missing start":       {"end": {end}},
+		"empty start":         {"start": {""}, "end": {end}},
+		"invalid timestamp":   {"start": {"yesterday"}, "end": {end}},
+		"missing timezone":    {"start": {"2026-10-03T11:00:00"}, "end": {end}},
+		"mixed selectors":     {"range": {"1h"}, "start": {start}, "end": {end}},
+		"duplicate bound":     {"start": {start, start}, "end": {end}},
+		"equal bounds":        {"start": {end}, "end": {end}},
+		"reversed":            {"start": {end}, "end": {start}},
+		"future":              {"start": {start}, "end": {now.Add(time.Nanosecond).Format(time.RFC3339Nano)}},
+		"over one year":       {"start": {now.Add(-365*24*time.Hour - time.Nanosecond).Format(time.RFC3339Nano)}, "end": {end}},
+		"before epoch":        {"start": {"1969-12-31T23:00:00Z"}, "end": {"1970-01-01T00:00:00Z"}},
+		"offset before epoch": {"start": {"1970-01-01T00:00:00+08:00"}, "end": {"1970-01-01T00:00:00Z"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if window, err := parseHistoryWindow(query, now); err == nil {

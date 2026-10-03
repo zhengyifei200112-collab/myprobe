@@ -124,8 +124,60 @@ func (s *Store) TrafficHistory(ctx context.Context, nodeID string, start, end ti
 	if err != nil {
 		return nil, err
 	}
+	return aggregateTrafficHistory(samples, rollups, bucketSeconds), nil
+}
+
+// TrafficHistoryRange is the half-open history view. It does not change billing
+// queries, which deliberately use inclusive captured-at bounds. Raw traffic uses
+// the first in-range counter as baseline; retained deltas are attributed to their
+// bucket, without pretending to interpolate exact transfer times.
+func (s *Store) TrafficHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int) ([]TrafficHistoryPoint, error) {
+	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT 0,captured_at,net_rx_total,net_tx_total
+		FROM metric_samples JOIN nodes n ON n.id=node_id
+		WHERE node_id=:node AND n.hidden=0 AND `+historyRawBounds+`
+		UNION ALL SELECT 1,bucket_at,rx_bytes,tx_bytes
+		FROM traffic_rollups JOIN nodes n ON n.id=node_id
+		WHERE node_id=:node AND n.hidden=0 AND `+historyRollupBounds+`
+		ORDER BY 2`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var samples, rollups []trafficSample
+	for rows.Next() {
+		var isRollup int
+		var raw string
+		var rx, tx int64
+		if err := rows.Scan(&isRollup, &raw, &rx, &tx); err != nil {
+			return nil, err
+		}
+		at, err := parseTime(raw)
+		if err != nil {
+			return nil, err
+		}
+		item := trafficSample{at: at, rx: uint64(max(rx, 0)), tx: uint64(max(tx, 0))}
+		if isRollup == 1 {
+			rollups = append(rollups, item)
+		} else {
+			samples = append(samples, item)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// RFC3339Nano text order differs within a second. Counter deltas must follow
+	// exact timestamp order; equal timestamps retain the database read order.
+	sort.SliceStable(samples, func(i, j int) bool { return samples[i].at.Before(samples[j].at) })
+	return aggregateTrafficHistory(samples, rollups, bucketSeconds), nil
+}
+
+func aggregateTrafficHistory(samples, rollups []trafficSample, bucketSeconds int) []TrafficHistoryPoint {
 	if len(samples) < 2 && len(rollups) == 0 {
-		return []TrafficHistoryPoint{}, nil
+		return []TrafficHistoryPoint{}
 	}
 	deltas := make(map[int64]trafficSample)
 	for _, item := range rollups {
@@ -161,7 +213,7 @@ func (s *Store) TrafficHistory(ctx context.Context, nodeID string, start, end ti
 		txTotal += item.tx
 		result = append(result, TrafficHistoryPoint{Time: item.at, RXBytes: rxTotal, TXBytes: txTotal, Total: rxTotal + txTotal})
 	}
-	return result, nil
+	return result
 }
 
 func (s *Store) trafficRollups(ctx context.Context, nodeID string, start, end time.Time) ([]trafficSample, error) {

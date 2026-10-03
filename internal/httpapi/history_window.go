@@ -43,7 +43,7 @@ func parseHistoryWindow(query url.Values, now time.Time) (historyWindow, error) 
 		return historyWindow{}, invalid
 	}
 	end, err := time.Parse(time.RFC3339Nano, query.Get("end"))
-	if err != nil || !start.Before(end) || end.After(now) || start.Year() < 1970 || end.Sub(start) > 365*24*time.Hour {
+	if err != nil || !start.Before(end) || end.After(now) || start.UTC().Year() < 1970 || end.Sub(start) > 365*24*time.Hour {
 		return historyWindow{}, invalid
 	}
 	// Reuse the established preset resolutions. Every selected interval has at

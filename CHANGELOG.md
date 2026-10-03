@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Node-detail API foundation: a non-cacheable single public-node endpoint reuses
+  visibility and privacy filtering. Public and scoped-share history endpoints accept
+  bounded absolute times, return interval metadata and omit partial retention buckets.
+  Fixed detail pages and custom time-selection UI remain in development.
+
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
   independent public, admin, and login background presentation.
@@ -115,8 +120,3 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 [0.2.0]: https://github.com/zhengyifei200112-collab/myprobe/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/zhengyifei200112-collab/myprobe/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/zhengyifei200112-collab/myprobe/releases/tag/v0.1.0
-
-### Node details (in development)
-
-- Add a non-cacheable single public-node API using existing visibility and privacy
-  filtering. Fixed detail pages and bounded time selection are still in progress.
