@@ -54,8 +54,12 @@ acknowledgement remains unavailable until that provider is integrated. The
 advertised metadata can be older than the current session; its timestamp matters.
 Missing nodes return 404 only after administrator authentication.
 
-The health page and configuration acknowledgement integration remain pending.
-This API foundation does not complete SYS-01. Contract
+The management navigation now includes a system health page with manual refresh,
+last observation time, process-local job outcomes, database/transport counts and
+last scheduler cycle. A failed refresh marks retained values as stale; unauthorized
+responses clear data and return to login. Unmounting aborts in-flight requests.
+Node diagnostics UI, configuration acknowledgement integration and full browser
+acceptance remain pending. This branch does not complete SYS-01. Contract
 tests cover authentication, revoked sessions, cache policy, evidence semantics
 and secret exclusion; store/gateway tests cover underlying observations.
 

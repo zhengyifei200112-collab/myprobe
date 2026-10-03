@@ -18,6 +18,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   generation success from unverified download persistence and recovery.
 - Private per-node diagnostics for advertised Agent version/capabilities, last
   report time and current WebSocket presence, without hostnames or credentials.
+- Management system health page with manual refresh, stale-data notices and
+  explicit limits on backup and notification-queue evidence.
 
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
