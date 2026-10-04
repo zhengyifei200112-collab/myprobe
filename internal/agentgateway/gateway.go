@@ -15,6 +15,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
+	protocolv2 "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v2"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
@@ -49,6 +50,7 @@ func New(database *store.Store, hub *Hub) *Gateway {
 var ErrAgentOffline = errors.New("agent is offline")
 
 type agentSession struct {
+	version    int
 	connection *websocket.Conn
 	writeMu    sync.Mutex
 }
@@ -56,6 +58,9 @@ type agentSession struct {
 func (s *agentSession) write(ctx context.Context, envelope protocol.Envelope) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	if s.version == protocolv2.Version {
+		envelope.Version = protocolv2.Version
+	}
 	return wsjson.Write(ctx, s.connection, envelope)
 }
 
@@ -120,6 +125,21 @@ func (g *Gateway) HTTPHello(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
+	g.webSocketVersion(w, r, protocol.Version)
+}
+
+func (g *Gateway) WebSocketV2(w http.ResponseWriter, r *http.Request) {
+	g.webSocketVersion(w, r, protocolv2.Version)
+}
+
+func validateSocketEnvelope(envelope protocol.Envelope, version int, now time.Time) error {
+	if version == protocolv2.Version {
+		return protocolv2.Envelope(envelope).Validate(now)
+	}
+	return envelope.Validate(now)
+}
+
+func (g *Gateway) webSocketVersion(w http.ResponseWriter, r *http.Request, version int) {
 	node, ok := g.authenticate(w, r)
 	if !ok {
 		return
@@ -140,7 +160,7 @@ func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 	var first protocol.Envelope
 	err = wsjson.Read(firstCtx, connection, &first)
 	cancel()
-	if err != nil || first.Validate(time.Now().UTC()) != nil || first.Type != protocol.TypeHello {
+	if err != nil || validateSocketEnvelope(first, version, time.Now().UTC()) != nil || first.Type != protocol.TypeHello {
 		_ = connection.Close(websocket.StatusPolicyViolation, "hello required")
 		return
 	}
@@ -161,7 +181,13 @@ func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 			ReportSeconds:     node.ReportSeconds,
 		},
 	})
-	session := &agentSession{connection: connection}
+	if version == protocolv2.Version {
+		payload, _ := protocol.DecodePayload[protocol.Welcome](welcome)
+		// No HTTP capability is offered until execution and ingestion are wired.
+		welcome.Payload, _ = json.Marshal(protocolv2.Welcome{Welcome: payload, Capabilities: protocolv2.NegotiateCapabilities(hello.Capabilities, nil)})
+		welcome.Version = protocolv2.Version
+	}
+	session := &agentSession{connection: connection, version: version}
 	// Publish the session while holding its writer lock. A scheduler can discover
 	// it immediately, but its first task cannot overtake the welcome frame.
 	session.writeMu.Lock()
@@ -182,7 +208,7 @@ func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
-		if err := envelope.Validate(time.Now().UTC()); err != nil {
+		if err := validateSocketEnvelope(envelope, version, time.Now().UTC()); err != nil {
 			g.writeProtocolError(ctx, session, "invalid_envelope", err.Error())
 			continue
 		}

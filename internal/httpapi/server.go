@@ -54,6 +54,7 @@ func New(cfg config.Config, database *store.Store, authService *auth.Service, ga
 	// WebSocket upgrades bypass Gin's wrapped ResponseWriter. coder/websocket uses
 	// net/http hijacking directly, which avoids frame corruption through middleware wrappers.
 	mux.HandleFunc("/api/v1/agent/ws", gateway.WebSocket)
+	mux.HandleFunc("/api/v2/agent/ws", gateway.WebSocketV2)
 	mux.HandleFunc("/api/v1/public/ws", server.publicWebSocket)
 	ui := webui.NewHandler()
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

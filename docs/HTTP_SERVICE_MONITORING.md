@@ -6,8 +6,8 @@ Roadmap authority: `MyProbe后续开发文档.md`, sections 6.2–6.4.
 Implemented so far: `internal/protocol/httpcheck.Spec` validates the basic request
 shape, resource limits and assertion shapes with boundary tests. Task/result
 binding validates IDs, configuration revision, planned slot and bounded times.
-The v2 envelope and mutual-capability helper are implemented; transport
-negotiation and runtime integration remain pending. Syntax acceptance
+The v2 envelope, mutual-capability helper and Server WebSocket endpoint are
+implemented; Agent transport selection and HTTP runtime integration remain pending. Syntax acceptance
 does not allow a network request or waive the Agent address policy below.
 
 ## User outcome and delivery boundaries
@@ -39,8 +39,17 @@ computed from explicit Agent/Server support. Unknown extensions are excluded;
 only the exact `http_probe.v1` capability permits HTTP checks. Legacy message
 payload shapes can be reused within a v2 envelope, but a receiver must never
 silently reinterpret a version-1 envelope as version 2 or vice versa. The outer
-validator does not replace payload, session or capability validation. No v2
-runtime endpoint is exposed by the current implementation yet.
+validator does not replace payload, session or capability validation.
+
+Server exposes `/api/v2/agent/ws` alongside the unchanged v1 endpoint. Both use
+the existing bearer-token authentication and hello validation. Each connection
+requires its endpoint's envelope version, including subsequent heartbeat/report
+frames. Responses and latency task dispatch use that same version. A node still
+has one active session; a newer authenticated connection replaces the older one.
+The v2 welcome currently grants no HTTP extension because execution/ingestion are
+not wired. HTTP messages therefore reach the unsupported-type response, not an
+execution path. Integration tests exercise real loopback v1/v2 handshakes,
+version-correct heartbeat acknowledgements and cross-version rejection.
 
 ## Bounded check contract
 
