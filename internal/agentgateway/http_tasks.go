@@ -16,6 +16,7 @@ var ErrHTTPBusy = errors.New("HTTP session task limit reached")
 // EnableHTTPProbes is an integration gate, off by default. Enabling applies to
 // new handshakes; existing sessions must reconnect to negotiate the capability.
 func (g *Gateway) EnableHTTPProbes(enabled bool) { g.httpEnabled.Store(enabled) }
+func (g *Gateway) HTTPProbesEnabled() bool       { return g.httpEnabled.Load() }
 
 func (g *Gateway) DispatchHTTP(ctx context.Context, nodeID, serviceID string, scheduledAt time.Time) error {
 	g.sessionsMu.RLock()

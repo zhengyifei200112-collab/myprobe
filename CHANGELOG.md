@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Private HTTP service create/read/replace APIs with administrator authentication,
+  CSRF protection, no-store responses, optimistic revisions and sanitized audit
+  metadata. Saving configuration does not enable production HTTP dispatch.
+
 - Bounded 31-day HTTP task/history cleanup with a durable retention floor
   (migration 019). Internal statistics expose requested and effective ranges and
   exclude deleted history from missing-sample counts.

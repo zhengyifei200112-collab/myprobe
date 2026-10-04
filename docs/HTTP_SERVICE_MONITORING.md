@@ -193,6 +193,25 @@ bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
 
+### Administrator configuration API
+
+`POST /api/v1/admin/service-monitors` creates a service, `GET` on
+`/api/v1/admin/service-monitors/:serviceID` reads its private configuration, and
+`PUT` on that resource replaces the complete editable configuration with an
+expected positive `revision`. Creation accepts only revision zero (or omitted).
+All editable fields are required, including an explicit boolean `enabled`.
+Requests are limited to 64 KiB, reject unknown fields/trailing JSON, and use the
+existing administrator session and CSRF enforcement. Every response, including
+unauthenticated rejection, carries no-store caching policy.
+
+Responses wrap `service` and the gateway's `execution_enabled` flag. Saving an
+enabled configuration does not itself enable production dispatch. A stale revision
+returns 409; malformed configuration or nonexistent selected nodes returns 400;
+missing reads return 404. Internal storage errors are generic 500 responses.
+Audit records include only revision, enabled state and selected-node count, never
+target URLs or assertion contents. List/delete APIs, UI and configuration transfer
+remain pending; no public service configuration route is provided.
+
 ### Raw HTTP history retention
 
 Migration `019_http_retention.sql` adds a durable retention floor and a task-time

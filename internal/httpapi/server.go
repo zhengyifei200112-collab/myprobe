@@ -107,6 +107,10 @@ func (s *Server) routes() {
 	share.GET("/nodes/:nodeID/history", s.shareNodeHistory)
 
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
+	services := s.router.Group("/api/v1/admin/service-monitors", privateNoStore(), s.requireSession(true))
+	services.POST("", s.createHTTPService)
+	services.GET("/:serviceID", s.getHTTPService)
+	services.PUT("/:serviceID", s.replaceHTTPService)
 	admin.GET("/nodes", s.adminNodes)
 	admin.POST("/nodes", s.createNode)
 	admin.PATCH("/nodes/:nodeID", s.updateNode)

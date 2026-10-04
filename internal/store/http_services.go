@@ -15,6 +15,7 @@ import (
 )
 
 var ErrServiceConflict = errors.New("service configuration changed")
+var ErrInvalidHTTPService = errors.New("invalid HTTP service configuration")
 
 // HTTPService contains private configuration. It must never be returned by a
 // public endpoint: the target URL can reveal deployment-specific information.
@@ -57,7 +58,7 @@ func (v HTTPService) validate() error {
 // replace assignments and advance revision, invalidating older scheduled tasks.
 func (s *Store) SaveHTTPService(ctx context.Context, v HTTPService) (HTTPService, error) {
 	if err := v.validate(); err != nil {
-		return HTTPService{}, err
+		return HTTPService{}, ErrInvalidHTTPService
 	}
 	if (v.ID == "") != (v.Revision == 0) || v.Revision < 0 || v.Revision >= 1<<63-1 {
 		return HTTPService{}, ErrServiceConflict
@@ -94,8 +95,16 @@ func (s *Store) SaveHTTPService(ctx context.Context, v HTTPService) (HTTPService
 		return HTTPService{}, err
 	}
 	for _, nodeID := range v.NodeIDs {
-		if _, err = tx.ExecContext(ctx, `INSERT INTO http_service_nodes(service_id,node_id) VALUES(?,?)`, v.ID, nodeID); err != nil {
+		result, insertErr := tx.ExecContext(ctx, `INSERT INTO http_service_nodes(service_id,node_id) SELECT ?,id FROM nodes WHERE id=?`, v.ID, nodeID)
+		if insertErr != nil {
+			return HTTPService{}, insertErr
+		}
+		count, err := result.RowsAffected()
+		if err != nil {
 			return HTTPService{}, err
+		}
+		if count != 1 {
+			return HTTPService{}, ErrInvalidHTTPService
 		}
 	}
 	// Keep each revision's schedule even after assignments are replaced. Offline
