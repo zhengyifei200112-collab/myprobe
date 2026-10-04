@@ -14,7 +14,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   remain under development and are not enabled by this storage foundation.
 - Durable HTTP task snapshots and conditional result storage (migration 017),
   rejecting wrong-node, expired, obsolete-revision and duplicate results. Transport
-  ingestion and scheduling remain disabled pending integration.
+  dispatch and ingestion are integrated behind a default-off gateway gate;
+  production scheduling remains pending.
 
 - Opt-in Agent v2 WebSocket endpoint with explicit version isolation and capability
   negotiation. Existing v1 clients remain supported; HTTP execution is not enabled.

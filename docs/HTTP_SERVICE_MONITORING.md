@@ -223,7 +223,14 @@ time window, then conditionally records only the first valid result while checki
 current configuration and assignment again. Wrong-node, late, changed-revision and
 duplicate reports are rejected. Pending records survive Server restart. No result
 is treated as success when absent; unobserved outcomes remain explicitly distinct.
-The current storage method does not expose a transport endpoint or enable dispatch.
+Gateway v2 ingestion now calls this storage method only for a task sent on the
+same current authenticated session. An integration gate, off by default, grants
+HTTP capability on new v2 handshakes. Dispatch persists the original task before
+sending and allows at most four outstanding tasks per session; expired entries
+are pruned after the receipt grace. Failed writes leave an unobserved durable slot,
+not a fabricated service failure. Acknowledgements follow successful storage only.
+Duplicate, unsolicited and replacement-session results are rejected. Existing v1
+sessions never receive HTTP tasks. Production startup does not enable the gate yet.
 Retention, expected-slot accounting, restart dispatch policy and statistical queries
 remain required before enabling the feature. Deleting a service or node cascades
 its task records, so historical views must explain that deletion removes that data.
