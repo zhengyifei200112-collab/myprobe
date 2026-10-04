@@ -140,6 +140,7 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("server did not send welcome: read_error=%v message_type=%q extensions=%q", err, welcome.Type, negotiatedExtensions)
 	}
 	c.replaceConnectionVersion(connection, version)
+	defer c.clearConnection(connection)
 	c.logger.Info("agent websocket connected", "server", c.baseURL.Host)
 	connectionCtx, stopHeartbeat := context.WithCancel(ctx)
 	defer stopHeartbeat()

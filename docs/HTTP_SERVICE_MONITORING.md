@@ -59,7 +59,12 @@ upgrade to take effect. Socket reports, heartbeat and latency results retain the
 connection's selected version. HTTP hello/report fallback remains v1 and does not
 inherit the failed WebSocket frame's version. Every received socket frame is
 version-validated before processing. Full Agent/Server end-to-end compatibility
-and HTTP execution/result ingestion still require further acceptance evidence.
+with historical release binaries and HTTP execution/result ingestion still
+require further acceptance evidence. A real Agent/Store/Gateway integration test
+now covers new Agent with v2 and v1-only handlers, persists a synthetic metric
+report over each socket version, verifies retained hello metadata and sends a
+successful v1 HTTP report after disconnect. This exercises the legacy handler
+contract rather than claiming validation of every historical binary release.
 
 ## Bounded check contract
 
