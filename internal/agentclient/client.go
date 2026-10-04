@@ -19,30 +19,37 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/zhengyifei200112-collab/myprobe/internal/collector"
+	"github.com/zhengyifei200112-collab/myprobe/internal/httpprobe"
+	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/httpcheck"
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
+	protocolv2 "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v2"
 )
 
 type Config struct {
-	ServerURL        string
-	Token            string
-	CollectionPeriod time.Duration
-	ReportPeriod     time.Duration
-	AgentVersion     string
+	ServerURL           string
+	Token               string
+	CollectionPeriod    time.Duration
+	ReportPeriod        time.Duration
+	AgentVersion        string
+	HTTPPrivateCIDRs    []string
+	HTTPAdditionalPorts []int
 }
 
 type Client struct {
-	config      Config
-	baseURL     *url.URL
-	collector   *collector.Collector
-	logger      *slog.Logger
-	http        *http.Client
-	sequence    atomic.Uint64
-	reportNS    atomic.Int64
-	connMu      sync.RWMutex
-	writeMu     sync.Mutex
-	conn        *websocket.Conn
-	connVersion int
-	taskSlots   chan struct{}
+	config        Config
+	baseURL       *url.URL
+	collector     *collector.Collector
+	logger        *slog.Logger
+	http          *http.Client
+	sequence      atomic.Uint64
+	reportNS      atomic.Int64
+	connMu        sync.RWMutex
+	writeMu       sync.Mutex
+	conn          *websocket.Conn
+	connVersion   int
+	taskSlots     chan struct{}
+	httpTaskSlots chan struct{}
+	httpExecutor  httpExecutor
 }
 
 func New(config Config, source *collector.Collector, logger *slog.Logger) (*Client, error) {
@@ -56,7 +63,12 @@ func New(config Config, source *collector.Collector, logger *slog.Logger) (*Clie
 	if config.CollectionPeriod < time.Second || config.ReportPeriod < time.Second {
 		return nil, errors.New("collection and report periods must be at least one second")
 	}
+	policy, err := httpprobe.NewPolicy(config.HTTPPrivateCIDRs, config.HTTPAdditionalPorts)
+	if err != nil {
+		return nil, err
+	}
 	client := &Client{
+		httpTaskSlots: make(chan struct{}, 4), httpExecutor: httpprobe.New(policy),
 		config: config, baseURL: parsed, collector: source, logger: logger,
 		http:      &http.Client{Timeout: 15 * time.Second},
 		taskSlots: make(chan struct{}, 8),
@@ -126,6 +138,10 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	envelope, err := protocol.NewEnvelope(protocol.TypeHello, c.sequence.Add(1), hello)
+	if version == 2 {
+		hello.Capabilities = append(hello.Capabilities, httpcheck.Capability)
+		envelope, err = protocol.NewEnvelope(protocol.TypeHello, envelope.Sequence, hello)
+	}
 	envelope.Version = version
 	if err != nil || wsjson.Write(ctx, connection, envelope) != nil {
 		connection.Close(websocket.StatusInternalError, "hello failed")
@@ -138,6 +154,15 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 	if err != nil || welcome.Type != protocol.TypeWelcome || validateServerEnvelope(welcome, version) != nil {
 		connection.Close(websocket.StatusPolicyViolation, "welcome required")
 		return false, fmt.Errorf("server did not send welcome: read_error=%v message_type=%q extensions=%q", err, welcome.Type, negotiatedExtensions)
+	}
+	httpAllowed := false
+	if version == 2 {
+		negotiated, decodeErr := protocol.DecodePayload[protocolv2.Welcome](welcome)
+		if decodeErr != nil {
+			connection.CloseNow()
+			return false, errors.New("invalid v2 welcome")
+		}
+		httpAllowed = protocolv2.AllowsHTTP(protocolv2.NegotiateCapabilities(hello.Capabilities, negotiated.Capabilities))
 	}
 	c.replaceConnectionVersion(connection, version)
 	defer c.clearConnection(connection)
@@ -157,6 +182,14 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 			return true, err
 		}
 		switch message.Type {
+		case protocolv2.TypeHTTPTask:
+			if !httpAllowed {
+				continue
+			}
+			task, err := protocol.DecodePayload[httpcheck.Task](message)
+			if err == nil && task.Validate(time.Now().UTC()) == nil {
+				c.startHTTPTask(connectionCtx, connection, task)
+			}
 		case protocol.TypeConfiguration:
 			config, err := protocol.DecodePayload[protocol.Config](message)
 			if err == nil {

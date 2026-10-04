@@ -8,7 +8,8 @@ shape, resource limits and assertion shapes with boundary tests. Task/result
 binding validates IDs, configuration revision, planned slot and bounded times.
 The v2 envelope, mutual-capability helper and Server WebSocket endpoint are
 implemented, with Agent v2-first transport selection and bounded v1 fallback.
-HTTP runtime integration remains pending. Syntax acceptance
+Agent execution/result transport is connected; Server ingestion and scheduling
+remain pending. Syntax acceptance
 does not allow a network request or waive the Agent address policy below.
 
 ## User outcome and delivery boundaries
@@ -47,8 +48,8 @@ the existing bearer-token authentication and hello validation. Each connection
 requires its endpoint's envelope version, including subsequent heartbeat/report
 frames. Responses and latency task dispatch use that same version. A node still
 has one active session; a newer authenticated connection replaces the older one.
-The v2 welcome currently grants no HTTP extension because execution/ingestion are
-not wired. HTTP messages therefore reach the unsupported-type response, not an
+The Server v2 welcome currently grants no HTTP extension because ingestion and
+scheduling are not wired. Incoming HTTP results therefore reach the unsupported-type response, not an
 execution path. Integration tests exercise real loopback v1/v2 handshakes,
 version-correct heartbeat acknowledgements and cross-version rejection.
 
@@ -157,8 +158,14 @@ untrusted, expired and hostname-mismatched certificates, certificate evidence an
 HTTPS downgrade rejection. A private test trust pool trusts only generated fixture
 certificates; production continues using system trust without a verification bypass.
 Compressed oversized bodies are limited after decoding. Four live blocked requests
-verify busy rejection, cancellation and release of all execution slots. Agent
-dispatch and result persistence are not yet wired.
+verify busy rejection, cancellation and release of all execution slots. The Agent
+now advertises its HTTP executor on v2, executes only after a welcome grants the
+same capability, and bounds task goroutines to four independently of latency
+tasks. Work is cancelled with its connection; replies use the original socket,
+never a replacement session or the metrics HTTP fallback. A real v2 session test
+verifies a negotiated loopback task returns policy-denied without dialing it.
+Local CIDRs/ports are accepted by Client configuration; CLI/environment plumbing
+and Server result persistence are still pending.
 
 Classify DNS, refused connection, timeout, TLS failure, expired certificate,
 status mismatch, content mismatch, oversized response and internal execution
