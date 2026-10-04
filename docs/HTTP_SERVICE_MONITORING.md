@@ -104,9 +104,12 @@ Task IDs and service IDs are 1–128 UTF-8 bytes without whitespace/control
 characters; revision is nonzero. A received task must still be unexpired and its
 deadline at most ten minutes ahead. The planned slot may be at most ten minutes
 old or one minute ahead to allow bounded clock skew. Results repeat the original
-task/service/revision/slot and complete within its slot/deadline window. Receipt
+task/service/revision/slot and complete within its slot/deadline window with up to
+one second of cancellation-finalization tolerance. Receipt
 grace is one minute after expiry; it does not extend execution time. Elapsed
-duration must be finite, nonnegative and within the task timeout. Ingestion must
+duration must be finite, nonnegative and within the timeout plus one second of
+cleanup allowance. Network work still uses the original deadline; elapsed time
+is measured rather than clamped. Ingestion must
 match the authenticated node and atomically consume the Server-stored task;
 the stateless validator cannot detect replay or authorize a different node.
 
@@ -143,8 +146,14 @@ allocation space is denied by default. A guarded dialer resolves once, validates
 all answers before dialing, rejects mixed permitted/forbidden answers, and passes
 only validated literal IPs to the underlying TCP dialer. A new dial repeats DNS
 validation. At most 64 addresses are accepted. Tests use injected resolution and
-in-memory connections, not live public targets. HTTP transport and redirects are
-not yet connected to this dialer, so these helpers do not enable HTTP probing.
+in-memory connections, not live public targets. HTTP transport now uses this
+dialer with proxies disabled and no connection reuse across redirect hops. Each
+redirect URL is revalidated, and HTTPS downgrades are denied. Execution uses four
+slots, one total deadline, a 64 KiB header limit and the decoded-body limit before
+assertions. TLS uses normal trust verification and TLS 1.2 minimum. Local HTTP
+tests cover GET/HEAD, status failures, oversized bodies, redirects, loops, private
+redirect rejection and timeout. TLS and cancellation acceptance remain in progress;
+Agent dispatch and result persistence are not yet wired.
 
 Classify DNS, refused connection, timeout, TLS failure, expired certificate,
 status mismatch, content mismatch, oversized response and internal execution

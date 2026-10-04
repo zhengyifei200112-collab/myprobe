@@ -62,10 +62,10 @@ func (r Result) ValidateFor(task Task, now time.Time) error {
 	if r.TaskID != task.ID || r.ServiceID != task.ServiceID || r.Revision != task.Revision || !r.ScheduledAt.Equal(task.ScheduledAt) || !validID(r.TaskID) || !validID(r.ServiceID) || r.Revision == 0 {
 		return errors.New("HTTP result does not match task")
 	}
-	if r.CompletedAt.IsZero() || r.CompletedAt.Before(task.ScheduledAt) || r.CompletedAt.After(task.ExpiresAt) || r.CompletedAt.After(now.Add(time.Minute)) || now.After(task.ExpiresAt.Add(time.Minute)) {
+	if r.CompletedAt.IsZero() || r.CompletedAt.Before(task.ScheduledAt) || r.CompletedAt.After(task.ExpiresAt.Add(time.Second)) || r.CompletedAt.After(now.Add(time.Minute)) || now.After(task.ExpiresAt.Add(time.Minute)) {
 		return errors.New("HTTP result outside task window")
 	}
-	if math.IsNaN(r.DurationMS) || math.IsInf(r.DurationMS, 0) || r.DurationMS < 0 || r.DurationMS > float64(task.Spec.TimeoutMS) {
+	if math.IsNaN(r.DurationMS) || math.IsInf(r.DurationMS, 0) || r.DurationMS < 0 || r.DurationMS > float64(task.Spec.TimeoutMS)+1000 {
 		return errors.New("invalid HTTP result duration")
 	}
 	if r.StatusCode != 0 && (r.StatusCode < 100 || r.StatusCode > 599) {

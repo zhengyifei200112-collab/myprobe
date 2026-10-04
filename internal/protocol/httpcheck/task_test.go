@@ -20,8 +20,8 @@ func TestTaskAndResultBinding(t *testing.T) {
 	}
 	for _, mutate := range []func(*Result){
 		func(r *Result) { r.TaskID = "other" }, func(r *Result) { r.ServiceID = "other" }, func(r *Result) { r.Revision++ }, func(r *Result) { r.ScheduledAt = r.ScheduledAt.Add(time.Second) },
-		func(r *Result) { r.CompletedAt = task.ExpiresAt.Add(time.Nanosecond) }, func(r *Result) { r.CompletedAt = now.Add(-time.Second) },
-		func(r *Result) { r.DurationMS = math.NaN() }, func(r *Result) { r.DurationMS = math.Inf(1) }, func(r *Result) { r.DurationMS = 5001 },
+		func(r *Result) { r.CompletedAt = task.ExpiresAt.Add(time.Second + time.Nanosecond) }, func(r *Result) { r.CompletedAt = now.Add(-time.Second) },
+		func(r *Result) { r.DurationMS = math.NaN() }, func(r *Result) { r.DurationMS = math.Inf(1) }, func(r *Result) { r.DurationMS = 6001 },
 		func(r *Result) { r.StatusCode = 500 }, func(r *Result) { r.ErrorClass = "timeout" },
 	} {
 		copy := result
