@@ -66,6 +66,12 @@ The management navigation now includes a system health page with manual refresh,
 last observation time, process-local job outcomes, database/transport counts and
 last scheduler cycle. A failed refresh marks retained values as stale; unauthorized
 responses clear data and return to login. Unmounting aborts in-flight requests.
+
+The health tab uses `/admin?tab=health`; selecting a node adds `diagnostic_node`.
+Reload and browser Back restore this location, including after password login.
+These query values select the UI only; the administrator API independently checks
+the session and node existence. OAuth response cleanup preserves unrelated query
+parameters. Live browser acceptance covers refresh and Back restoration.
 The page includes a node selector and independent refresh. Switching nodes clears
 old results and cancels prior requests, with a generation guard against stale
 responses. `scripts/system-health-ui-acceptance.cjs` exercises synthetic API data

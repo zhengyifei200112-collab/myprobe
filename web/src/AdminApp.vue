@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import type { NodeMetadata } from './types'
 import { DsButton, DsConfirmDialog, DsDialog, DsDropdown, DsEmptyState, DsSheet, DsStatusIndicator } from './design-system'
 import SettingsCenter from './settings-center/SettingsCenter.vue'
@@ -23,7 +23,18 @@ const booting = ref(true)
 const busy = ref(false)
 const error = ref('')
 const notice = ref('')
-const tab = ref<Tab>('nodes')
+const tab = ref<Tab>(new URLSearchParams(location.search).get('tab') === 'health' ? 'health' : 'nodes')
+watch(tab, value => {
+  const url = new URL(location.href)
+  if (value === 'health') url.searchParams.set('tab', 'health')
+  else { url.searchParams.delete('tab'); url.searchParams.delete('diagnostic_node') }
+  if (url.href !== location.href) history.pushState(null, '', url)
+})
+function restoreHealthNavigation() {
+  tab.value = new URLSearchParams(location.search).get('tab') === 'health' ? 'health' : 'nodes'
+}
+window.addEventListener('popstate', restoreHealthNavigation)
+onUnmounted(() => window.removeEventListener('popstate', restoreHealthNavigation))
 const username = ref('admin')
 const password = ref('')
 const captchaID = ref('')
@@ -480,7 +491,11 @@ onMounted(async () => {
   if (oauth.get('oauth') === 'github') notice.value = 'GitHub 登录验证成功。'
   const oauthError = oauth.get('oauth_error')
   if (oauthError) error.value = oauthError === 'not_allowed' ? '当前 GitHub 账号不在管理员白名单中。' : oauthError === 'unavailable' ? 'GitHub 登录尚未正确配置。' : 'GitHub 登录失败或授权已取消。'
-  if (oauth.has('oauth') || oauth.has('oauth_error')) history.replaceState(null, '', '/admin')
+  if (oauth.has('oauth') || oauth.has('oauth_error')) {
+    const url = new URL(location.href)
+    url.searchParams.delete('oauth'); url.searchParams.delete('oauth_error')
+    history.replaceState(null, '', url)
+  }
   booting.value = false
 })
 </script>

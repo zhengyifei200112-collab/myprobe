@@ -20,7 +20,7 @@ interface NodeEvidence {
   websocket_connected: boolean
   node: { agent_evidence_status: string; agent_version?: string; capabilities?: string[]; hello_received_at?: string; last_seen_at?: string; report_seconds: number }
 }
-const selectedNode = ref('')
+const selectedNode = ref(new URLSearchParams(location.search).get('diagnostic_node') || '')
 const nodeData = ref<NodeEvidence | null>(null)
 const nodeError = ref('')
 const nodeBusy = ref(false)
@@ -46,7 +46,13 @@ async function loadNode() {
     if (current === nodeGeneration) nodeError.value = reason instanceof Error ? reason.message : '节点诊断读取失败。'
   } finally { if (current === nodeGeneration) nodeBusy.value = false }
 }
-watch(selectedNode, loadNode)
+watch(selectedNode, () => {
+  const url = new URL(location.href)
+  if (selectedNode.value) url.searchParams.set('diagnostic_node', selectedNode.value)
+  else url.searchParams.delete('diagnostic_node')
+  history.replaceState(null, '', url)
+  void loadNode()
+})
 const data = ref<Health | null>(null)
 const busy = ref(false)
 const error = ref('')
@@ -80,7 +86,7 @@ async function refresh() {
     error.value = reason instanceof Error && reason.name !== 'AbortError' ? reason.message : '读取已取消。'
   } finally { if (current === generation) busy.value = false }
 }
-onMounted(refresh)
+onMounted(() => { void refresh(); void loadNode() })
 onUnmounted(() => { generation++; controller?.abort(); nodeGeneration++; nodeController?.abort() })
 </script>
 
