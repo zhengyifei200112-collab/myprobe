@@ -4,7 +4,7 @@ Status: protocol design and implementation in progress; no released HTTP checks.
 Roadmap authority: `MyProbe后续开发文档.md`, sections 6.2–6.4.
 
 Implemented so far: `internal/protocol/httpcheck.Spec` validates the basic request
-shape and resource limits with boundary tests. Assertions, task/result binding,
+shape, resource limits and assertion shapes with boundary tests. Task/result binding,
 capability negotiation and runtime integration remain pending. Syntax acceptance
 does not allow a network request or waive the Agent address policy below.
 
@@ -45,6 +45,13 @@ the capability until the executor and result transport are operational.
 - Optional UTF-8 text containment or restricted JSON field equality. At most one
   assertion, with bounded path/value lengths. HEAD cannot use body assertions.
   JSON field access is data traversal, never an expression or script evaluator.
+- `assertion.kind` is `text_contains` or `json_equals`. Text is 1–4096 UTF-8
+  bytes. JSON paths contain 1–16 literal object keys, each 1–128 UTF-8 bytes
+  without control characters. Dots/brackets inside a key are literal, not path
+  operators; arrays and wildcards are not supported. `expected` is exactly one
+  JSON scalar of at most 4096 bytes, preserving numeric text; absent and explicit
+  null differ. Object/array expected values and mixed assertion fields are invalid.
+  Execution and numeric equality semantics remain an executor implementation gate.
 - Server-issued task ID, service ID, planned slot, deadline and configuration
   revision bind the result to an authorized, outstanding check. Reject duplicate,
   wrong-node, wrong-service and expired results without adding extra observations.

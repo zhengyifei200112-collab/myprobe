@@ -14,12 +14,13 @@ import (
 const Capability = "http_probe.v1"
 
 type Spec struct {
-	URL          string `json:"url"`
-	Method       string `json:"method"`
-	StatusCodes  []int  `json:"status_codes"`
-	TimeoutMS    int    `json:"timeout_ms"`
-	MaxRedirects int    `json:"max_redirects"`
-	MaxBodyBytes int    `json:"max_body_bytes"`
+	URL          string     `json:"url"`
+	Method       string     `json:"method"`
+	StatusCodes  []int      `json:"status_codes"`
+	TimeoutMS    int        `json:"timeout_ms"`
+	MaxRedirects int        `json:"max_redirects"`
+	MaxBodyBytes int        `json:"max_body_bytes"`
+	Assertion    *Assertion `json:"assertion,omitempty"`
 }
 
 func (s Spec) Validate() error {
@@ -59,6 +60,14 @@ func (s Spec) Validate() error {
 	}
 	if s.MaxBodyBytes < 1 || s.MaxBodyBytes > 1<<20 {
 		return errors.New("HTTP body limit must be 1 to 1048576 bytes")
+	}
+	if s.Assertion != nil {
+		if s.Method == "HEAD" {
+			return errors.New("HEAD cannot use a body assertion")
+		}
+		if err := s.Assertion.Validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
