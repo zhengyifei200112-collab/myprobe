@@ -3,6 +3,11 @@
 Status: protocol design and implementation in progress; no released HTTP checks.
 Roadmap authority: `MyProbe后续开发文档.md`, sections 6.2–6.4.
 
+Implemented so far: `internal/protocol/httpcheck.Spec` validates the basic request
+shape and resource limits with boundary tests. Assertions, task/result binding,
+capability negotiation and runtime integration remain pending. Syntax acceptance
+does not allow a network request or waive the Agent address policy below.
+
 ## User outcome and delivery boundaries
 
 An administrator assigns GET/HEAD service checks to selected Agents and sees
