@@ -193,6 +193,27 @@ bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
 
+### Per-observer statistics foundation
+
+The internal statistics query reads schedule epochs and task results in one read
+transaction. It returns expected, success, failure, unobserved and missing counts;
+missing equals expected minus success minus failure, so unobserved is a subset of
+missing, not an additional denominator. Success rate is success/(success+failure),
+coverage is (success+failure)/expected, and empty denominators produce null. Rates
+are fractions from 0 to 1. Results outside a known revision's exact planned slots
+do not contribute to the numerator.
+
+The effective end is capped at observation time minus 126 seconds to conservatively
+exclude slots that may still produce a valid result (dispatch window, maximum
+timeout, receipt grace and cleanup). A wholly immature query returns an empty
+effective interval, zero counts and null rates. Both bounds are half-open and
+nanosecond timestamps are compared in Go after widened indexed text bounds.
+Queries reject more than 31 days, 10,000 revisions or 100,000 candidate results.
+
+This primitive is not exposed as a public availability endpoint yet. Maintenance
+exclusions, pre-migration unknown coverage, retained-history boundaries and the
+requested-versus-effective range presentation remain required before API/UI use.
+
 ### Expected-slot history
 
 Migration `018_http_schedule_epochs.sql` records enabled service/node revisions

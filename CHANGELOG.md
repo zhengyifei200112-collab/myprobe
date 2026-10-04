@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Internal HTTP per-observer statistics with separate success, failure and missing
+  counts, null empty rates, consistent read snapshots and a conservative result
+  maturity window. Public statistics endpoints remain pending.
+
 - HTTP schedule revision history and bounded half-open expected-slot counting
   (migration 018), preserving the denominator when checks are not dispatched.
   Availability and coverage APIs are still under development.
