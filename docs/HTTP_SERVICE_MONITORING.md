@@ -193,6 +193,26 @@ bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
 
+### Expected-slot history
+
+Migration `018_http_schedule_epochs.sql` records enabled service/node revisions
+with nanosecond schedule anchors and exclusive end times. Saving configuration
+closes prior epochs and creates enabled replacements in the same transaction as
+the configuration and assignment changes. Disabling stops future expected slots;
+it does not erase earlier expectations. The internal count primitive uses
+`[start,end)` and counts slots even when no task was dispatched. It bounds queries
+to 31 days and 10,000 overlapping revisions per service/node, rejecting excessive
+ranges rather than silently truncating results. Caller-supplied observation time
+must cap historical queries; maintenance exclusions are not implemented yet.
+
+On upgrade from migration 017, a transactional Go backfill preserves the exact
+current revision's timestamp without SQLite fractional-second rounding. Older
+configuration revisions cannot be reconstructed and must be disclosed as unknown
+coverage in future statistics APIs. Deleted services/nodes remove their epochs
+through foreign keys, matching task-history deletion. This history is a prerequisite
+for statistics, not a complete availability API; result counts, maturity windows,
+maintenance and retention boundaries still need integration.
+
 ### Periodic scheduling foundation
 
 The HTTP scheduler reads enabled service/node assignments without loading private

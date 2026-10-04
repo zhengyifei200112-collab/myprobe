@@ -106,6 +106,12 @@ func (s *Store) Migrate(ctx context.Context) error {
 			tx.Rollback()
 			return fmt.Errorf("apply migration %s: %w", entry.Name(), err)
 		}
+		if entry.Name() == "018_http_schedule_epochs.sql" {
+			if err = seedHTTPScheduleEpochs(ctx, tx); err != nil {
+				tx.Rollback()
+				return fmt.Errorf("seed HTTP schedule history: %w", err)
+			}
+		}
 		if _, err = tx.ExecContext(ctx, "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)", entry.Name(), nowText()); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("record migration %s: %w", entry.Name(), err)

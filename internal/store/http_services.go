@@ -98,6 +98,18 @@ func (s *Store) SaveHTTPService(ctx context.Context, v HTTPService) (HTTPService
 			return HTTPService{}, err
 		}
 	}
+	// Keep each revision's schedule even after assignments are replaced. Offline
+	// slots must remain countable without relying on successfully dispatched tasks.
+	if _, err = tx.ExecContext(ctx, `UPDATE http_schedule_epochs SET end_ns=? WHERE service_id=? AND end_ns IS NULL`, now.UnixNano(), v.ID); err != nil {
+		return HTTPService{}, err
+	}
+	if v.Enabled {
+		for _, nodeID := range v.NodeIDs {
+			if _, err = tx.ExecContext(ctx, `INSERT INTO http_schedule_epochs(service_id,node_id,revision,start_ns,interval_seconds) VALUES(?,?,?,?,?)`, v.ID, nodeID, v.Revision, now.UnixNano(), v.IntervalSeconds); err != nil {
+				return HTTPService{}, err
+			}
+		}
+	}
 	var created string
 	if err = tx.QueryRowContext(ctx, `SELECT created_at FROM http_services WHERE id=?`, v.ID).Scan(&created); err != nil {
 		return HTTPService{}, err

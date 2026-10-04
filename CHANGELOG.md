@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- HTTP schedule revision history and bounded half-open expected-slot counting
+  (migration 018), preserving the denominator when checks are not dispatched.
+  Availability and coverage APIs are still under development.
+
 - HTTP scheduler foundation with configuration-anchored slots, bounded dispatch
   workers and no replay of missed checks. Production startup and coverage
   accounting remain pending integration.
