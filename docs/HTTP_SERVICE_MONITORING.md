@@ -193,6 +193,27 @@ bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
 
+### Raw HTTP history retention
+
+Migration `019_http_retention.sql` adds a durable retention floor and a task-time
+index. Existing history maintenance now removes HTTP tasks older than 31 days and
+closed schedule epochs ending before that boundary, up to 10,000 rows of each per
+maintenance pass. Open epochs keep their original anchors. Large backlogs drain
+over successive passes; the retention floor is advanced in the same transaction
+and never moves backwards, even after a clock correction. HTTP currently has no
+long-term rollup; this 31-day policy is separate from host/latency retention.
+
+Statistics return requested start/end, effective start/end and retained-from time.
+The effective start is clamped to retained history, so deleted samples do not become
+missing observations. A wholly expired range has zero counts and null rates, with
+an empty effective interval. Raw timestamp deletion uses a whole-second boundary
+that preserves samples exactly on that boundary. The current tests cover partial
+range trimming, deletion and a non-regressing floor after clock rollback.
+
+Capacity testing must verify that bounded cleanup keeps pace with ingestion at the
+supported deployment size. Earlier-than-retained queries are not evidence of past
+availability; future UI must visibly show the actual range and history limitation.
+
 ### Per-observer statistics foundation
 
 The internal statistics query reads schedule epochs and task results in one read

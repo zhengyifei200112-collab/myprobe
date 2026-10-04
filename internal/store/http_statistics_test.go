@@ -62,4 +62,23 @@ func TestHTTPStatisticsMissingAndMaturity(t *testing.T) {
 	if err != nil || empty.Expected != 0 || empty.SuccessRate != nil || empty.Coverage != nil {
 		t.Fatalf("empty: %+v %v", empty, err)
 	}
+	retentionNow := v.UpdatedAt.Add(HTTPHistoryRetention + 60*time.Second)
+	if err = s.ApplyRetention(ctx, retentionNow, DefaultRetentionPolicy()); err != nil {
+		t.Fatal(err)
+	}
+	trimmed, err := s.HTTPServiceStatistics(ctx, v.ID, node.ID, v.UpdatedAt, end, retentionNow)
+	if err != nil || trimmed.Expected != 2 || trimmed.Success != 0 || trimmed.Failure != 0 || trimmed.Missing != 2 || !trimmed.Start.Equal(retentionNow.Add(-HTTPHistoryRetention).Truncate(time.Second)) || !trimmed.RequestedStart.Equal(v.UpdatedAt) {
+		t.Fatalf("retained: %+v %v", trimmed, err)
+	}
+	var remaining int
+	if err = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM http_tasks WHERE service_id=?`, v.ID).Scan(&remaining); err != nil || remaining != 2 {
+		t.Fatalf("remaining: %d %v", remaining, err)
+	}
+	if err = s.ApplyRetention(ctx, retentionNow.Add(-time.Hour), DefaultRetentionPolicy()); err != nil {
+		t.Fatal(err)
+	}
+	again, err := s.HTTPServiceStatistics(ctx, v.ID, node.ID, v.UpdatedAt, end, retentionNow)
+	if err != nil || !again.RetainedFrom.Equal(trimmed.RetainedFrom) {
+		t.Fatalf("floor regressed: %+v %v", again, err)
+	}
 }

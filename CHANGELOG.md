@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Bounded 31-day HTTP task/history cleanup with a durable retention floor
+  (migration 019). Internal statistics expose requested and effective ranges and
+  exclude deleted history from missing-sample counts.
+
 - Internal HTTP per-observer statistics with separate success, failure and missing
   counts, null empty rates, consistent read snapshots and a conservative result
   maturity window. Public statistics endpoints remain pending.

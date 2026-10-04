@@ -13,15 +13,18 @@ import (
 // HTTPStatistics is an internal per-observer summary, before maintenance support.
 // Rates use fractions [0,1], with nil for an empty denominator.
 type HTTPStatistics struct {
-	Start       time.Time `json:"start"`
-	End         time.Time `json:"end"`
-	Expected    int64     `json:"expected"`
-	Success     int64     `json:"success"`
-	Failure     int64     `json:"failure"`
-	Unobserved  int64     `json:"unobserved"`
-	Missing     int64     `json:"missing"`
-	SuccessRate *float64  `json:"success_rate"`
-	Coverage    *float64  `json:"coverage"`
+	RequestedStart time.Time `json:"requested_start"`
+	RequestedEnd   time.Time `json:"requested_end"`
+	RetainedFrom   time.Time `json:"retained_from"`
+	Start          time.Time `json:"start"`
+	End            time.Time `json:"end"`
+	Expected       int64     `json:"expected"`
+	Success        int64     `json:"success"`
+	Failure        int64     `json:"failure"`
+	Unobserved     int64     `json:"unobserved"`
+	Missing        int64     `json:"missing"`
+	SuccessRate    *float64  `json:"success_rate"`
+	Coverage       *float64  `json:"coverage"`
 }
 
 // HTTPServiceStatistics summarizes only mature slots: the conservative 126s lag
@@ -29,7 +32,7 @@ type HTTPStatistics struct {
 // Both counters and results share one SQLite snapshot. Historical coverage before
 // retained schedule epochs must be handled by the API before exposing this method.
 func (s *Store) HTTPServiceStatistics(ctx context.Context, serviceID, nodeID string, start, end, now time.Time) (HTTPStatistics, error) {
-	result := HTTPStatistics{Start: start.UTC(), End: end.UTC()}
+	result := HTTPStatistics{Start: start.UTC(), End: end.UTC(), RequestedStart: start.UTC(), RequestedEnd: end.UTC()}
 	if !end.After(start) || end.Sub(start) > 31*24*time.Hour || start.Year() < 1970 || end.Year() > 2100 {
 		return result, errors.New("invalid HTTP statistics range")
 	}
@@ -51,6 +54,18 @@ func (s *Store) HTTPServiceStatistics(ctx context.Context, serviceID, nodeID str
 	} else if err != nil {
 		return result, err
 	}
+	var floor int64
+	if err = tx.QueryRowContext(ctx, `SELECT retained_from_ns FROM http_history_state WHERE id=1`).Scan(&floor); err != nil {
+		return result, err
+	}
+	result.RetainedFrom = time.Unix(0, floor).UTC()
+	if result.Start.Before(result.RetainedFrom) {
+		result.Start = result.RetainedFrom
+	}
+	if result.Start.After(result.End) {
+		result.Start = result.End
+	}
+	start = result.Start
 	if result.End.Equal(result.Start) {
 		return result, nil
 	}
