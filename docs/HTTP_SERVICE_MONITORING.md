@@ -4,8 +4,9 @@ Status: protocol design and implementation in progress; no released HTTP checks.
 Roadmap authority: `MyProbe后续开发文档.md`, sections 6.2–6.4.
 
 Implemented so far: `internal/protocol/httpcheck.Spec` validates the basic request
-shape, resource limits and assertion shapes with boundary tests. Task/result binding,
-capability negotiation and runtime integration remain pending. Syntax acceptance
+shape, resource limits and assertion shapes with boundary tests. Task/result
+binding validates IDs, configuration revision, planned slot and bounded times.
+Capability negotiation and runtime integration remain pending. Syntax acceptance
 does not allow a network request or waive the Agent address policy below.
 
 ## User outcome and delivery boundaries
@@ -57,6 +58,22 @@ the capability until the executor and result transport are operational.
   wrong-node, wrong-service and expired results without adding extra observations.
 
 ## Network and privacy enforcement
+
+Task IDs and service IDs are 1–128 UTF-8 bytes without whitespace/control
+characters; revision is nonzero. A received task must still be unexpired and its
+deadline at most ten minutes ahead. The planned slot may be at most ten minutes
+old or one minute ahead to allow bounded clock skew. Results repeat the original
+task/service/revision/slot and complete within its slot/deadline window. Receipt
+grace is one minute after expiry; it does not extend execution time. Elapsed
+duration must be finite, nonnegative and within the task timeout. Ingestion must
+match the authenticated node and atomically consume the Server-stored task;
+the stateless validator cannot detect replay or authorize a different node.
+
+Results use `success`, `failure`, or `unobserved`. Unsupported capability, busy
+executor, cancellation, denied local policy, invalid task and internal executor
+errors are unobserved and excluded from service success/failure counts. A success
+requires an allowed HTTP status and no error class. Response status/content
+mismatches require an HTTP status. No arbitrary error message is transported.
 
 Task syntax validation cannot prove a target is safe to dial. The Agent executor
 must validate every resolved address, dial only the validated address, preserve
