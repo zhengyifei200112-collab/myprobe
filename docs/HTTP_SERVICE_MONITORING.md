@@ -193,6 +193,23 @@ bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
 
+### Configuration storage foundation
+
+Migration `016_http_services.sql` adds private service configuration and explicit
+node assignments. Service intervals are 30–86400 seconds and must exceed the
+request timeout; each save requires 1–100 distinct existing nodes. Configuration
+updates compare the caller's revision and increment it atomically with assignment
+replacement. Failed assignments roll back the complete change. Node deletion
+cascades assignments; a service left without nodes must not be dispatched.
+URLs remain private configuration and must not be serialized into public views.
+
+The migration number must be reconciled with other unpublished branches before
+merge (batch management and incidents have separate migrations). Existing tables
+and data are unchanged. Database snapshots include the new tables; configuration
+export/import support, service APIs, scheduling, result ingestion and retention
+remain to be implemented before enabling this capability. No downgrade procedure
+for the new schema is claimed; use a pre-upgrade backup when reverting.
+
 Use local controllable HTTP/TLS servers and injected resolvers/dialers. Cover 200,
 500, GET/HEAD, slow headers/body, redirect loops and address-policy transitions,
 DNS rebinding, overlarge decoded bodies, invalid/expired certificates, cancellation,
