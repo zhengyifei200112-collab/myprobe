@@ -13,6 +13,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   negotiation. Existing v1 clients remain supported; HTTP execution is not enabled.
 - Agent prefers v2 and falls back to v1 when that endpoint is absent (404/405),
   while preserving v1 HTTP report fallback and refusing authentication-error downgrade.
+- Bounded Agent HTTP executor with TLS validation, decoded-response limits and
+  connection-scoped cancellation. Local `-http-private-cidrs` and
+  `-http-additional-ports` options (and matching `MYPROBE_HTTP_PRIVATE_CIDRS` /
+  `MYPROBE_HTTP_ADDITIONAL_PORTS` environment variables) configure target policy.
+  Server HTTP scheduling remains disabled pending result persistence.
 
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and

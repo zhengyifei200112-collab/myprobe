@@ -164,8 +164,26 @@ same capability, and bounds task goroutines to four independently of latency
 tasks. Work is cancelled with its connection; replies use the original socket,
 never a replacement session or the metrics HTTP fallback. A real v2 session test
 verifies a negotiated loopback task returns policy-denied without dialing it.
-Local CIDRs/ports are accepted by Client configuration; CLI/environment plumbing
-and Server result persistence are still pending.
+Local CIDRs/ports are accepted by Client configuration and Agent flags/environment
+variables described below. Server result persistence remains pending.
+
+### Agent-local deployment configuration
+
+`-http-private-cidrs` (default: `MYPROBE_HTTP_PRIVATE_CIDRS`) accepts up to 64
+comma-separated RFC1918/ULA CIDRs. Empty means no private targets.
+`-http-additional-ports` (default: `MYPROBE_HTTP_ADDITIONAL_PORTS`) accepts up to
+64 comma-separated decimal ports from 1 through 65535, in addition to 80/443.
+Explicit flags override environment values, including an explicitly empty flag.
+Whitespace around entries is trimmed; empty entries, malformed ports and invalid
+CIDRs fail startup with exit code 2. Errors do not echo configured values.
+
+For example, `-http-private-cidrs=10.2.0.0/16 -http-additional-ports=8080` permits
+HTTP probes into that private subnet and adds port 8080. Address and port lists
+are independent: added ports also apply to otherwise permitted public targets.
+There is no per-subnet port mapping. Loopback, link-local and explicitly blocked
+metadata addresses remain denied. Restart the Agent after changing local policy.
+These options do not enable Server scheduling: the current Server still grants
+no HTTP capability until dispatch and result persistence are implemented.
 
 Classify DNS, refused connection, timeout, TLS failure, expired certificate,
 status mismatch, content mismatch, oversized response and internal execution
