@@ -6,7 +6,8 @@ Roadmap authority: `MyProbe后续开发文档.md`, sections 6.2–6.4.
 Implemented so far: `internal/protocol/httpcheck.Spec` validates the basic request
 shape, resource limits and assertion shapes with boundary tests. Task/result
 binding validates IDs, configuration revision, planned slot and bounded times.
-Capability negotiation and runtime integration remain pending. Syntax acceptance
+The v2 envelope and mutual-capability helper are implemented; transport
+negotiation and runtime integration remain pending. Syntax acceptance
 does not allow a network request or waive the Agent address policy below.
 
 ## User outcome and delivery boundaries
@@ -31,6 +32,15 @@ and test new Agent/new Server, old Agent/new Server and new Agent/old Server pat
 The exact connection negotiation is an implementation gate, not assumed complete.
 An old Agent is unsupported, never a failed service observation. Do not advertise
 the capability until the executor and result transport are operational.
+
+`internal/protocol/v2` retains the outer JSON shape with `version: 2`, adding
+`http_task` and `http_result`. The v2 welcome contains a `capabilities` array
+computed from explicit Agent/Server support. Unknown extensions are excluded;
+only the exact `http_probe.v1` capability permits HTTP checks. Legacy message
+payload shapes can be reused within a v2 envelope, but a receiver must never
+silently reinterpret a version-1 envelope as version 2 or vice versa. The outer
+validator does not replace payload, session or capability validation. No v2
+runtime endpoint is exposed by the current implementation yet.
 
 ## Bounded check contract
 

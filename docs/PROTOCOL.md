@@ -1,5 +1,10 @@
 # Agent protocol v1
 
+The v1 runtime contract below remains unchanged. An opt-in v2 HTTP-check contract
+is being developed in [HTTP service monitoring](HTTP_SERVICE_MONITORING.md).
+Its envelope and capability helpers are not yet a deployed transport endpoint;
+do not send HTTP tasks to v1 Agents.
+
 ## Transport
 
 - Primary: `GET /api/v1/agent/ws` using WebSocket.
