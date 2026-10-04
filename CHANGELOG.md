@@ -12,6 +12,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Private HTTP service configuration storage with revision-checked updates and
   transactional node assignments (migration 016). Service APIs and scheduling
   remain under development and are not enabled by this storage foundation.
+- Durable HTTP task snapshots and conditional result storage (migration 017),
+  rejecting wrong-node, expired, obsolete-revision and duplicate results. Transport
+  ingestion and scheduling remain disabled pending integration.
 
 - Opt-in Agent v2 WebSocket endpoint with explicit version isolation and capability
   negotiation. Existing v1 clients remain supported; HTTP execution is not enabled.

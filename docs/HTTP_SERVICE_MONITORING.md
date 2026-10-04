@@ -206,9 +206,27 @@ URLs remain private configuration and must not be serialized into public views.
 The migration number must be reconciled with other unpublished branches before
 merge (batch management and incidents have separate migrations). Existing tables
 and data are unchanged. Database snapshots include the new tables; configuration
-export/import support, service APIs, scheduling, result ingestion and retention
+export/import support, service APIs, scheduling, transport ingestion and retention
 remain to be implemented before enabling this capability. No downgrade procedure
 for the new schema is claimed; use a pre-upgrade backup when reverting.
+
+### Durable tasks and result admission
+
+Migration `017_http_tasks.sql` persists the server's original task before dispatch,
+including its node, revision and planned slot. A unique service/node/revision/slot
+constraint prevents scheduling the same slot twice. Task creation atomically checks
+that the service is enabled and the node remains assigned at the expected revision.
+
+The storage ingestion method requires an authenticated node ID supplied by the
+transport. It validates the result against the saved original task, including its
+time window, then conditionally records only the first valid result while checking
+current configuration and assignment again. Wrong-node, late, changed-revision and
+duplicate reports are rejected. Pending records survive Server restart. No result
+is treated as success when absent; unobserved outcomes remain explicitly distinct.
+The current storage method does not expose a transport endpoint or enable dispatch.
+Retention, expected-slot accounting, restart dispatch policy and statistical queries
+remain required before enabling the feature. Deleting a service or node cascades
+its task records, so historical views must explain that deletion removes that data.
 
 Use local controllable HTTP/TLS servers and injected resolvers/dialers. Cover 200,
 500, GET/HEAD, slow headers/body, redirect loops and address-policy transitions,
