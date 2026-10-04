@@ -8,8 +8,10 @@ import (
 	"log/slog"
 	"math"
 	"strings"
+	"sync/atomic"
 	"time"
 
+	"github.com/zhengyifei200112-collab/myprobe/internal/diagnostics"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
@@ -26,12 +28,14 @@ type RuleConfig struct {
 }
 
 type Service struct {
-	store     *store.Store
-	crypto    *cryptoBox
-	cryptoErr error
-	sender    Sender
-	logger    *slog.Logger
-	interval  time.Duration
+	store         *store.Store
+	crypto        *cryptoBox
+	cryptoErr     error
+	sender        Sender
+	logger        *slog.Logger
+	interval      time.Duration
+	running       atomic.Bool
+	evaluationJob diagnostics.Job
 }
 
 func New(database *store.Store, encryptionKey string, sender Sender, logger *slog.Logger) *Service {
@@ -206,6 +210,8 @@ func (s *Service) Run(ctx context.Context) {
 		return
 	}
 	ticker := time.NewTicker(s.interval)
+	s.running.Store(true)
+	defer s.running.Store(false)
 	defer ticker.Stop()
 	for {
 		if err := s.Tick(ctx, time.Now().UTC()); err != nil && !errors.Is(err, context.Canceled) {
@@ -219,7 +225,18 @@ func (s *Service) Run(ctx context.Context) {
 	}
 }
 
-func (s *Service) Tick(ctx context.Context, now time.Time) error {
+func (s *Service) Tick(ctx context.Context, now time.Time) (result error) {
+	complete := s.evaluationJob.Begin()
+	var ruleError error
+	defer func() {
+		if result != nil {
+			complete(result)
+		} else if ctx.Err() != nil {
+			complete(ctx.Err())
+		} else {
+			complete(ruleError)
+		}
+	}()
 	if s.cryptoErr != nil {
 		return s.cryptoErr
 	}
@@ -253,6 +270,7 @@ func (s *Service) Tick(ctx context.Context, now time.Time) error {
 			continue
 		}
 		if err := s.evaluateAndDeliver(ctx, rule, node, channel, now.UTC()); err != nil {
+			ruleError = err
 			s.logger.Warn("alert evaluation failed", "rule_id", rule.ID, "error", err)
 		}
 	}

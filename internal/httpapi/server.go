@@ -18,6 +18,7 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/alerts"
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
+	"github.com/zhengyifei200112-collab/myprobe/internal/diagnostics"
 	"github.com/zhengyifei200112-collab/myprobe/internal/sharing"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 	"github.com/zhengyifei200112-collab/myprobe/internal/webui"
@@ -27,19 +28,40 @@ const sessionCookie = "myprobe_session"
 const githubStateCookie = "myprobe_github_state"
 
 type Server struct {
-	config  config.Config
-	store   *store.Store
-	auth    *auth.Service
-	github  *auth.GitHubService
-	gateway *agentgateway.Gateway
-	hub     *agentgateway.Hub
-	alerts  *alerts.Service
-	sharing *sharing.Service
-	router  *gin.Engine
-	handler http.Handler
+	config           config.Config
+	store            *store.Store
+	auth             *auth.Service
+	github           *auth.GitHubService
+	gateway          *agentgateway.Gateway
+	hub              *agentgateway.Hub
+	alerts           *alerts.Service
+	sharing          *sharing.Service
+	router           *gin.Engine
+	handler          http.Handler
+	schedulerHealth  func() any
+	alertHealth      func() alerts.EngineDiagnostics
+	buildVersion     string
+	processStartedAt time.Time
+	backupJob        diagnostics.Job
 }
 
-func New(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub) *Server {
+type Option func(*Server)
+
+func WithAlertHealth(snapshot func() alerts.EngineDiagnostics) Option {
+	return func(s *Server) { s.alertHealth = snapshot }
+}
+
+// WithRuntimeIdentity supplies build evidence and the actual process start time.
+func WithRuntimeIdentity(version string, startedAt time.Time) Option {
+	return func(s *Server) { s.buildVersion, s.processStartedAt = version, startedAt }
+}
+
+// WithSchedulerHealth binds the running scheduler before the HTTP server starts.
+func WithSchedulerHealth(snapshot func() any) Option {
+	return func(s *Server) { s.schedulerHealth = snapshot }
+}
+
+func New(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub, options ...Option) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	gateway.SetTrustedProxies(cfg.TrustedProxies)
@@ -49,6 +71,9 @@ func New(cfg config.Config, database *store.Store, authService *auth.Service, ga
 	router.Use(gin.Recovery(), securityHeaders())
 	github, _ := auth.NewGitHubService(database, cfg.EncryptionKey, cfg.SessionTTL, nil)
 	server := &Server{config: cfg, store: database, auth: authService, github: github, gateway: gateway, hub: hub, alerts: alerts.New(database, cfg.EncryptionKey, nil, nil), sharing: sharing.New(database, 12*time.Hour), router: router}
+	for _, option := range options {
+		option(server)
+	}
 	server.routes()
 	mux := http.NewServeMux()
 	// WebSocket upgrades bypass Gin's wrapped ResponseWriter. coder/websocket uses
@@ -105,6 +130,9 @@ func (s *Server) routes() {
 	share.GET("/nodes", s.shareNodes)
 	share.GET("/nodes/:nodeID/history", s.shareNodeHistory)
 
+	// Set cache policy before authentication so rejected diagnostics are private too.
+	s.router.GET("/api/v1/admin/system/health", privateNoStore(), s.requireSession(true), s.systemHealth)
+	s.router.GET("/api/v1/admin/nodes/:nodeID/diagnostics", privateNoStore(), s.requireSession(true), s.nodeDiagnostics)
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
 	admin.GET("/nodes", s.adminNodes)
 	admin.POST("/nodes", s.createNode)

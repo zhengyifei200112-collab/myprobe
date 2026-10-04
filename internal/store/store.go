@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zhengyifei200112-collab/myprobe/internal/diagnostics"
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 	_ "modernc.org/sqlite"
 )
@@ -30,8 +31,9 @@ var migrations embed.FS
 var ErrNotFound = errors.New("not found")
 
 type Store struct {
-	db   *sql.DB
-	path string
+	db           *sql.DB
+	path         string
+	retentionJob diagnostics.Job
 }
 
 func Open(ctx context.Context, path string) (*Store, error) {
