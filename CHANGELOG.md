@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Paginated administrator HTTP service summaries and revision-checked deletion,
+  including associated task/history cleanup. Summary responses omit target URLs.
+
 - Private HTTP service create/read/replace APIs with administrator authentication,
   CSRF protection, no-store responses, optimistic revisions and sanitized audit
   metadata. Saving configuration does not enable production HTTP dispatch.

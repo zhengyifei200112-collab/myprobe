@@ -209,8 +209,20 @@ enabled configuration does not itself enable production dispatch. A stale revisi
 returns 409; malformed configuration or nonexistent selected nodes returns 400;
 missing reads return 404. Internal storage errors are generic 500 responses.
 Audit records include only revision, enabled state and selected-node count, never
-target URLs or assertion contents. List/delete APIs, UI and configuration transfer
-remain pending; no public service configuration route is provided.
+target URLs or assertion contents. UI and configuration transfer remain pending;
+no public service configuration route is provided.
+
+`GET /api/v1/admin/service-monitors?limit=50&after=ID` lists summaries ordered by
+stable service ID. Limits are 1–100 and the response includes `next_cursor` (empty
+at the end). Summaries contain name, revision, enabled state, interval, node count
+and update time, but omit URLs and assertions. Pagination is not a cross-request
+snapshot: concurrent additions before the cursor appear after a fresh list reload.
+
+`DELETE /api/v1/admin/service-monitors/:serviceID?revision=N` requires a positive
+expected revision and CSRF. Success returns 204 and removes assignments, tasks and
+schedule history through foreign keys. A stale revision or already deleted service
+returns 409, requiring refresh; this prevents deleting a concurrently changed
+configuration. The UI must disclose history deletion before submitting the action.
 
 ### Raw HTTP history retention
 

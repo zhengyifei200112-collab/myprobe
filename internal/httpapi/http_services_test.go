@@ -71,4 +71,48 @@ func TestHTTPServiceAdminConfiguration(t *testing.T) {
 	if audit.Code != 200 || !strings.Contains(audit.Body.String(), "http_service") || strings.Contains(audit.Body.String(), "private-marker") {
 		t.Fatalf("audit: %d %s", audit.Code, audit.Body.String())
 	}
+	second := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodPost, path, body)
+	if second.Code != 201 {
+		t.Fatal(second.Code)
+	}
+	seen := map[string]bool{}
+	cursor := ""
+	for page := 0; page < 2; page++ {
+		r := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodGet, path+"?limit=1&after="+cursor, "")
+		var list struct {
+			Services []store.HTTPServiceSummary `json:"services"`
+			Next     string                     `json:"next_cursor"`
+		}
+		if r.Code != 200 || json.Unmarshal(r.Body.Bytes(), &list) != nil || len(list.Services) != 1 || strings.Contains(r.Body.String(), "private-marker") {
+			t.Fatalf("list: %d %s", r.Code, r.Body.String())
+		}
+		if seen[list.Services[0].ID] {
+			t.Fatal("duplicate page entry")
+		}
+		seen[list.Services[0].ID] = true
+		cursor = list.Next
+		if (page == 0) != (cursor != "") {
+			t.Fatal("incorrect next cursor")
+		}
+	}
+	for _, query := range []string{"?limit=0", "?limit=101", "?limit=no"} {
+		if r := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodGet, path+query, ""); r.Code != 400 {
+			t.Fatal(r.Code)
+		}
+	}
+	if r := authenticatedRequest(t, handler, cookie, "", http.MethodDelete, resource+"?revision=2", ""); r.Code != 403 {
+		t.Fatalf("delete csrf: %d", r.Code)
+	}
+	for _, tc := range []struct {
+		query string
+		want  int
+	}{{"", 400}, {"?revision=1", 409}, {"?revision=2", 204}, {"?revision=2", 409}} {
+		r := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodDelete, resource+tc.query, "")
+		if r.Code != tc.want {
+			t.Fatalf("delete: %d %s", r.Code, r.Body.String())
+		}
+	}
+	if r := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodGet, resource, ""); r.Code != 404 {
+		t.Fatalf("deleted read: %d", r.Code)
+	}
 }

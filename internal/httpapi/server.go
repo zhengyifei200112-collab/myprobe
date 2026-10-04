@@ -109,6 +109,8 @@ func (s *Server) routes() {
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
 	services := s.router.Group("/api/v1/admin/service-monitors", privateNoStore(), s.requireSession(true))
 	services.POST("", s.createHTTPService)
+	services.GET("", s.listHTTPServices)
+	services.DELETE("/:serviceID", s.deleteHTTPService)
 	services.GET("/:serviceID", s.getHTTPService)
 	services.PUT("/:serviceID", s.replaceHTTPService)
 	admin.GET("/nodes", s.adminNodes)
