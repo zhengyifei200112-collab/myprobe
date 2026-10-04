@@ -86,7 +86,14 @@ contract rather than claiming validation of every historical binary release.
   operators; arrays and wildcards are not supported. `expected` is exactly one
   JSON scalar of at most 4096 bytes, preserving numeric text; absent and explicit
   null differ. Object/array expected values and mixed assertion fields are invalid.
-  Execution and numeric equality semantics remain an executor implementation gate.
+  `Assertion.Matches` implements literal-key traversal and typed scalar equality.
+  Numbers compare normalized decimal coefficients/exponents without float64
+  rounding or exponent expansion: `1.00` equals `1e0`, while adjacent integers
+  above 2^53 remain distinct. Missing fields do not equal null. The body must be
+  UTF-8 and at most one MiB, contain one complete JSON value, use unique object
+  keys, and stay within 64 nesting levels and 4096 bytes per numeric token.
+  Arrays may occur in the response but are not traversable or scalar-equal.
+  The executor must enforce any smaller configured body limit before matching.
 - Server-issued task ID, service ID, planned slot, deadline and configuration
   revision bind the result to an authorized, outstanding check. Reject duplicate,
   wrong-node, wrong-service and expired results without adding extra observations.
