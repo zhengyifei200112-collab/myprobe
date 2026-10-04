@@ -19,6 +19,9 @@ func (s *Store) CreateHTTPTask(ctx context.Context, serviceID, nodeID string, sc
 	if err != nil {
 		return httpcheck.Task{}, err
 	}
+	if scheduledAt.Before(v.UpdatedAt) {
+		return httpcheck.Task{}, ErrHTTPTaskRejected
+	}
 	task := httpcheck.Task{ID: randomID(), ServiceID: v.ID, Revision: uint64(v.Revision), ScheduledAt: scheduledAt.UTC(), ExpiresAt: now.UTC().Add(time.Duration(v.Spec.TimeoutMS) * time.Millisecond), Spec: v.Spec}
 	if err = task.Validate(now); err != nil {
 		return httpcheck.Task{}, err

@@ -28,6 +28,10 @@ func TestHTTPServiceRevisionAndAtomicAssignments(t *testing.T) {
 	if v.Revision != 1 {
 		t.Fatal(v.Revision)
 	}
+	assignments, err := s.ListHTTPAssignments(ctx)
+	if err != nil || len(assignments) != 1 || assignments[0].Revision != v.Revision || !assignments[0].Anchor.Equal(v.UpdatedAt) || assignments[0].NodeID != node.ID {
+		t.Fatalf("schedule assignments: %+v %v", assignments, err)
+	}
 	stale := v
 	v.Name = "renamed"
 	v, err = s.SaveHTTPService(ctx, v)

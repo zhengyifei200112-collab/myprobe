@@ -193,6 +193,25 @@ bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
 
+### Periodic scheduling foundation
+
+The HTTP scheduler reads enabled service/node assignments without loading private
+URLs. Planned slots are anchored to the configuration revision's update time and
+repeat at the configured interval. Only slots within a five-second dispatch window
+are eligible; downtime does not cause historical checks to be replayed. Each slot
+is attempted once per process, including offline/unsupported/busy outcomes, with
+the durable task uniqueness constraint preventing duplicate sends after restart.
+Four workers bound concurrent dispatch and each write has a deadline. Configuration
+updates reset the schedule anchor; task creation rejects slots predating that
+revision, and removed assignments are removed from the scheduler's memory.
+
+This scheduler is implemented and tested but not yet started by production main.
+Expected-slot accounting must retain configuration history so offline or missed
+slots can be shown as missing even when no task row exists. Counting only stored
+tasks as expected checks would overstate coverage and is not an acceptable
+statistics implementation. Retention and queries remain part of this feature's
+release gate.
+
 ### Configuration storage foundation
 
 Migration `016_http_services.sql` adds private service configuration and explicit

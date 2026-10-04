@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- HTTP scheduler foundation with configuration-anchored slots, bounded dispatch
+  workers and no replay of missed checks. Production startup and coverage
+  accounting remain pending integration.
+
 - Private HTTP service configuration storage with revision-checked updates and
   transactional node assignments (migration 016). Service APIs and scheduling
   remain under development and are not enabled by this storage foundation.
