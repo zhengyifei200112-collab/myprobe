@@ -1,6 +1,7 @@
 package httpcheck
 
 import (
+	"encoding/hex"
 	"errors"
 	"math"
 	"strings"
@@ -33,15 +34,25 @@ func (t Task) Validate(now time.Time) error {
 }
 
 type Result struct {
-	TaskID      string    `json:"task_id"`
-	ServiceID   string    `json:"service_id"`
-	Revision    uint64    `json:"revision"`
-	ScheduledAt time.Time `json:"scheduled_at"`
-	CompletedAt time.Time `json:"completed_at"`
-	Outcome     string    `json:"outcome"`
-	ErrorClass  string    `json:"error_class,omitempty"`
-	StatusCode  int       `json:"status_code,omitempty"`
-	DurationMS  float64   `json:"duration_ms"`
+	TaskID       string        `json:"task_id"`
+	ServiceID    string        `json:"service_id"`
+	Revision     uint64        `json:"revision"`
+	ScheduledAt  time.Time     `json:"scheduled_at"`
+	CompletedAt  time.Time     `json:"completed_at"`
+	Outcome      string        `json:"outcome"`
+	ErrorClass   string        `json:"error_class,omitempty"`
+	StatusCode   int           `json:"status_code,omitempty"`
+	DurationMS   float64       `json:"duration_ms"`
+	Certificates []Certificate `json:"certificates,omitempty"`
+}
+
+// Certificate carries leaf-certificate evidence without hostnames, subjects,
+// SANs or the certificate body. Entries follow TLS handshake order.
+type Certificate struct {
+	SHA256    string    `json:"sha256"`
+	NotBefore time.Time `json:"not_before"`
+	NotAfter  time.Time `json:"not_after"`
+	Verified  bool      `json:"verified"`
 }
 
 // ValidateFor checks a result against the Server's original task, not a task
@@ -60,13 +71,28 @@ func (r Result) ValidateFor(task Task, now time.Time) error {
 	if r.StatusCode != 0 && (r.StatusCode < 100 || r.StatusCode > 599) {
 		return errors.New("invalid HTTP result status")
 	}
+	allowed := false
+	for _, code := range task.Spec.StatusCodes {
+		if r.StatusCode == code {
+			allowed = true
+		}
+	}
+	if len(r.Certificates) > task.Spec.MaxRedirects+1 {
+		return errors.New("too many HTTP certificate observations")
+	}
+	for _, certificate := range r.Certificates {
+		fingerprint, err := hex.DecodeString(certificate.SHA256)
+		if err != nil || len(fingerprint) != 32 || certificate.NotBefore.IsZero() || !certificate.NotAfter.After(certificate.NotBefore) {
+			return errors.New("invalid HTTP certificate observation")
+		}
+		if r.Outcome == "success" && !certificate.Verified {
+			return errors.New("successful HTTP check has unverified certificate")
+		}
+	}
 	switch r.Outcome {
 	case "success":
-		allowed := false
-		for _, code := range task.Spec.StatusCodes {
-			if r.StatusCode == code {
-				allowed = true
-			}
+		if strings.HasPrefix(task.Spec.URL, "https:") && len(r.Certificates) == 0 {
+			return errors.New("successful HTTPS check requires certificate evidence")
 		}
 		if !allowed || r.ErrorClass != "" {
 			return errors.New("inconsistent successful HTTP result")
@@ -79,6 +105,12 @@ func (r Result) ValidateFor(task Task, now time.Time) error {
 		}
 		if (r.ErrorClass == "status_mismatch" || r.ErrorClass == "content_mismatch") && r.StatusCode == 0 {
 			return errors.New("HTTP response failure requires status")
+		}
+		if r.ErrorClass == "status_mismatch" && allowed {
+			return errors.New("status mismatch uses an allowed status")
+		}
+		if r.ErrorClass == "content_mismatch" && (task.Spec.Assertion == nil || !allowed) {
+			return errors.New("content mismatch requires an assertion and allowed status")
 		}
 	case "unobserved":
 		switch r.ErrorClass {

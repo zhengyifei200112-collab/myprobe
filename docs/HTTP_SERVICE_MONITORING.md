@@ -75,6 +75,16 @@ errors are unobserved and excluded from service success/failure counts. A succes
 requires an allowed HTTP status and no error class. Response status/content
 mismatches require an HTTP status. No arbitrary error message is transported.
 
+`certificates` contains at most `max_redirects + 1` leaf-certificate observations
+in TLS handshake order. Each includes a 32-byte SHA-256 fingerprint encoded as
+hex, a nonempty validity interval and verification flag. Subjects, SANs and raw
+certificates are excluded. An HTTPS success requires certificate evidence and
+every supplied certificate must be verified; certificates from HTTP-to-HTTPS
+redirects may also be supplied. Executor TLS verification is still mandatory:
+this validator checks result consistency, not certificate trust. Status mismatch
+must use a disallowed status; content mismatch requires an assertion and an
+allowed status, establishing status-before-content failure precedence.
+
 Task syntax validation cannot prove a target is safe to dial. The Agent executor
 must validate every resolved address, dial only the validated address, preserve
 the original HTTP host/TLS server name, and repeat checks at every redirect.
