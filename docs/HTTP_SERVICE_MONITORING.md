@@ -139,8 +139,12 @@ for mapped IPv4, private CIDR boundaries, forbidden ranges and local overrides.
 Private allowances must be contained in RFC1918 or ULA space; broad public,
 loopback or link-local allowances are rejected. Special address exclusions take
 precedence even over an allowed private CIDR. IPv6 outside global unicast
-allocation space is denied by default. This policy is not yet wired to DNS,
-dialing or redirects, so the presence of the helper does not enable HTTP probing.
+allocation space is denied by default. A guarded dialer resolves once, validates
+all answers before dialing, rejects mixed permitted/forbidden answers, and passes
+only validated literal IPs to the underlying TCP dialer. A new dial repeats DNS
+validation. At most 64 addresses are accepted. Tests use injected resolution and
+in-memory connections, not live public targets. HTTP transport and redirects are
+not yet connected to this dialer, so these helpers do not enable HTTP probing.
 
 Classify DNS, refused connection, timeout, TLS failure, expired certificate,
 status mismatch, content mismatch, oversized response and internal execution
