@@ -152,8 +152,13 @@ redirect URL is revalidated, and HTTPS downgrades are denied. Execution uses fou
 slots, one total deadline, a 64 KiB header limit and the decoded-body limit before
 assertions. TLS uses normal trust verification and TLS 1.2 minimum. Local HTTP
 tests cover GET/HEAD, status failures, oversized bodies, redirects, loops, private
-redirect rejection and timeout. TLS and cancellation acceptance remain in progress;
-Agent dispatch and result persistence are not yet wired.
+redirect rejection and timeout. Local TLS tests additionally cover trusted,
+untrusted, expired and hostname-mismatched certificates, certificate evidence and
+HTTPS downgrade rejection. A private test trust pool trusts only generated fixture
+certificates; production continues using system trust without a verification bypass.
+Compressed oversized bodies are limited after decoding. Four live blocked requests
+verify busy rejection, cancellation and release of all execution slots. Agent
+dispatch and result persistence are not yet wired.
 
 Classify DNS, refused connection, timeout, TLS failure, expired certificate,
 status mismatch, content mismatch, oversized response and internal execution

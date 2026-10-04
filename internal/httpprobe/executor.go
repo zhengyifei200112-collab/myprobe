@@ -20,8 +20,9 @@ import (
 var errRedirectLimit = errors.New("HTTP redirect limit")
 
 type Executor struct {
-	dialer guardedDialer
-	slots  chan struct{}
+	dialer  guardedDialer
+	slots   chan struct{}
+	rootCAs *x509.CertPool
 }
 
 func New(policy Policy) *Executor {
@@ -60,7 +61,7 @@ func (e *Executor) Execute(ctx context.Context, task httpcheck.Task) (result htt
 	certificates := make([]httpcheck.Certificate, 0, task.Spec.MaxRedirects+1)
 	transport := &http.Transport{
 		Proxy: nil, DialContext: e.dialer.DialContext, DisableKeepAlives: true, MaxResponseHeaderBytes: 64 << 10,
-		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, VerifyConnection: func(state tls.ConnectionState) error {
+		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: e.rootCAs, VerifyConnection: func(state tls.ConnectionState) error {
 			if len(state.PeerCertificates) > 0 {
 				leaf := state.PeerCertificates[0]
 				fingerprint := sha256.Sum256(leaf.Raw)
