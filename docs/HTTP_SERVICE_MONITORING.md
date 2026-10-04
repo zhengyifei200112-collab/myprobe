@@ -7,7 +7,8 @@ Implemented so far: `internal/protocol/httpcheck.Spec` validates the basic reque
 shape, resource limits and assertion shapes with boundary tests. Task/result
 binding validates IDs, configuration revision, planned slot and bounded times.
 The v2 envelope, mutual-capability helper and Server WebSocket endpoint are
-implemented; Agent transport selection and HTTP runtime integration remain pending. Syntax acceptance
+implemented, with Agent v2-first transport selection and bounded v1 fallback.
+HTTP runtime integration remains pending. Syntax acceptance
 does not allow a network request or waive the Agent address policy below.
 
 ## User outcome and delivery boundaries
@@ -50,6 +51,15 @@ The v2 welcome currently grants no HTTP extension because execution/ingestion ar
 not wired. HTTP messages therefore reach the unsupported-type response, not an
 execution path. Integration tests exercise real loopback v1/v2 handshakes,
 version-correct heartbeat acknowledgements and cross-version rejection.
+
+The Agent first dials the v2 path and retries v1 only on HTTP 404 or 405. It does
+not downgrade on authentication denial, network failure, server error, unexpected
+HTML or an invalid welcome. Reconnect attempts probe v2 again, allowing a Server
+upgrade to take effect. Socket reports, heartbeat and latency results retain the
+connection's selected version. HTTP hello/report fallback remains v1 and does not
+inherit the failed WebSocket frame's version. Every received socket frame is
+version-validated before processing. Full Agent/Server end-to-end compatibility
+and HTTP execution/result ingestion still require further acceptance evidence.
 
 ## Bounded check contract
 

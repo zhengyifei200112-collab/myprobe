@@ -11,6 +11,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Opt-in Agent v2 WebSocket endpoint with explicit version isolation and capability
   negotiation. Existing v1 clients remain supported; HTTP execution is not enabled.
+- Agent prefers v2 and falls back to v1 when that endpoint is absent (404/405),
+  while preserving v1 HTTP report fallback and refusing authentication-error downgrade.
 
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and

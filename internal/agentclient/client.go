@@ -31,17 +31,18 @@ type Config struct {
 }
 
 type Client struct {
-	config    Config
-	baseURL   *url.URL
-	collector *collector.Collector
-	logger    *slog.Logger
-	http      *http.Client
-	sequence  atomic.Uint64
-	reportNS  atomic.Int64
-	connMu    sync.RWMutex
-	writeMu   sync.Mutex
-	conn      *websocket.Conn
-	taskSlots chan struct{}
+	config      Config
+	baseURL     *url.URL
+	collector   *collector.Collector
+	logger      *slog.Logger
+	http        *http.Client
+	sequence    atomic.Uint64
+	reportNS    atomic.Int64
+	connMu      sync.RWMutex
+	writeMu     sync.Mutex
+	conn        *websocket.Conn
+	connVersion int
+	taskSlots   chan struct{}
 }
 
 func New(config Config, source *collector.Collector, logger *slog.Logger) (*Client, error) {
@@ -112,17 +113,7 @@ func (c *Client) connectionLoop(ctx context.Context) {
 }
 
 func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
-	wsURL := *c.baseURL
-	if wsURL.Scheme == "https" {
-		wsURL.Scheme = "wss"
-	} else {
-		wsURL.Scheme = "ws"
-	}
-	wsURL.Path = path.Join(wsURL.Path, "/api/v1/agent/ws")
-	header := http.Header{"Authorization": []string{"Bearer " + c.config.Token}}
-	dialCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	connection, response, err := websocket.Dial(dialCtx, wsURL.String(), &websocket.DialOptions{HTTPHeader: header, CompressionMode: websocket.CompressionDisabled})
-	cancel()
+	connection, response, version, err := c.dialPreferred(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -135,6 +126,7 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	envelope, err := protocol.NewEnvelope(protocol.TypeHello, c.sequence.Add(1), hello)
+	envelope.Version = version
 	if err != nil || wsjson.Write(ctx, connection, envelope) != nil {
 		connection.Close(websocket.StatusInternalError, "hello failed")
 		return false, errors.New("send hello")
@@ -143,19 +135,23 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 	readCtx, readCancel := context.WithTimeout(ctx, 10*time.Second)
 	err = wsjson.Read(readCtx, connection, &welcome)
 	readCancel()
-	if err != nil || welcome.Type != protocol.TypeWelcome {
+	if err != nil || welcome.Type != protocol.TypeWelcome || validateServerEnvelope(welcome, version) != nil {
 		connection.Close(websocket.StatusPolicyViolation, "welcome required")
 		return false, fmt.Errorf("server did not send welcome: read_error=%v message_type=%q extensions=%q", err, welcome.Type, negotiatedExtensions)
 	}
-	c.replaceConnection(connection)
+	c.replaceConnectionVersion(connection, version)
 	c.logger.Info("agent websocket connected", "server", c.baseURL.Host)
 	connectionCtx, stopHeartbeat := context.WithCancel(ctx)
 	defer stopHeartbeat()
-	go c.heartbeatLoop(connectionCtx, connection)
+	go c.heartbeatLoop(connectionCtx, connection, version)
 
 	for ctx.Err() == nil {
 		var message protocol.Envelope
 		if err := wsjson.Read(ctx, connection, &message); err != nil {
+			c.clearConnection(connection)
+			return true, err
+		}
+		if err := validateServerEnvelope(message, version); err != nil {
 			c.clearConnection(connection)
 			return true, err
 		}
@@ -178,7 +174,7 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 	return true, ctx.Err()
 }
 
-func (c *Client) heartbeatLoop(ctx context.Context, expected *websocket.Conn) {
+func (c *Client) heartbeatLoop(ctx context.Context, expected *websocket.Conn, version int) {
 	ticker := time.NewTicker(25 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -187,6 +183,7 @@ func (c *Client) heartbeatLoop(ctx context.Context, expected *websocket.Conn) {
 			return
 		case <-ticker.C:
 			envelope, err := protocol.NewEnvelope(protocol.TypeHeartbeat, c.sequence.Add(1), struct{}{})
+			envelope.Version = version
 			if err != nil {
 				continue
 			}
@@ -230,7 +227,8 @@ func (c *Client) sendLatencyResult(ctx context.Context, kind string, result prot
 	if err != nil {
 		return err
 	}
-	connection := c.currentConnection()
+	connection, version := c.currentConnectionVersion()
+	envelope.Version = version
 	if connection == nil {
 		return errors.New("agent websocket is disconnected")
 	}
@@ -274,10 +272,12 @@ func (c *Client) sendReport(ctx context.Context, report protocol.Report) error {
 	if err != nil {
 		return err
 	}
-	if connection := c.currentConnection(); connection != nil {
+	if connection, version := c.currentConnectionVersion(); connection != nil {
+		wireEnvelope := envelope
+		wireEnvelope.Version = version
 		writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		c.writeMu.Lock()
-		err = wsjson.Write(writeCtx, connection, envelope)
+		err = wsjson.Write(writeCtx, connection, wireEnvelope)
 		c.writeMu.Unlock()
 		cancel()
 		if err == nil {
@@ -342,9 +342,20 @@ func (c *Client) currentConnection() *websocket.Conn {
 }
 
 func (c *Client) replaceConnection(connection *websocket.Conn) {
+	c.replaceConnectionVersion(connection, protocol.Version)
+}
+
+func (c *Client) currentConnectionVersion() (*websocket.Conn, int) {
+	c.connMu.RLock()
+	defer c.connMu.RUnlock()
+	return c.conn, c.connVersion
+}
+
+func (c *Client) replaceConnectionVersion(connection *websocket.Conn, version int) {
 	c.connMu.Lock()
 	old := c.conn
 	c.conn = connection
+	c.connVersion = version
 	c.connMu.Unlock()
 	if old != nil && old != connection {
 		_ = old.Close(websocket.StatusNormalClosure, "replaced")
