@@ -134,6 +134,14 @@ metadata ranges, including IPv4-mapped IPv6. Default ports are 80/443. Additiona
 ports and private CIDRs require explicit local Agent configuration; no task field
 can relax this policy. Do not use ambient proxy settings or skip TLS validation.
 
+The initial `httpprobe.Policy` implements this address/port decision, with tests
+for mapped IPv4, private CIDR boundaries, forbidden ranges and local overrides.
+Private allowances must be contained in RFC1918 or ULA space; broad public,
+loopback or link-local allowances are rejected. Special address exclusions take
+precedence even over an allowed private CIDR. IPv6 outside global unicast
+allocation space is denied by default. This policy is not yet wired to DNS,
+dialing or redirects, so the presence of the helper does not enable HTTP probing.
+
 Classify DNS, refused connection, timeout, TLS failure, expired certificate,
 status mismatch, content mismatch, oversized response and internal execution
 failure without returning raw library errors. Return no body, credentials,
