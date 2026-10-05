@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Bounded administrator HTTP observation queries with private-spec exclusion,
+  null pending results and exact timestamp ordering (migration 020).
+
 - Administrator HTTP Services tab with configuration forms, observer selection,
   pagination, conflict-preserving edits and explicit history-deletion confirmation.
   JSON numeric assertions retain exact tokens; the page shows when Server execution

@@ -21,6 +21,20 @@ type httpServiceRequest struct {
 	NodeIDs         []string       `json:"node_ids"`
 }
 
+func (s *Server) recentHTTPResults(c *gin.Context) {
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	if err != nil || limit < 1 || limit > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be 1 to 100"})
+		return
+	}
+	items, err := s.store.RecentHTTPResults(c.Request.Context(), c.Param("serviceID"), limit)
+	if err != nil {
+		writeHTTPServiceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"observations": items, "execution_enabled": s.gateway.HTTPProbesEnabled()})
+}
+
 func (s *Server) listHTTPServices(c *gin.Context) {
 	limit, err := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	if err != nil || limit < 1 || limit > 100 || len(c.Query("after")) > 128 {

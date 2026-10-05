@@ -193,6 +193,22 @@ bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
 
+### Recent administrator observations
+
+`GET /api/v1/admin/service-monitors/:serviceID/results?limit=50` returns up to
+100 recent retained task observations. It uses the same administrator/no-store
+middleware as configuration reads. Each observation includes task/node/revision,
+scheduled/expiry times and a typed result or null. A null result is not a success
+or a confirmed service failure; the caller must distinguish waiting from expired
+and must not use this limited list to calculate availability.
+
+The response excludes task specs, target URLs and assertion contents, and includes
+only the protocol's bounded certificate summaries when available. Migration 020
+adds an expression index normalizing variable RFC3339Nano fractions for exact
+newest-first order, with ID as a stable tie-breaker. Building this index scans
+existing tasks once during upgrade. The query honors the durable retention floor.
+The observation list is a recent sample, not a paginated complete history API.
+
 ### Administrator UI
 
 The HTTP Services tab provides paginated configuration summaries, creation, editing

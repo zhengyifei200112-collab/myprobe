@@ -87,6 +87,17 @@ func TestHTTPTaskResultBinding(t *testing.T) {
 	if err = json.Unmarshal([]byte(encoded), &stored); err != nil || stored.StatusCode != 200 {
 		t.Fatalf("stored: %+v %v", stored, err)
 	}
+	base := now.Truncate(time.Second).Add(time.Second)
+	for _, offset := range []time.Duration{0, 100 * time.Millisecond, 110 * time.Millisecond, 110*time.Millisecond + time.Nanosecond} {
+		at := base.Add(offset)
+		if _, err = s.CreateHTTPTask(ctx, v.ID, node.ID, at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	recent, err := s.RecentHTTPResults(ctx, v.ID, 2)
+	if err != nil || len(recent) != 2 || !recent[0].ScheduledAt.Equal(base.Add(110*time.Millisecond+time.Nanosecond)) || !recent[1].ScheduledAt.Equal(base.Add(110*time.Millisecond)) || recent[0].Result != nil {
+		t.Fatalf("exact ordering: %+v %v", recent, err)
+	}
 
 	// A current task becomes ineligible as soon as configuration advances.
 	later := now.Add(time.Minute)

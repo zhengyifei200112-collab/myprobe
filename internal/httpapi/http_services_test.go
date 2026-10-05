@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
@@ -50,6 +51,22 @@ func TestHTTPServiceAdminConfiguration(t *testing.T) {
 		t.Fatalf("response: %+v", response)
 	}
 	resource := path + "/" + response.Service.ID
+	at := time.Now().UTC()
+	if _, err = db.CreateHTTPTask(context.Background(), response.Service.ID, node.ID, at, at); err != nil {
+		t.Fatal(err)
+	}
+	observed := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodGet, resource+"/results?limit=1", "")
+	if observed.Code != 200 || strings.Contains(observed.Body.String(), "private-marker") || !strings.Contains(observed.Body.String(), `"result":null`) || !strings.Contains(observed.Header().Get("Cache-Control"), "no-store") {
+		t.Fatalf("results: %d %s", observed.Code, observed.Body.String())
+	}
+	denied := httptest.NewRecorder()
+	handler.ServeHTTP(denied, httptest.NewRequest(http.MethodGet, resource+"/results", nil))
+	if denied.Code != 401 {
+		t.Fatalf("results auth: %d", denied.Code)
+	}
+	if r := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodGet, resource+"/results?limit=101", ""); r.Code != 400 {
+		t.Fatal(r.Code)
+	}
 	read := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodGet, resource, "")
 	if read.Code != 200 || !strings.Contains(read.Header().Get("Cache-Control"), "no-store") {
 		t.Fatalf("read: %d", read.Code)
