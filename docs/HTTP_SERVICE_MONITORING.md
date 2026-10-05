@@ -210,8 +210,12 @@ reports `http_services_created` and `http_services_updated` without committing r
 or returning generated Agent tokens. Exports and imports cap HTTP services at 1,000.
 An unassigned service left by node deletion can round-trip with no assignments; it
 cannot dispatch until nodes are selected. Normal create/edit APIs still require
-at least one node. The maintenance UI still needs to present these new preview
-counts before this transfer work is considered complete end-to-end.
+at least one node. The maintenance UI displays the HTTP create/update preview
+counts (zero for older responses), identifies configuration version 2, and explains
+assignment replacement before confirmation. `scripts/config-import-ui.cjs` verifies
+preview-only behavior, cancellation, and six light/dark viewport combinations
+against intercepted APIs. Real backend transfer behavior is covered separately by
+store/API tests; this browser fixture is not a live database import test.
 
 ### Administrator configuration API
 

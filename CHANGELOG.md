@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Configuration import preview displays HTTP service create/update counts and
+  explains assignment replacement; export copy identifies private URL/assertion data.
+
 - Configuration snapshot v2 transfers HTTP services and node assignments, with
   transactional dry-run/merge counts and v1 import compatibility. HTTP results,
   revision history and Agent-local network allowances are not transferred.

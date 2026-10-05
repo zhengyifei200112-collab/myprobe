@@ -408,7 +408,7 @@ async function exportConfigFile() {
   await run(async () => {
     const result = await downloadConfiguration()
     saveDownload(result.blob, result.filename)
-  }, '配置文件已导出；其中不包含密码、Token、通知凭据和历史数据。')
+  }, '配置文件已导出。文件包含服务目标 URL 和断言，请妥善保存；不包含密码、Token、通知凭据和历史数据。')
 }
 
 function selectConfigFile(event: Event) {
@@ -428,7 +428,7 @@ async function previewConfigImport() {
 
 async function applyConfigImport() {
   if (!configDocument.value || !configPreview.value) return
-  if (!confirm('确认以合并模式导入此配置？同 ID 项会更新，未出现在文件中的现有项会保留。')) return
+  if (!confirm('确认以合并模式导入此配置？同 ID 项会更新，未出现在文件中的现有项会保留。HTTP 服务的观测节点将按文件替换，配置版本会更新。')) return
   await run(async () => {
     const result = (await importConfiguration(configDocument.value, false)).result
     importTokens.value = result.agent_tokens || {}
@@ -582,15 +582,15 @@ onMounted(async () => {
       </template>
 
       <template v-else-if="tab === 'maintenance'">
-        <section class="admin-heading"><div><span class="eyebrow">PORTABILITY &amp; RECOVERY</span><h1>迁移与备份</h1><p>迁移可审阅配置，或创建包含全部数据的口令加密数据库备份。</p></div><span class="count-pill">版本 1</span></section>
+        <section class="admin-heading"><div><span class="eyebrow">PORTABILITY &amp; RECOVERY</span><h1>迁移与备份</h1><p>迁移可审阅配置，或创建包含全部数据的口令加密数据库备份。</p></div><span class="count-pill">配置版本 2</span></section>
         <div class="maintenance-grid">
           <section class="admin-panel maintenance-card">
-            <span class="eyebrow">SAFE CONFIG</span><h2>版本化配置</h2><p>JSON 配置不包含管理员密码、Agent Token、通知密文、分享密码和历史指标。导入默认使用合并模式。</p>
+            <span class="eyebrow">CONFIGURATION</span><h2>版本化配置</h2><p>JSON 配置包含 HTTP 服务目标 URL、断言和节点关联，请妥善保存。不包含管理员密码、Agent Token、通知密文、分享密码和历史指标。支持导入 v1 / v2 配置，使用合并模式。</p>
             <div class="maintenance-actions"><button class="primary-button" :disabled="busy" @click="exportConfigFile">导出配置 JSON</button></div>
             <div class="maintenance-divider"></div>
             <label class="file-field">选择配置文件<input type="file" accept="application/json,.json" @change="selectConfigFile"></label>
             <div class="form-actions"><button :disabled="busy || !configFile" @click="previewConfigImport">预检导入</button><button v-if="configPreview" class="primary-button" :disabled="busy" @click="applyConfigImport">确认合并导入</button></div>
-            <div v-if="configPreview" class="import-preview"><strong>预检结果</strong><span>节点：新增 {{ configPreview.nodes_created }} / 更新 {{ configPreview.nodes_updated }}</span><span>目标：新增 {{ configPreview.targets_created }} / 更新 {{ configPreview.targets_updated }}</span><span>目标组：新增 {{ configPreview.groups_created }} / 更新 {{ configPreview.groups_updated }}</span><span>新增关系：{{ configPreview.memberships_created }}</span></div>
+            <div v-if="configPreview" class="import-preview" role="status"><strong>预检结果</strong><span>节点：新增 {{ configPreview.nodes_created }} / 更新 {{ configPreview.nodes_updated }}</span><span>目标：新增 {{ configPreview.targets_created }} / 更新 {{ configPreview.targets_updated }}</span><span>目标组：新增 {{ configPreview.groups_created }} / 更新 {{ configPreview.groups_updated }}</span><span>HTTP 服务：新增 {{ configPreview.http_services_created ?? 0 }} / 更新 {{ configPreview.http_services_updated ?? 0 }}</span><span>新增关系：{{ configPreview.memberships_created }}</span><p>同 ID 的 HTTP 服务将替换观测节点并更新配置版本；文件中未出现的服务会保留。预检不保存修改，也不会启用服务端探测。</p></div>
           </section>
           <section class="admin-panel maintenance-card">
             <span class="eyebrow">FULL SNAPSHOT</span><h2>加密数据库备份</h2><p>包含认证数据、通知配置和全部历史。服务先生成 SQLite 一致快照，再使用口令分块加密。</p>

@@ -98,6 +98,8 @@ export interface ChartShare {
 }
 
 export interface ConfigImportResult {
+  http_services_created?: number
+  http_services_updated?: number
   nodes_created: number
   nodes_updated: number
   targets_created: number
