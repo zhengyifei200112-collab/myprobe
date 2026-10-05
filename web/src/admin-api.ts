@@ -165,6 +165,14 @@ export interface HTTPServiceConfig {
 export interface HTTPServiceSummary {
   id: string; revision: number; name: string; enabled: boolean; interval_seconds: number; node_count: number; updated_at: string
 }
+export interface HTTPObservation {
+  task_id: string; node_id: string; revision: number; scheduled_at: string; expires_at: string
+  result: null | {
+    completed_at: string; outcome: 'success' | 'failure' | 'unobserved'; error_class?: string; status_code?: number; duration_ms: number
+    certificates?: Array<{ sha256: string; not_before: string; not_after: string; verified: boolean }>
+  }
+}
+export const loadHTTPObservations = (id: string) => request<{ observations: HTTPObservation[]; execution_enabled: boolean; server_time: string }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/results?limit=50`)
 export const listHTTPServices = (after = '') => request<{ services: HTTPServiceSummary[]; next_cursor: string; execution_enabled: boolean }>(`/api/v1/admin/service-monitors?limit=50&after=${encodeURIComponent(after)}`)
 export const loadHTTPService = (id: string) => request<{ service: HTTPServiceConfig; execution_enabled: boolean }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}`, {}, text => {
   const result = JSON.parse(text)

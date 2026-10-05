@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Administrator HTTP recent-result panel with failure categories, explicit waiting
+  and missing states, and expandable certificate summaries. Status uses the Server
+  observation time; empty lists do not imply service health.
+
 - Bounded administrator HTTP observation queries with private-spec exclusion,
   null pending results and exact timestamp ordering (migration 020).
 

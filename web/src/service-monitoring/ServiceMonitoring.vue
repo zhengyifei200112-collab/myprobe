@@ -1,11 +1,31 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import type { NodeMetadata } from '../types'
-import { deleteHTTPService, listHTTPServices, loadHTTPService, saveHTTPService } from '../admin-api'
-import type { HTTPServiceConfig, HTTPServiceSummary } from '../admin-api'
+import { deleteHTTPService, listHTTPServices, loadHTTPService, loadHTTPObservations, saveHTTPService } from '../admin-api'
+import type { HTTPObservation, HTTPServiceConfig, HTTPServiceSummary } from '../admin-api'
 import { DsConfirmDialog } from '../design-system'
 
-defineProps<{ nodes: NodeMetadata[] }>()
+const props = defineProps<{ nodes: NodeMetadata[] }>()
+const observations = ref<HTTPObservation[]>([])
+const observedService = ref<HTTPServiceSummary | null>(null)
+const observedAt = ref(0)
+const reasons: Record<string, string> = { dns: 'DNS 解析失败', refused: '连接被拒绝', timeout: '请求超时', tls_invalid: 'TLS 验证失败', certificate_expired: '证书已过期', status_mismatch: '状态码不符合要求', content_mismatch: '内容断言不符合要求', response_too_large: '响应超过大小限制', redirect_limit: '重定向超过限制', unsupported: 'Agent 不支持', busy: 'Agent 繁忙', cancelled: '任务已取消', invalid_task: '任务无效', policy_denied: 'Agent 本地策略拒绝', internal: '执行器内部错误' }
+function timeLabel(value: string) { const date = new Date(value); return Number.isFinite(date.getTime()) ? date.toLocaleString() : '未知时间' }
+function nodeLabel(id: string) { return props.nodes.find(node => node.id === id)?.name || id }
+function outcomeLabel(item: HTTPObservation) {
+  if (!item.result) return observedAt.value > new Date(item.expires_at).getTime() + 60000 ? '未收到结果' : '等待回报'
+  return { success: '检查成功', failure: '检查失败', unobserved: '未执行有效检查' }[item.result.outcome] || '未知结果'
+}
+async function showObservations(item: HTTPServiceSummary) {
+  await run(async () => {
+    const response = await loadHTTPObservations(item.id)
+    if (!active) return
+    const stamp = new Date(response.server_time).getTime()
+    if (!Number.isFinite(stamp)) throw new Error('服务端未返回有效观测时间，请刷新重试。')
+    observations.value = response.observations; observedService.value = item
+    observedAt.value = stamp; execution.value = response.execution_enabled
+  })
+}
 const items = ref<HTTPServiceSummary[]>([])
 const cursor = ref('')
 const busy = ref(false)
@@ -69,7 +89,9 @@ async function remove() {
   await run(async () => {
     await deleteHTTPService(item.id, item.revision)
     if (!active) return
-    deleting.value = null; notice.value = '服务及其历史数据已删除。'; await refresh()
+    deleting.value = null
+    if (observedService.value?.id === item.id) { observedService.value = null; observations.value = [] }
+    notice.value = '服务及其历史数据已删除。'; await refresh()
   })
 }
 onMounted(() => run(() => refresh()))
@@ -105,8 +127,25 @@ onMounted(() => run(() => refresh()))
     </form>
     <div class="form-actions"><button :disabled="busy" @click="run(() => refresh())">刷新服务列表</button><span v-if="busy" role="status">正在处理…</span></div>
     <p v-if="loaded && !items.length" class="admin-panel">暂无 HTTP 服务。新建服务后可选择观测节点与检查条件。</p>
-    <div class="admin-list"><article v-for="item in items" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><strong>{{ item.name }}</strong><span>{{ item.enabled ? '配置已启用' : '配置已停用' }}</span></div><div class="entity-meta"><span>{{ item.node_count }} 个观测节点</span><span>每 {{ item.interval_seconds }} 秒</span><span>配置版本 {{ item.revision }}</span></div><p v-if="!item.node_count">未分配节点，无法执行检查。</p><div class="entity-actions"><button :disabled="busy" @click="edit(item.id)">编辑服务</button><button class="danger-link" :disabled="busy" @click="deleting = item">删除服务</button></div></article></div>
+    <div class="admin-list"><article v-for="item in items" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><strong>{{ item.name }}</strong><span>{{ item.enabled ? '配置已启用' : '配置已停用' }}</span></div><div class="entity-meta"><span>{{ item.node_count }} 个观测节点</span><span>每 {{ item.interval_seconds }} 秒</span><span>配置版本 {{ item.revision }}</span></div><p v-if="!item.node_count">未分配节点，无法执行检查。</p><div class="entity-actions"><button :disabled="busy" @click="showObservations(item)">最近结果</button><button :disabled="busy" @click="edit(item.id)">编辑服务</button><button class="danger-link" :disabled="busy" @click="deleting = item">删除服务</button></div></article></div>
     <button v-if="cursor" :disabled="busy" @click="run(() => refresh(true))">加载更多服务</button>
+    <section v-if="observedService" class="admin-panel observation-panel" aria-label="最近检查结果">
+      <h2>{{ observedService.name }} · 最近检查</h2>
+      <p>最多显示最近 50 条已派发任务，不能据此计算可用率。时间按浏览器本地时区显示。</p>
+      <p>截至服务端时间：{{ timeLabel(new Date(observedAt).toISOString()) }}。等待状态以本次读取时刻为准。</p>
+      <div class="form-actions"><button :disabled="busy" @click="showObservations(observedService)">刷新结果</button><button :disabled="busy" @click="observedService = null">关闭结果</button></div>
+      <p v-if="!observations.length">暂无保留的检查任务；这不表示服务正常。</p>
+      <ol v-else class="observation-list">
+        <li v-for="item in observations" :key="item.task_id">
+          <div class="entity-title"><strong>{{ nodeLabel(item.node_id) }} → {{ observedService.name }}</strong><span>{{ outcomeLabel(item) }}</span></div>
+          <p>计划 {{ timeLabel(item.scheduled_at) }} · 配置版本 {{ item.revision }}</p>
+          <p v-if="item.result">{{ item.result.status_code ? `HTTP ${item.result.status_code} · ` : '' }}耗时 {{ item.result.duration_ms.toFixed(1) }} ms · {{ timeLabel(item.result.completed_at) }}<span v-if="item.result.error_class"> · {{ reasons[item.result.error_class] || '未知错误分类' }}</span></p>
+          <p v-else>回报宽限期结束后仍无结果，将显示为未收到结果。</p>
+          <details v-if="item.result?.certificates?.length"><summary>证书摘要（{{ item.result.certificates.length }}）</summary><div v-for="(certificate, index) in item.result.certificates" :key="index" class="certificate-summary"><p>{{ certificate.verified ? '探测时验证通过' : '未验证' }} · 有效期 {{ timeLabel(certificate.not_before) }} 至 {{ timeLabel(certificate.not_after) }}</p><code>SHA-256 {{ certificate.sha256 }}</code></div></details>
+          <p v-else-if="item.result">本次无证书摘要。</p>
+        </li>
+      </ol>
+    </section>
     <DsConfirmDialog :open="!!deleting" title="删除 HTTP 服务" :description="`删除「${deleting?.name || ''}」及其节点关联、任务和历史数据？此操作不可撤销。`" confirm-label="删除服务和历史" danger :busy="busy" @cancel="!busy && (deleting = null)" @confirm="remove" />
   </section>
 </template>
@@ -118,4 +157,9 @@ onMounted(() => run(() => refresh()))
 .assignment-box { min-width: 0; }
 .service-monitoring .entity-title { flex-wrap: wrap; gap: 12px; }
 .service-monitoring .entity-title strong { overflow-wrap: anywhere; min-width: 0; }
+.observation-panel { padding: 24px; min-width: 0; }
+.observation-list { list-style: none; padding: 0; margin: 20px 0 0; }
+.observation-list li { border-top: 1px solid var(--border-subtle); padding: 18px 0; }
+.certificate-summary code { overflow-wrap: anywhere; white-space: normal; }
+.observation-panel h2 { overflow-wrap: anywhere; }
 </style>

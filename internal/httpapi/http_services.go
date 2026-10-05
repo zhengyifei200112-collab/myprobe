@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/httpcheck"
@@ -32,7 +33,7 @@ func (s *Server) recentHTTPResults(c *gin.Context) {
 		writeHTTPServiceError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"observations": items, "execution_enabled": s.gateway.HTTPProbesEnabled()})
+	c.JSON(http.StatusOK, gin.H{"observations": items, "execution_enabled": s.gateway.HTTPProbesEnabled(), "server_time": time.Now().UTC()})
 }
 
 func (s *Server) listHTTPServices(c *gin.Context) {

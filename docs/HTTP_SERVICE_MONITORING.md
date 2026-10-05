@@ -193,6 +193,22 @@ bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
 
+### Recent-result UI
+
+Each administrator service card opens a recent-observation panel showing node,
+configuration revision, schedule time, status code, duration and localized failure
+classification. Success, failure, unobserved execution, waiting and missing results
+are separate labels. Waiting/missing is calculated at the returned `server_time`,
+including receipt grace, rather than from the browser clock. The panel states its
+snapshot time and provides manual refresh; displayed dates use browser-local time.
+
+Certificate details show validation at probe time, validity dates and SHA-256
+fingerprints, without implying that historical evidence describes the current
+certificate. An empty result list does not claim health, and refresh failures keep
+the prior dated snapshot with an error message. The recent list is not an uptime
+calculation. The browser fixture now covers all outcome labels, certificate expansion,
+empty results and refresh failures across six theme/viewport combinations.
+
 ### Recent administrator observations
 
 `GET /api/v1/admin/service-monitors/:serviceID/results?limit=50` returns up to

@@ -10,15 +10,25 @@ const assert = require('node:assert/strict');
   try {
     for (const theme of ['light', 'dark']) for (const width of [360, 768, 1440]) {
       const page = await browser.newPage({ viewport: { width, height: 1000 }, colorScheme: theme });
-      let service = null, conflict = false, deletes = 0, lastWrite = '';
+      let service = null, conflict = false, deletes = 0, lastWrite = '', observationMode = 'normal';
       const errors = [];
       page.on('pageerror', error => { errors.push(error.message); console.error(error.message); });
-      page.on('console', message => { if (message.type() === 'error') console.error(message.text()); });
       await page.route('**/api/**', async route => {
         const request = route.request(), url = new URL(request.url());
         let body = {}, status = 200;
         if (url.pathname.includes('/service-monitors')) {
-          if (request.method() === 'POST') { service = { ...request.postDataJSON(), id: 'fixture', revision: 1 }; status = 201; body = { service, execution_enabled: false }; }
+          if (url.pathname.endsWith('/results')) {
+            const now = new Date('2026-10-05T12:00:00Z');
+            const observed = (id, result, expires) => ({ task_id: id, node_id: 'node', revision: 1, scheduled_at: '2026-10-05T11:55:00Z', expires_at: expires || '2026-10-05T11:55:05Z', result });
+            body = { execution_enabled: false, server_time: now.toISOString(), observations: [
+              observed('success', { outcome: 'success', status_code: 200, duration_ms: 42.5, completed_at: '2026-10-05T11:55:01Z', certificates: [{ sha256: 'ab'.repeat(32), not_before: '2026-09-01T00:00:00Z', not_after: '2026-12-01T00:00:00Z', verified: true }] }),
+              observed('failure', { outcome: 'failure', status_code: 500, duration_ms: 12, error_class: 'status_mismatch', completed_at: '2026-10-05T11:55:01Z' }),
+              observed('busy', { outcome: 'unobserved', duration_ms: 0, error_class: 'busy', completed_at: '2026-10-05T11:55:01Z' }),
+              observed('missing', null), observed('pending', null, '2026-10-05T12:00:05Z')
+            ] };
+            if (observationMode === 'empty') body.observations = [];
+            if (observationMode === 'error') { status = 500; body = { error: 'fixture results unavailable' }; }
+          } else if (request.method() === 'POST') { service = { ...request.postDataJSON(), id: 'fixture', revision: 1 }; status = 201; body = { service, execution_enabled: false }; }
           else if (request.method() === 'PUT') {
             lastWrite = request.postData();
             if (conflict) { status = 409; body = { error: 'service configuration changed; reload before saving' }; }
@@ -50,6 +60,22 @@ const assert = require('node:assert/strict');
       await page.getByRole('button', { name: '编辑服务', exact: true }).waitFor();
       assert.equal(service.spec.assertion.text, 'healthy');
       assert.equal(service.spec.timeout_ms, 5000);
+      await page.getByRole('button', { name: '最近结果', exact: true }).click();
+      const panel = page.getByRole('region', { name: '最近检查结果' });
+      for (const text of ['检查成功', '检查失败', '未执行有效检查', '未收到结果', '等待回报']) await panel.getByText(text, { exact: true }).waitFor();
+      await panel.locator('summary').click();
+      await panel.getByText('SHA-256 ' + 'ab'.repeat(32), { exact: true }).waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'result overflow');
+      await panel.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(output, `${theme}-${width}-results.png`), fullPage: true });
+      observationMode = 'error';
+      await panel.getByRole('button', { name: '刷新结果', exact: true }).click();
+      await page.getByRole('alert').getByText('fixture results unavailable').waitFor();
+      await panel.getByText('检查成功', { exact: true }).waitFor();
+      observationMode = 'empty';
+      await panel.getByRole('button', { name: '刷新结果', exact: true }).click();
+      await panel.getByText('暂无保留的检查任务；这不表示服务正常。', { exact: true }).waitFor();
+      await page.getByRole('button', { name: '关闭结果', exact: true }).click();
       await page.getByRole('button', { name: '编辑服务', exact: true }).click();
       await page.getByRole('combobox', { name: /^内容断言/ }).selectOption('json_equals');
       await page.getByLabel('预期 JSON 值', { exact: true }).fill('9007199254740993');
