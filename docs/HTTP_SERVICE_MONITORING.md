@@ -193,6 +193,21 @@ bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
 
+### Administrator statistics endpoint
+
+`GET /api/v1/admin/service-monitors/:serviceID/statistics` requires `node_id`,
+`start` and `end` (RFC3339 timestamps, at most 31 days, a nonempty half-open range).
+It returns the per-observer `statistics`, `server_time`, execution gate and an
+explicit `maintenance_excluded: false` until shared maintenance integration lands.
+This flag must be shown by consumers; these numbers are not maintenance-adjusted
+availability or SLA. The query has a five-second context deadline and requires an
+existing node and service. Removed assignments can still be queried while their
+node and retained history exist. Unknown resources return 404, invalid ranges 400.
+
+Administrator authentication and no-store caching apply. Responses contain no
+target URL or assertion. Empty denominators remain null and the requested/effective
+range plus both history boundaries explain which period was actually counted.
+
 ### Unreconstructable schedule boundaries
 
 Statistics now report `schedule_known_from` separately from `retained_from` and

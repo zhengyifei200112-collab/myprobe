@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Administrator per-node HTTP statistics API with bounded ranges, query timeout,
+  explicit history boundaries and maintenance-adjustment status. No SLA claim is made.
+
 - HTTP statistics disclose the known schedule-history boundary and exclude
   unreconstructable pre-migration revisions from the effective coverage window.
 

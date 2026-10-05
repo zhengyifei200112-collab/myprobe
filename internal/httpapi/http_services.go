@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -20,6 +21,25 @@ type httpServiceRequest struct {
 	IntervalSeconds int            `json:"interval_seconds"`
 	Spec            httpcheck.Spec `json:"spec"`
 	NodeIDs         []string       `json:"node_ids"`
+}
+
+func (s *Server) httpServiceStatistics(c *gin.Context) {
+	start, startErr := time.Parse(time.RFC3339Nano, c.Query("start"))
+	end, endErr := time.Parse(time.RFC3339Nano, c.Query("end"))
+	nodeID := c.Query("node_id")
+	if startErr != nil || endErr != nil || nodeID == "" || len(nodeID) > 128 || !end.After(start) || end.Sub(start) > 31*24*time.Hour || start.Year() < 1970 || end.Year() > 2100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "node_id and a valid start/end range of at most 31 days are required"})
+		return
+	}
+	now := time.Now().UTC()
+	queryCtx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+	stats, err := s.store.HTTPServiceStatistics(queryCtx, c.Param("serviceID"), nodeID, start, end, now)
+	if err != nil {
+		writeHTTPServiceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"statistics": stats, "node_id": nodeID, "server_time": now, "maintenance_excluded": false, "execution_enabled": s.gateway.HTTPProbesEnabled()})
 }
 
 func (s *Server) recentHTTPResults(c *gin.Context) {

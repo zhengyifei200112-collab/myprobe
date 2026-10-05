@@ -113,6 +113,7 @@ func (s *Server) routes() {
 	services.DELETE("/:serviceID", s.deleteHTTPService)
 	services.GET("/:serviceID", s.getHTTPService)
 	services.GET("/:serviceID/results", s.recentHTTPResults)
+	services.GET("/:serviceID/statistics", s.httpServiceStatistics)
 	services.PUT("/:serviceID", s.replaceHTTPService)
 	admin.GET("/nodes", s.adminNodes)
 	admin.POST("/nodes", s.createNode)

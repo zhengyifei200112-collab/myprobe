@@ -49,6 +49,12 @@ func (s *Store) HTTPServiceStatistics(ctx context.Context, serviceID, nodeID str
 		return result, err
 	}
 	defer tx.Rollback()
+	var nodeExists int
+	if err = tx.QueryRowContext(ctx, `SELECT 1 FROM nodes WHERE id=?`, nodeID).Scan(&nodeExists); errors.Is(err, sql.ErrNoRows) {
+		return result, ErrNotFound
+	} else if err != nil {
+		return result, err
+	}
 	var created, updated string
 	var revision int64
 	if err = tx.QueryRowContext(ctx, `SELECT created_at,updated_at,revision FROM http_services WHERE id=?`, serviceID).Scan(&created, &updated, &revision); errors.Is(err, sql.ErrNoRows) {

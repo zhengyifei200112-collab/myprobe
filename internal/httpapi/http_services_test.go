@@ -51,6 +51,24 @@ func TestHTTPServiceAdminConfiguration(t *testing.T) {
 		t.Fatalf("response: %+v", response)
 	}
 	resource := path + "/" + response.Service.ID
+	statsPath := resource + "/statistics?node_id=" + node.ID + "&start=2026-01-01T00:00:00Z&end=2026-01-01T01:00:00Z"
+	statsResponse := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodGet, statsPath, "")
+	if statsResponse.Code != 200 || !strings.Contains(statsResponse.Body.String(), `"maintenance_excluded":false`) || !strings.Contains(statsResponse.Body.String(), `"coverage":null`) || !strings.Contains(statsResponse.Header().Get("Cache-Control"), "no-store") || strings.Contains(statsResponse.Body.String(), "private-marker") {
+		t.Fatalf("statistics: %d %s", statsResponse.Code, statsResponse.Body.String())
+	}
+	for _, query := range []string{"", "?node_id=" + node.ID + "&start=invalid&end=2026-01-01T01:00:00Z", "?node_id=" + node.ID + "&start=2026-01-01T00:00:00Z&end=2026-03-01T00:00:00Z"} {
+		if r := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodGet, resource+"/statistics"+query, ""); r.Code != 400 {
+			t.Fatalf("statistics validation: %d", r.Code)
+		}
+	}
+	if r := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodGet, strings.Replace(statsPath, node.ID, "missing-node", 1), ""); r.Code != 404 {
+		t.Fatalf("missing observer: %d", r.Code)
+	}
+	statsDenied := httptest.NewRecorder()
+	handler.ServeHTTP(statsDenied, httptest.NewRequest(http.MethodGet, statsPath, nil))
+	if statsDenied.Code != 401 {
+		t.Fatalf("statistics auth: %d", statsDenied.Code)
+	}
 	at := time.Now().UTC()
 	if _, err = db.CreateHTTPTask(context.Background(), response.Service.ID, node.ID, at, at); err != nil {
 		t.Fatal(err)
