@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- HTTP per-observer statistics panel with sample counts, success/coverage rates,
+  null-denominator labels, explicit effective ranges and maintenance limitations.
+
 - Administrator per-node HTTP statistics API with bounded ranges, query timeout,
   explicit history boundaries and maintenance-adjustment status. No SLA claim is made.
 

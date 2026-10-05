@@ -10,14 +10,19 @@ const assert = require('node:assert/strict');
   try {
     for (const theme of ['light', 'dark']) for (const width of [360, 768, 1440]) {
       const page = await browser.newPage({ viewport: { width, height: 1000 }, colorScheme: theme });
-      let service = null, conflict = false, deletes = 0, lastWrite = '', observationMode = 'normal';
+      let service = null, conflict = false, deletes = 0, lastWrite = '', observationMode = 'normal', statisticsMode = 'normal';
       const errors = [];
       page.on('pageerror', error => { errors.push(error.message); console.error(error.message); });
       await page.route('**/api/**', async route => {
         const request = route.request(), url = new URL(request.url());
         let body = {}, status = 200;
         if (url.pathname.includes('/service-monitors')) {
-          if (url.pathname.endsWith('/results')) {
+          if (url.pathname.endsWith('/statistics')) {
+            assert.equal(url.searchParams.get('node_id'), 'node');
+            body = { node_id: 'node', server_time: '2026-10-05T12:00:00Z', maintenance_excluded: false, execution_enabled: false, statistics: { requested_start: url.searchParams.get('start'), requested_end: url.searchParams.get('end'), start: '2026-10-05T10:00:00Z', end: '2026-10-05T11:57:54Z', retained_from: '2026-09-05T00:00:00Z', schedule_known_from: '2026-10-05T10:00:00Z', expected: 8, success: 1, failure: 1, missing: 6, unobserved: 2, success_rate: 0.5, coverage: 0.25 } };
+            if (statisticsMode === 'empty') Object.assign(body.statistics, { end: body.statistics.start, expected: 0, success: 0, failure: 0, missing: 0, unobserved: 0, success_rate: null, coverage: null });
+            if (statisticsMode === 'error') { status = 500; body = { error: 'fixture statistics unavailable' }; }
+          } else if (url.pathname.endsWith('/results')) {
             const now = new Date('2026-10-05T12:00:00Z');
             const observed = (id, result, expires) => ({ task_id: id, node_id: 'node', revision: 1, scheduled_at: '2026-10-05T11:55:00Z', expires_at: expires || '2026-10-05T11:55:05Z', result });
             body = { execution_enabled: false, server_time: now.toISOString(), observations: [
@@ -76,6 +81,26 @@ const assert = require('node:assert/strict');
       await panel.getByRole('button', { name: '刷新结果', exact: true }).click();
       await panel.getByText('暂无保留的检查任务；这不表示服务正常。', { exact: true }).waitFor();
       await page.getByRole('button', { name: '关闭结果', exact: true }).click();
+      await page.getByRole('button', { name: '检测统计', exact: true }).click();
+      const statistics = page.getByRole('region', { name: '服务检测统计' });
+      await statistics.getByRole('button', { name: '查询统计', exact: true }).click();
+      await statistics.getByText('50.00%', { exact: true }).waitFor();
+      await statistics.getByText('25.00%', { exact: true }).waitFor();
+      await statistics.getByText('尚未排除维护窗口', { exact: false }).waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, 'statistics overflow');
+      await statistics.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(output, `${theme}-${width}-statistics.png`), fullPage: true });
+      await statistics.getByRole('combobox', { name: /^统计时间范围/ }).selectOption('1');
+      assert.equal(await statistics.getByText('50.00%', { exact: true }).count(), 0, 'stale range data');
+      statisticsMode = 'empty';
+      await statistics.getByRole('button', { name: '查询统计', exact: true }).click();
+      await statistics.getByText('无有效样本', { exact: true }).waitFor();
+      await statistics.getByText('无计划样本', { exact: true }).waitFor();
+      statisticsMode = 'error';
+      await statistics.getByRole('button', { name: '查询统计', exact: true }).click();
+      await statistics.getByRole('alert').waitFor();
+      assert.equal(await statistics.getByText('无有效样本', { exact: true }).count(), 0, 'failed query kept old rates');
+      await statistics.getByRole('button', { name: '关闭统计', exact: true }).click();
       await page.getByRole('button', { name: '编辑服务', exact: true }).click();
       await page.getByRole('combobox', { name: /^内容断言/ }).selectOption('json_equals');
       await page.getByLabel('预期 JSON 值', { exact: true }).fill('9007199254740993');

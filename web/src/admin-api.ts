@@ -173,6 +173,14 @@ export interface HTTPObservation {
   }
 }
 export const loadHTTPObservations = (id: string) => request<{ observations: HTTPObservation[]; execution_enabled: boolean; server_time: string }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/results?limit=50`)
+export interface HTTPStatisticsResponse {
+  node_id: string; server_time: string; maintenance_excluded: boolean; execution_enabled: boolean
+  statistics: {
+    requested_start: string; requested_end: string; start: string; end: string; retained_from: string; schedule_known_from: string
+    expected: number; success: number; failure: number; unobserved: number; missing: number; success_rate: number | null; coverage: number | null
+  }
+}
+export const loadHTTPStatistics = (id: string, nodeID: string, start: string, end: string) => request<HTTPStatisticsResponse>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/statistics?${new URLSearchParams({ node_id: nodeID, start, end })}`)
 export const listHTTPServices = (after = '') => request<{ services: HTTPServiceSummary[]; next_cursor: string; execution_enabled: boolean }>(`/api/v1/admin/service-monitors?limit=50&after=${encodeURIComponent(after)}`)
 export const loadHTTPService = (id: string) => request<{ service: HTTPServiceConfig; execution_enabled: boolean }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}`, {}, text => {
   const result = JSON.parse(text)

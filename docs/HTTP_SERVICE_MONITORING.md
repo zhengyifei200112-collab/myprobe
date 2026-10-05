@@ -193,6 +193,21 @@ bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
 
+### Statistics UI
+
+The administrator service card opens a per-node statistics panel with 1-hour,
+24-hour, 7-day and 30-day ranges. It defaults to an assigned node when available,
+and also permits querying existing former observers. Requests are explicit; changing
+node or range clears the prior result, and failed queries never retain rates under
+the new controls. Closing a panel ignores any response arriving after unmount.
+
+The panel shows success/failure/expected/missing/unobserved counts, success rate and
+coverage, with distinct null-denominator labels. It displays requested/effective
+times, retained-history and known-schedule starts, Server observation time, the
+126-second maturity explanation and the maintenance-not-excluded limitation.
+These are per-observer measurements, not a combined multi-node SLA. Browser fixture
+checks cover values, empty denominators, changed ranges and failures in six layouts.
+
 ### Administrator statistics endpoint
 
 `GET /api/v1/admin/service-monitors/:serviceID/statistics` requires `node_id`,

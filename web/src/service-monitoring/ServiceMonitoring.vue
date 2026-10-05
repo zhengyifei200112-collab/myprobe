@@ -4,10 +4,12 @@ import type { NodeMetadata } from '../types'
 import { deleteHTTPService, listHTTPServices, loadHTTPService, loadHTTPObservations, saveHTTPService } from '../admin-api'
 import type { HTTPObservation, HTTPServiceConfig, HTTPServiceSummary } from '../admin-api'
 import { DsConfirmDialog } from '../design-system'
+import HTTPStatisticsPanel from './HTTPStatisticsPanel.vue'
 
 const props = defineProps<{ nodes: NodeMetadata[] }>()
 const observations = ref<HTTPObservation[]>([])
 const observedService = ref<HTTPServiceSummary | null>(null)
+const statisticsService = ref<HTTPServiceSummary | null>(null)
 const observedAt = ref(0)
 const reasons: Record<string, string> = { dns: 'DNS 解析失败', refused: '连接被拒绝', timeout: '请求超时', tls_invalid: 'TLS 验证失败', certificate_expired: '证书已过期', status_mismatch: '状态码不符合要求', content_mismatch: '内容断言不符合要求', response_too_large: '响应超过大小限制', redirect_limit: '重定向超过限制', unsupported: 'Agent 不支持', busy: 'Agent 繁忙', cancelled: '任务已取消', invalid_task: '任务无效', policy_denied: 'Agent 本地策略拒绝', internal: '执行器内部错误' }
 function timeLabel(value: string) { const date = new Date(value); return Number.isFinite(date.getTime()) ? date.toLocaleString() : '未知时间' }
@@ -90,6 +92,7 @@ async function remove() {
     await deleteHTTPService(item.id, item.revision)
     if (!active) return
     deleting.value = null
+    if (statisticsService.value?.id === item.id) statisticsService.value = null
     if (observedService.value?.id === item.id) { observedService.value = null; observations.value = [] }
     notice.value = '服务及其历史数据已删除。'; await refresh()
   })
@@ -127,8 +130,9 @@ onMounted(() => run(() => refresh()))
     </form>
     <div class="form-actions"><button :disabled="busy" @click="run(() => refresh())">刷新服务列表</button><span v-if="busy" role="status">正在处理…</span></div>
     <p v-if="loaded && !items.length" class="admin-panel">暂无 HTTP 服务。新建服务后可选择观测节点与检查条件。</p>
-    <div class="admin-list"><article v-for="item in items" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><strong>{{ item.name }}</strong><span>{{ item.enabled ? '配置已启用' : '配置已停用' }}</span></div><div class="entity-meta"><span>{{ item.node_count }} 个观测节点</span><span>每 {{ item.interval_seconds }} 秒</span><span>配置版本 {{ item.revision }}</span></div><p v-if="!item.node_count">未分配节点，无法执行检查。</p><div class="entity-actions"><button :disabled="busy" @click="showObservations(item)">最近结果</button><button :disabled="busy" @click="edit(item.id)">编辑服务</button><button class="danger-link" :disabled="busy" @click="deleting = item">删除服务</button></div></article></div>
+    <div class="admin-list"><article v-for="item in items" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><strong>{{ item.name }}</strong><span>{{ item.enabled ? '配置已启用' : '配置已停用' }}</span></div><div class="entity-meta"><span>{{ item.node_count }} 个观测节点</span><span>每 {{ item.interval_seconds }} 秒</span><span>配置版本 {{ item.revision }}</span></div><p v-if="!item.node_count">未分配节点，无法执行检查。</p><div class="entity-actions"><button :disabled="busy" @click="showObservations(item)">最近结果</button><button :disabled="busy" @click="statisticsService = item">检测统计</button><button :disabled="busy" @click="edit(item.id)">编辑服务</button><button class="danger-link" :disabled="busy" @click="deleting = item">删除服务</button></div></article></div>
     <button v-if="cursor" :disabled="busy" @click="run(() => refresh(true))">加载更多服务</button>
+    <HTTPStatisticsPanel v-if="statisticsService" :key="statisticsService.id" :service-i-d="statisticsService.id" :service-name="statisticsService.name" :nodes="nodes" @close="statisticsService = null" />
     <section v-if="observedService" class="admin-panel observation-panel" aria-label="最近检查结果">
       <h2>{{ observedService.name }} · 最近检查</h2>
       <p>最多显示最近 50 条已派发任务，不能据此计算可用率。时间按浏览器本地时区显示。</p>
