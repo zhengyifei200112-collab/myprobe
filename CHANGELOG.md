@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Opt-in Server HTTP execution with `MYPROBE_HTTP_PROBES_ENABLED=true`, defaulting
+  to disabled, and real Agent/scheduler/result-storage coverage for policy denial.
+  Maintenance integration and HTTP incident/certificate notifications remain pending.
+
 - HTTP per-observer statistics panel with sample counts, success/coverage rates,
   null-denominator labels, explicit effective ranges and maintenance limitations.
 

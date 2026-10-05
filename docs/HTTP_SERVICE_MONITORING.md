@@ -8,8 +8,10 @@ shape, resource limits and assertion shapes with boundary tests. Task/result
 binding validates IDs, configuration revision, planned slot and bounded times.
 The v2 envelope, mutual-capability helper and Server WebSocket endpoint are
 implemented, with Agent v2-first transport selection and bounded v1 fallback.
-Agent execution/result transport is connected; Server ingestion and scheduling
-remain pending. Syntax acceptance
+Agent execution, Server ingestion, durable scheduling, configuration transfer,
+management UI and per-observer statistics are connected. Production execution is
+opt-in; maintenance integration, service alerts and release acceptance remain open.
+Syntax acceptance
 does not allow a network request or waive the Agent address policy below.
 
 ## User outcome and delivery boundaries
@@ -48,9 +50,9 @@ the existing bearer-token authentication and hello validation. Each connection
 requires its endpoint's envelope version, including subsequent heartbeat/report
 frames. Responses and latency task dispatch use that same version. A node still
 has one active session; a newer authenticated connection replaces the older one.
-The Server v2 welcome currently grants no HTTP extension because ingestion and
-scheduling are not wired. Incoming HTTP results therefore reach the unsupported-type response, not an
-execution path. Integration tests exercise real loopback v1/v2 handshakes,
+The Server v2 welcome grants HTTP only when the Server execution flag is enabled
+and the Agent advertises support. Results require an admitted task on the current
+authenticated session. Integration tests exercise real loopback v1/v2 handshakes,
 version-correct heartbeat acknowledgements and cross-version rejection.
 
 The Agent first dials the v2 path and retries v1 only on HTTP 404 or 405. It does
@@ -165,7 +167,7 @@ tasks. Work is cancelled with its connection; replies use the original socket,
 never a replacement session or the metrics HTTP fallback. A real v2 session test
 verifies a negotiated loopback task returns policy-denied without dialing it.
 Local CIDRs/ports are accepted by Client configuration and Agent flags/environment
-variables described below. Server result persistence remains pending.
+variables described below. The Gateway persists admitted results in the Store.
 
 ### Agent-local deployment configuration
 
@@ -182,8 +184,8 @@ HTTP probes into that private subnet and adds port 8080. Address and port lists
 are independent: added ports also apply to otherwise permitted public targets.
 There is no per-subnet port mapping. Loopback, link-local and explicitly blocked
 metadata addresses remain denied. Restart the Agent after changing local policy.
-These options do not enable Server scheduling: the current Server still grants
-no HTTP capability until dispatch and result persistence are implemented.
+These options configure Agent policy independently of the Server execution flag
+`MYPROBE_HTTP_PROBES_ENABLED` described below.
 
 Classify DNS, refused connection, timeout, TLS failure, expired certificate,
 status mismatch, content mismatch, oversized response and internal execution
@@ -192,6 +194,21 @@ resolved addresses, redirect URLs or response headers. Certificate evidence is
 bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
+
+### Runtime activation
+
+Set `MYPROBE_HTTP_PROBES_ENABLED=true` on the Server and restart it to start the
+HTTP scheduler and offer HTTP capability to compatible connecting Agents. The
+default is false; invalid boolean values fail startup. Agent-local target policy
+still applies. Only enabled services assigned to capable sessions can execute;
+v1 sessions never receive HTTP tasks. Set the flag to false and restart to stop
+future dispatch while preserving configuration and retained history.
+
+A real Agent/Gateway/SQLite/scheduler test verifies negotiation, periodic dispatch,
+result persistence and statistics for policy denial without opening a target
+socket. It does not establish the live successful HTTP/browser path. Maintenance
+exclusion, service incidents, certificate notifications, historical binary
+compatibility and capacity acceptance remain release work.
 
 ### Statistics UI
 
@@ -324,7 +341,7 @@ enabled configuration does not itself enable production dispatch. A stale revisi
 returns 409; malformed configuration or nonexistent selected nodes returns 400;
 missing reads return 404. Internal storage errors are generic 500 responses.
 Audit records include only revision, enabled state and selected-node count, never
-target URLs or assertion contents. UI and configuration transfer remain pending;
+target URLs or assertion contents. UI and configuration transfer are implemented;
 no public service configuration route is provided.
 
 `GET /api/v1/admin/service-monitors?limit=50&after=ID` lists summaries ordered by
@@ -413,12 +430,10 @@ Four workers bound concurrent dispatch and each write has a deadline. Configurat
 updates reset the schedule anchor; task creation rejects slots predating that
 revision, and removed assignments are removed from the scheduler's memory.
 
-This scheduler is implemented and tested but not yet started by production main.
-Expected-slot accounting must retain configuration history so offline or missed
-slots can be shown as missing even when no task row exists. Counting only stored
-tasks as expected checks would overstate coverage and is not an acceptable
-statistics implementation. Retention and queries remain part of this feature's
-release gate.
+Production main starts this scheduler only when the execution flag is true.
+Schedule epochs retain revision/assignment history so offline and missed slots
+count as missing even without task rows. Bounded statistics and retention are
+implemented; maintenance exclusions and sustained-load acceptance remain open.
 
 ### Configuration storage foundation
 
@@ -432,9 +447,9 @@ URLs remain private configuration and must not be serialized into public views.
 
 The migration number must be reconciled with other unpublished branches before
 merge (batch management and incidents have separate migrations). Existing tables
-and data are unchanged. Database snapshots include the new tables; configuration
-export/import support, service APIs, scheduling, transport ingestion and retention
-remain to be implemented before enabling this capability. No downgrade procedure
+and data are unchanged. Database snapshots include the new tables. Configuration
+export/import, service APIs, scheduling, transport ingestion and retention are
+implemented as described in this document. No downgrade procedure
 for the new schema is claimed; use a pre-upgrade backup when reverting.
 
 ### Durable tasks and result admission
@@ -457,9 +472,9 @@ sending and allows at most four outstanding tasks per session; expired entries
 are pruned after the receipt grace. Failed writes leave an unobserved durable slot,
 not a fabricated service failure. Acknowledgements follow successful storage only.
 Duplicate, unsolicited and replacement-session results are rejected. Existing v1
-sessions never receive HTTP tasks. Production startup does not enable the gate yet.
-Retention, expected-slot accounting, restart dispatch policy and statistical queries
-remain required before enabling the feature. Deleting a service or node cascades
+sessions never receive HTTP tasks. Production startup enables the gate only with
+the explicit execution flag. Retention, expected-slot accounting, restart dispatch
+policy and statistical queries are implemented. Deleting a service or node cascades
 its task records, so historical views must explain that deletion removes that data.
 
 Use local controllable HTTP/TLS servers and injected resolvers/dialers. Cover 200,

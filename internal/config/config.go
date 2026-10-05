@@ -11,16 +11,17 @@ import (
 )
 
 type Config struct {
-	ListenAddress  string
-	DatabasePath   string
-	AdminUsername  string
-	AdminPassword  string
-	EncryptionKey  string
-	SessionTTL     time.Duration
-	CookieSecure   bool
-	TrustedProxies []string
-	Retention      Retention
-	PublicHTTPAck  bool
+	ListenAddress     string
+	DatabasePath      string
+	AdminUsername     string
+	AdminPassword     string
+	EncryptionKey     string
+	SessionTTL        time.Duration
+	CookieSecure      bool
+	TrustedProxies    []string
+	Retention         Retention
+	PublicHTTPAck     bool
+	HTTPProbesEnabled bool
 }
 
 type Retention struct {
@@ -46,6 +47,13 @@ func Load() (Config, error) {
 			FiveMinute: 365 * 24 * time.Hour,
 			Interval:   time.Hour,
 		},
+	}
+	if raw := strings.TrimSpace(os.Getenv("MYPROBE_HTTP_PROBES_ENABLED")); raw != "" {
+		var err error
+		cfg.HTTPProbesEnabled, err = strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, errors.New("MYPROBE_HTTP_PROBES_ENABLED must be a boolean")
+		}
 	}
 	if raw := strings.TrimSpace(os.Getenv("MYPROBE_TRUSTED_PROXIES")); raw != "" {
 		for _, item := range strings.Split(raw, ",") {

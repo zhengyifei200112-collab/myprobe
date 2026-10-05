@@ -66,6 +66,11 @@ func main() {
 	defer cancelRun()
 	latencyScheduler := scheduler.New(database, gateway, logger)
 	go latencyScheduler.Run(runCtx)
+	if cfg.HTTPProbesEnabled {
+		gateway.EnableHTTPProbes(true)
+		go scheduler.NewHTTP(database, gateway, logger).Run(runCtx)
+		logger.Info("HTTP service probing enabled", "maintenance_excluded", false)
+	}
 	alertService := alerts.New(database, cfg.EncryptionKey, nil, logger)
 	go alertService.Run(runCtx)
 	go runRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger)

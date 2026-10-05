@@ -11,6 +11,17 @@
 
 ## Feature parity matrix
 
+HTTP monitoring is experimental and opt-in via the Server environment variable
+`MYPROBE_HTTP_PROBES_ENABLED=true` (default false; restart required). The current
+implementation includes negotiated v2 execution, bounded GET/HEAD checks, private
+administrator configuration/results, certificate evidence and per-observer
+statistics. Policy rejection counts as unobserved, not a target failure. See
+[HTTP service monitoring](HTTP_SERVICE_MONITORING.md) for contracts and evidence.
+Maintenance-adjusted statistics, HTTP incidents, certificate reminders, live
+successful end-to-end acceptance and capacity validation remain incomplete.
+Configuration enablement alone does not start execution; v1 Agents remain supported
+for their existing capabilities and never receive HTTP tasks.
+
 | Area | Requirement | Acceptance evidence | Status |
 | --- | --- | --- | --- |
 | Public overview | Current time, online/offline counts, aggregate traffic and rate | Responsive browser tests and live API data | Implemented |
