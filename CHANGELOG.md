@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Administrator HTTP Services tab with configuration forms, observer selection,
+  pagination, conflict-preserving edits and explicit history-deletion confirmation.
+  JSON numeric assertions retain exact tokens; the page shows when Server execution
+  is disabled. Result and certificate views remain under development.
+
 - Configuration import preview displays HTTP service create/update counts and
   explains assignment replacement; export copy identifies private URL/assertion data.
 

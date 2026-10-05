@@ -193,6 +193,24 @@ bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
 
+### Administrator UI
+
+The HTTP Services tab provides paginated configuration summaries, creation, editing
+and revision-checked deletion. The form includes GET/HEAD, allowed statuses, interval,
+timeout, redirect/body limits, text/JSON assertions and 1–100 observation nodes.
+HEAD submits no content assertion. JSON numeric expectations retain their original
+tokens during load/save instead of passing through JavaScript floating-point
+serialization; a browser regression covers 9007199254740993. Null assertions remain
+null when edited. Form data stays visible when a stale revision causes a conflict.
+
+The page explicitly distinguishes enabled configuration from the Server execution
+gate; when the gate is off, it says checks do not run. It does not fabricate health
+or availability statuses. Deletion confirms removal of configuration and history.
+Agent-local address policy is explained without suggesting the form can override it.
+`scripts/http-services-ui.cjs` checks create, numeric round-trip, conflict, cancel
+and delete with intercepted APIs at 360/768/1440 px in both themes. Live-backend UI
+acceptance, result/certificate views, maintenance and alert integration remain.
+
 ### Configuration transfer v2
 
 Configuration export now emits version 2 with an optional `http_services` array
