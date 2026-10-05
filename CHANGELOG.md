@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Configuration snapshot v2 transfers HTTP services and node assignments, with
+  transactional dry-run/merge counts and v1 import compatibility. HTTP results,
+  revision history and Agent-local network allowances are not transferred.
+
 - Paginated administrator HTTP service summaries and revision-checked deletion,
   including associated task/history cleanup. Summary responses omit target URLs.
 

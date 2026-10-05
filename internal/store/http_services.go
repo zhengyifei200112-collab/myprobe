@@ -32,6 +32,10 @@ type HTTPService struct {
 }
 
 func (v HTTPService) validate() error {
+	return v.validateAllowEmptyNodes(false)
+}
+
+func (v HTTPService) validateAllowEmptyNodes(allowEmpty bool) error {
 	if strings.TrimSpace(v.Name) == "" || len(v.Name) > 128 || !utf8.ValidString(v.Name) || strings.IndexFunc(v.Name, unicode.IsControl) >= 0 {
 		return errors.New("invalid service name")
 	}
@@ -41,7 +45,7 @@ func (v HTTPService) validate() error {
 	if err := v.Spec.Validate(); err != nil {
 		return err
 	}
-	if len(v.NodeIDs) == 0 || len(v.NodeIDs) > 100 {
+	if (!allowEmpty && len(v.NodeIDs) == 0) || len(v.NodeIDs) > 100 {
 		return errors.New("service requires 1 to 100 nodes")
 	}
 	seen := make(map[string]bool)

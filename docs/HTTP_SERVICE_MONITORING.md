@@ -193,6 +193,26 @@ bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
 
+### Configuration transfer v2
+
+Configuration export now emits version 2 with an optional `http_services` array
+containing IDs, editable specs and node assignments. Version 1 imports remain
+supported, but v1 documents containing HTTP service fields are rejected. Transfers
+exclude task results, historical revisions, certificates and Agent-local network
+allowances. Exported URLs and assertions are private configuration; treat this
+administrator download as sensitive deployment data rather than a diagnostic file.
+
+Import merges by service ID within the existing all-or-nothing transaction, including
+nodes and other configuration. Imported service assignments replace that service's
+current assignments; omitted services remain unchanged. Existing services advance
+their revision and start new schedule epochs, invalidating old tasks. Import preview
+reports `http_services_created` and `http_services_updated` without committing rows
+or returning generated Agent tokens. Exports and imports cap HTTP services at 1,000.
+An unassigned service left by node deletion can round-trip with no assignments; it
+cannot dispatch until nodes are selected. Normal create/edit APIs still require
+at least one node. The maintenance UI still needs to present these new preview
+counts before this transfer work is considered complete end-to-end.
+
 ### Administrator configuration API
 
 `POST /api/v1/admin/service-monitors` creates a service, `GET` on
