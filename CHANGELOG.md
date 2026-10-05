@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- HTTP statistics disclose the known schedule-history boundary and exclude
+  unreconstructable pre-migration revisions from the effective coverage window.
+
 - Administrator HTTP recent-result panel with failure categories, explicit waiting
   and missing states, and expandable certificate summaries. Status uses the Server
   observation time; empty lists do not imply service health.

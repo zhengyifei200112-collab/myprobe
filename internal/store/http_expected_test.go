@@ -72,4 +72,12 @@ func TestHTTPExpectedSurvivesRevisionAndDisable(t *testing.T) {
 	if err != nil || n != 1 {
 		t.Fatalf("migration anchor: %d %v", n, err)
 	}
+	stats, err := s.HTTPServiceStatistics(ctx, v.ID, node.ID, v.CreatedAt.Add(-time.Minute), v.UpdatedAt.Add(time.Minute), v.UpdatedAt.Add(5*time.Minute))
+	if err != nil || !stats.ScheduleKnownFrom.Equal(v.UpdatedAt) || !stats.Start.Equal(v.UpdatedAt) || stats.Expected != 2 {
+		t.Fatalf("unknown prior revisions: %+v %v", stats, err)
+	}
+	prior, err := s.HTTPServiceStatistics(ctx, v.ID, node.ID, v.UpdatedAt.Add(-time.Minute), v.UpdatedAt, v.UpdatedAt.Add(5*time.Minute))
+	if err != nil || !prior.Start.Equal(prior.End) || prior.Expected != 0 || prior.Coverage != nil || prior.SuccessRate != nil {
+		t.Fatalf("unreconstructable history: %+v %v", prior, err)
+	}
 }

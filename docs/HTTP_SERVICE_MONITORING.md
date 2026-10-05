@@ -193,6 +193,17 @@ bounded and excludes arbitrary certificate subject strings.
 
 ## Required evidence before release
 
+### Unreconstructable schedule boundaries
+
+Statistics now report `schedule_known_from` separately from `retained_from` and
+clamp effective start to both. If revision 1's epoch survives, configuration history
+starts at service creation. Otherwise a multi-revision service conservatively starts
+at its earliest surviving epoch, or its latest configuration time when no epochs
+remain. This avoids treating pre-migration revisions as complete zero-observation
+history. A wholly unknown window has an empty effective interval and null rates.
+Disabled initial intervals may conservatively be excluded when their absence cannot
+be distinguished from missing old history; the API/UI must display this limitation.
+
 ### Recent-result UI
 
 Each administrator service card opens a recent-observation panel showing node,

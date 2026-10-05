@@ -13,18 +13,19 @@ import (
 // HTTPStatistics is an internal per-observer summary, before maintenance support.
 // Rates use fractions [0,1], with nil for an empty denominator.
 type HTTPStatistics struct {
-	RequestedStart time.Time `json:"requested_start"`
-	RequestedEnd   time.Time `json:"requested_end"`
-	RetainedFrom   time.Time `json:"retained_from"`
-	Start          time.Time `json:"start"`
-	End            time.Time `json:"end"`
-	Expected       int64     `json:"expected"`
-	Success        int64     `json:"success"`
-	Failure        int64     `json:"failure"`
-	Unobserved     int64     `json:"unobserved"`
-	Missing        int64     `json:"missing"`
-	SuccessRate    *float64  `json:"success_rate"`
-	Coverage       *float64  `json:"coverage"`
+	RequestedStart    time.Time `json:"requested_start"`
+	RequestedEnd      time.Time `json:"requested_end"`
+	RetainedFrom      time.Time `json:"retained_from"`
+	ScheduleKnownFrom time.Time `json:"schedule_known_from"`
+	Start             time.Time `json:"start"`
+	End               time.Time `json:"end"`
+	Expected          int64     `json:"expected"`
+	Success           int64     `json:"success"`
+	Failure           int64     `json:"failure"`
+	Unobserved        int64     `json:"unobserved"`
+	Missing           int64     `json:"missing"`
+	SuccessRate       *float64  `json:"success_rate"`
+	Coverage          *float64  `json:"coverage"`
 }
 
 // HTTPServiceStatistics summarizes only mature slots: the conservative 126s lag
@@ -48,11 +49,32 @@ func (s *Store) HTTPServiceStatistics(ctx context.Context, serviceID, nodeID str
 		return result, err
 	}
 	defer tx.Rollback()
-	var exists int
-	if err = tx.QueryRowContext(ctx, `SELECT 1 FROM http_services WHERE id=?`, serviceID).Scan(&exists); errors.Is(err, sql.ErrNoRows) {
+	var created, updated string
+	var revision int64
+	if err = tx.QueryRowContext(ctx, `SELECT created_at,updated_at,revision FROM http_services WHERE id=?`, serviceID).Scan(&created, &updated, &revision); errors.Is(err, sql.ErrNoRows) {
 		return result, ErrNotFound
 	} else if err != nil {
 		return result, err
+	}
+	result.ScheduleKnownFrom, err = parseTime(created)
+	if err != nil {
+		return result, err
+	}
+	// A pre-epoch database cannot reconstruct older revisions. Conservatively
+	// restrict to the earliest surviving service epoch unless revision 1 survives.
+	// This is service-wide: a node without assignments still has zero expected slots.
+	var firstRevision, firstAnchor sql.NullInt64
+	if err = tx.QueryRowContext(ctx, `SELECT MIN(revision),MIN(start_ns) FROM http_schedule_epochs WHERE service_id=?`, serviceID).Scan(&firstRevision, &firstAnchor); err != nil {
+		return result, err
+	}
+	if revision > 1 && (!firstRevision.Valid || firstRevision.Int64 > 1) {
+		result.ScheduleKnownFrom, err = parseTime(updated)
+		if err != nil {
+			return result, err
+		}
+		if firstAnchor.Valid {
+			result.ScheduleKnownFrom = time.Unix(0, firstAnchor.Int64).UTC()
+		}
 	}
 	var floor int64
 	if err = tx.QueryRowContext(ctx, `SELECT retained_from_ns FROM http_history_state WHERE id=1`).Scan(&floor); err != nil {
@@ -61,6 +83,9 @@ func (s *Store) HTTPServiceStatistics(ctx context.Context, serviceID, nodeID str
 	result.RetainedFrom = time.Unix(0, floor).UTC()
 	if result.Start.Before(result.RetainedFrom) {
 		result.Start = result.RetainedFrom
+	}
+	if result.Start.Before(result.ScheduleKnownFrom) {
+		result.Start = result.ScheduleKnownFrom
 	}
 	if result.Start.After(result.End) {
 		result.Start = result.End
