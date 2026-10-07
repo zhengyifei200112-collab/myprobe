@@ -3,6 +3,7 @@ package agentclient
 import (
 	"context"
 	"io"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +36,9 @@ func TestHTTPPeriodicCheckWithPrivateTarget(t *testing.T) {
 		{"head", "/", "HEAD", "", "success", ""},
 		{"status", "/failure", "GET", "", "failure", "status_mismatch"},
 		{"content", "/", "GET", "absent", "failure", "content_mismatch"},
+		{"redirect", "/redirect", "GET", "", "failure", "redirect_limit"},
+		{"oversized", "/oversized", "GET", "", "failure", "response_too_large"},
+		{"timeout", "/slow", "GET", "", "failure", "timeout"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			spec := httpcheck.Spec{URL: targetURL + tc.path, Method: tc.method, StatusCodes: []int{200}, TimeoutMS: 2000, MaxBodyBytes: 1024}
@@ -45,7 +50,17 @@ func TestHTTPPeriodicCheckWithPrivateTarget(t *testing.T) {
 	}
 }
 
+func TestHTTPSPeriodicCheckRejectsUntrustedCertificate(t *testing.T) {
+	config, targetURL := startPrivateTarget(t, true)
+	runHTTPPeriodicCheck(t, config, httpcheck.Spec{URL: targetURL + "/", Method: "GET", StatusCodes: []int{200}, TimeoutMS: 2000, MaxBodyBytes: 1024}, "failure", "tls_invalid")
+}
+
 func startPrivateHTTPTarget(t *testing.T) (Config, string) {
+	t.Helper()
+	return startPrivateTarget(t, false)
+}
+
+func startPrivateTarget(t *testing.T, useTLS bool) (Config, string) {
 	t.Helper()
 	if os.Getenv("MYPROBE_TEST_PRIVATE_HTTP") != "1" {
 		t.Skip("set MYPROBE_TEST_PRIVATE_HTTP=1 in an isolated environment")
@@ -71,19 +86,37 @@ func startPrivateHTTPTarget(t *testing.T) (Config, string) {
 		t.Fatal("private fixture listener unavailable")
 	}
 	target := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/failure" {
+		switch r.URL.Path {
+		case "/failure":
 			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		case "/redirect":
+			http.Redirect(w, r, "/redirect", http.StatusFound)
+			return
+		case "/oversized":
+			_, _ = io.WriteString(w, strings.Repeat("x", 2048))
+			return
+		case "/slow":
+			<-r.Context().Done()
 			return
 		}
 		_, _ = io.WriteString(w, "fixture healthy")
 	}))
 	target.Listener.Close()
 	target.Listener = listener
-	target.Start()
+	// Expected TLS handshake errors must not print fixture interface addresses.
+	target.Config.ErrorLog = log.New(io.Discard, "", 0)
+	scheme := "http://"
+	if useTLS {
+		target.StartTLS()
+		scheme = "https://"
+	} else {
+		target.Start()
+	}
 	t.Cleanup(target.Close)
 	port := listener.Addr().(*net.TCPAddr).Port
 	config := Config{HTTPPrivateCIDRs: []string{address.String() + "/32"}, HTTPAdditionalPorts: []int{port}}
-	return config, "http://" + net.JoinHostPort(address.String(), strconv.Itoa(port))
+	return config, scheme + net.JoinHostPort(address.String(), strconv.Itoa(port))
 }
 
 func runHTTPPeriodicCheck(t *testing.T, agentConfig Config, spec httpcheck.Spec, outcome, errorClass string) {
@@ -151,6 +184,9 @@ func runHTTPPeriodicCheck(t *testing.T, agentConfig Config, spec httpcheck.Spec,
 		if len(observations) > 0 && observations[0].Result != nil {
 			if len(observations) != 1 || observations[0].Result.Outcome != outcome || observations[0].Result.ErrorClass != errorClass {
 				t.Fatalf("unexpected result: %+v", observations)
+			}
+			if errorClass == "tls_invalid" && (observations[0].Result.StatusCode != 0 || len(observations[0].Result.Certificates) != 0) {
+				t.Fatal("failed TLS handshake produced HTTP status or verified certificate evidence")
 			}
 			stats, err := db.HTTPServiceStatistics(ctx, service.ID, node.ID, service.UpdatedAt, service.UpdatedAt.Add(30*time.Second), service.UpdatedAt.Add(5*time.Minute))
 			if err != nil || stats.Expected != 1 {

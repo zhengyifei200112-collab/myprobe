@@ -207,7 +207,7 @@ future dispatch while preserving configuration and retained history.
 A real Agent/Gateway/SQLite/scheduler test verifies negotiation, periodic dispatch,
 result persistence and statistics for policy denial without opening a target
 socket. Opt-in private-target tests additionally exercise real successful GET/HEAD,
-status mismatch and content mismatch using the unchanged production executor and
+status/content mismatch, redirect limits, oversized bodies and timeout using the unchanged production executor and
 address policy. Maintenance exclusion, service incidents, certificate notifications,
 historical binary compatibility and capacity acceptance remain release work.
 
@@ -221,7 +221,9 @@ responses, DNS resolution, dial functions or clocks are mocked.
 
 The browser creates a service, observes HTTP success, reloads and verifies retained
 results, edits the target to return 503, verifies the failure category, then deletes
-the service. All six light/dark and 360/768/1440 px combinations pass with no page
+the service. It also edits the service to a locally generated untrusted HTTPS
+target, verifies TLS failure and absence of verified certificate summaries.
+All six light/dark and 360/768/1440 px combinations pass with no page
 errors or horizontal overflow on the successful result view. Screenshots are saved
 to a new OS temporary directory. Credentials and the target address are not printed.
 
@@ -237,15 +239,19 @@ PowerShell invocation from the repository root:
 $env:MYPROBE_TEST_PRIVATE_HTTP = '1'
 $env:MYPROBE_TEST_HTTP_BROWSER = '1'
 # Set PLAYWRIGHT_MODULE to an installed Playwright module if Node cannot resolve it.
-go test ./internal/agentclient -run 'TestHTTP(BrowserLive|PeriodicCheck)' -count=1 -v
+go test ./internal/agentclient -run 'TestHTTP(S?PeriodicCheck|BrowserLive)' -count=1 -v
 Remove-Item Env:MYPROBE_TEST_PRIVATE_HTTP, Env:MYPROBE_TEST_HTTP_BROWSER
 ```
 
 Without these flags the default test suite skips the environment-dependent paths;
 a normal CI pass does not establish that live acceptance ran. The browser script
 is `scripts/http-services-live-ui.cjs`; it is launched by the Go fixture rather than
-against an existing deployment. This acceptance does not cover live HTTPS certificate
-trust, mature browser statistics after the grace window, process restart, historical
+against an existing deployment. TLS rejection is also verified through the real
+Agent and Store: failure count increases, missing count stays zero, and neither
+HTTP status nor verified certificate evidence is fabricated after handshake failure.
+No trust roots are installed and certificate validation remains enabled.
+This acceptance does not cover a successfully trusted live HTTPS certificate,
+mature browser statistics after the grace window, process restart, historical
 release binaries or sustained load. Separate executor tests cover generated TLS
 fixtures, and Store tests cover statistical boundaries.
 

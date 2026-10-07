@@ -6,7 +6,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 (async () => {
   const base = process.env.UI_BASE_URL;
-  assert.ok(base && process.env.HTTP_FIXTURE_TARGET && process.env.HTTP_FIXTURE_PASSWORD);
+  assert.ok(base && process.env.HTTP_FIXTURE_TARGET && process.env.HTTPS_FIXTURE_TARGET && process.env.HTTP_FIXTURE_PASSWORD);
   const output = await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'myprobe-http-live-'));
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
   try {
@@ -30,10 +30,10 @@ const path = require('node:path');
       await page.getByRole('button', { name: '保存服务', exact: true }).click();
       await page.getByRole('button', { name: '最近结果', exact: true }).click();
       const panel = page.getByRole('region', { name: '最近检查结果' });
-      async function waitForOutcome(label) {
+      async function waitForOutcome(label, exact = true) {
         const deadline = Date.now() + 15000;
         while (Date.now() < deadline) {
-          if (await panel.getByText(label, { exact: true }).count()) return;
+          if (await panel.getByText(label, { exact }).count()) return;
           await panel.getByRole('button', { name: '刷新结果', exact: true }).click();
           await page.waitForTimeout(250);
         }
@@ -55,12 +55,20 @@ const path = require('node:path');
       await waitForOutcome('检查失败');
       await panel.getByText('状态码不符合要求', { exact: false }).waitFor();
       await page.screenshot({ path: path.join(output, `${theme}-${width}-failure.png`), fullPage: true });
+      await panel.getByRole('button', { name: '关闭结果', exact: true }).click();
+      await page.getByRole('button', { name: '编辑服务', exact: true }).click();
+      await page.getByLabel('目标 URL', { exact: true }).fill(`${process.env.HTTPS_FIXTURE_TARGET}/`);
+      await page.getByRole('button', { name: '保存服务', exact: true }).click();
+      await page.getByRole('button', { name: '最近结果', exact: true }).click();
+      await waitForOutcome('TLS 验证失败', false);
+      assert.equal(await panel.locator('summary').count(), 0, 'untrusted TLS must not display verified certificates');
+      await page.screenshot({ path: path.join(output, `${theme}-${width}-tls-failure.png`), fullPage: true });
       await page.getByRole('button', { name: '删除服务', exact: true }).click();
       await page.getByRole('button', { name: '删除服务和历史', exact: true }).click();
       await page.getByText('暂无 HTTP 服务。', { exact: false }).waitFor();
       assert.deepEqual(errors, []);
       await context.close();
     }
-    console.log(`Live HTTP create/execute/reload/edit/delete passed six viewport/theme combinations. Screenshots: ${output}`);
+    console.log(`Live HTTP create/execute/reload/edit/delete and HTTPS rejection passed six viewport/theme combinations. Screenshots: ${output}`);
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

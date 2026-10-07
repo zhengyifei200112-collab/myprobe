@@ -27,6 +27,9 @@ func TestHTTPBrowserLive(t *testing.T) {
 		t.Skip("opt-in browser integration requires Node, Playwright and a private interface")
 	}
 	agentConfig, targetURL := startPrivateHTTPTarget(t)
+	tlsConfig, tlsTargetURL := startPrivateTarget(t, true)
+	agentConfig.HTTPPrivateCIDRs = append(agentConfig.HTTPPrivateCIDRs, tlsConfig.HTTPPrivateCIDRs...)
+	agentConfig.HTTPAdditionalPorts = append(agentConfig.HTTPAdditionalPorts, tlsConfig.HTTPAdditionalPorts...)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "browser.db"))
@@ -77,7 +80,7 @@ func TestHTTPBrowserLive(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	command := exec.CommandContext(ctx, "node", filepath.Join("..", "..", "scripts", "http-services-live-ui.cjs"))
-	command.Env = append(os.Environ(), "UI_BASE_URL="+server.URL, "HTTP_FIXTURE_TARGET="+targetURL, "HTTP_FIXTURE_PASSWORD="+password)
+	command.Env = append(os.Environ(), "UI_BASE_URL="+server.URL, "HTTP_FIXTURE_TARGET="+targetURL, "HTTPS_FIXTURE_TARGET="+tlsTargetURL, "HTTP_FIXTURE_PASSWORD="+password)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("live browser failed: %v\n%s", err, output)
