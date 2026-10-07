@@ -31,9 +31,10 @@ Administrator previews and evaluation must use this same resolution contract.
 
 ## Remaining implementation and release gates
 
-1. Connect persistence to semantic rule-configuration validation in the alert service
-   before exposing writes. The Store validates object shape/size, known rule kinds,
-   cooldown range, scope and references; it does not validate per-kind thresholds.
+1. Route future administrative writes through `alerts.Service.SavePolicy`, which
+   rejects unknown configuration fields, malformed/trailing JSON, invalid thresholds
+   and missing templates, and reuses legacy rule defaults. The Store separately
+   validates object shape/size, known kinds, cooldown, scope and references.
 2. Migrate legacy single-node rules to equivalent explicit policies. Preserve stable
    incident identities, active state, original thresholds/channels and pending delivery;
    a migration must not trigger mass notifications. Decide and test the adapter before
