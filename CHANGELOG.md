@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Internal scoped alert-policy storage and effective-policy resolution with
+  revision checks and transactional conflict detection (migration 021). Runtime
+  evaluation, administration and legacy-rule migration remain in development.
+
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
   independent public, admin, and login background presentation.

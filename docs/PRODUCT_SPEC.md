@@ -11,6 +11,13 @@
 
 ## Feature parity matrix
 
+Scoped alert-policy inheritance (ALT-02) is in development. Its internal resolver
+and revisioned persistence support global, tag and explicit-node scopes, conflict
+validation and snapshot-based effective-policy previews. Existing single-node
+rules remain the runtime authority; no policy administration UI or API is exposed
+yet. Legacy-state migration, evaluator integration and configuration transfer are
+release gates. See [alert policy design](ALERT_POLICIES.md).
+
 | Area | Requirement | Acceptance evidence | Status |
 | --- | --- | --- | --- |
 | Public overview | Current time, online/offline counts, aggregate traffic and rate | Responsive browser tests and live API data | Implemented |
