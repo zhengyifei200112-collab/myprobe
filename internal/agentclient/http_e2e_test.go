@@ -4,9 +4,13 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
+	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,6 +22,72 @@ import (
 )
 
 func TestHTTPPeriodicCheckThroughRealAgentAndGateway(t *testing.T) {
+	runHTTPPeriodicCheck(t, Config{}, httpcheck.Spec{URL: "http://127.0.0.1/", Method: "GET", StatusCodes: []int{200}, TimeoutMS: 1000, MaxBodyBytes: 1024}, "unobserved", "policy_denied")
+}
+
+// Opt-in because this opens a temporary listener on a private interface. It uses
+// the unmodified production executor and address policy, with no dial injection.
+func TestHTTPPeriodicCheckWithPrivateTarget(t *testing.T) {
+	config, targetURL := startPrivateHTTPTarget(t)
+	for _, tc := range []struct{ name, path, method, expected, outcome, class string }{
+		{"success", "/", "GET", "healthy", "success", ""},
+		{"head", "/", "HEAD", "", "success", ""},
+		{"status", "/failure", "GET", "", "failure", "status_mismatch"},
+		{"content", "/", "GET", "absent", "failure", "content_mismatch"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := httpcheck.Spec{URL: targetURL + tc.path, Method: tc.method, StatusCodes: []int{200}, TimeoutMS: 2000, MaxBodyBytes: 1024}
+			if tc.expected != "" {
+				spec.Assertion = &httpcheck.Assertion{Kind: "text_contains", Text: tc.expected}
+			}
+			runHTTPPeriodicCheck(t, config, spec, tc.outcome, tc.class)
+		})
+	}
+}
+
+func startPrivateHTTPTarget(t *testing.T) (Config, string) {
+	t.Helper()
+	if os.Getenv("MYPROBE_TEST_PRIVATE_HTTP") != "1" {
+		t.Skip("set MYPROBE_TEST_PRIVATE_HTTP=1 in an isolated environment")
+	}
+	addresses, err := net.InterfaceAddrs()
+	if err != nil {
+		t.Fatal("cannot enumerate fixture interfaces")
+	}
+	var listener net.Listener
+	var address netip.Addr
+	for _, candidate := range addresses {
+		prefix, err := netip.ParsePrefix(candidate.String())
+		if err != nil || !prefix.Addr().Is4() || !prefix.Addr().IsPrivate() {
+			continue
+		}
+		address = prefix.Addr()
+		listener, err = net.Listen("tcp4", net.JoinHostPort(address.String(), "0"))
+		if err == nil {
+			break
+		}
+	}
+	if listener == nil {
+		t.Fatal("private fixture listener unavailable")
+	}
+	target := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/failure" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = io.WriteString(w, "fixture healthy")
+	}))
+	target.Listener.Close()
+	target.Listener = listener
+	target.Start()
+	t.Cleanup(target.Close)
+	port := listener.Addr().(*net.TCPAddr).Port
+	config := Config{HTTPPrivateCIDRs: []string{address.String() + "/32"}, HTTPAdditionalPorts: []int{port}}
+	return config, "http://" + net.JoinHostPort(address.String(), strconv.Itoa(port))
+}
+
+func runHTTPPeriodicCheck(t *testing.T, agentConfig Config, spec httpcheck.Spec, outcome, errorClass string) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "http-e2e.db"))
@@ -36,7 +106,9 @@ func TestHTTPPeriodicCheckThroughRealAgentAndGateway(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	client, err := New(Config{ServerURL: server.URL, Token: token, AgentVersion: "fixture", CollectionPeriod: time.Second, ReportPeriod: time.Second}, collector.New(collector.Config{}), logger)
+	agentConfig.ServerURL, agentConfig.Token, agentConfig.AgentVersion = server.URL, token, "fixture"
+	agentConfig.CollectionPeriod, agentConfig.ReportPeriod = time.Second, time.Second
+	client, err := New(agentConfig, collector.New(collector.Config{}), logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,8 +129,7 @@ func TestHTTPPeriodicCheckThroughRealAgentAndGateway(t *testing.T) {
 	if ctx.Err() != nil {
 		t.Fatal("handshake timed out")
 	}
-	// No target socket is opened: the real executor denies loopback by policy.
-	service, err := db.SaveHTTPService(ctx, store.HTTPService{Name: "policy fixture", Enabled: true, IntervalSeconds: 30, NodeIDs: []string{node.ID}, Spec: httpcheck.Spec{URL: "http://127.0.0.1/", Method: "GET", StatusCodes: []int{200}, TimeoutMS: 1000, MaxBodyBytes: 1024}})
+	service, err := db.SaveHTTPService(ctx, store.HTTPService{Name: "HTTP fixture", Enabled: true, IntervalSeconds: 30, NodeIDs: []string{node.ID}, Spec: spec})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,12 +149,17 @@ func TestHTTPPeriodicCheckThroughRealAgentAndGateway(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(observations) > 0 && observations[0].Result != nil {
-			if len(observations) != 1 || observations[0].Result.Outcome != "unobserved" || observations[0].Result.ErrorClass != "policy_denied" {
+			if len(observations) != 1 || observations[0].Result.Outcome != outcome || observations[0].Result.ErrorClass != errorClass {
 				t.Fatalf("unexpected result: %+v", observations)
 			}
 			stats, err := db.HTTPServiceStatistics(ctx, service.ID, node.ID, service.UpdatedAt, service.UpdatedAt.Add(30*time.Second), service.UpdatedAt.Add(5*time.Minute))
-			if err != nil || stats.Expected != 1 || stats.Missing != 1 || stats.Unobserved != 1 || stats.Failure != 0 {
-				t.Fatalf("policy denial counted as service failure: %+v %v", stats, err)
+			if err != nil || stats.Expected != 1 {
+				t.Fatalf("unexpected expected count: %+v %v", stats, err)
+			}
+			if (outcome == "success" && (stats.Success != 1 || stats.Failure != 0 || stats.Missing != 0)) ||
+				(outcome == "failure" && (stats.Success != 0 || stats.Failure != 1 || stats.Missing != 0)) ||
+				(outcome == "unobserved" && (stats.Success != 0 || stats.Failure != 0 || stats.Missing != 1 || stats.Unobserved != 1)) {
+				t.Fatalf("incorrect outcome accounting: %+v", stats)
 			}
 			return
 		}

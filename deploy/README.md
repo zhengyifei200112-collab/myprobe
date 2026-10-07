@@ -249,6 +249,6 @@ Agent-local address restrictions still apply independently of the Server flag.
 
 Set the flag to false and restart to stop new checks; configuration and retained
 history remain accessible. Maintenance exclusions, HTTP incident notifications and
-certificate expiry notifications are not included yet. Live end-to-end acceptance
-and capacity validation remain open; do not interpret current rates as a
+certificate expiry notifications are not included yet. Live HTTP acceptance has
+an opt-in test; HTTPS/browser and capacity validation remain open. Do not interpret current rates as a
 maintenance-adjusted SLA.

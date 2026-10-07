@@ -206,9 +206,48 @@ future dispatch while preserving configuration and retained history.
 
 A real Agent/Gateway/SQLite/scheduler test verifies negotiation, periodic dispatch,
 result persistence and statistics for policy denial without opening a target
-socket. It does not establish the live successful HTTP/browser path. Maintenance
-exclusion, service incidents, certificate notifications, historical binary
-compatibility and capacity acceptance remain release work.
+socket. Opt-in private-target tests additionally exercise real successful GET/HEAD,
+status mismatch and content mismatch using the unchanged production executor and
+address policy. Maintenance exclusion, service incidents, certificate notifications,
+historical binary compatibility and capacity acceptance remain release work.
+
+### Reproducible live HTTP acceptance
+
+On 2026-10-07, `TestHTTPPeriodicCheckWithPrivateTarget` and `TestHTTPBrowserLive`
+passed on Windows with Node and headless Microsoft Edge. The browser test uses
+the embedded frontend, real administrator APIs, a temporary SQLite database,
+random temporary credentials, the real Agent and periodic scheduler. No API
+responses, DNS resolution, dial functions or clocks are mocked.
+
+The browser creates a service, observes HTTP success, reloads and verifies retained
+results, edits the target to return 503, verifies the failure category, then deletes
+the service. All six light/dark and 360/768/1440 px combinations pass with no page
+errors or horizontal overflow on the successful result view. Screenshots are saved
+to a new OS temporary directory. Credentials and the target address are not printed.
+
+These tests are opt-in because they bind an ephemeral port on a private IPv4
+interface. Run only in an isolated test environment. The Agent allowlist contains
+only that local interface's /32 and assigned port; no policy bypass is installed.
+The target serves synthetic fixed text and holds no application data. Both the
+private fixture and API listener are closed when the test exits.
+
+PowerShell invocation from the repository root:
+
+```powershell
+$env:MYPROBE_TEST_PRIVATE_HTTP = '1'
+$env:MYPROBE_TEST_HTTP_BROWSER = '1'
+# Set PLAYWRIGHT_MODULE to an installed Playwright module if Node cannot resolve it.
+go test ./internal/agentclient -run 'TestHTTP(BrowserLive|PeriodicCheck)' -count=1 -v
+Remove-Item Env:MYPROBE_TEST_PRIVATE_HTTP, Env:MYPROBE_TEST_HTTP_BROWSER
+```
+
+Without these flags the default test suite skips the environment-dependent paths;
+a normal CI pass does not establish that live acceptance ran. The browser script
+is `scripts/http-services-live-ui.cjs`; it is launched by the Go fixture rather than
+against an existing deployment. This acceptance does not cover live HTTPS certificate
+trust, mature browser statistics after the grace window, process restart, historical
+release binaries or sustained load. Separate executor tests cover generated TLS
+fixtures, and Store tests cover statistical boundaries.
 
 ### Statistics UI
 
