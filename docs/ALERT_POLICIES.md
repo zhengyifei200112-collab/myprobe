@@ -60,7 +60,10 @@ Policies retain their own revision, timestamps, channel reference and scope.
 Explicit node IDs are validated at save time; deleted nodes subsequently stop
 matching without deleting the policy. A missing selected node must be removed from
 the configuration before saving it again. Channel deletion is restricted while a
-policy references it; the future administrative API must explain that conflict.
+policy references it. The channel deletion API returns 409 with an actionable
+message to update/delete the referencing policies, rather than leaking a SQLite
+constraint error. Disabled policy references also protect the channel. Deletion
+and concurrent policy creation are serialized by the database writer reservation.
 
 Save acquires SQLite's writer reservation before reading the policy set, checking
 revisions/references and validating conflicts. This serializes concurrent writers

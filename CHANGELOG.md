@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Notification channel deletion reports an actionable conflict when scoped
+  policies still reference the channel, preserving those configurations.
+
 - Administrator scoped-policy CRUD and effective-policy preview APIs, with CSRF,
   bounded input, revision conflicts and explicit pending-runtime status.
 

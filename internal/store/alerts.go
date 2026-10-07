@@ -207,8 +207,35 @@ func (s *Store) DeleteNotificationTemplate(ctx context.Context, id string) error
 	return nil
 }
 
+var ErrNotificationChannelInUse = errors.New("notification channel is referenced by an alert policy; update or delete the policy first")
+
 func (s *Store) DeleteNotificationChannel(ctx context.Context, id string) error {
-	return deleteByID(ctx, s.db, "notification_channels", id)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	// The write reservation also serializes this check with policy creation.
+	result, err := tx.ExecContext(ctx, `DELETE FROM notification_channels WHERE id=? AND NOT EXISTS(SELECT 1 FROM alert_policies WHERE channel_id=?)`, id, id)
+	if err != nil {
+		return err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		var exists int
+		err = tx.QueryRowContext(ctx, `SELECT 1 FROM notification_channels WHERE id=?`, id).Scan(&exists)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		return ErrNotificationChannelInUse
+	}
+	return tx.Commit()
 }
 
 func (s *Store) CreateAlertRule(ctx context.Context, nodeID, channelID, kind string, config json.RawMessage, cooldown int) (AlertRule, error) {

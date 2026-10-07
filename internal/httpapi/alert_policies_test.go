@@ -59,6 +59,11 @@ func TestAlertPolicyAdministration(t *testing.T) {
 		t.Fatal("incorrect state or leaked channel configuration")
 	}
 	id := value.Policy.ID
+	channelPath := "/api/v1/admin/notification-channels/" + channel.ID
+	blockedDelete := request(http.MethodDelete, channelPath, "")
+	if blockedDelete.Code != 409 || !strings.Contains(blockedDelete.Body.String(), "update or delete the policy first") || strings.Contains(blockedDelete.Body.String(), "FOREIGN KEY") {
+		t.Fatalf("referenced channel deletion: %d %s", blockedDelete.Code, blockedDelete.Body.String())
+	}
 	if r := request(http.MethodPost, root, body); r.Code != 409 {
 		t.Fatalf("scope conflict %d", r.Code)
 	}
@@ -98,6 +103,9 @@ func TestAlertPolicyAdministration(t *testing.T) {
 	}
 	if r := request(http.MethodGet, root+"/"+id, ""); r.Code != 404 {
 		t.Fatal(r.Code)
+	}
+	if r := request(http.MethodDelete, channelPath, ""); r.Code != 204 {
+		t.Fatalf("unreferenced channel deletion: %d %s", r.Code, r.Body.String())
 	}
 	if r := request(http.MethodGet, root, ""); r.Code != 200 || !strings.Contains(r.Body.String(), `"policies":[]`) {
 		t.Fatalf("list %d %s", r.Code, r.Body.String())
