@@ -238,9 +238,11 @@ PowerShell invocation from the repository root:
 ```powershell
 $env:MYPROBE_TEST_PRIVATE_HTTP = '1'
 $env:MYPROBE_TEST_HTTP_BROWSER = '1'
+# Optional: wait for real 126-second maturity and compare statistics to observations.
+$env:MYPROBE_TEST_HTTP_MATURE = '1'
 # Set PLAYWRIGHT_MODULE to an installed Playwright module if Node cannot resolve it.
 go test ./internal/agentclient -run 'TestHTTP(S?PeriodicCheck|BrowserLive)' -count=1 -v
-Remove-Item Env:MYPROBE_TEST_PRIVATE_HTTP, Env:MYPROBE_TEST_HTTP_BROWSER
+Remove-Item Env:MYPROBE_TEST_PRIVATE_HTTP, Env:MYPROBE_TEST_HTTP_BROWSER, Env:MYPROBE_TEST_HTTP_MATURE
 ```
 
 Without these flags the default test suite skips the environment-dependent paths;
@@ -250,8 +252,16 @@ against an existing deployment. TLS rejection is also verified through the real
 Agent and Store: failure count increases, missing count stays zero, and neither
 HTTP status nor verified certificate evidence is fabricated after handshake failure.
 No trust roots are installed and certificate validation remains enabled.
+The browser script checks empty denominators before maturity in every viewport.
+With `MYPROBE_TEST_HTTP_MATURE=1`, the first scenario waits on the real clock,
+queries until a slot matures, compares the API counters against retained observations
+inside the effective range, and checks both rendered rates. It preserves the actual
+scheduler and 126-second grace window; the fixture timeout is five minutes.
+The 2026-10-07 opt-in maturity run passed in 152 seconds: the first mature
+window contained one planned/successful observation and zero failures or missing
+samples, and both rendered rates were 100%. The 360 px screenshot was inspected.
 This acceptance does not cover a successfully trusted live HTTPS certificate,
-mature browser statistics after the grace window, process restart, historical
+process restart, historical
 release binaries or sustained load. Separate executor tests cover generated TLS
 fixtures, and Store tests cover statistical boundaries.
 

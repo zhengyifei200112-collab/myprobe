@@ -48,6 +48,50 @@ const path = require('node:path');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
       await page.screenshot({ path: path.join(output, `${theme}-${width}-success.png`), fullPage: true });
       await panel.getByRole('button', { name: '关闭结果', exact: true }).click();
+      await page.getByRole('button', { name: '检测统计', exact: true }).click();
+      const statisticsPanel = page.getByRole('region', { name: '服务检测统计' });
+      async function queryStatistics() {
+        const response = page.waitForResponse(r => new URL(r.url()).pathname.endsWith('/statistics'));
+        await statisticsPanel.getByRole('button', { name: '查询统计', exact: true }).click();
+        const result = await response;
+        assert.equal(result.status(), 200);
+        const body = await result.json();
+        await statisticsPanel.getByText('尚未排除维护窗口', { exact: false }).waitFor();
+        return body;
+      }
+      const immature = await queryStatistics();
+      assert.equal(immature.statistics.expected, 0, 'fresh slots must wait for the grace window');
+      assert.equal(immature.statistics.success_rate, null);
+      assert.equal(immature.statistics.coverage, null);
+      await statisticsPanel.getByText('无有效样本', { exact: true }).waitFor();
+      await statisticsPanel.getByText('无计划样本', { exact: true }).waitFor();
+      if (process.env.MYPROBE_TEST_HTTP_MATURE === '1' && theme === 'light' && width === 360) {
+        const deadline = Date.now() + 145000;
+        let mature = immature;
+        while (mature.statistics.expected === 0 && Date.now() < deadline) {
+          await page.waitForTimeout(2000);
+          mature = await queryStatistics();
+        }
+        const stats = mature.statistics;
+        assert.ok(stats.expected > 0, 'real clock must reach a mature slot');
+        // Validate counts against actual retained observations, not fixed fixtures.
+        const services = await (await context.request.get(`${base}/api/v1/admin/service-monitors`)).json();
+        const observations = await (await context.request.get(`${base}/api/v1/admin/service-monitors/${services.services[0].id}/results`)).json();
+        const included = observations.observations.filter(item => Date.parse(item.scheduled_at) >= Date.parse(stats.start) && Date.parse(item.scheduled_at) < Date.parse(stats.end));
+        assert.equal(included.length, stats.expected);
+        assert.equal(included.filter(item => item.result?.outcome === 'success').length, stats.success);
+        assert.equal(stats.success, stats.expected);
+        assert.equal(stats.failure, 0);
+        assert.equal(stats.missing, 0);
+        assert.equal(stats.success_rate, 1);
+        assert.equal(stats.coverage, 1);
+        assert.equal(mature.maintenance_excluded, false);
+        assert.equal(await statisticsPanel.getByText('100.00%', { exact: true }).count(), 2);
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
+        await page.screenshot({ path: path.join(output, 'live-mature-statistics.png'), fullPage: true });
+        console.log('Real-clock mature statistics match retained observations and rendered success/coverage rates.');
+      }
+      await statisticsPanel.getByRole('button', { name: '关闭统计', exact: true }).click();
       await page.getByRole('button', { name: '编辑服务', exact: true }).click();
       await page.getByLabel('目标 URL', { exact: true }).fill(`${process.env.HTTP_FIXTURE_TARGET}/failure`);
       await page.getByRole('button', { name: '保存服务', exact: true }).click();

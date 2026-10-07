@@ -30,7 +30,7 @@ func TestHTTPBrowserLive(t *testing.T) {
 	tlsConfig, tlsTargetURL := startPrivateTarget(t, true)
 	agentConfig.HTTPPrivateCIDRs = append(agentConfig.HTTPPrivateCIDRs, tlsConfig.HTTPPrivateCIDRs...)
 	agentConfig.HTTPAdditionalPorts = append(agentConfig.HTTPAdditionalPorts, tlsConfig.HTTPAdditionalPorts...)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "browser.db"))
 	if err != nil {
