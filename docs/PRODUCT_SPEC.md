@@ -36,7 +36,7 @@ release gates. See [alert policy design](ALERT_POLICIES.md).
 | Node administration | Register, edit, order, hide, delete, rotate token, generate one-click Agent install command | Admin API and browser clipboard verification | Implemented |
 | Target administration | Ping/TCPing target CRUD and assignment from target/node editors | API and scheduler tests | Implemented |
 | Notifications | Encrypted Webhook, Telegram, Discord, and SMTP channels with rules, templates, recovery delivery, cooldowns, and history | Mock receiver and alert-state tests | Implemented |
-| Alerts | Offline/recovery, CPU, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Implemented |
+| Alerts | Offline/recovery, CPU, memory, disk, latency, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Implemented |
 | Custom display | Structured badges/links and sanitized advanced HTML | Sanitizer, persistence and CSP tests | Implemented |
 | Site customization | Settings Center for Agent URL, identity, titles, sanitized header/footer, links, theme, accent, and page backgrounds | Store and browser rendering tests | Implemented |
 | Configuration | Versioned merge import/export and encrypted database backup/restore | Round-trip, tamper, dry-run and recovery tests | Implemented |
@@ -93,3 +93,17 @@ release gates. See [alert policy design](ALERT_POLICIES.md).
 
 Remote shell, arbitrary command execution, and terminal proxying are intentionally
 excluded from v1 to keep the agent attack surface small.
+
+## Incident delivery development
+
+The incident-outbox branch adds persisted pending/firing/resolved incidents,
+independent recovery windows, stale observation handling, transactional delivery
+jobs, leased workers, bounded retries and per-attempt diagnostics. Administrator
+APIs and the notification center expose incident state separately from delivery
+status. Protocol payloads remain compatible; SQLite migration 015 imports legacy
+active state without mass resending successful notifications.
+
+This work remains in development, not released. Evidence and remaining gates are
+in [INCIDENT_DELIVERY.md](INCIDENT_DELIVERY.md). Scoped policy inheritance,
+maintenance/acknowledgement/silence and aggregation remain later M2 tasks; this
+foundation must not be presented as completion of the full roadmap.

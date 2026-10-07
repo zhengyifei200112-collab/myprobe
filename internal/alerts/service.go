@@ -8,12 +8,14 @@ import (
 	"log/slog"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
 type RuleConfig struct {
+	RecoverySeconds         *int    `json:"recovery_seconds,omitempty"`
 	OfflineSeconds          int     `json:"offline_seconds,omitempty"`
 	ThresholdPercent        float64 `json:"threshold_percent,omitempty"`
 	ThresholdBytesPerSecond uint64  `json:"threshold_bytes_per_second,omitempty"`
@@ -201,15 +203,24 @@ func (s *Service) UpdateRule(ctx context.Context, id, nodeID, channelID, kind st
 }
 
 func (s *Service) Run(ctx context.Context) {
-	if s.cryptoErr != nil {
-		s.logger.Warn("notification engine disabled", "error", s.cryptoErr)
-		return
-	}
+	var workers sync.WaitGroup
+	defer workers.Wait()
+	workersStarted := false
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 	for {
-		if err := s.Tick(ctx, time.Now().UTC()); err != nil && !errors.Is(err, context.Canceled) {
+		err := s.Tick(ctx, time.Now().UTC())
+		if err != nil && !errors.Is(err, context.Canceled) {
 			s.logger.Error("evaluate alert rules", "error", err)
+		}
+		// Revalidate durable jobs against current observations before any send
+		// after startup. A failed initial evaluation retries without consumers.
+		if err == nil && !workersStarted && ctx.Err() == nil {
+			workersStarted = true
+			for i := 0; i < 4; i++ {
+				workers.Add(1)
+				go func() { defer workers.Done(); s.runDeliveryWorker(ctx) }()
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -220,8 +231,8 @@ func (s *Service) Run(ctx context.Context) {
 }
 
 func (s *Service) Tick(ctx context.Context, now time.Time) error {
-	if s.cryptoErr != nil {
-		return s.cryptoErr
+	if err := s.store.ReconcileIncidents(ctx, now); err != nil {
+		return err
 	}
 	rules, err := s.store.ListAlertRules(ctx)
 	if err != nil {
@@ -231,101 +242,43 @@ func (s *Service) Tick(ctx context.Context, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	channels, err := s.store.ListNotificationChannels(ctx)
-	if err != nil {
-		return err
-	}
 	nodeMap := make(map[string]store.Node, len(nodes))
-	for _, item := range nodes {
-		nodeMap[item.ID] = item
+	for _, node := range nodes {
+		nodeMap[node.ID] = node
 	}
-	channelMap := make(map[string]store.NotificationChannel, len(channels))
-	for _, item := range channels {
-		channelMap[item.ID] = item
-	}
+	var failures []error
 	for _, rule := range rules {
-		if !rule.Enabled {
+		node, exists := nodeMap[rule.NodeID]
+		if !rule.Enabled || !exists {
 			continue
 		}
-		node, nodeOK := nodeMap[rule.NodeID]
-		channel, channelOK := channelMap[rule.ChannelID]
-		if !nodeOK || !channelOK || !channel.Enabled {
+		active, message, known, err := s.evaluate(ctx, rule, node, now)
+		if err != nil {
+			failures = append(failures, err)
 			continue
 		}
-		if err := s.evaluateAndDeliver(ctx, rule, node, channel, now.UTC()); err != nil {
-			s.logger.Warn("alert evaluation failed", "rule_id", rule.ID, "error", err)
-		}
-	}
-	return nil
-}
-
-func (s *Service) evaluateAndDeliver(ctx context.Context, rule store.AlertRule, node store.Node, channel store.NotificationChannel, now time.Time) error {
-	active, message, known, err := s.evaluate(ctx, rule, node, now)
-	if err != nil || !known {
-		return err
-	}
-	fingerprint := rule.Kind + ":" + rule.ID + ":" + node.ID
-	state, exists, err := s.store.AlertState(ctx, fingerprint)
-	if err != nil {
-		return err
-	}
-	var ruleConfig RuleConfig
-	_ = json.Unmarshal(rule.Config, &ruleConfig)
-	if active && ruleConfig.DurationSeconds > 0 && (!exists || !state.Active) {
-		if !exists || state.PendingSince == nil {
-			since := now
-			return s.store.SetAlertPending(ctx, rule.ID, node.ID, fingerprint, message, &since, now)
-		}
-		if now.Sub(*state.PendingSince) < time.Duration(ruleConfig.DurationSeconds)*time.Second {
-			return nil
-		}
-	}
-	if !active && exists && !state.Active && state.PendingSince != nil {
-		return s.store.SetAlertPending(ctx, rule.ID, node.ID, fingerprint, message, nil, now)
-	}
-	repeat := rule.CooldownSeconds
-	if ruleConfig.RepeatSeconds > 0 {
-		repeat = ruleConfig.RepeatSeconds
-	}
-	cooldown := time.Duration(repeat) * time.Second
-	shouldDeliver := !exists && active
-	if exists {
-		shouldDeliver = active != state.Active
-		if !shouldDeliver && state.LastError != "" && now.Sub(state.LastAttemptAt) >= cooldown {
-			shouldDeliver = true
-		}
-		if !shouldDeliver && active && state.LastError == "" && state.LastDeliveredAt != nil && now.Sub(*state.LastDeliveredAt) >= cooldown {
-			shouldDeliver = true
-		}
-	}
-	if !shouldDeliver {
-		return nil
-	}
-	config, deliveryErr := s.decryptConfig(channel)
-	if deliveryErr == nil {
-		stateName := "resolved"
-		title := "MyProbe 告警恢复"
+		state, title := "resolved", "MyProbe 告警恢复"
 		if active {
-			stateName = "firing"
-			title = "MyProbe 告警"
+			state, title = "firing", "MyProbe 告警"
 		}
-		notification := Notification{Title: title, Message: message, State: stateName, Kind: rule.Kind, NodeID: node.ID, NodeName: node.Name, RuleID: rule.ID, Timestamp: now}
-		if ruleConfig.TemplateID != "" {
-			if template, err := s.store.NotificationTemplate(ctx, ruleConfig.TemplateID); err == nil {
+		notification := Notification{Title: title, Message: message, State: state, Kind: rule.Kind, NodeID: node.ID, NodeName: node.Name, RuleID: rule.ID, Timestamp: now}
+		var config RuleConfig
+		if err := json.Unmarshal(rule.Config, &config); err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		if config.TemplateID != "" {
+			if template, err := s.store.NotificationTemplate(ctx, config.TemplateID); err == nil {
 				notification.Title = renderTemplate(template.TitleTemplate, notification)
 				notification.Message = renderTemplate(template.BodyTemplate, notification)
 			}
 		}
-		deliveryErr = s.sender.Deliver(ctx, channel.Kind, config, notification)
+		_, err = s.store.ObserveAlert(ctx, rule, node, store.AlertObservation{At: now, Known: known, Active: active, Message: message, NotificationTitle: notification.Title, NotificationMessage: notification.Message})
+		if err != nil && !errors.Is(err, store.ErrObservationObsolete) {
+			failures = append(failures, err)
+		}
 	}
-	deliveryError := ""
-	if deliveryErr != nil {
-		deliveryError = deliveryErr.Error()
-	}
-	if err := s.store.RecordAlertAttempt(ctx, rule.ID, node.ID, fingerprint, message, active, deliveryErr == nil, deliveryError, now); err != nil {
-		return err
-	}
-	return deliveryErr
+	return errors.Join(failures...)
 }
 
 func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store.Node, now time.Time) (bool, string, bool, error) {
@@ -349,6 +302,9 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 		if err != nil || report == nil {
 			return false, "", false, err
 		}
+		if !observationFresh(report.CapturedAt, now, max(node.CollectionSeconds, node.ReportSeconds)) {
+			return false, "", false, nil
+		}
 		if rule.Kind == "cpu" {
 			active := report.CPU.UsagePercent >= config.ThresholdPercent
 			return active, thresholdMessage(node.Name, "CPU", report.CPU.UsagePercent, config.ThresholdPercent, "%", active), true, nil
@@ -358,6 +314,9 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 			return active, thresholdMessage(node.Name, "内存", report.Memory.UsagePercent, config.ThresholdPercent, "%", active), true, nil
 		}
 		if rule.Kind == "disk" {
+			if len(report.Disks) == 0 {
+				return false, "", false, nil
+			}
 			value := 0.0
 			for _, disk := range report.Disks {
 				if disk.UsagePercent > value {
@@ -368,6 +327,9 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 			return active, thresholdMessage(node.Name, "磁盘", value, config.ThresholdPercent, "%", active), true, nil
 		}
 		if rule.Kind == "bandwidth" {
+			if len(report.Networks) == 0 {
+				return false, "", false, nil
+			}
 			var rate float64
 			for _, network := range report.Networks {
 				rate += network.RXBytesPerS + network.TXBytesPerS
@@ -396,8 +358,22 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 		if err != nil || len(items) == 0 {
 			return false, "", false, err
 		}
+		targets, err := s.store.ListTargets(ctx)
+		if err != nil {
+			return false, "", false, err
+		}
+		intervals := make(map[string]int, len(targets))
+		for _, target := range targets {
+			intervals[target.ID] = target.IntervalSeconds
+		}
+		known := true
 		active, worst := false, 0.0
 		for _, item := range items {
+			interval, exists := intervals[item.TargetID]
+			if !exists || item.Success == nil || item.UpdatedAt == nil || !observationFresh(*item.UpdatedAt, now, interval) || (*item.Success && item.LatencyMS == nil) {
+				known = false
+				continue
+			}
 			if item.Success != nil && !*item.Success {
 				active = true
 			}
@@ -408,7 +384,7 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 		if worst >= config.ThresholdMilliseconds {
 			active = true
 		}
-		return active, thresholdMessage(node.Name, "网络延迟", worst, config.ThresholdMilliseconds, " ms", active), true, nil
+		return active, thresholdMessage(node.Name, "网络延迟", worst, config.ThresholdMilliseconds, " ms", active), active || known, nil
 	default:
 		return false, "", false, errors.New("unsupported alert rule")
 	}
@@ -443,6 +419,13 @@ func (s *Service) decryptConfig(channel store.NotificationChannel) (ChannelConfi
 func normalizeRuleConfig(kind string, config RuleConfig) (json.RawMessage, error) {
 	if config.DurationSeconds < 0 || config.DurationSeconds > 86400*30 || config.RepeatSeconds < 0 || config.RepeatSeconds > 86400*30 {
 		return nil, errors.New("invalid duration or repeat interval")
+	}
+	if config.RecoverySeconds == nil {
+		value := config.DurationSeconds
+		config.RecoverySeconds = &value
+	}
+	if *config.RecoverySeconds < 0 || *config.RecoverySeconds > 86400*30 {
+		return nil, errors.New("invalid recovery duration")
 	}
 	switch kind {
 	case "offline":
@@ -504,4 +487,9 @@ func validateName(value string) error {
 		return errors.New("name is required")
 	}
 	return nil
+}
+
+// Missing/old samples cannot prove recovery. Allow a small agent clock skew.
+func observationFresh(at, now time.Time, intervalSeconds int) bool {
+	return !at.IsZero() && !at.After(now.Add(30*time.Second)) && now.Sub(at) <= max(time.Minute, 3*time.Duration(intervalSeconds)*time.Second)
 }

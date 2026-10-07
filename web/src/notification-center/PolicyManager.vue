@@ -10,7 +10,7 @@ const editing = ref(false), deleting = ref<AlertPolicy | null>(null), nodeID = r
 const names = ref<Record<string, string>>({})
 let active = true
 onUnmounted(() => { active = false })
-const defaults = () => ({ id: '', revision: 0, name: '', key: '', enabled: true, priority: 0, scope: 'all' as AlertPolicyScope['kind'], nodeIDs: [] as string[], tags: '', tagMode: 'all' as 'all' | 'any', channel: '', kind: 'cpu' as AlertKind, threshold: 90, duration: 0, repeat: 900, cooldown: 900, template: '' })
+const defaults = () => ({ id: '', revision: 0, name: '', key: '', enabled: true, priority: 0, scope: 'all' as AlertPolicyScope['kind'], nodeIDs: [] as string[], tags: '', tagMode: 'all' as 'all' | 'any', channel: '', kind: 'cpu' as AlertKind, threshold: 90, duration: 0, recovery: 0, recoveryMatches: true, repeat: 900, cooldown: 900, template: '' })
 const form = reactive(defaults())
 const kinds: Record<AlertKind, string> = { cpu: 'CPU', memory: '内存', disk: '磁盘', offline: '离线', latency: '延迟', bandwidth: '带宽', cycle_traffic: '周期流量', expiry: '到期' }
 const fields = { cpu: 'threshold_percent', memory: 'threshold_percent', disk: 'threshold_percent', offline: 'offline_seconds', latency: 'threshold_milliseconds', bandwidth: 'threshold_bytes_per_second', cycle_traffic: 'threshold_bytes', expiry: 'days_before' } as const
@@ -32,7 +32,7 @@ async function edit(id: string) {
   await run(async () => {
     const { policy: p } = await loadAlertPolicy(id)
     if (!active) return
-    Object.assign(form, defaults(), { id: p.id, revision: p.revision, name: p.name, key: p.policy_key, enabled: p.enabled, priority: p.priority, scope: p.scope.kind, nodeIDs: p.scope.kind === 'nodes' ? [...p.scope.node_ids] : [], tags: p.scope.kind === 'tags' ? p.scope.tags.join('\n') : '', tagMode: p.scope.kind === 'tags' ? p.scope.tag_mode : 'all', channel: p.channel_id, kind: p.kind, threshold: p.config[fields[p.kind]] ?? 0, duration: p.config.duration_seconds ?? 0, repeat: p.config.repeat_seconds ?? 0, cooldown: p.cooldown_seconds, template: p.config.template_id ?? '' })
+    Object.assign(form, defaults(), { id: p.id, revision: p.revision, name: p.name, key: p.policy_key, enabled: p.enabled, priority: p.priority, scope: p.scope.kind, nodeIDs: p.scope.kind === 'nodes' ? [...p.scope.node_ids] : [], tags: p.scope.kind === 'tags' ? p.scope.tags.join('\n') : '', tagMode: p.scope.kind === 'tags' ? p.scope.tag_mode : 'all', channel: p.channel_id, kind: p.kind, threshold: p.config[fields[p.kind]] ?? 0, duration: p.config.duration_seconds ?? 0, recovery: p.config.recovery_seconds ?? 0, recoveryMatches: p.config.recovery_seconds == null, repeat: p.config.repeat_seconds ?? 0, cooldown: p.cooldown_seconds, template: p.config.template_id ?? '' })
     editing.value = true
   })
 }
@@ -40,7 +40,7 @@ async function save() {
   await run(async () => {
     if (!Number.isFinite(form.threshold) || form.threshold < 0 || (['bandwidth', 'cycle_traffic'].includes(form.kind) && !Number.isSafeInteger(form.threshold))) throw new Error('阈值无效；字节值须为可精确表示的整数。')
     const scope: AlertPolicyScope = form.scope === 'all' ? { kind: 'all' } : form.scope === 'nodes' ? { kind: 'nodes', node_ids: [...form.nodeIDs] } : { kind: 'tags', tag_mode: form.tagMode, tags: form.tags.split('\n').map(t => t.trim()).filter(Boolean) }
-    const payload: AlertPolicyInput = { name: form.name, policy_key: form.key, enabled: form.enabled, priority: form.priority, scope, channel_id: form.channel, kind: form.kind, config: { [fields[form.kind]]: form.threshold, duration_seconds: form.duration, repeat_seconds: form.repeat, ...(form.template ? { template_id: form.template } : {}) }, cooldown_seconds: form.cooldown }
+    const payload: AlertPolicyInput = { name: form.name, policy_key: form.key, enabled: form.enabled, priority: form.priority, scope, channel_id: form.channel, kind: form.kind, config: { [fields[form.kind]]: form.threshold, duration_seconds: form.duration, ...(form.recoveryMatches ? {} : { recovery_seconds: form.recovery }), repeat_seconds: form.repeat, ...(form.template ? { template_id: form.template } : {}) }, cooldown_seconds: form.cooldown }
     if (form.id) await updateAlertPolicy(form.id, { ...payload, revision: form.revision }); else await createAlertPolicy(payload)
     if (!active) return
     editing.value = false; decisions.value = null
@@ -90,6 +90,8 @@ onMounted(() => run(() => refresh()))
         <label>告警类型<select v-model="form.kind"><option v-for="(label, kind) in kinds" :key="kind" :value="kind">{{ label }}</option></select></label>
         <label>{{ thresholdLabel }}<input v-model.number="form.threshold" type="number" min="0" step="any" required></label>
         <label>持续时间（秒）<input v-model.number="form.duration" type="number" min="0" max="2592000" step="1" required></label>
+        <label class="check"><input v-model="form.recoveryMatches" type="checkbox">恢复持续时间与触发一致</label>
+        <label v-if="!form.recoveryMatches">恢复持续时间（秒）<input v-model.number="form.recovery" type="number" min="0" max="2592000" step="1" required></label>
         <label>重复提醒（秒，0 使用冷却间隔）<input v-model.number="form.repeat" type="number" min="0" max="2592000" step="1" required></label>
         <label>冷却间隔（秒）<input v-model.number="form.cooldown" type="number" min="30" max="2592000" step="1" required></label>
         <label class="check"><input v-model="form.enabled" type="checkbox">启用此策略配置</label>

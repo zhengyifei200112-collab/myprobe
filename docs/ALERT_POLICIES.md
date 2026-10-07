@@ -2,8 +2,10 @@
 
 Status: implementation in progress. The scope resolver and transactional storage
 and administrative APIs/UI exist; evaluator integration and legacy migration are pending. No running alert
-behavior changes yet. This branch starts from main; incident/outbox work in PR #50
-is a dependency for state-preserving integration, not implicitly merged here.
+behavior changes from scoped policies yet. This branch started from main and now
+includes incident/outbox dependency commit `99d08aa` from PR #50 for integration.
+The GitHub PR remains unmerged; review this policy branch against that dependency.
+Scoped-policy runtime activation and legacy rule mapping are still pending.
 
 ## Contract
 
@@ -124,6 +126,9 @@ revision-preserving conflict errors and explicit delete confirmation. Select glo
 explicit-node or dynamic-tag scope; tags use one value per line and explicit any/all
 semantics. Per-kind thresholds show base units, duration/repeat/cooldown fields are
 seconds, and unsafe integer byte values are rejected instead of silently rounded.
+Recovery duration can follow the trigger window or be explicitly set, including
+zero for immediate recovery. Editing preserves that distinction after integration
+with the incident engine.
 Existing template IDs are retained on edit; template selection is not yet exposed.
 
 Node previews show each independent key, its selected policy, ordered overridden
