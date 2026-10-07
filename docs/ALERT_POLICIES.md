@@ -1,7 +1,7 @@
 # Scoped alert policies (ALT-02)
 
 Status: implementation in progress. The scope resolver and transactional storage
-and administrative APIs exist; UI, evaluator integration and legacy migration are pending. No running alert
+and administrative APIs/UI exist; evaluator integration and legacy migration are pending. No running alert
 behavior changes yet. This branch starts from main; incident/outbox work in PR #50
 is a dependency for state-preserving integration, not implicitly merged here.
 
@@ -89,8 +89,8 @@ surfaces are added.
 `web/src/admin-api.ts` provides typed create/update/delete/read/list and effective
 preview clients. Scope types distinguish global, explicit-node and tag selectors;
 updates require revisions and every read preserves the evaluation-enabled flag.
-These clients reuse session, CSRF and private-cache behavior. They are not yet
-connected to a policy management screen.
+These clients reuse session, CSRF and private-cache behavior. The notification
+center's scoped-policy tab uses them for configuration and inheritance preview.
 
 All `/api/v1/admin/alert-policies` routes require administrator sessions and return
 `Cache-Control: no-store`, including authentication failures. Mutations require
@@ -116,3 +116,24 @@ Contract tests cover authentication/cache headers, CSRF, creation, scope conflic
 unknown/malformed/oversized inputs, stale edits/deletes, effective previews and
 explicit non-execution status. Runtime integration and legacy migration remain
 release requirements even when these endpoints pass.
+
+## Management UI
+
+The notification center has a scoped-policy tab with paginated listing, create/edit,
+revision-preserving conflict errors and explicit delete confirmation. Select global,
+explicit-node or dynamic-tag scope; tags use one value per line and explicit any/all
+semantics. Per-kind thresholds show base units, duration/repeat/cooldown fields are
+seconds, and unsafe integer byte values are rejected instead of silently rounded.
+Existing template IDs are retained on edit; template selection is not yet exposed.
+
+Node previews show each independent key, its selected policy, ordered overridden
+candidates and selection reason. Detail lookups are batched at eight requests.
+Changing nodes clears the prior preview; failed queries never present stale results
+under the new selection. Unmount ignores pending responses. A prominent banner
+explains that saved scoped policies do not yet drive the runtime evaluator.
+
+`scripts/alert-policies-ui.cjs` verifies synthetic-API create, tag round-trip,
+conflict-preserved edits, preview and cancel/confirm delete at 360/768/1440 px in
+light/dark themes. It saves temporary screenshots and checks page errors and
+horizontal overflow. This is presentation coverage, not live notification delivery.
+Real API/browser integration and runtime migration remain open.

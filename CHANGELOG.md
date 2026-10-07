@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Notification-center scoped-policy configuration and per-node inheritance preview,
+  with conflict-preserving edits and a clear pending-runtime notice.
+
 - Notification channel deletion reports an actionable conflict when scoped
   policies still reference the channel, preserving those configurations.
 
