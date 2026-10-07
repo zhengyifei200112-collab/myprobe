@@ -14,8 +14,9 @@
 Scoped alert-policy inheritance (ALT-02) is in development. Its internal resolver
 and revisioned persistence support global, tag and explicit-node scopes, conflict
 validation and snapshot-based effective-policy previews. Existing single-node
-rules remain the runtime authority; no policy administration UI or API is exposed
-yet. Legacy-state migration, evaluator integration and configuration transfer are
+rules remain the runtime authority. Authenticated policy CRUD and effective-policy
+preview APIs expose `evaluation_enabled: false`; the administration UI is pending.
+Legacy-state migration, evaluator integration and configuration transfer are
 release gates. See [alert policy design](ALERT_POLICIES.md).
 
 | Area | Requirement | Acceptance evidence | Status |

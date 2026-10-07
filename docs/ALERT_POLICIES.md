@@ -1,7 +1,7 @@
 # Scoped alert policies (ALT-02)
 
 Status: implementation in progress. The scope resolver and transactional storage
-exist; administrative APIs/UI, evaluator integration and legacy migration are pending. No running alert
+and administrative APIs exist; UI, evaluator integration and legacy migration are pending. No running alert
 behavior changes yet. This branch starts from main; incident/outbox work in PR #50
 is a dependency for state-preserving integration, not implicitly merged here.
 
@@ -80,3 +80,30 @@ draft activation, invalid node references, channel deletion restrictions, dynami
 tag preview and reopen persistence. Store and resolver tests are required for this
 foundation; endpoint authorization and browser tests become gates when those
 surfaces are added.
+
+## Administrator API
+
+All `/api/v1/admin/alert-policies` routes require administrator sessions and return
+`Cache-Control: no-store`, including authentication failures. Mutations require
+CSRF. Responses include `evaluation_enabled: false`: saved policies are not yet
+the runtime evaluation authority.
+
+- `GET /`: list at most 100 definitions (default 50), ordered by ID; `after` and
+  `next_cursor` provide keyset pagination. Concurrent changes can alter subsequent
+  pages; pagination is not a cross-request snapshot.
+- `GET /:policyID`: read configuration and current revision.
+- `GET /effective/:nodeID`: preview matching policies, selected IDs and reasons.
+- `POST /`: create; revision must be omitted/zero and enabled must be explicit.
+- `PUT /:policyID`: replace using a positive current revision.
+- `DELETE /:policyID?revision=N`: delete only the specified current version.
+
+Writes are limited to 64 KiB and reject unknown fields and trailing JSON. The
+alert service validates configuration semantics. Invalid input returns 400;
+revision/scope conflicts return 409; absent reads return 404. Database errors are
+generic 500 responses. Operations have five-second query deadlines. Audits contain
+only revision, enabled state and scope kind, not selector values or channel secrets.
+
+Contract tests cover authentication/cache headers, CSRF, creation, scope conflicts,
+unknown/malformed/oversized inputs, stale edits/deletes, effective previews and
+explicit non-execution status. Runtime integration and legacy migration remain
+release requirements even when these endpoints pass.

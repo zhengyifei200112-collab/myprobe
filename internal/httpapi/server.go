@@ -105,6 +105,13 @@ func (s *Server) routes() {
 	share.GET("/nodes", s.shareNodes)
 	share.GET("/nodes/:nodeID/history", s.shareNodeHistory)
 
+	policies := s.router.Group("/api/v1/admin/alert-policies", privateNoStore(), s.requireSession(true))
+	policies.GET("", s.listAlertPolicies)
+	policies.GET("/effective/:nodeID", s.effectiveAlertPolicies)
+	policies.GET("/:policyID", s.getAlertPolicy)
+	policies.POST("", s.saveAlertPolicy)
+	policies.PUT("/:policyID", s.saveAlertPolicy)
+	policies.DELETE("/:policyID", s.deleteAlertPolicy)
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
 	admin.GET("/nodes", s.adminNodes)
 	admin.POST("/nodes", s.createNode)

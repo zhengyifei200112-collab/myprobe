@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Administrator scoped-policy CRUD and effective-policy preview APIs, with CSRF,
+  bounded input, revision conflicts and explicit pending-runtime status.
+
 - Internal scoped alert-policy storage and effective-policy resolution with
   revision checks and transactional conflict detection (migration 021). Runtime
   evaluation, administration and legacy-rule migration remain in development.
