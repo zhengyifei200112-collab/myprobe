@@ -19,29 +19,37 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/zhengyifei200112-collab/myprobe/internal/collector"
+	"github.com/zhengyifei200112-collab/myprobe/internal/httpprobe"
+	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/httpcheck"
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
+	protocolv2 "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v2"
 )
 
 type Config struct {
-	ServerURL        string
-	Token            string
-	CollectionPeriod time.Duration
-	ReportPeriod     time.Duration
-	AgentVersion     string
+	ServerURL           string
+	Token               string
+	CollectionPeriod    time.Duration
+	ReportPeriod        time.Duration
+	AgentVersion        string
+	HTTPPrivateCIDRs    []string
+	HTTPAdditionalPorts []int
 }
 
 type Client struct {
-	config    Config
-	baseURL   *url.URL
-	collector *collector.Collector
-	logger    *slog.Logger
-	http      *http.Client
-	sequence  atomic.Uint64
-	reportNS  atomic.Int64
-	connMu    sync.RWMutex
-	writeMu   sync.Mutex
-	conn      *websocket.Conn
-	taskSlots chan struct{}
+	config        Config
+	baseURL       *url.URL
+	collector     *collector.Collector
+	logger        *slog.Logger
+	http          *http.Client
+	sequence      atomic.Uint64
+	reportNS      atomic.Int64
+	connMu        sync.RWMutex
+	writeMu       sync.Mutex
+	conn          *websocket.Conn
+	connVersion   int
+	taskSlots     chan struct{}
+	httpTaskSlots chan struct{}
+	httpExecutor  httpExecutor
 }
 
 func New(config Config, source *collector.Collector, logger *slog.Logger) (*Client, error) {
@@ -55,7 +63,12 @@ func New(config Config, source *collector.Collector, logger *slog.Logger) (*Clie
 	if config.CollectionPeriod < time.Second || config.ReportPeriod < time.Second {
 		return nil, errors.New("collection and report periods must be at least one second")
 	}
+	policy, err := httpprobe.NewPolicy(config.HTTPPrivateCIDRs, config.HTTPAdditionalPorts)
+	if err != nil {
+		return nil, err
+	}
 	client := &Client{
+		httpTaskSlots: make(chan struct{}, 4), httpExecutor: httpprobe.New(policy),
 		config: config, baseURL: parsed, collector: source, logger: logger,
 		http:      &http.Client{Timeout: 15 * time.Second},
 		taskSlots: make(chan struct{}, 8),
@@ -112,17 +125,7 @@ func (c *Client) connectionLoop(ctx context.Context) {
 }
 
 func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
-	wsURL := *c.baseURL
-	if wsURL.Scheme == "https" {
-		wsURL.Scheme = "wss"
-	} else {
-		wsURL.Scheme = "ws"
-	}
-	wsURL.Path = path.Join(wsURL.Path, "/api/v1/agent/ws")
-	header := http.Header{"Authorization": []string{"Bearer " + c.config.Token}}
-	dialCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	connection, response, err := websocket.Dial(dialCtx, wsURL.String(), &websocket.DialOptions{HTTPHeader: header, CompressionMode: websocket.CompressionDisabled})
-	cancel()
+	connection, response, version, err := c.dialPreferred(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -135,6 +138,11 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	envelope, err := protocol.NewEnvelope(protocol.TypeHello, c.sequence.Add(1), hello)
+	if version == 2 {
+		hello.Capabilities = append(hello.Capabilities, httpcheck.Capability)
+		envelope, err = protocol.NewEnvelope(protocol.TypeHello, envelope.Sequence, hello)
+	}
+	envelope.Version = version
 	if err != nil || wsjson.Write(ctx, connection, envelope) != nil {
 		connection.Close(websocket.StatusInternalError, "hello failed")
 		return false, errors.New("send hello")
@@ -143,15 +151,25 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 	readCtx, readCancel := context.WithTimeout(ctx, 10*time.Second)
 	err = wsjson.Read(readCtx, connection, &welcome)
 	readCancel()
-	if err != nil || welcome.Type != protocol.TypeWelcome {
+	if err != nil || welcome.Type != protocol.TypeWelcome || validateServerEnvelope(welcome, version) != nil {
 		connection.Close(websocket.StatusPolicyViolation, "welcome required")
 		return false, fmt.Errorf("server did not send welcome: read_error=%v message_type=%q extensions=%q", err, welcome.Type, negotiatedExtensions)
 	}
-	c.replaceConnection(connection)
+	httpAllowed := false
+	if version == 2 {
+		negotiated, decodeErr := protocol.DecodePayload[protocolv2.Welcome](welcome)
+		if decodeErr != nil {
+			connection.CloseNow()
+			return false, errors.New("invalid v2 welcome")
+		}
+		httpAllowed = protocolv2.AllowsHTTP(protocolv2.NegotiateCapabilities(hello.Capabilities, negotiated.Capabilities))
+	}
+	c.replaceConnectionVersion(connection, version)
+	defer c.clearConnection(connection)
 	c.logger.Info("agent websocket connected", "server", c.baseURL.Host)
 	connectionCtx, stopHeartbeat := context.WithCancel(ctx)
 	defer stopHeartbeat()
-	go c.heartbeatLoop(connectionCtx, connection)
+	go c.heartbeatLoop(connectionCtx, connection, version)
 
 	for ctx.Err() == nil {
 		var message protocol.Envelope
@@ -159,7 +177,19 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 			c.clearConnection(connection)
 			return true, err
 		}
+		if err := validateServerEnvelope(message, version); err != nil {
+			c.clearConnection(connection)
+			return true, err
+		}
 		switch message.Type {
+		case protocolv2.TypeHTTPTask:
+			if !httpAllowed {
+				continue
+			}
+			task, err := protocol.DecodePayload[httpcheck.Task](message)
+			if err == nil && task.Validate(time.Now().UTC()) == nil {
+				c.startHTTPTask(connectionCtx, connection, task)
+			}
 		case protocol.TypeConfiguration:
 			config, err := protocol.DecodePayload[protocol.Config](message)
 			if err == nil {
@@ -178,7 +208,7 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 	return true, ctx.Err()
 }
 
-func (c *Client) heartbeatLoop(ctx context.Context, expected *websocket.Conn) {
+func (c *Client) heartbeatLoop(ctx context.Context, expected *websocket.Conn, version int) {
 	ticker := time.NewTicker(25 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -187,6 +217,7 @@ func (c *Client) heartbeatLoop(ctx context.Context, expected *websocket.Conn) {
 			return
 		case <-ticker.C:
 			envelope, err := protocol.NewEnvelope(protocol.TypeHeartbeat, c.sequence.Add(1), struct{}{})
+			envelope.Version = version
 			if err != nil {
 				continue
 			}
@@ -230,7 +261,8 @@ func (c *Client) sendLatencyResult(ctx context.Context, kind string, result prot
 	if err != nil {
 		return err
 	}
-	connection := c.currentConnection()
+	connection, version := c.currentConnectionVersion()
+	envelope.Version = version
 	if connection == nil {
 		return errors.New("agent websocket is disconnected")
 	}
@@ -274,10 +306,12 @@ func (c *Client) sendReport(ctx context.Context, report protocol.Report) error {
 	if err != nil {
 		return err
 	}
-	if connection := c.currentConnection(); connection != nil {
+	if connection, version := c.currentConnectionVersion(); connection != nil {
+		wireEnvelope := envelope
+		wireEnvelope.Version = version
 		writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		c.writeMu.Lock()
-		err = wsjson.Write(writeCtx, connection, envelope)
+		err = wsjson.Write(writeCtx, connection, wireEnvelope)
 		c.writeMu.Unlock()
 		cancel()
 		if err == nil {
@@ -342,9 +376,20 @@ func (c *Client) currentConnection() *websocket.Conn {
 }
 
 func (c *Client) replaceConnection(connection *websocket.Conn) {
+	c.replaceConnectionVersion(connection, protocol.Version)
+}
+
+func (c *Client) currentConnectionVersion() (*websocket.Conn, int) {
+	c.connMu.RLock()
+	defer c.connMu.RUnlock()
+	return c.conn, c.connVersion
+}
+
+func (c *Client) replaceConnectionVersion(connection *websocket.Conn, version int) {
 	c.connMu.Lock()
 	old := c.conn
 	c.conn = connection
+	c.connVersion = version
 	c.connMu.Unlock()
 	if old != nil && old != connection {
 		_ = old.Close(websocket.StatusNormalClosure, "replaced")

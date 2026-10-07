@@ -9,6 +9,79 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Opt-in Server HTTP execution with `MYPROBE_HTTP_PROBES_ENABLED=true`, defaulting
+  to disabled, and real Agent/scheduler/result-storage coverage for policy denial.
+  Maintenance integration and HTTP incident/certificate notifications remain pending.
+
+- HTTP per-observer statistics panel with sample counts, success/coverage rates,
+  null-denominator labels, explicit effective ranges and maintenance limitations.
+
+- Administrator per-node HTTP statistics API with bounded ranges, query timeout,
+  explicit history boundaries and maintenance-adjustment status. No SLA claim is made.
+
+- HTTP statistics disclose the known schedule-history boundary and exclude
+  unreconstructable pre-migration revisions from the effective coverage window.
+
+- Administrator HTTP recent-result panel with failure categories, explicit waiting
+  and missing states, and expandable certificate summaries. Status uses the Server
+  observation time; empty lists do not imply service health.
+
+- Bounded administrator HTTP observation queries with private-spec exclusion,
+  null pending results and exact timestamp ordering (migration 020).
+
+- Administrator HTTP Services tab with configuration forms, observer selection,
+  pagination, conflict-preserving edits and explicit history-deletion confirmation.
+  JSON numeric assertions retain exact tokens; the page shows when Server execution
+  is disabled. Result and certificate views remain under development.
+
+- Configuration import preview displays HTTP service create/update counts and
+  explains assignment replacement; export copy identifies private URL/assertion data.
+
+- Configuration snapshot v2 transfers HTTP services and node assignments, with
+  transactional dry-run/merge counts and v1 import compatibility. HTTP results,
+  revision history and Agent-local network allowances are not transferred.
+
+- Paginated administrator HTTP service summaries and revision-checked deletion,
+  including associated task/history cleanup. Summary responses omit target URLs.
+
+- Private HTTP service create/read/replace APIs with administrator authentication,
+  CSRF protection, no-store responses, optimistic revisions and sanitized audit
+  metadata. Saving configuration does not enable production HTTP dispatch.
+
+- Bounded 31-day HTTP task/history cleanup with a durable retention floor
+  (migration 019). Internal statistics expose requested and effective ranges and
+  exclude deleted history from missing-sample counts.
+
+- Internal HTTP per-observer statistics with separate success, failure and missing
+  counts, null empty rates, consistent read snapshots and a conservative result
+  maturity window. Public statistics endpoints remain pending.
+
+- HTTP schedule revision history and bounded half-open expected-slot counting
+  (migration 018), preserving the denominator when checks are not dispatched.
+  Availability and coverage APIs are still under development.
+
+- HTTP scheduler foundation with configuration-anchored slots, bounded dispatch
+  workers and no replay of missed checks. Production startup and coverage
+  accounting remain pending integration.
+
+- Private HTTP service configuration storage with revision-checked updates and
+  transactional node assignments (migration 016). Service APIs and scheduling
+  remain under development and are not enabled by this storage foundation.
+- Durable HTTP task snapshots and conditional result storage (migration 017),
+  rejecting wrong-node, expired, obsolete-revision and duplicate results. Transport
+  dispatch and ingestion are integrated behind a default-off gateway gate;
+  production scheduling remains pending.
+
+- Opt-in Agent v2 WebSocket endpoint with explicit version isolation and capability
+  negotiation. Existing v1 clients remain supported; HTTP execution is not enabled.
+- Agent prefers v2 and falls back to v1 when that endpoint is absent (404/405),
+  while preserving v1 HTTP report fallback and refusing authentication-error downgrade.
+- Bounded Agent HTTP executor with TLS validation, decoded-response limits and
+  connection-scoped cancellation. Local `-http-private-cidrs` and
+  `-http-additional-ports` options (and matching `MYPROBE_HTTP_PRIVATE_CIDRS` /
+  `MYPROBE_HTTP_ADDITIONAL_PORTS` environment variables) configure target policy.
+  Server HTTP scheduling remains disabled pending result persistence.
+
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
   independent public, admin, and login background presentation.

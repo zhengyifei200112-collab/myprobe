@@ -228,3 +228,27 @@ MYPROBE_TOKEN=the-one-time-node-token
 The committed units are also the canonical templates embedded by `install.sh`. Any
 unit change must update both surfaces and the installer validation in the same pull
 request.
+# Agent HTTP probe policy
+
+The Agent defaults to public HTTP targets on ports 80/443. Optional local settings
+`MYPROBE_HTTP_PRIVATE_CIDRS` and `MYPROBE_HTTP_ADDITIONAL_PORTS` accept comma-separated
+private CIDRs and extra ports respectively. Equivalent flags are
+`-http-private-cidrs` and `-http-additional-ports`; explicit flags take precedence.
+Restart the Agent after changes. Pass environment variables explicitly to containers
+or the Agent service; setting them only on the Server does not configure Agents.
+See [HTTP monitoring design](../docs/HTTP_SERVICE_MONITORING.md#agent-local-deployment-configuration)
+for limits and address restrictions.
+
+To enable experimental HTTP scheduling, set `MYPROBE_HTTP_PROBES_ENABLED=true`
+in the Server environment and restart the Server. The supplied Compose file passes
+this setting from `.env`; recreate the container after changes. Other container
+setups must explicitly pass the variable. It defaults to false; malformed boolean values
+prevent startup. Compatible Agents negotiate HTTP support when they reconnect.
+Create an enabled HTTP service and assign observers in the administration console.
+Agent-local address restrictions still apply independently of the Server flag.
+
+Set the flag to false and restart to stop new checks; configuration and retained
+history remain accessible. Maintenance exclusions, HTTP incident notifications and
+certificate expiry notifications are not included yet. Live HTTP acceptance has
+an opt-in test; HTTPS/browser and capacity validation remain open. Do not interpret current rates as a
+maintenance-adjusted SLA.

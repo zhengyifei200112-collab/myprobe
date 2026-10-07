@@ -98,6 +98,8 @@ export interface ChartShare {
 }
 
 export interface ConfigImportResult {
+  http_services_created?: number
+  http_services_updated?: number
   nodes_created: number
   nodes_updated: number
   targets_created: number
@@ -141,7 +143,70 @@ export interface AuthSettings { password_enabled: true; github: GitHubOAuthSetti
 
 let csrfToken = ''
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+export interface HTTPServiceSpec {
+  url: string
+  method: 'GET' | 'HEAD'
+  status_codes: number[]
+  timeout_ms: number
+  max_redirects: number
+  max_body_bytes: number
+  assertion?: { kind: 'text_contains' | 'json_equals'; text?: string; path?: string[]; expected?: unknown }
+}
+export interface HTTPServiceConfig {
+  expected_json?: string
+  id?: string
+  revision: number
+  name: string
+  enabled: boolean
+  interval_seconds: number
+  node_ids: string[]
+  spec: HTTPServiceSpec
+}
+export interface HTTPServiceSummary {
+  id: string; revision: number; name: string; enabled: boolean; interval_seconds: number; node_count: number; updated_at: string
+}
+export interface HTTPObservation {
+  task_id: string; node_id: string; revision: number; scheduled_at: string; expires_at: string
+  result: null | {
+    completed_at: string; outcome: 'success' | 'failure' | 'unobserved'; error_class?: string; status_code?: number; duration_ms: number
+    certificates?: Array<{ sha256: string; not_before: string; not_after: string; verified: boolean }>
+  }
+}
+export const loadHTTPObservations = (id: string) => request<{ observations: HTTPObservation[]; execution_enabled: boolean; server_time: string }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/results?limit=50`)
+export interface HTTPStatisticsResponse {
+  node_id: string; server_time: string; maintenance_excluded: boolean; execution_enabled: boolean
+  statistics: {
+    requested_start: string; requested_end: string; start: string; end: string; retained_from: string; schedule_known_from: string
+    expected: number; success: number; failure: number; unobserved: number; missing: number; success_rate: number | null; coverage: number | null
+  }
+}
+export const loadHTTPStatistics = (id: string, nodeID: string, start: string, end: string) => request<HTTPStatisticsResponse>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/statistics?${new URLSearchParams({ node_id: nodeID, start, end })}`)
+export const listHTTPServices = (after = '') => request<{ services: HTTPServiceSummary[]; next_cursor: string; execution_enabled: boolean }>(`/api/v1/admin/service-monitors?limit=50&after=${encodeURIComponent(after)}`)
+export const loadHTTPService = (id: string) => request<{ service: HTTPServiceConfig; execution_enabled: boolean }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}`, {}, text => {
+  const result = JSON.parse(text)
+  // Tokenize strings before numbers so digits inside names/URLs are untouched.
+  const exact = JSON.parse(text.replace(/"(?:\\.|[^"\\])*"|(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)/g, (token, number) => number === undefined ? token : JSON.stringify(number)))
+  const assertion = result.service.spec.assertion
+  if (assertion?.kind === 'json_equals') result.service.expected_json = typeof assertion.expected === 'number' ? exact.service.spec.assertion.expected : JSON.stringify(assertion.expected)
+  return result
+})
+export const saveHTTPService = (value: HTTPServiceConfig) => {
+  const { id, expected_json, ...body } = value
+  let encoded = JSON.stringify(body)
+  if (body.spec.assertion?.kind === 'json_equals' && expected_json !== undefined) {
+    JSON.parse(expected_json) // Validate one JSON value before inserting its raw token.
+    const { assertion, ...spec } = body.spec
+    const { expected, ...condition } = assertion
+    const rawAssertion = `${JSON.stringify(condition).slice(0, -1)},"expected":${expected_json}}`
+    const rawSpec = `${JSON.stringify(spec).slice(0, -1)},"assertion":${rawAssertion}}`
+    const { spec: omitted, ...rest } = body
+    encoded = `${JSON.stringify(rest).slice(0, -1)},"spec":${rawSpec}}`
+  }
+  return request<{ service: HTTPServiceConfig; execution_enabled: boolean }>(`/api/v1/admin/service-monitors${id ? `/${encodeURIComponent(id)}` : ''}`, { method: id ? 'PUT' : 'POST', body: encoded })
+}
+export const deleteHTTPService = (id: string, revision: number) => request<void>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}?revision=${revision}`, { method: 'DELETE' })
+
+async function request<T>(path: string, options: RequestInit = {}, decode?: (text: string) => T): Promise<T> {
   const method = (options.method || 'GET').toUpperCase()
   const headers = new Headers(options.headers)
   headers.set('Accept', 'application/json')
@@ -153,6 +218,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new Error(payload.error || `请求失败（${response.status}）`)
   }
   if (response.status === 204) return undefined as T
+  if (decode) return decode(await response.text())
   return response.json() as Promise<T>
 }
 

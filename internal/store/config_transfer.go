@@ -13,11 +13,12 @@ import (
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 )
 
-const ConfigSnapshotVersion = 1
+const ConfigSnapshotVersion = 2
 
 var portableID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 type ConfigSnapshot struct {
+	HTTPServices []ConfigHTTPService `json:"http_services,omitempty"`
 	Version      int                 `json:"version"`
 	ExportedAt   time.Time           `json:"exported_at"`
 	Nodes        []ConfigNode        `json:"nodes"`
@@ -69,15 +70,17 @@ type ConfigTargetGroup struct {
 }
 
 type ConfigImportResult struct {
-	NodesCreated   int               `json:"nodes_created"`
-	NodesUpdated   int               `json:"nodes_updated"`
-	TargetsAdded   int               `json:"targets_created"`
-	TargetsUpdated int               `json:"targets_updated"`
-	GroupsAdded    int               `json:"groups_created"`
-	GroupsUpdated  int               `json:"groups_updated"`
-	MembersAdded   int               `json:"memberships_created"`
-	AgentTokens    map[string]string `json:"agent_tokens,omitempty"`
-	DryRun         bool              `json:"dry_run"`
+	HTTPServicesCreated int               `json:"http_services_created"`
+	HTTPServicesUpdated int               `json:"http_services_updated"`
+	NodesCreated        int               `json:"nodes_created"`
+	NodesUpdated        int               `json:"nodes_updated"`
+	TargetsAdded        int               `json:"targets_created"`
+	TargetsUpdated      int               `json:"targets_updated"`
+	GroupsAdded         int               `json:"groups_created"`
+	GroupsUpdated       int               `json:"groups_updated"`
+	MembersAdded        int               `json:"memberships_created"`
+	AgentTokens         map[string]string `json:"agent_tokens,omitempty"`
+	DryRun              bool              `json:"dry_run"`
 }
 
 func (s *Store) ExportConfig(ctx context.Context, now time.Time) (ConfigSnapshot, error) {
@@ -118,6 +121,10 @@ func (s *Store) ExportConfig(ctx context.Context, now time.Time) (ConfigSnapshot
 	}
 	for _, item := range groups {
 		snapshot.TargetGroups = append(snapshot.TargetGroups, ConfigTargetGroup{ID: item.ID, Name: item.Name, Kind: item.Kind})
+	}
+	snapshot.HTTPServices, err = s.exportHTTPServices(ctx)
+	if err != nil {
+		return ConfigSnapshot{}, err
 	}
 	return snapshot, nil
 }
@@ -243,6 +250,17 @@ func (s *Store) ImportConfig(ctx context.Context, snapshot ConfigSnapshot, dryRu
 	if mismatched != 0 {
 		return result, errors.New("configuration creates target/group kind mismatches")
 	}
+	for _, item := range snapshot.HTTPServices {
+		created, err := importHTTPService(ctx, tx, item, now)
+		if err != nil {
+			return result, err
+		}
+		if created {
+			result.HTTPServicesCreated++
+		} else {
+			result.HTTPServicesUpdated++
+		}
+	}
 	if dryRun {
 		result.AgentTokens = nil
 		return result, nil
@@ -254,8 +272,21 @@ func (s *Store) ImportConfig(ctx context.Context, snapshot ConfigSnapshot, dryRu
 }
 
 func validateConfigSnapshot(snapshot ConfigSnapshot) error {
-	if snapshot.Version != ConfigSnapshotVersion {
+	if snapshot.Version != 1 && snapshot.Version != ConfigSnapshotVersion {
 		return fmt.Errorf("unsupported config version %d", snapshot.Version)
+	}
+	if snapshot.Version == 1 && len(snapshot.HTTPServices) > 0 {
+		return errors.New("HTTP services require config version 2")
+	}
+	if len(snapshot.HTTPServices) > 1000 {
+		return errors.New("too many HTTP services")
+	}
+	serviceIDs := make(map[string]bool)
+	for _, item := range snapshot.HTTPServices {
+		if !portableID.MatchString(item.ID) || serviceIDs[item.ID] || item.service().validateAllowEmptyNodes(true) != nil {
+			return ErrInvalidHTTPService
+		}
+		serviceIDs[item.ID] = true
 	}
 	if len(snapshot.Nodes) > 10000 || len(snapshot.Targets) > 10000 || len(snapshot.TargetGroups) > 10000 || len(snapshot.GroupMembers)+len(snapshot.NodeGroups)+len(snapshot.NodeTargets) > 100000 {
 		return errors.New("configuration exceeds import limits")

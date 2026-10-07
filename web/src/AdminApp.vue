@@ -5,6 +5,7 @@ import { DsButton, DsConfirmDialog, DsDialog, DsDropdown, DsEmptyState, DsSheet,
 import SettingsCenter from './settings-center/SettingsCenter.vue'
 import AuthSettingsPanel from './settings-center/AuthSettingsPanel.vue'
 import NotificationCenter from './notification-center/NotificationCenter.vue'
+import ServiceMonitoring from './service-monitoring/ServiceMonitoring.vue'
 import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
 import { fetchSiteSettings } from './api'
 import { defaultSiteSettings, normalizeSiteSettings } from './types'
@@ -16,7 +17,7 @@ import {
   updateChartShare, updateNode, updateSiteSettings, updateTarget,
 } from './admin-api'
 
-type Tab = 'nodes' | 'targets' | 'settings' | 'alerts' | 'shares' | 'maintenance' | 'security'
+type Tab = 'nodes' | 'targets' | 'services' | 'settings' | 'alerts' | 'shares' | 'maintenance' | 'security'
 const authenticated = ref(false)
 const booting = ref(true)
 const busy = ref(false)
@@ -408,7 +409,7 @@ async function exportConfigFile() {
   await run(async () => {
     const result = await downloadConfiguration()
     saveDownload(result.blob, result.filename)
-  }, '配置文件已导出；其中不包含密码、Token、通知凭据和历史数据。')
+  }, '配置文件已导出。文件包含服务目标 URL 和断言，请妥善保存；不包含密码、Token、通知凭据和历史数据。')
 }
 
 function selectConfigFile(event: Event) {
@@ -428,7 +429,7 @@ async function previewConfigImport() {
 
 async function applyConfigImport() {
   if (!configDocument.value || !configPreview.value) return
-  if (!confirm('确认以合并模式导入此配置？同 ID 项会更新，未出现在文件中的现有项会保留。')) return
+  if (!confirm('确认以合并模式导入此配置？同 ID 项会更新，未出现在文件中的现有项会保留。HTTP 服务的观测节点将按文件替换，配置版本会更新。')) return
   await run(async () => {
     const result = (await importConfiguration(configDocument.value, false)).result
     importTokens.value = result.agent_tokens || {}
@@ -492,6 +493,7 @@ onMounted(async () => {
       <nav v-if="authenticated" class="admin-tabs" aria-label="管理中心导航">
         <button :class="{ active: tab === 'nodes' }" @click="tab = 'nodes'">节点</button>
         <button :class="{ active: tab === 'targets' }" @click="tab = 'targets'">探测目标</button>
+        <button :class="{ active: tab === 'services' }" @click="tab = 'services'">HTTP 服务</button>
         <button :class="{ active: tab === 'alerts' }" @click="tab = 'alerts'">告警</button>
         <button :class="{ active: tab === 'shares' }" @click="tab = 'shares'">分享</button>
         <button :class="{ active: ['settings', 'maintenance', 'security'].includes(tab) }" @click="tab = 'settings'">设置</button>
@@ -575,6 +577,7 @@ onMounted(async () => {
         <NotificationCenter :nodes="nodes" @notice="value => { notice = value; error = '' }" @error="showError" />
       </template>
 
+      <ServiceMonitoring v-else-if="tab === 'services'" :nodes="nodes" />
       <template v-else-if="tab === 'shares'">
         <section class="admin-heading"><div><span class="eyebrow">SECURE SHARING</span><h1>图表分享</h1><p>为选定节点生成密码保护的只读历史图表链接。</p></div><span class="count-pill">{{ shares.length }} 个分享</span></section>
         <form class="admin-panel compact-form" @submit.prevent="saveShare"><h2>{{ shareForm.id ? '编辑分享' : '创建分享' }}</h2><div class="form-grid two"><label>名称<input v-model="shareForm.name" required placeholder="客户监控视图"></label><label>{{ shareForm.id ? '新密码（留空保持不变）' : '分享密码' }}<input v-model="shareForm.password" type="password" minlength="8" :required="!shareForm.id" autocomplete="new-password"></label></div><div class="assignment-box share-node-picker"><b>允许查看的节点</b><label v-for="item in nodes" :key="item.id" class="check-chip"><input v-model="shareForm.node_ids" type="checkbox" :value="item.id">{{ item.name }}</label><span v-if="!nodes.length" class="empty-inline">暂无节点</span></div><div v-if="shareForm.id" class="switch-row"><label><input v-model="shareForm.enabled" type="checkbox"> 启用此分享</label></div><div class="form-actions"><button class="primary-button" :disabled="busy || !shareForm.node_ids.length">{{ shareForm.id ? '保存分享' : '创建分享' }}</button><button v-if="shareForm.id" type="button" @click="editShare()">取消</button></div></form>
@@ -582,15 +585,15 @@ onMounted(async () => {
       </template>
 
       <template v-else-if="tab === 'maintenance'">
-        <section class="admin-heading"><div><span class="eyebrow">PORTABILITY &amp; RECOVERY</span><h1>迁移与备份</h1><p>迁移可审阅配置，或创建包含全部数据的口令加密数据库备份。</p></div><span class="count-pill">版本 1</span></section>
+        <section class="admin-heading"><div><span class="eyebrow">PORTABILITY &amp; RECOVERY</span><h1>迁移与备份</h1><p>迁移可审阅配置，或创建包含全部数据的口令加密数据库备份。</p></div><span class="count-pill">配置版本 2</span></section>
         <div class="maintenance-grid">
           <section class="admin-panel maintenance-card">
-            <span class="eyebrow">SAFE CONFIG</span><h2>版本化配置</h2><p>JSON 配置不包含管理员密码、Agent Token、通知密文、分享密码和历史指标。导入默认使用合并模式。</p>
+            <span class="eyebrow">CONFIGURATION</span><h2>版本化配置</h2><p>JSON 配置包含 HTTP 服务目标 URL、断言和节点关联，请妥善保存。不包含管理员密码、Agent Token、通知密文、分享密码和历史指标。支持导入 v1 / v2 配置，使用合并模式。</p>
             <div class="maintenance-actions"><button class="primary-button" :disabled="busy" @click="exportConfigFile">导出配置 JSON</button></div>
             <div class="maintenance-divider"></div>
             <label class="file-field">选择配置文件<input type="file" accept="application/json,.json" @change="selectConfigFile"></label>
             <div class="form-actions"><button :disabled="busy || !configFile" @click="previewConfigImport">预检导入</button><button v-if="configPreview" class="primary-button" :disabled="busy" @click="applyConfigImport">确认合并导入</button></div>
-            <div v-if="configPreview" class="import-preview"><strong>预检结果</strong><span>节点：新增 {{ configPreview.nodes_created }} / 更新 {{ configPreview.nodes_updated }}</span><span>目标：新增 {{ configPreview.targets_created }} / 更新 {{ configPreview.targets_updated }}</span><span>目标组：新增 {{ configPreview.groups_created }} / 更新 {{ configPreview.groups_updated }}</span><span>新增关系：{{ configPreview.memberships_created }}</span></div>
+            <div v-if="configPreview" class="import-preview" role="status"><strong>预检结果</strong><span>节点：新增 {{ configPreview.nodes_created }} / 更新 {{ configPreview.nodes_updated }}</span><span>目标：新增 {{ configPreview.targets_created }} / 更新 {{ configPreview.targets_updated }}</span><span>目标组：新增 {{ configPreview.groups_created }} / 更新 {{ configPreview.groups_updated }}</span><span>HTTP 服务：新增 {{ configPreview.http_services_created ?? 0 }} / 更新 {{ configPreview.http_services_updated ?? 0 }}</span><span>新增关系：{{ configPreview.memberships_created }}</span><p>同 ID 的 HTTP 服务将替换观测节点并更新配置版本；文件中未出现的服务会保留。预检不保存修改，也不会启用服务端探测。</p></div>
           </section>
           <section class="admin-panel maintenance-card">
             <span class="eyebrow">FULL SNAPSHOT</span><h2>加密数据库备份</h2><p>包含认证数据、通知配置和全部历史。服务先生成 SQLite 一致快照，再使用口令分块加密。</p>

@@ -10,15 +10,19 @@ import (
 	"net/netip"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/httpcheck"
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
+	protocolv2 "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v2"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
 type Gateway struct {
+	httpEnabled    atomic.Bool
 	store          *store.Store
 	hub            *Hub
 	sessionsMu     sync.RWMutex
@@ -49,13 +53,20 @@ func New(database *store.Store, hub *Hub) *Gateway {
 var ErrAgentOffline = errors.New("agent is offline")
 
 type agentSession struct {
-	connection *websocket.Conn
-	writeMu    sync.Mutex
+	httpAllowed bool
+	httpMu      sync.Mutex
+	httpPending map[string]time.Time
+	version     int
+	connection  *websocket.Conn
+	writeMu     sync.Mutex
 }
 
 func (s *agentSession) write(ctx context.Context, envelope protocol.Envelope) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	if s.version == protocolv2.Version {
+		envelope.Version = protocolv2.Version
+	}
 	return wsjson.Write(ctx, s.connection, envelope)
 }
 
@@ -120,6 +131,21 @@ func (g *Gateway) HTTPHello(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
+	g.webSocketVersion(w, r, protocol.Version)
+}
+
+func (g *Gateway) WebSocketV2(w http.ResponseWriter, r *http.Request) {
+	g.webSocketVersion(w, r, protocolv2.Version)
+}
+
+func validateSocketEnvelope(envelope protocol.Envelope, version int, now time.Time) error {
+	if version == protocolv2.Version {
+		return protocolv2.Envelope(envelope).Validate(now)
+	}
+	return envelope.Validate(now)
+}
+
+func (g *Gateway) webSocketVersion(w http.ResponseWriter, r *http.Request, version int) {
 	node, ok := g.authenticate(w, r)
 	if !ok {
 		return
@@ -140,7 +166,7 @@ func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 	var first protocol.Envelope
 	err = wsjson.Read(firstCtx, connection, &first)
 	cancel()
-	if err != nil || first.Validate(time.Now().UTC()) != nil || first.Type != protocol.TypeHello {
+	if err != nil || validateSocketEnvelope(first, version, time.Now().UTC()) != nil || first.Type != protocol.TypeHello {
 		_ = connection.Close(websocket.StatusPolicyViolation, "hello required")
 		return
 	}
@@ -161,7 +187,18 @@ func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 			ReportSeconds:     node.ReportSeconds,
 		},
 	})
-	session := &agentSession{connection: connection}
+	var capabilities []string
+	if version == protocolv2.Version {
+		payload, _ := protocol.DecodePayload[protocol.Welcome](welcome)
+		var offered []string
+		if g.httpEnabled.Load() {
+			offered = []string{httpcheck.Capability}
+		}
+		capabilities = protocolv2.NegotiateCapabilities(hello.Capabilities, offered)
+		welcome.Payload, _ = json.Marshal(protocolv2.Welcome{Welcome: payload, Capabilities: capabilities})
+		welcome.Version = protocolv2.Version
+	}
+	session := &agentSession{connection: connection, version: version, httpAllowed: protocolv2.AllowsHTTP(capabilities), httpPending: make(map[string]time.Time)}
 	// Publish the session while holding its writer lock. A scheduler can discover
 	// it immediately, but its first task cannot overtake the welcome frame.
 	session.writeMu.Lock()
@@ -182,11 +219,25 @@ func (g *Gateway) WebSocket(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
-		if err := envelope.Validate(time.Now().UTC()); err != nil {
+		if err := validateSocketEnvelope(envelope, version, time.Now().UTC()); err != nil {
 			g.writeProtocolError(ctx, session, "invalid_envelope", err.Error())
 			continue
 		}
 		switch envelope.Type {
+		case protocolv2.TypeHTTPResult:
+			result, err := protocol.DecodePayload[httpcheck.Result](envelope)
+			if err != nil || !session.httpAllowed || !g.httpEnabled.Load() {
+				g.writeProtocolError(ctx, session, "invalid_result", "HTTP result rejected")
+				continue
+			}
+			if err := g.saveHTTPResult(ctx, session, node.ID, result); err != nil {
+				g.writeProtocolError(ctx, session, "invalid_result", "HTTP result rejected")
+				continue
+			}
+			ack, _ := protocol.NewEnvelope(protocol.TypeAcknowledged, envelope.Sequence, protocol.Acknowledgement{Sequence: envelope.Sequence})
+			if err := session.write(ctx, ack); err != nil {
+				return
+			}
 		case protocol.TypeReport:
 			report, err := protocol.DecodePayload[protocol.Report](envelope)
 			if err != nil || report.Validate() != nil {
