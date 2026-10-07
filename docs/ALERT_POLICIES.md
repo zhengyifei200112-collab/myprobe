@@ -86,6 +86,12 @@ surfaces are added.
 
 ## Administrator API
 
+`web/src/admin-api.ts` provides typed create/update/delete/read/list and effective
+preview clients. Scope types distinguish global, explicit-node and tag selectors;
+updates require revisions and every read preserves the evaluation-enabled flag.
+These clients reuse session, CSRF and private-cache behavior. They are not yet
+connected to a policy management screen.
+
 All `/api/v1/admin/alert-policies` routes require administrator sessions and return
 `Cache-Control: no-store`, including authentication failures. Mutations require
 CSRF. Responses include `evaluation_enabled: false`: saved policies are not yet

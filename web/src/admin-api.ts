@@ -77,6 +77,53 @@ export interface AlertEvent {
   provider?: string
 }
 
+export type AlertPolicyScope =
+  | { kind: 'all' }
+  | { kind: 'nodes'; node_ids: string[] }
+  | { kind: 'tags'; tags: string[]; tag_mode: 'all' | 'any' }
+
+export interface AlertPolicyInput {
+  name: string
+  policy_key: string
+  enabled: boolean
+  priority: number
+  scope: AlertPolicyScope
+  channel_id: string
+  kind: AlertKind
+  config: AlertRule['config']
+  cooldown_seconds: number
+}
+
+export interface AlertPolicy extends AlertPolicyInput {
+  id: string
+  revision: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AlertPolicyDecision {
+  policy_key: string
+  selected_id: string
+  candidate_ids: string[]
+  reason: 'only_match' | 'more_specific_scope' | 'higher_priority'
+}
+
+export interface AlertPolicyResponse {
+  policy: AlertPolicy
+  evaluation_enabled: boolean
+}
+
+export const loadAlertPolicies = (after = '', limit = 50) => request<{
+  policies: AlertPolicy[]; next_cursor: string; evaluation_enabled: boolean
+}>(`/api/v1/admin/alert-policies?${new URLSearchParams({ after, limit: String(limit) })}`)
+export const loadAlertPolicy = (id: string) => request<AlertPolicyResponse>(`/api/v1/admin/alert-policies/${encodeURIComponent(id)}`)
+export const createAlertPolicy = (payload: AlertPolicyInput) => request<AlertPolicyResponse>('/api/v1/admin/alert-policies', { method: 'POST', body: JSON.stringify(payload) })
+export const updateAlertPolicy = (id: string, payload: AlertPolicyInput & { revision: number }) => request<AlertPolicyResponse>(`/api/v1/admin/alert-policies/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) })
+export const deleteAlertPolicy = (id: string, revision: number) => request<void>(`/api/v1/admin/alert-policies/${encodeURIComponent(id)}?${new URLSearchParams({ revision: String(revision) })}`, { method: 'DELETE' })
+export const loadEffectiveAlertPolicies = (nodeID: string) => request<{
+  decisions: AlertPolicyDecision[]; evaluation_enabled: boolean
+}>(`/api/v1/admin/alert-policies/effective/${encodeURIComponent(nodeID)}`)
+
 export interface NotificationTemplate {
   id: string
   name: string
