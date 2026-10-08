@@ -158,7 +158,19 @@ func (s *Store) DeleteAlertPolicy(ctx context.Context, id string, revision int64
 	if id == "" || revision <= 0 {
 		return ErrInvalidAlertPolicy
 	}
-	result, err := s.db.ExecContext(ctx, `DELETE FROM alert_policies WHERE id=? AND revision=?`, id, revision)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `UPDATE alert_policy_writer SET version=version WHERE id=1`); err != nil {
+		return err
+	}
+	// Remove bound execution rules only if the policy revision still matches.
+	if _, err = tx.ExecContext(ctx, `DELETE FROM alert_rules WHERE id IN (SELECT b.rule_id FROM alert_policy_rule_bindings b JOIN alert_policies p ON p.id=b.policy_id WHERE p.id=? AND p.revision=?)`, id, revision); err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, `DELETE FROM alert_policies WHERE id=? AND revision=?`, id, revision)
 	if err != nil {
 		return err
 	}
@@ -169,7 +181,7 @@ func (s *Store) DeleteAlertPolicy(ctx context.Context, id string, revision int64
 	if n != 1 {
 		return ErrAlertPolicyConflict
 	}
-	return nil
+	return tx.Commit()
 }
 
 // EffectiveAlertPolicies previews one consistent snapshot of tags and policies.

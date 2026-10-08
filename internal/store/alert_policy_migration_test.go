@@ -53,6 +53,13 @@ func TestLegacyPolicyMappingPreservesIncidentAndDelivery(t *testing.T) {
 	if p.ID != rule.ID || p.Key != "legacy:"+rule.ID || p.Scope.NodeIDs[0] != node.ID || string(p.Config) != string(rule.Config) || p.ChannelID != rule.ChannelID {
 		t.Fatalf("mapping changed rule: %+v", p)
 	}
+	if err = db.SyncAlertPolicyRules(ctx, now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	unchanged, err := db.AlertRule(ctx, rule.ID)
+	if err != nil || !unchanged.UpdatedAt.Equal(rule.UpdatedAt) {
+		t.Fatalf("equivalent policy rewrote rule: %+v %v", unchanged, err)
+	}
 	var afterID, afterFingerprint, afterSnapshot, afterDeliveryID, afterPayload string
 	if err = db.db.QueryRowContext(ctx, `SELECT id,fingerprint,rule_snapshot_json FROM alert_incidents WHERE rule_id=?`, rule.ID).Scan(&afterID, &afterFingerprint, &afterSnapshot); err != nil {
 		t.Fatal(err)

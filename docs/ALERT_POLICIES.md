@@ -112,8 +112,30 @@ truncation or rule deletion.
 
 Regression evidence covers active incident and pending-delivery identity, unchanged
 snapshots/payloads, idempotence, no duplicate deliveries, identity collisions and
-capacity rollback. Runtime rule materialization, management-change handling,
-legacy write compatibility and configuration transfer remain incomplete.
+capacity rollback. Coordinated activation, legacy write compatibility and
+configuration transfer remain incomplete.
+
+## Execution-rule synchronization
+
+`SyncAlertPolicyRules` resolves policies against a consistent node/tag snapshot
+inside a writer transaction. Selected policy/node pairs receive stable bound rule
+IDs. Existing legacy bindings retain original IDs, timestamps and snapshots when
+their effective configuration is unchanged. New bindings materialize ordinary
+execution rules for the existing incident evaluator and outbox.
+
+No-longer-selected rules are disabled, so the next incident reconciliation closes
+their faults with a management reason (`rule_disabled`), not a technical recovery.
+When a fallback policy becomes selected again, it reuses its prior rule ID. Policy
+deletion removes bound execution rules transactionally only when its revision
+matches; incident history remains in the independent incident tables. Pending
+delivery reconciliation remains the existing incident worker's responsibility.
+
+Synchronization limits are 10000 nodes and 100000 retained bindings. Exceeding a
+limit rolls back; these are work bounds, not tested capacity claims. It is not yet
+called by the production evaluation loop. Activation still needs coordinated
+legacy migration, protection against legacy-editor writes to managed rules, and
+reconciliation before workers can send. Do not equate materialization unit tests
+with a completed runtime cutover.
 
 ## Administrator API
 

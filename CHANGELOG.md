@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Internal scoped-policy execution-rule synchronization with stable identities,
+  dynamic tag selection and transactional removal of bound rules. Production
+  policy activation remains pending.
+
 - Internal legacy-rule policy mapping preparation (migration 022), preserving rule,
   incident and queued-delivery identities. Automatic runtime cutover remains pending.
 
