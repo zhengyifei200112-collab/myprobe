@@ -1180,7 +1180,7 @@ func writeAlertError(c *gin.Context, err error) {
 	status := http.StatusBadRequest
 	if errors.Is(err, store.ErrNotFound) {
 		status = http.StatusNotFound
-	} else if errors.Is(err, store.ErrNotificationChannelInUse) {
+	} else if errors.Is(err, store.ErrNotificationChannelInUse) || errors.Is(err, store.ErrAlertRuleManaged) {
 		status = http.StatusConflict
 	} else if errors.Is(err, alerts.ErrEncryptionNotConfigured) {
 		status = http.StatusServiceUnavailable

@@ -117,6 +117,13 @@ configuration transfer remain incomplete.
 
 ## Execution-rule synchronization
 
+Old rule update/delete endpoints reject bound rules with 409 and an actionable
+policy-management message. Binding absence is checked in the modifying SQL itself,
+so a separate precheck cannot race with migration. Rejection classification never
+retries the write. Unbound legacy rules retain their existing editing behavior.
+Configuration import uses a separate write path and still needs coordinated policy
+handling before runtime activation; these endpoint guards alone are not cutover.
+
 `SyncAlertPolicyRules` resolves policies against a consistent node/tag snapshot
 inside a writer transaction. Selected policy/node pairs receive stable bound rule
 IDs. Existing legacy bindings retain original IDs, timestamps and snapshots when

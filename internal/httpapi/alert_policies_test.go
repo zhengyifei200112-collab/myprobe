@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
@@ -59,6 +60,25 @@ func TestAlertPolicyAdministration(t *testing.T) {
 		t.Fatal("incorrect state or leaked channel configuration")
 	}
 	id := value.Policy.ID
+	if err = db.SyncAlertPolicyRules(ctx, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	rules, err := db.ListAlertRules(ctx)
+	if err != nil || len(rules) != 1 {
+		t.Fatalf("materialized rules: %+v %v", rules, err)
+	}
+	rulePath := "/api/v1/admin/alert-rules/" + rules[0].ID
+	legacyUpdate := fmt.Sprintf(`{"node_id":%q,"channel_id":%q,"kind":"cpu","config":{"threshold_percent":95},"enabled":false,"cooldown_seconds":60}`, node.ID, channel.ID)
+	for _, method := range []string{http.MethodPatch, http.MethodDelete} {
+		r := request(method, rulePath, legacyUpdate)
+		if r.Code != 409 || !strings.Contains(r.Body.String(), "managed by a scoped policy") {
+			t.Fatalf("managed write: %d %s", r.Code, r.Body.String())
+		}
+	}
+	unchanged, err := db.AlertRule(ctx, rules[0].ID)
+	if err != nil || !unchanged.Enabled || string(unchanged.Config) != string(rules[0].Config) {
+		t.Fatal("managed rule changed through legacy endpoint", err)
+	}
 	channelPath := "/api/v1/admin/notification-channels/" + channel.ID
 	blockedDelete := request(http.MethodDelete, channelPath, "")
 	if blockedDelete.Code != 409 || !strings.Contains(blockedDelete.Body.String(), "update or delete the policy first") || strings.Contains(blockedDelete.Body.String(), "FOREIGN KEY") {

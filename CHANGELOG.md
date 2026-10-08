@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Legacy rule edits/deletes reject policy-managed execution rules with an actionable
+  conflict, preventing divergence from the owning scoped policy.
+
 - Internal scoped-policy execution-rule synchronization with stable identities,
   dynamic tag selection and transactional removal of bound rules. Production
   policy activation remains pending.
