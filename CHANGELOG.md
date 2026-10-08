@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Managed alert observations and notification claims/pre-send checks validate the
+  current policy and node tags, rejecting stale execution rules before the next
+  synchronization while preserving notifications across cosmetic policy edits.
+
 - Atomic scoped-policy preparation combines legacy mapping and execution-rule
   synchronization, rolling back both if materialization fails. Runtime activation
   remains pending.

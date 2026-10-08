@@ -135,6 +135,22 @@ successful retry, and verify that successful preparation preserves active incide
 and pending-delivery identities. This preparation API is not yet called by the
 production evaluator; worker coordination and activation remain release gates.
 
+Observation writes and delivery validation also check the bound policy's current
+selection and semantic rule snapshot in their existing transaction. This closes
+the interval between saving a definition/changing node tags and materializing the
+next execution-rule set: disabled, overridden, out-of-scope or changed rules cannot
+produce a new observation or pass a delivery claim/pre-send lease check. Cosmetic
+name changes remain valid. Unbound legacy rules retain their prior behavior.
+The checks use current database tags, not the evaluator's older node object.
+Tests cover pending and already-leased jobs for each of these changes without
+calling synchronization, including a cosmetic-edit control case.
+
+Network I/O remains outside database transactions. A configuration change after
+the last lease check cannot recall a request already sent; preserve ambiguous
+attempt outcomes rather than promising exact-once cancellation. Policy validation
+adds bounded resolver work per managed observation/delivery; its capacity cost
+still needs measurement before any supported-scale claim.
+
 `SyncAlertPolicyRules` resolves policies against a consistent node/tag snapshot
 inside a writer transaction. Selected policy/node pairs receive stable bound rule
 IDs. Existing legacy bindings retain original IDs, timestamps and snapshots when
