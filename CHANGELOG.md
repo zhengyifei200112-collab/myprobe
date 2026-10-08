@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Internal legacy-rule policy mapping preparation (migration 022), preserving rule,
+  incident and queued-delivery identities. Automatic runtime cutover remains pending.
+
 - Notification-center scoped-policy configuration and per-node inheritance preview,
   with conflict-preserving edits and a clear pending-runtime notice.
 

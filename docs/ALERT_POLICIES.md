@@ -5,7 +5,9 @@ and administrative APIs/UI exist; evaluator integration and legacy migration are
 behavior changes from scoped policies yet. This branch started from main and now
 includes incident/outbox dependency commit `99d08aa` from PR #50 for integration.
 The GitHub PR remains unmerged; review this policy branch against that dependency.
-Scoped-policy runtime activation and legacy rule mapping are still pending.
+Scoped-policy runtime activation is still pending.
+The mapping preparation described below is implemented; coordinated runtime
+cutover remains pending and is not called automatically at startup.
 
 ## Contract
 
@@ -85,6 +87,33 @@ draft activation, invalid node references, channel deletion restrictions, dynami
 tag preview and reopen persistence. Store and resolver tests are required for this
 foundation; endpoint authorization and browser tests become gates when those
 surfaces are added.
+
+## Legacy identity mapping preparation
+
+Migration 022 adds `alert_policy_rule_bindings`, linking policy/node pairs to
+stable rule IDs and recording legacy versus materialized origin. Schema migration
+only creates the table. `MigrateLegacyAlertPolicies` is an internal transactional
+cutover preparation method, not an administrator endpoint or an automatic startup
+action. It must be integrated with write/evaluation coordination before activation.
+
+Each unmapped old rule becomes an explicit-node policy with its original rule ID,
+channel, enabled flag, cooldown, configuration and timestamps. Its initial key is
+`legacy:<rule ID>` so previously independent rules remain independent. An original
+explicit zero recovery window stays zero. Existing rules, incident fingerprints,
+active state, notification IDs and rendered outbox payloads remain untouched.
+Repeated preparation skips already-bound rules rather than overwriting edits.
+
+The entire batch holds the SQLite writer reservation. Identity conflicts or a
+combined policy count above 1000 fail without partial inserts. This is a cutover
+precondition, not a schema-upgrade blocker: legacy evaluation remains available.
+Do not activate policy evaluation when preparation fails. Databases beyond the
+current policy limit need a reviewed capacity extension before cutover, not silent
+truncation or rule deletion.
+
+Regression evidence covers active incident and pending-delivery identity, unchanged
+snapshots/payloads, idempotence, no duplicate deliveries, identity collisions and
+capacity rollback. Runtime rule materialization, management-change handling,
+legacy write compatibility and configuration transfer remain incomplete.
 
 ## Administrator API
 
