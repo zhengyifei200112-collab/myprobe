@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Atomic scoped-policy preparation combines legacy mapping and execution-rule
+  synchronization, rolling back both if materialization fails. Runtime activation
+  remains pending.
+
 - Legacy rule edits/deletes reject policy-managed execution rules with an actionable
   conflict, preventing divergence from the owning scoped policy.
 

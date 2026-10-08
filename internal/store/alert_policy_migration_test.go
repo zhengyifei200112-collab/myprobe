@@ -41,7 +41,7 @@ func TestLegacyPolicyMappingPreservesIncidentAndDelivery(t *testing.T) {
 	if err = db.db.QueryRowContext(ctx, `SELECT id,payload_json FROM notification_deliveries WHERE incident_id=?`, incidentID).Scan(&deliveryID, &payload); err != nil {
 		t.Fatal(err)
 	}
-	count, err := db.MigrateLegacyAlertPolicies(ctx)
+	count, err := db.PrepareAlertPolicyRules(ctx, now.Add(time.Second))
 	if err != nil || count != 1 {
 		t.Fatalf("count=%d err=%v", count, err)
 	}
@@ -70,7 +70,7 @@ func TestLegacyPolicyMappingPreservesIncidentAndDelivery(t *testing.T) {
 	if incidentID != afterID || fingerprint != afterFingerprint || snapshot != afterSnapshot || deliveryID != afterDeliveryID || payload != afterPayload {
 		t.Fatal("migration changed fault or delivery identity")
 	}
-	if count, err = db.MigrateLegacyAlertPolicies(ctx); err != nil || count != 0 {
+	if count, err = db.PrepareAlertPolicyRules(ctx, now.Add(2*time.Second)); err != nil || count != 0 {
 		t.Fatalf("non-idempotent migration %d %v", count, err)
 	}
 	if err = db.ReconcileIncidents(ctx, now.Add(time.Second)); err != nil {
@@ -83,6 +83,53 @@ func TestLegacyPolicyMappingPreservesIncidentAndDelivery(t *testing.T) {
 	var deliveries int
 	if err = db.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM notification_deliveries`).Scan(&deliveries); err != nil || deliveries != 1 {
 		t.Fatalf("mapping duplicated delivery: %d %v", deliveries, err)
+	}
+}
+
+func TestPolicyPreparationRollsBackMappingWhenSynchronizationFails(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "prepare.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	node, _, err := db.CreateNode(ctx, CreateNodeParams{Name: "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	channel, err := db.CreateNotificationChannel(ctx, "fixture", ChannelKindWebhook, "synthetic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rule, err := db.CreateAlertRule(ctx, node.ID, channel.ID, "cpu", json.RawMessage(`{"threshold_percent":80}`), 900)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Fail after mapping has written its policy and binding, during materialization.
+	if _, err = db.db.ExecContext(ctx, `CREATE TRIGGER reject_policy_materialization BEFORE INSERT ON alert_rules BEGIN SELECT RAISE(ABORT, 'injected materialization failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if count, err := db.PrepareAlertPolicyRules(ctx, time.Now().UTC()); err == nil || count != 0 {
+		t.Fatalf("failed preparation returned %d, %v", count, err)
+	}
+	for _, table := range []string{"alert_policies", "alert_policy_rule_bindings"} {
+		var count int
+		if err := db.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil || count != 0 {
+			t.Fatalf("partial preparation in %s: %d %v", table, count, err)
+		}
+	}
+	if _, err = db.UpdateAlertRule(ctx, rule.ID, node.ID, channel.ID, "cpu", json.RawMessage(`{"threshold_percent":75}`), true, 900); err != nil {
+		t.Fatalf("failed preparation locked legacy editing: %v", err)
+	}
+	if _, err = db.db.ExecContext(ctx, `DROP TRIGGER reject_policy_materialization`); err != nil {
+		t.Fatal(err)
+	}
+	if count, err := db.PrepareAlertPolicyRules(ctx, time.Now().UTC()); err != nil || count != 1 {
+		t.Fatalf("retry failed: %d %v", count, err)
+	}
+	policies, err := db.ListAlertPolicies(ctx)
+	if err != nil || len(policies) != 1 || string(policies[0].Config) != `{"threshold_percent":75}` {
+		t.Fatalf("retry did not map latest legacy configuration: %+v %v", policies, err)
 	}
 }
 

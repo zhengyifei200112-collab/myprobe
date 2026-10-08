@@ -121,8 +121,19 @@ Old rule update/delete endpoints reject bound rules with 409 and an actionable
 policy-management message. Binding absence is checked in the modifying SQL itself,
 so a separate precheck cannot race with migration. Rejection classification never
 retries the write. Unbound legacy rules retain their existing editing behavior.
-Configuration import uses a separate write path and still needs coordinated policy
-handling before runtime activation; these endpoint guards alone are not cutover.
+Current v1 configuration transfer contains nodes, targets, groups and site settings;
+it does not write alert rules, policies, channels or templates. Imported node tags
+must participate in the next policy selection. Portable policy transfer remains a
+separate versioned contract with destination references and credential handling.
+
+`PrepareAlertPolicyRules` combines legacy mapping and execution-rule synchronization
+under one writer transaction. Runtime cutover should use this combined operation:
+if synchronization fails, no new policy or binding survives and previously unbound
+legacy rules remain editable. A retry maps the latest committed legacy values.
+Tests inject a materialization failure after mapping, verify complete rollback and
+successful retry, and verify that successful preparation preserves active incident
+and pending-delivery identities. This preparation API is not yet called by the
+production evaluator; worker coordination and activation remain release gates.
 
 `SyncAlertPolicyRules` resolves policies against a consistent node/tag snapshot
 inside a writer transaction. Selected policy/node pairs receive stable bound rule

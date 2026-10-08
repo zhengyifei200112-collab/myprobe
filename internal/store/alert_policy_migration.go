@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 
@@ -21,6 +22,17 @@ func (s *Store) MigrateLegacyAlertPolicies(ctx context.Context) (int, error) {
 	if _, err = tx.ExecContext(ctx, `UPDATE alert_policy_writer SET version=version WHERE id=1`); err != nil {
 		return 0, err
 	}
+	count, err := migrateLegacyAlertPolicies(ctx, tx)
+	if err != nil {
+		return 0, err
+	}
+	if err = tx.Commit(); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func migrateLegacyAlertPolicies(ctx context.Context, tx *sql.Tx) (int, error) {
 	items, err := listAlertPolicies(ctx, tx)
 	if err != nil {
 		return 0, err
@@ -81,9 +93,6 @@ func (s *Store) MigrateLegacyAlertPolicies(ctx context.Context) (int, error) {
 		if _, err = tx.ExecContext(ctx, `INSERT INTO alert_policy_rule_bindings(policy_id,node_id,rule_id,origin) VALUES(?,?,?,'legacy')`, p.ID, p.Scope.NodeIDs[0], p.ID); err != nil {
 			return 0, err
 		}
-	}
-	if err = tx.Commit(); err != nil {
-		return 0, err
 	}
 	return len(legacy), nil
 }

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"time"
@@ -20,6 +21,38 @@ func (s *Store) SyncAlertPolicyRules(ctx context.Context, now time.Time) error {
 	if _, err = tx.ExecContext(ctx, `UPDATE alert_policy_writer SET version=version WHERE id=1`); err != nil {
 		return err
 	}
+	if err = syncAlertPolicyRules(ctx, tx, now); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// PrepareAlertPolicyRules maps legacy rules and applies policy selection atomically.
+// A failed selection leaves legacy rules editable and does not retain new mappings.
+// The caller must coordinate evaluation and delivery before activating policies.
+func (s *Store) PrepareAlertPolicyRules(ctx context.Context, now time.Time) (int, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `UPDATE alert_policy_writer SET version=version WHERE id=1`); err != nil {
+		return 0, err
+	}
+	count, err := migrateLegacyAlertPolicies(ctx, tx)
+	if err != nil {
+		return 0, err
+	}
+	if err = syncAlertPolicyRules(ctx, tx, now); err != nil {
+		return 0, err
+	}
+	if err = tx.Commit(); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func syncAlertPolicyRules(ctx context.Context, tx *sql.Tx, now time.Time) error {
 	items, err := listAlertPolicies(ctx, tx)
 	if err != nil {
 		return err
@@ -129,5 +162,5 @@ func (s *Store) SyncAlertPolicyRules(ctx context.Context, now time.Time) error {
 			return err
 		}
 	}
-	return tx.Commit()
+	return nil
 }
