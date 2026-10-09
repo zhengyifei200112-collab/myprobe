@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import type { NodeMetadata } from '../types'
-import type { AlertKind, AlertPolicy, AlertPolicyDecision, AlertPolicyInput, AlertPolicyScope, NotificationChannel } from '../admin-api'
+import type { AlertKind, AlertPolicy, AlertPolicyDecision, AlertPolicyInput, AlertPolicyScope, NotificationChannel, PolicyEvaluationStatus } from '../admin-api'
 import { createAlertPolicy, deleteAlertPolicy, loadAlertPolicies, loadAlertPolicy, loadEffectiveAlertPolicies, updateAlertPolicy } from '../admin-api'
 import { DsConfirmDialog } from '../design-system'
 defineProps<{ nodes: NodeMetadata[]; channels: NotificationChannel[] }>()
 const items = ref<AlertPolicy[]>([]), cursor = ref(''), busy = ref(false), error = ref(''), loaded = ref(false), execution = ref(false)
 const editing = ref(false), deleting = ref<AlertPolicy | null>(null), nodeID = ref(''), decisions = ref<AlertPolicyDecision[] | null>(null)
 const names = ref<Record<string, string>>({})
+const evaluation = ref<PolicyEvaluationStatus>({ state: 'pending' })
 let active = true
 onUnmounted(() => { active = false })
 const defaults = () => ({ id: '', revision: 0, name: '', key: '', enabled: true, priority: 0, scope: 'all' as AlertPolicyScope['kind'], nodeIDs: [] as string[], tags: '', tagMode: 'all' as 'all' | 'any', channel: '', kind: 'cpu' as AlertKind, threshold: 90, duration: 0, recovery: 0, recoveryMatches: true, repeat: 900, cooldown: 900, template: '' })
@@ -26,6 +27,7 @@ async function refresh(more = false) {
   if (!active) return
   items.value = more ? [...items.value, ...response.policies.filter(p => !items.value.some(old => old.id === p.id))] : response.policies
   cursor.value = response.next_cursor; execution.value = response.evaluation_enabled; loaded.value = true
+  evaluation.value = response.evaluation
 }
 function create() { Object.assign(form, defaults()); editing.value = true; error.value = '' }
 async function edit(id: string) {
@@ -64,6 +66,7 @@ async function preview() {
     }
     if (!active) return
     names.value = Object.fromEntries(pairs); decisions.value = response.decisions; execution.value = response.evaluation_enabled
+    evaluation.value = response.evaluation
   })
 }
 const reasons = { only_match: '唯一匹配', more_specific_scope: '范围更具体', higher_priority: '同层级优先级更高' }
@@ -73,7 +76,14 @@ onMounted(() => run(() => refresh()))
 <template>
   <section class="policy-manager" aria-label="范围策略管理">
     <h2>范围策略</h2>
-    <p v-if="loaded && !execution" role="status">策略评估尚未启用。当前可保存和预览配置，实际告警仍由原有告警规则执行。</p>
+    <p v-if="loaded && !execution" role="status">策略评估尚未启用。</p>
+    <div v-else-if="loaded" role="status">
+      <p v-if="evaluation.state === 'pending'">等待首次应用策略。</p>
+      <p v-else-if="evaluation.state === 'error'">最近一次策略应用失败，请检查服务端日志。新配置尚不能确认为已生效。</p>
+      <p v-else>策略评估已运行。</p>
+      <p v-if="evaluation.last_applied_at">最近成功应用：{{ new Date(evaluation.last_applied_at).toLocaleString() }}</p>
+      <p>配置在下一轮评估时应用，通常间隔 15 秒。保存和命中预览不代表已应用，也不代表通知已送达；刷新可查看最新状态。</p>
+    </div>
     <p>同一策略键按“显式节点 → 标签 → 全局”覆盖，同层级优先级越大越优先。不同策略键独立生效。</p>
     <p v-if="error" role="alert" class="form-message error">{{ error }}</p>
     <div class="form-actions"><button :disabled="busy" @click="create">新建范围策略</button><button :disabled="busy" @click="run(() => refresh())">刷新策略</button></div>

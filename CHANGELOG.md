@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Scoped policies now drive alert evaluation: each tick atomically maps legacy
+  rules and applies node/tag selection before incident reconciliation. The policy
+  UI reports preparation state and last successful application. Mapped rules are
+  edited through policies; preparation failure prevents initial worker startup.
+
 - Managed alert observations and notification claims/pre-send checks validate the
   current policy and node tags, rejecting stale execution rules before the next
   synchronization while preserving notifications across cosmetic policy edits.

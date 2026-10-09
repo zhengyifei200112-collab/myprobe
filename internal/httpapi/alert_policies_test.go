@@ -56,7 +56,7 @@ func TestAlertPolicyAdministration(t *testing.T) {
 	if err = json.Unmarshal(created.Body.Bytes(), &value); err != nil {
 		t.Fatal(err)
 	}
-	if value.Evaluation || value.Policy.Revision != 1 || strings.Contains(created.Body.String(), "private-channel-marker") {
+	if !value.Evaluation || value.Policy.Revision != 1 || !strings.Contains(created.Body.String(), `"state":"pending"`) || strings.Contains(created.Body.String(), "private-channel-marker") {
 		t.Fatal("incorrect state or leaked channel configuration")
 	}
 	id := value.Policy.ID
@@ -100,7 +100,7 @@ func TestAlertPolicyAdministration(t *testing.T) {
 		t.Fatalf("stale update %d", r.Code)
 	}
 	preview := request(http.MethodGet, root+"/effective/"+node.ID, "")
-	if preview.Code != 200 || !strings.Contains(preview.Body.String(), `"selected_id":"`+id+`"`) || !strings.Contains(preview.Body.String(), `"evaluation_enabled":false`) {
+	if preview.Code != 200 || !strings.Contains(preview.Body.String(), `"selected_id":"`+id+`"`) || !strings.Contains(preview.Body.String(), `"evaluation_enabled":true`) {
 		t.Fatalf("preview %d %s", preview.Code, preview.Body.String())
 	}
 	if r := request(http.MethodGet, root+"/effective/missing", ""); r.Code != 404 {

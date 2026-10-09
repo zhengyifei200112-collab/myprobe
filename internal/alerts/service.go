@@ -28,12 +28,15 @@ type RuleConfig struct {
 }
 
 type Service struct {
-	store     *store.Store
-	crypto    *cryptoBox
-	cryptoErr error
-	sender    Sender
-	logger    *slog.Logger
-	interval  time.Duration
+	store        *store.Store
+	crypto       *cryptoBox
+	cryptoErr    error
+	sender       Sender
+	logger       *slog.Logger
+	interval     time.Duration
+	tickMu       sync.Mutex
+	policyMu     sync.RWMutex
+	policyStatus PolicyEvaluationStatus
 }
 
 func New(database *store.Store, encryptionKey string, sender Sender, logger *slog.Logger) *Service {
@@ -231,6 +234,13 @@ func (s *Service) Run(ctx context.Context) {
 }
 
 func (s *Service) Tick(ctx context.Context, now time.Time) error {
+	s.tickMu.Lock()
+	defer s.tickMu.Unlock()
+	if _, err := s.store.PrepareAlertPolicyRules(ctx, now); err != nil {
+		s.setPolicyEvaluationStatus("error", nil)
+		return fmt.Errorf("prepare alert policies: %w", err)
+	}
+	s.setPolicyEvaluationStatus("ready", &now)
 	if err := s.store.ReconcileIncidents(ctx, now); err != nil {
 		return err
 	}

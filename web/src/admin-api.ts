@@ -112,17 +112,23 @@ export interface AlertPolicyDecision {
 export interface AlertPolicyResponse {
   policy: AlertPolicy
   evaluation_enabled: boolean
+  evaluation: PolicyEvaluationStatus
+}
+
+export interface PolicyEvaluationStatus {
+  state: 'pending' | 'ready' | 'error'
+  last_applied_at?: string
 }
 
 export const loadAlertPolicies = (after = '', limit = 50) => request<{
-  policies: AlertPolicy[]; next_cursor: string; evaluation_enabled: boolean
+  policies: AlertPolicy[]; next_cursor: string; evaluation_enabled: boolean; evaluation: PolicyEvaluationStatus
 }>(`/api/v1/admin/alert-policies?${new URLSearchParams({ after, limit: String(limit) })}`)
 export const loadAlertPolicy = (id: string) => request<AlertPolicyResponse>(`/api/v1/admin/alert-policies/${encodeURIComponent(id)}`)
 export const createAlertPolicy = (payload: AlertPolicyInput) => request<AlertPolicyResponse>('/api/v1/admin/alert-policies', { method: 'POST', body: JSON.stringify(payload) })
 export const updateAlertPolicy = (id: string, payload: AlertPolicyInput & { revision: number }) => request<AlertPolicyResponse>(`/api/v1/admin/alert-policies/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) })
 export const deleteAlertPolicy = (id: string, revision: number) => request<void>(`/api/v1/admin/alert-policies/${encodeURIComponent(id)}?${new URLSearchParams({ revision: String(revision) })}`, { method: 'DELETE' })
 export const loadEffectiveAlertPolicies = (nodeID: string) => request<{
-  decisions: AlertPolicyDecision[]; evaluation_enabled: boolean
+  decisions: AlertPolicyDecision[]; evaluation_enabled: boolean; evaluation: PolicyEvaluationStatus
 }>(`/api/v1/admin/alert-policies/effective/${encodeURIComponent(nodeID)}`)
 
 export interface NotificationTemplate {

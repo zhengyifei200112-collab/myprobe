@@ -6,9 +6,41 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"time"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
+
+// PolicyEvaluationStatus describes preparation, not observation freshness or
+// notification delivery. A saved edit is applied on the next successful tick.
+type PolicyEvaluationStatus struct {
+	State         string     `json:"state"`
+	LastAppliedAt *time.Time `json:"last_applied_at,omitempty"`
+}
+
+func (s *Service) PolicyEvaluationStatus() PolicyEvaluationStatus {
+	s.policyMu.RLock()
+	defer s.policyMu.RUnlock()
+	status := s.policyStatus
+	if status.State == "" {
+		status.State = "pending"
+	}
+	if status.LastAppliedAt != nil {
+		at := *status.LastAppliedAt
+		status.LastAppliedAt = &at
+	}
+	return status
+}
+
+func (s *Service) setPolicyEvaluationStatus(state string, at *time.Time) {
+	s.policyMu.Lock()
+	defer s.policyMu.Unlock()
+	s.policyStatus.State = state
+	if at != nil {
+		stamp := at.UTC()
+		s.policyStatus.LastAppliedAt = &stamp
+	}
+}
 
 // SavePolicy is the write boundary for scoped policy administration. Reuse rule
 // defaults and threshold semantics, while rejecting unknown input fields so a

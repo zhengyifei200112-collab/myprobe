@@ -56,7 +56,7 @@ func (s *Server) listAlertPolicies(c *gin.Context) {
 		}
 		page = append(page, item)
 	}
-	c.JSON(200, gin.H{"policies": page, "next_cursor": next, "evaluation_enabled": false})
+	c.JSON(200, gin.H{"policies": page, "next_cursor": next, "evaluation_enabled": true, "evaluation": s.alerts.PolicyEvaluationStatus()})
 }
 
 func (s *Server) getAlertPolicy(c *gin.Context) {
@@ -69,7 +69,7 @@ func (s *Server) getAlertPolicy(c *gin.Context) {
 	}
 	for _, item := range items {
 		if item.ID == c.Param("policyID") {
-			c.JSON(200, gin.H{"policy": item, "evaluation_enabled": false})
+			c.JSON(200, gin.H{"policy": item, "evaluation_enabled": true, "evaluation": s.alerts.PolicyEvaluationStatus()})
 			return
 		}
 	}
@@ -84,7 +84,7 @@ func (s *Server) effectiveAlertPolicies(c *gin.Context) {
 		policyError(c, err)
 		return
 	}
-	c.JSON(200, gin.H{"decisions": items, "evaluation_enabled": false})
+	c.JSON(200, gin.H{"decisions": items, "evaluation_enabled": true, "evaluation": s.alerts.PolicyEvaluationStatus()})
 }
 
 func (s *Server) saveAlertPolicy(c *gin.Context) {
@@ -124,7 +124,7 @@ func (s *Server) saveAlertPolicy(c *gin.Context) {
 		action, status = "create", 201
 	}
 	s.audit(c, action, "alert_policy", saved.ID, gin.H{"revision": saved.Revision, "enabled": saved.Enabled, "scope_kind": saved.Scope.Kind})
-	c.JSON(status, gin.H{"policy": saved, "evaluation_enabled": false})
+	c.JSON(status, gin.H{"policy": saved, "evaluation_enabled": true, "evaluation": s.alerts.PolicyEvaluationStatus()})
 }
 
 func (s *Server) deleteAlertPolicy(c *gin.Context) {

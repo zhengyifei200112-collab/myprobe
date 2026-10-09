@@ -1,13 +1,13 @@
 # Scoped alert policies (ALT-02)
 
-Status: implementation in progress. The scope resolver and transactional storage
-and administrative APIs/UI exist; evaluator integration and legacy migration are pending. No running alert
-behavior changes from scoped policies yet. This branch started from main and now
+Status: implementation in progress. The resolver, transactional storage, management
+APIs/UI and runtime evaluation are integrated on this branch. Each evaluation tick
+atomically maps legacy rules and synchronizes selected policies before reconciling
+incidents. This branch started from main and now
 includes incident/outbox dependency commit `99d08aa` from PR #50 for integration.
 The GitHub PR remains unmerged; review this policy branch against that dependency.
-Scoped-policy runtime activation is still pending.
-The mapping preparation described below is implemented; coordinated runtime
-cutover remains pending and is not called automatically at startup.
+Release gates still include live API/browser coverage, configuration transfer,
+complete upgrade/restore coverage and measured capacity. This is not released.
 
 ## Contract
 
@@ -77,24 +77,25 @@ activations are rejected. Failed writes roll back entirely. Listing is bounded
 to 1000 definitions; attempts to create beyond the limit fail explicitly.
 
 Effective-policy preview reads node tags and policies in one read transaction.
-It currently returns resolver decisions internally; this does not mean that the
-runtime evaluator applies them. Configuration transfer and legacy migration still
-require integration. Database backups include the new tables, but production
+It returns current resolver decisions, not proof that a just-saved revision has
+already reached the next evaluation tick. Configuration transfer still requires
+integration. Database backups include the new tables, but production
 restore/upgrade acceptance must be performed after all feature migrations converge.
 
 Tests exercise cross-connection conflicting saves, stale edits/deletes, disabled
 draft activation, invalid node references, channel deletion restrictions, dynamic
-tag preview and reopen persistence. Store and resolver tests are required for this
-foundation; endpoint authorization and browser tests become gates when those
-surfaces are added.
+tag preview and reopen persistence. Endpoint authorization and synthetic browser
+tests cover management; live browser and complete upgrade evidence remain gates.
 
 ## Legacy identity mapping preparation
 
 Migration 022 adds `alert_policy_rule_bindings`, linking policy/node pairs to
 stable rule IDs and recording legacy versus materialized origin. Schema migration
 only creates the table. `MigrateLegacyAlertPolicies` is an internal transactional
-cutover preparation method, not an administrator endpoint or an automatic startup
-action. It must be integrated with write/evaluation coordination before activation.
+cutover preparation method, not an administrator endpoint. Production evaluation
+uses the combined `PrepareAlertPolicyRules` transaction on every tick, including
+startup and subsequent newly created legacy rules. Once bound, use the policy UI
+to edit/delete the rule; legacy endpoints return an actionable 409.
 
 Each unmapped old rule becomes an explicit-node policy with its original rule ID,
 channel, enabled flag, cooldown, configuration and timestamps. Its initial key is
@@ -105,14 +106,17 @@ Repeated preparation skips already-bound rules rather than overwriting edits.
 
 The entire batch holds the SQLite writer reservation. Identity conflicts or a
 combined policy count above 1000 fail without partial inserts. This is a cutover
-precondition, not a schema-upgrade blocker: legacy evaluation remains available.
-Do not activate policy evaluation when preparation fails. Databases beyond the
+precondition, not a schema-upgrade blocker. A failed preparation aborts that tick;
+startup workers do not begin until an entire evaluation succeeds. Already-running
+workers keep checking current policy applicability before sending existing jobs.
+The API reports preparation failure and the prior successful application time.
+Databases beyond the
 current policy limit need a reviewed capacity extension before cutover, not silent
 truncation or rule deletion.
 
 Regression evidence covers active incident and pending-delivery identity, unchanged
 snapshots/payloads, idempotence, no duplicate deliveries, identity collisions and
-capacity rollback. Coordinated activation, legacy write compatibility and
+capacity rollback. Full release upgrade validation, managed-rule UI navigation and
 configuration transfer remain incomplete.
 
 ## Execution-rule synchronization
@@ -132,8 +136,9 @@ if synchronization fails, no new policy or binding survives and previously unbou
 legacy rules remain editable. A retry maps the latest committed legacy values.
 Tests inject a materialization failure after mapping, verify complete rollback and
 successful retry, and verify that successful preparation preserves active incident
-and pending-delivery identities. This preparation API is not yet called by the
-production evaluator; worker coordination and activation remain release gates.
+and pending-delivery identities. Production ticks now call this preparation API
+before incident reconciliation and observation. Concurrent ticks on the same
+service are serialized; notification network requests never hold that lock.
 
 Observation writes and delivery validation also check the bound policy's current
 selection and semantic rule snapshot in their existing transaction. This closes
@@ -165,11 +170,11 @@ matches; incident history remains in the independent incident tables. Pending
 delivery reconciliation remains the existing incident worker's responsibility.
 
 Synchronization limits are 10000 nodes and 100000 retained bindings. Exceeding a
-limit rolls back; these are work bounds, not tested capacity claims. It is not yet
-called by the production evaluation loop. Activation still needs coordinated
-legacy migration, protection against legacy-editor writes to managed rules, and
-reconciliation before workers can send. Do not equate materialization unit tests
-with a completed runtime cutover.
+limit rolls back; these are work bounds, not tested capacity claims. Validate the
+legacy rule count before deployment: an unsupported dataset can prevent initial
+evaluation and therefore notification worker startup. Do not silently discard
+rules to fit the limit. Service tests cover dynamic tags, newly matching nodes,
+management closure and restarting the evaluator without duplicate notifications.
 
 ## Administrator API
 
@@ -181,8 +186,11 @@ center's scoped-policy tab uses them for configuration and inheritance preview.
 
 All `/api/v1/admin/alert-policies` routes require administrator sessions and return
 `Cache-Control: no-store`, including authentication failures. Mutations require
-CSRF. Responses include `evaluation_enabled: false`: saved policies are not yet
-the runtime evaluation authority.
+CSRF. Responses include `evaluation_enabled: true` and an `evaluation` object with
+`state` (`pending`, `ready`, `error`) and optional `last_applied_at`. This describes
+the last preparation on this service instance, not delivery success or proof that
+a just-saved revision has already applied. A restart begins in pending state;
+failure preserves the previous successful timestamp. Refresh to read new status.
 
 - `GET /`: list at most 100 definitions (default 50), ordered by ID; `after` and
   `next_cursor` provide keyset pagination. Concurrent changes can alter subsequent
@@ -201,7 +209,7 @@ only revision, enabled state and scope kind, not selector values or channel secr
 
 Contract tests cover authentication/cache headers, CSRF, creation, scope conflicts,
 unknown/malformed/oversized inputs, stale edits/deletes, effective previews and
-explicit non-execution status. Runtime integration and legacy migration remain
+explicit pending runtime status. Full upgrade and real-browser integration remain
 release requirements even when these endpoints pass.
 
 ## Management UI
@@ -219,11 +227,13 @@ Existing template IDs are retained on edit; template selection is not yet expose
 Node previews show each independent key, its selected policy, ordered overridden
 candidates and selection reason. Detail lookups are batched at eight requests.
 Changing nodes clears the prior preview; failed queries never present stale results
-under the new selection. Unmount ignores pending responses. A prominent banner
-explains that saved scoped policies do not yet drive the runtime evaluator.
+under the new selection. Unmount ignores pending responses. A status panel shows
+pending/success/error preparation and its last successful time. It explains that
+saves apply on the next evaluation (normally every 15 seconds), and previews and
+successful preparation do not prove notification delivery.
 
 `scripts/alert-policies-ui.cjs` verifies synthetic-API create, tag round-trip,
 conflict-preserved edits, preview and cancel/confirm delete at 360/768/1440 px in
 light/dark themes. It saves temporary screenshots and checks page errors and
 horizontal overflow. This is presentation coverage, not live notification delivery.
-Real API/browser integration and runtime migration remain open.
+Real API/browser integration and complete release upgrade validation remain open.
