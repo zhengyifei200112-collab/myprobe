@@ -82,6 +82,16 @@ already reached the next evaluation tick. Configuration transfer still requires
 integration. Database backups include the new tables, but production
 restore/upgrade acceptance must be performed after all feature migrations converge.
 
+`TestBackupRestoresPolicyBindingsWithoutDuplicatingFaults` exercises the actual
+consistent SQLite backup, staged restore, pending-restore application and reopen
+path for both legacy and materialized bindings. It changes/disables the policy
+after backup, then verifies restoration of the original policy revision/config,
+binding origin, execution-rule identity/timestamp, active incident and pending
+delivery payload. Preparation and observation after restore neither remap the
+rule nor duplicate the fault/job; the restored job remains claimable. This covers
+database state, not encrypted archive transport, original channel-key availability,
+cross-release migration or live notification delivery after restore.
+
 Tests exercise cross-connection conflicting saves, stale edits/deletes, disabled
 draft activation, invalid node references, channel deletion restrictions, dynamic
 tag preview and reopen persistence. Endpoint authorization and synthetic browser
