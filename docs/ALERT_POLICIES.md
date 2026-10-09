@@ -186,6 +186,26 @@ every node, versus 2.78 ms / 3,610,602 B / 31,616 allocations with a snapshot pe
 cycle (including snapshot construction). This single local sample measures only
 selection, not SQLite I/O, evaluation, notifications or supported deployment size.
 
+The on-disk warm-preparation benchmark includes migration checks, policy/node reads,
+selection and rule synchronization in SQLite WAL transactions. Reproduce with:
+`go test ./internal/store -run '^$' -bench '^BenchmarkPrepareAlertPolicyRules$' -benchmem -benchtime=3x -count=1`.
+On Windows amd64 / Intel i5-13490F, ten matching tag policies per node gave:
+
+| Nodes | Retained bindings | Mean preparation | Allocated bytes/cycle |
+| --- | --- | --- | --- |
+| 5 | 50 | 1.90 ms | 155,053 |
+| 50 | 500 | 15.07 ms | 915,890 |
+| 100 | 1,000 | 32.40 ms | 1,761,090 |
+| 500 | 5,000 | 155.12 ms | 8,100,525 |
+
+These are three timed iterations per fixture, with creation and initial
+materialization excluded. Final row counts verify no rule/binding growth. The
+database is a temporary local file with the Store's normal WAL/NORMAL settings;
+results include warm OS caches and are not durable-storage throughput guarantees.
+The 500-node case is exploratory. None of these averages establishes query P95,
+first-start latency, concurrent administration cost, complete evaluator throughput,
+notification throughput or 24-hour stability. Those remain separate acceptance work.
+
 No-longer-selected rules are disabled, so the next incident reconciliation closes
 their faults with a management reason (`rule_disabled`), not a technical recovery.
 When a fallback policy becomes selected again, it reuses its prior rule ID. Policy
