@@ -92,6 +92,18 @@ rule nor duplicate the fault/job; the restored job remains claimable. This cover
 database state, not encrypted archive transport, original channel-key availability,
 cross-release migration or live notification delivery after restore.
 
+`TestEncryptedPolicyRestoreDeliversWithOriginalChannelKey` additionally encrypts
+the consistent database snapshot with the production archive format, decrypts it,
+stages/applies it into a new database destination and starts evaluation again.
+With the original channel encryption key, the original queued notification reaches
+a local HTTP receiver with the expected authorization header and is marked delivered.
+A different channel key produces `channel_configuration` without sending; a wrong
+archive passphrase is rejected. The test also checks that the database does not
+contain the fixture channel credential in plaintext. Archive passwords and channel
+encryption keys are separate requirements: possessing the backup password does not
+replace the original channel key. This does not validate cross-release upgrade or
+external provider availability.
+
 Tests exercise cross-connection conflicting saves, stale edits/deletes, disabled
 draft activation, invalid node references, channel deletion restrictions, dynamic
 tag preview and reopen persistence. Endpoint authorization and synthetic browser
