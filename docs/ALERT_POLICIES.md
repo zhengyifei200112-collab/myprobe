@@ -201,6 +201,11 @@ CSRF. Responses include `evaluation_enabled: true` and an `evaluation` object wi
 the last preparation on this service instance, not delivery success or proof that
 a just-saved revision has already applied. A restart begins in pending state;
 failure preserves the previous successful timestamp. Refresh to read new status.
+The production entry point passes its running alert service to
+`httpapi.NewWithAlertService`; the HTTP server must not create a second dormant
+evaluator for status reads. The authenticated incident-pipeline test advances the
+injected runtime and verifies the API changes from pending to ready with its exact
+application timestamp before checking actual webhook retry/recovery behavior.
 
 - `GET /`: list at most 100 definitions (default 50), ordered by ID; `after` and
   `next_cursor` provide keyset pagination. Concurrent changes can alter subsequent

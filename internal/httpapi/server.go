@@ -40,6 +40,12 @@ type Server struct {
 }
 
 func New(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub) *Server {
+	return NewWithAlertService(cfg, database, authService, gateway, hub, alerts.New(database, cfg.EncryptionKey, nil, nil))
+}
+
+// NewWithAlertService shares the evaluator used by the application runtime so
+// administrative preparation status describes that evaluator, not a dormant copy.
+func NewWithAlertService(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub, alertService *alerts.Service) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	gateway.SetTrustedProxies(cfg.TrustedProxies)
@@ -48,7 +54,7 @@ func New(cfg config.Config, database *store.Store, authService *auth.Service, ga
 	}
 	router.Use(gin.Recovery(), securityHeaders())
 	github, _ := auth.NewGitHubService(database, cfg.EncryptionKey, cfg.SessionTTL, nil)
-	server := &Server{config: cfg, store: database, auth: authService, github: github, gateway: gateway, hub: hub, alerts: alerts.New(database, cfg.EncryptionKey, nil, nil), sharing: sharing.New(database, 12*time.Hour), router: router}
+	server := &Server{config: cfg, store: database, auth: authService, github: github, gateway: gateway, hub: hub, alerts: alertService, sharing: sharing.New(database, 12*time.Hour), router: router}
 	server.routes()
 	mux := http.NewServeMux()
 	// WebSocket upgrades bypass Gin's wrapped ResponseWriter. coder/websocket uses

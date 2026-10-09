@@ -7,6 +7,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Policy preparation status now uses the same alert service as the running
+  evaluator, preventing the management UI from remaining pending after application.
+
 ### Added
 
 - Policy-managed rule cards now identify their owner and open its current policy
