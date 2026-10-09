@@ -6,7 +6,7 @@ atomically maps legacy rules and synchronizes selected policies before reconcili
 incidents. This branch started from main and now
 includes incident/outbox dependency commit `99d08aa` from PR #50 for integration.
 The GitHub PR remains unmerged; review this policy branch against that dependency.
-Release gates still include live API/browser coverage, configuration transfer,
+Release gates still include extended live API/browser coverage, configuration transfer,
 complete upgrade/restore coverage and measured capacity. This is not released.
 
 ## Contract
@@ -95,7 +95,8 @@ cross-release migration or live notification delivery after restore.
 Tests exercise cross-connection conflicting saves, stale edits/deletes, disabled
 draft activation, invalid node references, channel deletion restrictions, dynamic
 tag preview and reopen persistence. Endpoint authorization and synthetic browser
-tests cover management; live browser and complete upgrade evidence remain gates.
+tests cover management; the basic live browser lifecycle below also passes.
+Extended lifecycle and complete upgrade evidence remain gates.
 
 ## Legacy identity mapping preparation
 
@@ -258,4 +259,20 @@ successful preparation do not prove notification delivery.
 conflict-preserved edits, preview and cancel/confirm delete at 360/768/1440 px in
 light/dark themes. It saves temporary screenshots and checks page errors and
 horizontal overflow. This is presentation coverage, not live notification delivery.
-Real API/browser integration and complete release upgrade validation remain open.
+`TestLivePolicyBrowserLifecycle` and `scripts/alert-policies-live-ui.cjs` exercise
+the embedded UI with actual authenticated APIs, a temporary on-disk database, the
+shared production alert service and a local HTTP webhook receiver. The browser
+creates a tag-scoped expiry policy, waits for its real firing incident and delivered
+job, reloads and opens the policy through its execution rule, then disables it.
+The test checks management closure without a recovery notification or duplicate
+delivery, and captures light/dark 360/768/1440 layouts. API responses are not mocked;
+the evaluator uses its normal 15-second interval. Login uses the real login API.
+
+Opt in with `MYPROBE_TEST_POLICY_BROWSER=1` and run
+`go test ./internal/httpapi -run '^TestLivePolicyBrowserLifecycle$' -count=1 -v`.
+Node, Playwright (optionally located with `PLAYWRIGHT_MODULE`) and Edge are required.
+Fixtures, random credentials and local receiver exist only for the test. Ordinary
+CI skips it unless those prerequisites and the opt-in flag are configured.
+This proves the basic live lifecycle, not cross-release upgrades, real external
+notification providers or every policy conflict/recovery scenario. Complete release
+upgrade validation, portable configuration transfer and capacity evidence remain.
