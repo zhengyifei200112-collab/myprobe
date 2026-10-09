@@ -43,6 +43,7 @@ export type AlertKind = 'offline' | 'cpu' | 'memory' | 'disk' | 'latency' | 'ban
 
 export interface AlertRule {
   id: string
+  policy_id?: string
   node_id: string
   channel_id: string
   kind: AlertKind

@@ -116,8 +116,8 @@ truncation or rule deletion.
 
 Regression evidence covers active incident and pending-delivery identity, unchanged
 snapshots/payloads, idempotence, no duplicate deliveries, identity collisions and
-capacity rollback. Full release upgrade validation, managed-rule UI navigation and
-configuration transfer remain incomplete.
+capacity rollback. Full release upgrade validation and configuration transfer
+remain incomplete.
 
 ## Execution-rule synchronization
 
@@ -213,6 +213,13 @@ explicit pending runtime status. Full upgrade and real-browser integration remai
 release requirements even when these endpoints pass.
 
 ## Management UI
+
+Administrator rule reads include optional `policy_id` from the binding table in
+the same query. Managed rule cards identify policy ownership and open the owning
+policy directly for editing, including when that policy is outside the first list
+page. They do not offer individual execution-rule deletion. The policy editor
+fetches its current revision by ID rather than reusing stale rule configuration.
+Backend ownership guards still reject stale clients racing with migration.
 
 The notification center has a scoped-policy tab with paginated listing, create/edit,
 revision-preserving conflict errors and explicit delete confirmation. Select global,

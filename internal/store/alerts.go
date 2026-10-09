@@ -275,7 +275,7 @@ func (s *Store) AlertRule(ctx context.Context, id string) (AlertRule, error) {
 	var item AlertRule
 	var raw, created, updated string
 	var enabled int
-	err := s.db.QueryRowContext(ctx, `SELECT id,node_id,channel_id,kind,config_json,enabled,cooldown_seconds,created_at,updated_at FROM alert_rules WHERE id=?`, id).Scan(&item.ID, &item.NodeID, &item.ChannelID, &item.Kind, &raw, &enabled, &item.CooldownSeconds, &created, &updated)
+	err := s.db.QueryRowContext(ctx, `SELECT id,node_id,channel_id,kind,config_json,enabled,cooldown_seconds,created_at,updated_at,COALESCE((SELECT policy_id FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id),'') FROM alert_rules WHERE id=?`, id).Scan(&item.ID, &item.NodeID, &item.ChannelID, &item.Kind, &raw, &enabled, &item.CooldownSeconds, &created, &updated, &item.PolicyID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return AlertRule{}, ErrNotFound
 	}
@@ -290,7 +290,7 @@ func (s *Store) AlertRule(ctx context.Context, id string) (AlertRule, error) {
 }
 
 func (s *Store) ListAlertRules(ctx context.Context) ([]AlertRule, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,node_id,channel_id,kind,config_json,enabled,cooldown_seconds,created_at,updated_at FROM alert_rules ORDER BY created_at`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,node_id,channel_id,kind,config_json,enabled,cooldown_seconds,created_at,updated_at,COALESCE((SELECT policy_id FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id),'') FROM alert_rules ORDER BY created_at`)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +300,7 @@ func (s *Store) ListAlertRules(ctx context.Context) ([]AlertRule, error) {
 		var item AlertRule
 		var raw, created, updated string
 		var enabled int
-		if err := rows.Scan(&item.ID, &item.NodeID, &item.ChannelID, &item.Kind, &raw, &enabled, &item.CooldownSeconds, &created, &updated); err != nil {
+		if err := rows.Scan(&item.ID, &item.NodeID, &item.ChannelID, &item.Kind, &raw, &enabled, &item.CooldownSeconds, &created, &updated, &item.PolicyID); err != nil {
 			return nil, err
 		}
 		item.Config = json.RawMessage(raw)

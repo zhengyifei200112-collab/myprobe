@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Policy-managed rule cards now identify their owner and open its current policy
+  editor directly, instead of offering legacy edits/deletes that would conflict.
+
 - Scoped policies now drive alert evaluation: each tick atomically maps legacy
   rules and applies node/tag selection before incident reconciliation. The policy
   UI reports preparation state and last successful application. Mapped rules are

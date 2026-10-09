@@ -57,7 +57,7 @@ func TestLegacyPolicyMappingPreservesIncidentAndDelivery(t *testing.T) {
 		t.Fatal(err)
 	}
 	unchanged, err := db.AlertRule(ctx, rule.ID)
-	if err != nil || !unchanged.UpdatedAt.Equal(rule.UpdatedAt) {
+	if err != nil || rule.PolicyID != "" || unchanged.PolicyID != p.ID || !unchanged.UpdatedAt.Equal(rule.UpdatedAt) {
 		t.Fatalf("equivalent policy rewrote rule: %+v %v", unchanged, err)
 	}
 	var afterID, afterFingerprint, afterSnapshot, afterDeliveryID, afterPayload string

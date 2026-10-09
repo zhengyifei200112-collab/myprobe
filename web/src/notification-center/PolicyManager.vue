@@ -4,7 +4,7 @@ import type { NodeMetadata } from '../types'
 import type { AlertKind, AlertPolicy, AlertPolicyDecision, AlertPolicyInput, AlertPolicyScope, NotificationChannel, PolicyEvaluationStatus } from '../admin-api'
 import { createAlertPolicy, deleteAlertPolicy, loadAlertPolicies, loadAlertPolicy, loadEffectiveAlertPolicies, updateAlertPolicy } from '../admin-api'
 import { DsConfirmDialog } from '../design-system'
-defineProps<{ nodes: NodeMetadata[]; channels: NotificationChannel[] }>()
+const props = defineProps<{ nodes: NodeMetadata[]; channels: NotificationChannel[]; initialPolicyId?: string }>()
 const items = ref<AlertPolicy[]>([]), cursor = ref(''), busy = ref(false), error = ref(''), loaded = ref(false), execution = ref(false)
 const editing = ref(false), deleting = ref<AlertPolicy | null>(null), nodeID = ref(''), decisions = ref<AlertPolicyDecision[] | null>(null)
 const names = ref<Record<string, string>>({})
@@ -70,7 +70,10 @@ async function preview() {
   })
 }
 const reasons = { only_match: '唯一匹配', more_specific_scope: '范围更具体', higher_priority: '同层级优先级更高' }
-onMounted(() => run(() => refresh()))
+onMounted(async () => {
+  await run(() => refresh())
+  if (active && props.initialPolicyId) await edit(props.initialPolicyId)
+})
 </script>
 
 <template>

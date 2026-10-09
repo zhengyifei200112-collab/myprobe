@@ -9,7 +9,7 @@ const path = require('node:path');
   try {
     for (const theme of ['light','dark']) for (const width of [360,768,1440]) {
       const page = await browser.newPage({viewport:{width,height:1000},colorScheme:theme});
-      let policy=null, conflict=false, deletes=0, preparationFailed=false;
+      let policy=null, conflict=false, deletes=0, preparationFailed=false, omitPolicyFromList=false;
       const errors=[];page.on('pageerror',e=>errors.push(e.message));
       await page.route('**/api/**',async route=>{
         const request=route.request(), url=new URL(request.url());let body={},status=200;
@@ -19,12 +19,12 @@ const path = require('node:path');
           else if(request.method()==='PUT') {if(conflict){status=409;body={error:'配置版本冲突，请重新读取'};}else{policy={...request.postDataJSON(),id:'policy',revision:2};body={policy,evaluation_enabled:true,evaluation:{state:policy?'ready':'pending',last_applied_at:policy?'2026-10-08T00:00:00Z':undefined}};}}
           else if(request.method()==='DELETE'){deletes++;policy=null;status=204;}
           else if(url.pathname.endsWith('/policy')) body={policy,evaluation_enabled:true,evaluation:{state:policy?'ready':'pending',last_applied_at:policy?'2026-10-08T00:00:00Z':undefined}};
-          else body={policies:policy?[policy]:[],next_cursor:'',evaluation_enabled:true,evaluation:{state:policy?'ready':'pending',last_applied_at:policy?'2026-10-08T00:00:00Z':undefined}};
+          else body={policies:policy&&!omitPolicyFromList?[policy]:[],next_cursor:'',evaluation_enabled:true,evaluation:{state:policy?'ready':'pending',last_applied_at:policy?'2026-10-08T00:00:00Z':undefined}};
         } else if(url.pathname.endsWith('/auth/me')) body={csrf_token:'fixture'};
         else if(url.pathname.endsWith('/settings')||url.pathname.endsWith('/site-settings')) body={settings:{theme_mode:theme}};
         else if(url.pathname.endsWith('/nodes')) body={nodes:[{id:'node',name:'测试节点',tags:[],latency_mode:'ping',sort_order:0,hidden:false,country_code:'',currency:'',billing_cycle:'',use_since_boot:false,custom_badges:[],custom_links:[],collection_seconds:5,report_seconds:5}]};
         else if(url.pathname.endsWith('/notification-channels')) body={channels:[{id:'channel',name:'测试通道',enabled:true,kind:'webhook'}]};
-        else if(url.pathname.endsWith('/alert-rules')) body={rules:[]};
+        else if(url.pathname.endsWith('/alert-rules')) body={rules:policy?[{id:'execution-rule',policy_id:'policy',node_id:'node',channel_id:'channel',kind:'cpu',config:policy.config,enabled:true,cooldown_seconds:900}]:[]};
         else if(url.pathname.endsWith('/notification-templates')) body={templates:[]};
         else if(url.pathname.endsWith('/alert-events')) body={events:[]};
         else if(url.pathname.endsWith('/latency-config')) body={targets:[],groups:[],group_members:[],node_groups:[],node_targets:[]};
@@ -67,6 +67,21 @@ const path = require('node:path');
       await page.getByRole('alert').getByText('配置版本冲突，请重新读取').waitFor();
       assert.equal(await page.getByLabel('策略名称',{exact:true}).inputValue(),'未覆盖的修改');
       await page.getByRole('button',{name:'取消编辑',exact:true}).click();
+      // Remount the center to load its rule list, then follow rule ownership.
+      await page.getByRole('button',{name:'节点',exact:true}).click();
+      await page.getByRole('button',{name:'告警',exact:true}).click();
+      await page.getByRole('tab',{name:'告警规则',exact:true}).click();
+      await page.getByText('由范围策略管理；修改策略可能影响其他匹配节点。',{exact:true}).waitFor();
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'managed rule overflow');
+      await page.locator('.rule-list').screenshot({path:path.join(output,`${theme}-${width}-managed-rule.png`)});
+      assert.equal(await page.locator('.rule-list').getByRole('button',{name:'删除',exact:true}).count(),0);
+      omitPolicyFromList=true;
+      await page.getByRole('button',{name:'编辑所属策略',exact:true}).click();
+      await page.getByRole('heading',{name:'编辑范围策略',exact:true}).waitFor();
+      assert.equal(await page.getByLabel('策略名称',{exact:true}).inputValue(),'CPU 范围策略');
+      await page.getByRole('button',{name:'取消编辑',exact:true}).click();
+      omitPolicyFromList=false;
+      await page.getByRole('button',{name:'刷新策略',exact:true}).click();
       await page.getByRole('button',{name:'删除策略',exact:true}).click();
       await page.getByRole('dialog').getByRole('button',{name:'取消',exact:true}).click();assert.equal(deletes,0);
       await page.getByRole('button',{name:'删除策略',exact:true}).click();

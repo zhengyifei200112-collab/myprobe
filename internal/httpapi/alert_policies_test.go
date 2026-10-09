@@ -64,8 +64,12 @@ func TestAlertPolicyAdministration(t *testing.T) {
 		t.Fatal(err)
 	}
 	rules, err := db.ListAlertRules(ctx)
-	if err != nil || len(rules) != 1 {
+	if err != nil || len(rules) != 1 || rules[0].PolicyID != id {
 		t.Fatalf("materialized rules: %+v %v", rules, err)
+	}
+	listedRules := request(http.MethodGet, "/api/v1/admin/alert-rules", "")
+	if listedRules.Code != 200 || !strings.Contains(listedRules.Body.String(), `"policy_id":"`+id+`"`) {
+		t.Fatalf("rule ownership missing: %d %s", listedRules.Code, listedRules.Body.String())
 	}
 	rulePath := "/api/v1/admin/alert-rules/" + rules[0].ID
 	legacyUpdate := fmt.Sprintf(`{"node_id":%q,"channel_id":%q,"kind":"cpu","config":{"threshold_percent":95},"enabled":false,"cooldown_seconds":60}`, node.ID, channel.ID)
@@ -76,7 +80,7 @@ func TestAlertPolicyAdministration(t *testing.T) {
 		}
 	}
 	unchanged, err := db.AlertRule(ctx, rules[0].ID)
-	if err != nil || !unchanged.Enabled || string(unchanged.Config) != string(rules[0].Config) {
+	if err != nil || unchanged.PolicyID != id || !unchanged.Enabled || string(unchanged.Config) != string(rules[0].Config) {
 		t.Fatal("managed rule changed through legacy endpoint", err)
 	}
 	channelPath := "/api/v1/admin/notification-channels/" + channel.ID
