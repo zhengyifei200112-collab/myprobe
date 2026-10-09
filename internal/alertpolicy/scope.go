@@ -160,14 +160,34 @@ func ValidateSet(policies []Policy) error {
 }
 
 func Resolve(policies []Policy, node Node) ([]Decision, error) {
-	if !validValue(node.ID, 128) {
-		return nil, errors.New("invalid policy observer")
-	}
 	if err := ValidateSet(policies); err != nil {
 		return nil, err
 	}
+	return (&Resolver{policies: policies}).Resolve(node)
+}
+
+// Resolver owns a validated snapshot, reusable across nodes in one database
+// snapshot. Construct a new resolver after configuration changes.
+type Resolver struct{ policies []Policy }
+
+func NewResolver(policies []Policy) (*Resolver, error) {
+	if err := ValidateSet(policies); err != nil {
+		return nil, err
+	}
+	owned := append([]Policy(nil), policies...)
+	for i := range owned {
+		owned[i].Scope.NodeIDs = append([]string(nil), policies[i].Scope.NodeIDs...)
+		owned[i].Scope.Tags = append([]string(nil), policies[i].Scope.Tags...)
+	}
+	return &Resolver{policies: owned}, nil
+}
+
+func (r *Resolver) Resolve(node Node) ([]Decision, error) {
+	if !validValue(node.ID, 128) {
+		return nil, errors.New("invalid policy observer")
+	}
 	groups := make(map[string][]Policy)
-	for _, p := range policies {
+	for _, p := range r.policies {
 		if p.Enabled && p.Scope.matches(node) {
 			groups[p.Key] = append(groups[p.Key], p)
 		}

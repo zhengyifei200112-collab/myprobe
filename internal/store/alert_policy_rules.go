@@ -63,7 +63,8 @@ func syncAlertPolicyRules(ctx context.Context, tx *sql.Tx, now time.Time) error 
 		policies = append(policies, p.Policy)
 		byID[p.ID] = p
 	}
-	if err = alertpolicy.ValidateSet(policies); err != nil {
+	resolver, err := alertpolicy.NewResolver(policies)
+	if err != nil {
 		return err
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT id,tags_json FROM nodes ORDER BY id LIMIT 10001`)
@@ -95,7 +96,7 @@ func syncAlertPolicyRules(ctx context.Context, tx *sql.Tx, now time.Time) error 
 	type key struct{ policy, node string }
 	selected := make(map[key]bool)
 	for _, node := range nodes {
-		decisions, err := alertpolicy.Resolve(policies, node)
+		decisions, err := resolver.Resolve(node)
 		if err != nil {
 			return err
 		}

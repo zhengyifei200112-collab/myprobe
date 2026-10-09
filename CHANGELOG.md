@@ -14,6 +14,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Scoped-rule synchronization reuses one validated policy snapshot across nodes,
+  reducing repeated selection work without retaining stale cross-cycle caches.
+
 - Policy-managed rule cards now identify their owner and open its current policy
   editor directly, instead of offering legacy edits/deletes that would conflict.
 

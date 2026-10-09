@@ -173,6 +173,19 @@ IDs. Existing legacy bindings retain original IDs, timestamps and snapshots when
 their effective configuration is unchanged. New bindings materialize ordinary
 execution rules for the existing incident evaluator and outbox.
 
+Synchronization constructs one validated `alertpolicy.Resolver` per transaction
+and reuses it across nodes. The resolver owns copies of policy and selector slices;
+caller edits and returned decision edits cannot mutate its validated state. There
+is no cross-transaction cache: each new synchronization sees current definitions.
+Individual observation/delivery checks still validate their own current snapshot.
+
+Microbenchmark on Windows amd64, Intel i5-13490F, 100 matching policies × 100 nodes:
+`go test ./internal/alertpolicy -run '^$' -bench '^BenchmarkPolicyNodeSelection$' -benchmem -count=1`
+measured 6.95 ms / 8,292,543 B / 52,507 allocations per cycle with validation for
+every node, versus 2.78 ms / 3,610,602 B / 31,616 allocations with a snapshot per
+cycle (including snapshot construction). This single local sample measures only
+selection, not SQLite I/O, evaluation, notifications or supported deployment size.
+
 No-longer-selected rules are disabled, so the next incident reconciliation closes
 their faults with a management reason (`rule_disabled`), not a technical recovery.
 When a fallback policy becomes selected again, it reuses its prior rule ID. Policy
