@@ -18,6 +18,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Internal atomic policy-import replay ledger (migration 023), preserving original
+  results across concurrent retries and restarts. Public import remains unfinished.
+
 - Authenticated scoped-policy JSON export with versioned definitions and source
   references, excluding notification credentials and runtime history. Import and
   the management-page transfer workflow are still in development.

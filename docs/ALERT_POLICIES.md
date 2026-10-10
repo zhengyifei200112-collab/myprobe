@@ -299,6 +299,20 @@ with normalized destination references, and expose no temporary generated IDs.
 Inputs are not mutated. This is an internal service API; HTTP preview/apply,
 idempotent commit and management-page controls remain pending.
 
+Migration 023 adds a durable policy-import request ledger. The internal Store
+`ApplyPolicyImport` operation reserves the same writer transaction for request
+lookup, batch creation and result recording. A matching request ID/digest replays
+the original ordered policy IDs; different content under the same ID conflicts.
+The digest must cover the complete canonical bundle, mappings and options at the
+service boundary. Failed batches leave neither definitions nor a request record.
+Retries do not recreate policies deleted after the original import. Tests cover
+competing database connections, rollback, digest conflicts and reopen/deletion.
+The ledger retains at most 10000 requests and then rejects new imports; records
+are not silently expired, since expiration could allow an old request to create
+duplicates. This is an internal commit primitive, not a public import endpoint.
+Service-level digest/replay handling, HTTP preview/apply and UI are still required.
+Reconcile migration numbering with other unmerged feature branches before release.
+
 `web/src/admin-api.ts` provides typed create/update/delete/read/list and effective
 preview clients. Scope types distinguish global, explicit-node and tag selectors;
 updates require revisions and every read preserves the evaluation-enabled flag.
