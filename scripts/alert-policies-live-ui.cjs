@@ -49,6 +49,40 @@ const path = require('node:path');
     assert.equal(closed.resolution_reason,'rule_disabled');
     const jobs=(await read(`/api/v1/admin/incidents/${incident.id}/deliveries`)).deliveries;
     assert.equal(jobs.length,1);assert.equal(jobs[0].status,'delivered');
+    // Import through the real API, losing only the first successful response.
+    const exported=await read('/api/v1/admin/alert-policies/export');
+    assert.equal(exported.policies.length,1);
+    exported.policies[0].channel_id='source-channel';
+    await page.getByText('策略导入与导出',{exact:true}).click();
+    await page.getByLabel('导入策略文件',{exact:true}).setInputFiles({name:'policies.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(exported))});
+    await page.getByRole('combobox',{name:'渠道：source-channel',exact:true}).selectOption(process.env.POLICY_BROWSER_CHANNEL);
+    await page.getByRole('button',{name:'预览导入',exact:true}).click();
+    await page.getByRole('heading',{name:'将新增 1 条策略',exact:true}).waitFor();
+    for(const theme of ['light','dark']) for(const width of [360,768,1440]) {
+      await page.setViewportSize({width,height:1000});
+      await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'import overflow');
+      await page.screenshot({path:path.join(output,`import-${theme}-${width}.png`),fullPage:true});
+    }
+    let originalRequest;
+    await page.route('**/alert-policies/import/apply',async route=>{
+      originalRequest=route.request().postDataJSON();
+      const response=await route.fetch();assert.equal(response.status(),201);
+      await route.abort('failed');
+    },{times:1});
+    await page.getByRole('button',{name:'确认新增策略',exact:true}).click();
+    await page.getByRole('button',{name:'重试确认导入结果',exact:true}).waitFor();
+    await until(async()=> (await read('/api/v1/admin/alert-policies')).policies.length===2);
+    await page.reload();
+    await page.getByRole('button',{name:'告警',exact:true}).click();
+    await page.getByRole('tab',{name:'范围策略',exact:true}).click();
+    await page.getByText('策略导入与导出',{exact:true}).click();
+    const replayRequest=page.waitForRequest(r=>r.url().endsWith('/alert-policies/import/apply'));
+    await page.getByRole('button',{name:'重试确认导入结果',exact:true}).click();
+    assert.deepEqual((await replayRequest).postDataJSON(),originalRequest,'refresh must preserve request identity');
+    await page.getByText('已确认此前导入结果：1 条策略。',{exact:false}).waitFor();
+    assert.equal((await read('/api/v1/admin/alert-policies')).policies.length,2,'retry must not duplicate policies');
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('myprobe-policy-import-pending-v1')),null);
     assert.deepEqual(errors,[]);
     console.log(`Live policy create, evaluation, webhook delivery, owner navigation and disable passed: ${output}`);
   } finally {await browser.close();}

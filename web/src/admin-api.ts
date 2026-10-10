@@ -196,6 +196,10 @@ export interface AuthSettings { password_enabled: true; github: GitHubOAuthSetti
 
 let csrfToken = ''
 
+export class AdminAPIError extends Error {
+  constructor(message: string, public status: number, public code?: string) { super(message) }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method || 'GET').toUpperCase()
   const headers = new Headers(options.headers)
@@ -204,8 +208,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && csrfToken) headers.set('X-CSRF-Token', csrfToken)
   const response = await fetch(path, { ...options, headers, credentials: 'same-origin', cache: 'no-store' })
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({})) as { error?: string }
-    throw new Error(payload.error || `请求失败（${response.status}）`)
+    const payload = await response.json().catch(() => ({})) as { error?: string; code?: string }
+    throw new AdminAPIError(payload.error || `请求失败（${response.status}）`, response.status, payload.code)
   }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
@@ -269,6 +273,14 @@ export const updateAlertRule = (id: string, payload: unknown) => request<{ rule:
 export const deleteAlertRule = (id: string) => request<void>(`/api/v1/admin/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const loadAlertEvents = () => request<{ events: AlertEvent[] }>('/api/v1/admin/alert-events')
 export const loadNotificationTemplates = () => request<{ templates: NotificationTemplate[] }>('/api/v1/admin/notification-templates')
+
+export type PortablePolicy = Omit<AlertPolicyInput, 'revision'> & { source_id: string }
+export interface PolicyBundle { format: 'myprobe-alert-policies'; version: 1; policies: PortablePolicy[] }
+export interface PolicyImportMapping { channels: Record<string, string>; nodes: Record<string, string>; templates: Record<string, string> }
+export interface PolicyImportPreview { bundle: PolicyBundle; create_count: number; preview_digest: string }
+export const exportPolicyBundle = () => request<PolicyBundle>('/api/v1/admin/alert-policies/export')
+export const previewPolicyImport = (bundle: PolicyBundle, mapping: PolicyImportMapping) => request<PolicyImportPreview>('/api/v1/admin/alert-policies/import/preview', { method: 'POST', body: JSON.stringify({ bundle, mapping }) })
+export const applyPolicyImport = (bundle: PolicyBundle, mapping: PolicyImportMapping, request_id: string, preview_digest: string) => request<{ policy_ids: string[]; replayed: boolean }>('/api/v1/admin/alert-policies/import/apply', { method: 'POST', body: JSON.stringify({ bundle, mapping, request_id, preview_digest }) })
 export const createNotificationTemplate = (payload: unknown) => request<{ template: NotificationTemplate }>('/api/v1/admin/notification-templates', { method: 'POST', body: JSON.stringify(payload) })
 export const updateNotificationTemplate = (id: string, payload: unknown) => request<{ template: NotificationTemplate }>(`/api/v1/admin/notification-templates/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
 export const deleteNotificationTemplate = (id: string) => request<void>(`/api/v1/admin/notification-templates/${encodeURIComponent(id)}`, { method: 'DELETE' })

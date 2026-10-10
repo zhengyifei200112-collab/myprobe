@@ -416,7 +416,7 @@ callers cannot commit duplicate batches. Failed new imports leave no replay reco
 `TestPolicyImportApplyReplaysAfterReferencesDisappear` covers service recreation,
 deleted references, changed content/mappings and invalid request keys. Store tests
 cover two connections and database reopen. This is service/store coverage; HTTP
-the import UI and complete transfer workflow acceptance are still pending.
+complete transfer workflow acceptance remains pending.
 
 `POST /api/v1/admin/alert-policies/import/preview` accepts `{bundle, mapping}`
 under administrator session and CSRF protection. It strictly decodes the portable
@@ -443,6 +443,22 @@ dynamic tag membership. Both endpoints require session/CSRF protection, accept a
 most 16 MiB and use a 30-second processing deadline. Fresh commits revalidate
 destination references and enabled-policy conflicts in the writer transaction.
 The UI must explain dynamic matching and invalidate its preview when input changes.
+
+The policy page now has a transfer panel for JSON download/upload, explicit channel,
+node and template mapping, normalized definition preview and confirmed creation.
+Submitting stores the source, mapping, digest and request key in tab-scoped
+sessionStorage before sending. A lost response keeps those values through reload;
+retry uses the same identity. A successful response clears the record. Explicit
+input/conflict rejection permits corrections and a fresh preview; transport/server
+errors retain the pending request. Closing the tab loses this recovery record, so
+users should resolve an uncertain submission before closing it. Browser storage
+must be available; stored policy definitions contain no notification credentials.
+
+The live browser test exports a disabled fixture policy, maps its channel, previews
+it at six theme/width combinations, commits against the real API while discarding
+the response, reloads and confirms replay without duplicates. This does not yet
+cover every rejection/recovery path, multi-node/template mapping or malformed
+browser recovery storage; those remain release acceptance work.
 Policy writes recheck referenced templates inside the same writer transaction as
 channel/node checks, including batch dry runs and imports. The regression test
 `TestPolicyImportRejectsTemplateDeletedAfterPreparation` deletes a template after

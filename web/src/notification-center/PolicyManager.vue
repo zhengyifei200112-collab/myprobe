@@ -4,6 +4,7 @@ import type { NodeMetadata } from '../types'
 import type { AlertKind, AlertPolicy, AlertPolicyDecision, AlertPolicyInput, AlertPolicyScope, NotificationChannel, PolicyEvaluationStatus } from '../admin-api'
 import { createAlertPolicy, deleteAlertPolicy, loadAlertPolicies, loadAlertPolicy, loadEffectiveAlertPolicies, updateAlertPolicy } from '../admin-api'
 import { DsConfirmDialog } from '../design-system'
+import PolicyTransfer from './PolicyTransfer.vue'
 const props = defineProps<{ nodes: NodeMetadata[]; channels: NotificationChannel[]; initialPolicyId?: string }>()
 const items = ref<AlertPolicy[]>([]), cursor = ref(''), busy = ref(false), error = ref(''), loaded = ref(false), execution = ref(false)
 const editing = ref(false), deleting = ref<AlertPolicy | null>(null), nodeID = ref(''), decisions = ref<AlertPolicyDecision[] | null>(null)
@@ -79,6 +80,7 @@ onMounted(async () => {
 <template>
   <section class="policy-manager" aria-label="范围策略管理">
     <h2>范围策略</h2>
+    <PolicyTransfer :nodes="nodes" :channels="channels" @imported="run(() => refresh())" />
     <p v-if="loaded && !execution" role="status">策略评估尚未启用。</p>
     <div v-else-if="loaded" role="status">
       <p v-if="evaluation.state === 'pending'">等待首次应用策略。</p>

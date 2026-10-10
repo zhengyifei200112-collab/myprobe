@@ -27,7 +27,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Authenticated policy-import preview API with explicit destination mappings,
   strict bounded input and transactional dry run. Submission binds the source
   content to the preview digest, revalidates destinations, and returns original
-  results for committed retries. The import UI remains in development.
+  results for committed retries. The policy page provides file transfer, explicit
+  reference mapping and confirmation, retaining uncertain requests across tab reloads.
 
 - Internal atomic policy-import replay ledger (migration 023), preserving original
   results across concurrent retries and restarts. The full transfer workflow remains unfinished.
