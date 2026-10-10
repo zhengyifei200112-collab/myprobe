@@ -137,6 +137,8 @@ each other's nodes. Each Open now uses a unique shared-cache name, preserving
 intra-Store pooling but isolating separate instances. The regression and 20 local
 repetitions of the worker/startup tests pass; Linux CI must verify the timeout
 does not recur. Do not treat local repetition as proof of its complete cause.
+Linux CI run 38046872412 subsequently passed for `eb3a4c2`; this confirms that run
+completed, not that every possible SQLite cancellation/locking race is excluded.
 
 Each unmapped old rule becomes an explicit-node policy with its original rule ID,
 channel, enabled flag, cooldown, configuration and timestamps. Its initial key is
@@ -170,6 +172,10 @@ Current v1 configuration transfer contains nodes, targets, groups and site setti
 it does not write alert rules, policies, channels or templates. Imported node tags
 must participate in the next policy selection. Portable policy transfer remains a
 separate versioned contract with destination references and credential handling.
+The tag-selection regression now uses real configuration export/import: dry-run
+does not change the selected policy, committed tags change the preview immediately,
+and the next synchronization changes execution rules. Import preserves policy
+versions and does not directly rewrite the existing execution-rule timestamp.
 
 `PrepareAlertPolicyRules` combines legacy mapping and execution-rule synchronization
 under one writer transaction. Runtime cutover should use this combined operation:

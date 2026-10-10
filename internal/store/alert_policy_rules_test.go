@@ -49,8 +49,37 @@ func TestPolicyRulesFollowTagsAndKeepStableBindings(t *testing.T) {
 	if _, err = db.ObserveAlert(ctx, globalRule, node, AlertObservation{At: now, Known: true, Active: true, Message: "fixture"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.db.ExecContext(ctx, `UPDATE nodes SET tags_json='["prod"]' WHERE id=?`, node.ID); err != nil {
+	snapshot, err := db.ExportConfig(ctx, now)
+	if err != nil {
 		t.Fatal(err)
+	}
+	snapshot.Nodes[0].Tags = []string{"prod"}
+	if _, err = db.ImportConfig(ctx, snapshot, true); err != nil {
+		t.Fatal(err)
+	}
+	preview, err := db.EffectiveAlertPolicies(ctx, node.ID)
+	if err != nil || len(preview) != 1 || preview[0].SelectedID != global.ID {
+		t.Fatalf("dry-run changed policy selection: %+v %v", preview, err)
+	}
+	if _, err = db.ImportConfig(ctx, snapshot, false); err != nil {
+		t.Fatal(err)
+	}
+	preview, err = db.EffectiveAlertPolicies(ctx, node.ID)
+	if err != nil || len(preview) != 1 || preview[0].SelectedID != tag.ID {
+		t.Fatalf("imported tags did not change selection: %+v %v", preview, err)
+	}
+	unchanged, err := db.AlertRule(ctx, globalRule.ID)
+	if err != nil || !unchanged.Enabled || !unchanged.UpdatedAt.Equal(globalRule.UpdatedAt) {
+		t.Fatal("configuration import directly rewrote the execution rule", err)
+	}
+	definitions, err := db.ListAlertPolicies(ctx)
+	if err != nil || len(definitions) != 2 {
+		t.Fatalf("import changed policy population: %+v %v", definitions, err)
+	}
+	for _, p := range definitions {
+		if p.Revision != 1 {
+			t.Fatal("node import changed policy revision")
+		}
 	}
 	if err = db.SyncAlertPolicyRules(ctx, now.Add(time.Second)); err != nil {
 		t.Fatal(err)
