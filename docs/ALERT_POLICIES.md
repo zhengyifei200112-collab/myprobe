@@ -400,3 +400,20 @@ CI skips it unless those prerequisites and the opt-in flag are configured.
 This proves the basic live lifecycle, not cross-release upgrades, real external
 notification providers or every policy conflict/recovery scenario. Complete release
 upgrade validation, portable configuration transfer and capacity evidence remain.
+
+### Import retry identity
+
+The service hashes the typed bundle and destination mappings before normalization.
+An existing request key with the same digest returns the original ordered policy
+IDs before validating mutable destination references. Deleting a created policy,
+node, template or channel does not make a retry recreate objects. These IDs describe
+the historical import result, not a guarantee that the objects still exist.
+Changing the bundle or mappings under that key returns a conflict. JSON map key
+order does not affect the digest; array order and null versus empty maps do.
+The store repeats the identity check under its writer transaction so concurrent
+callers cannot commit duplicate batches. Failed new imports leave no replay record.
+
+`TestPolicyImportApplyReplaysAfterReferencesDisappear` covers service recreation,
+deleted references, changed content/mappings and invalid request keys. Store tests
+cover two connections and database reopen. This is service/store coverage; HTTP
+preview/apply routes and the import UI are still pending.

@@ -3,6 +3,8 @@ package alerts
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -18,6 +20,39 @@ type PolicyImportMapping struct {
 	Channels  map[string]string `json:"channels"`
 	Nodes     map[string]string `json:"nodes"`
 	Templates map[string]string `json:"templates"`
+}
+
+// ApplyPolicyImport hashes the typed request before normalization so retry identity
+// does not depend on mutable destination references or changing default values.
+func (s *Service) ApplyPolicyImport(ctx context.Context, requestID string, bundle PolicyBundle, mapping PolicyImportMapping) (store.PolicyImportResult, error) {
+	if len(bundle.Policies) == 0 || len(bundle.Policies) > 1000 || len(mapping.Channels) > 1000 || len(mapping.Templates) > 1000 || len(mapping.Nodes) > 100000 {
+		return store.PolicyImportResult{}, store.ErrInvalidAlertPolicy
+	}
+	raw, err := json.Marshal(struct {
+		Bundle  PolicyBundle        `json:"bundle"`
+		Mapping PolicyImportMapping `json:"mapping"`
+	}{bundle, mapping})
+	if err != nil || len(raw) > 16<<20 {
+		return store.PolicyImportResult{}, store.ErrInvalidAlertPolicy
+	}
+	sum := sha256.Sum256(raw)
+	digest := hex.EncodeToString(sum[:])
+	if replay, err := s.store.LookupPolicyImport(ctx, requestID, digest); err != nil {
+		return store.PolicyImportResult{}, err
+	} else if replay != nil {
+		return *replay, nil
+	}
+	definitions, err := s.preparePolicyImport(ctx, bundle, mapping)
+	if err != nil {
+		// Another caller may have committed while this caller validated references.
+		if replay, lookupErr := s.store.LookupPolicyImport(ctx, requestID, digest); lookupErr != nil {
+			return store.PolicyImportResult{}, lookupErr
+		} else if replay != nil {
+			return *replay, nil
+		}
+		return store.PolicyImportResult{}, err
+	}
+	return s.store.ApplyPolicyImport(ctx, requestID, digest, definitions)
 }
 
 // PreviewPolicyImport returns normalized destination definitions without writing.

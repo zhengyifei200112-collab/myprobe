@@ -16,6 +16,31 @@ type PolicyImportResult struct {
 	Replayed  bool     `json:"replayed"`
 }
 
+// LookupPolicyImport lets the service replay before validating mutable references.
+// ApplyPolicyImport must still check again inside its writer transaction.
+func (s *Store) LookupPolicyImport(ctx context.Context, requestID, digest string) (*PolicyImportResult, error) {
+	decoded, err := hex.DecodeString(digest)
+	if !portableID.MatchString(requestID) || err != nil || len(decoded) != 32 {
+		return nil, ErrInvalidAlertPolicy
+	}
+	var existing, raw string
+	err = s.db.QueryRowContext(ctx, `SELECT request_digest,policy_ids_json FROM alert_policy_imports WHERE request_id=?`, requestID).Scan(&existing, &raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if existing != digest {
+		return nil, ErrPolicyImportConflict
+	}
+	result := &PolicyImportResult{Replayed: true}
+	if err = json.Unmarshal([]byte(raw), &result.PolicyIDs); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // ApplyPolicyImport commits definitions and their replay record together. Digest
 // must cover the complete canonical request (bundle, mappings and import options).
 // Returned IDs are the original result, even if those policies were later removed.

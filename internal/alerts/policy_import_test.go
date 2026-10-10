@@ -3,11 +3,79 @@ package alerts
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/alertpolicy"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
+
+func TestPolicyImportApplyReplaysAfterReferencesDisappear(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s := New(db, "", nil, nil)
+	channel, err := db.CreateNotificationChannel(ctx, "destination", store.ChannelKindWebhook, "synthetic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, _, err := db.CreateNode(ctx, store.CreateNodeParams{Name: "destination"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	template, err := db.SaveNotificationTemplate(ctx, "", "destination", "all", "{{message}}", "{{message}}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundle := PolicyBundle{Format: "myprobe-alert-policies", Version: 1, Policies: []PortablePolicy{{SourceID: "source", Name: "CPU", Key: "cpu", Scope: alertpolicy.Scope{Kind: "nodes", NodeIDs: []string{"node"}}, ChannelID: "channel", Kind: "cpu", Config: RuleConfig{ThresholdPercent: 90, TemplateID: "template"}, CooldownSeconds: 900}}}
+	mapping := PolicyImportMapping{Channels: map[string]string{"channel": channel.ID}, Nodes: map[string]string{"node": node.ID}, Templates: map[string]string{"template": template.ID}}
+	if _, err := s.ApplyPolicyImport(ctx, "invalid key", bundle, mapping); !errors.Is(err, store.ErrInvalidAlertPolicy) {
+		t.Fatalf("invalid request key: %v", err)
+	}
+	first, err := s.ApplyPolicyImport(ctx, "request", bundle, mapping)
+	if err != nil || first.Replayed || len(first.PolicyIDs) != 1 {
+		t.Fatalf("first: %+v %v", first, err)
+	}
+	if err := db.DeleteAlertPolicy(ctx, first.PolicyIDs[0], 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DeleteNotificationTemplate(ctx, template.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DeleteNode(ctx, node.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DeleteNotificationChannel(ctx, channel.ID); err != nil {
+		t.Fatal(err)
+	}
+	// A fresh service must replay historical IDs before checking mutable references.
+	s = New(db, "", nil, nil)
+	retry, err := s.ApplyPolicyImport(ctx, "request", bundle, mapping)
+	if err != nil || !retry.Replayed || !reflect.DeepEqual(first.PolicyIDs, retry.PolicyIDs) {
+		t.Fatalf("retry: %+v %v", retry, err)
+	}
+	changed := bundle
+	changed.Policies = append([]PortablePolicy(nil), bundle.Policies...)
+	changed.Policies[0].Name = "changed"
+	if _, err := s.ApplyPolicyImport(ctx, "request", changed, mapping); !errors.Is(err, store.ErrPolicyImportConflict) {
+		t.Fatalf("changed bundle: %v", err)
+	}
+	changedMapping := mapping
+	changedMapping.Channels = map[string]string{"channel": "different"}
+	if _, err := s.ApplyPolicyImport(ctx, "request", bundle, changedMapping); !errors.Is(err, store.ErrPolicyImportConflict) {
+		t.Fatalf("changed mapping: %v", err)
+	}
+	if _, err := s.ApplyPolicyImport(ctx, "new-request", bundle, mapping); err == nil {
+		t.Fatal("new import accepted missing references")
+	}
+	items, err := db.ListAlertPolicies(ctx)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("replay resurrected policies: %+v %v", items, err)
+	}
+}
 
 func TestPolicyImportPreviewMapsReferencesWithoutWriting(t *testing.T) {
 	ctx := context.Background()
