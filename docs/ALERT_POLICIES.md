@@ -416,16 +416,33 @@ callers cannot commit duplicate batches. Failed new imports leave no replay reco
 `TestPolicyImportApplyReplaysAfterReferencesDisappear` covers service recreation,
 deleted references, changed content/mappings and invalid request keys. Store tests
 cover two connections and database reopen. This is service/store coverage; HTTP
-apply route and the import UI are still pending.
+the import UI and complete transfer workflow acceptance are still pending.
 
 `POST /api/v1/admin/alert-policies/import/preview` accepts `{bundle, mapping}`
 under administrator session and CSRF protection. It strictly decodes the portable
 types, rejects trailing JSON and unknown fields, and limits the body to 16 MiB
 (single-policy editing retains its separate 64 KiB limit). A successful response
-contains the normalized destination `bundle` and `create_count`; all responses are
+contains the normalized destination `bundle`, `create_count` and `preview_digest`; all responses are
 private/no-store. Preview rolls back its transaction and creates no policies or
 import replay records. It does not reserve references or authorize a later commit.
-The apply contract must bind the confirmed content and revalidate destination state.
+`POST /api/v1/admin/alert-policies/import/apply` accepts the original source
+`bundle` and `mapping`, a stable `request_id`, and the returned `preview_digest`.
+Do not send the normalized preview bundle as the source request. A changed source
+or mapping returns 409 `policy_import_preview_changed`; a fresh successful import
+returns 201 with ordered `policy_ids`, `replayed: false` and evaluation status.
+Repeating a committed request returns 200 and `replayed: true`, even after its
+objects are deleted. A request key reused for different content returns 409
+`policy_import_request_conflict`; exhausting the replay ledger returns 409
+`policy_import_limit`. Fresh imports create an audit entry containing IDs/count,
+not credentials; replay does not repeat that entry. Audit storage follows the
+existing post-commit audit path and is not atomic with the policy transaction.
+
+The digest binds typed source content, not proof of a past preview or permission.
+It has no expiry and does not freeze template contents, channel credentials or
+dynamic tag membership. Both endpoints require session/CSRF protection, accept at
+most 16 MiB and use a 30-second processing deadline. Fresh commits revalidate
+destination references and enabled-policy conflicts in the writer transaction.
+The UI must explain dynamic matching and invalidate its preview when input changes.
 Policy writes recheck referenced templates inside the same writer transaction as
 channel/node checks, including batch dry runs and imports. The regression test
 `TestPolicyImportRejectsTemplateDeletedAfterPreparation` deletes a template after

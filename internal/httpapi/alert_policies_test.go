@@ -48,6 +48,52 @@ func TestPolicyImportPreviewAPI(t *testing.T) {
 	if err != nil || len(items) != 0 {
 		t.Fatalf("preview mutated policies: %+v %v", items, err)
 	}
+	var preview struct {
+		Digest string `json:"preview_digest"`
+	}
+	if err := json.Unmarshal(r.Body.Bytes(), &preview); err != nil || len(preview.Digest) != 64 {
+		t.Fatalf("preview digest: %+v %v", preview, err)
+	}
+	applyPath := "/api/v1/admin/alert-policies/import/apply"
+	applyBody := strings.TrimSuffix(body, "}") + fmt.Sprintf(`,"request_id":"import-test","preview_digest":%q}`, preview.Digest)
+	unauthorized := httptest.NewRecorder()
+	handler.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodPost, applyPath, strings.NewReader(applyBody)))
+	if unauthorized.Code != 401 {
+		t.Fatalf("apply auth: %d", unauthorized.Code)
+	}
+	if denied := authenticatedRequest(t, handler, cookie, "", http.MethodPost, applyPath, applyBody); denied.Code != 403 {
+		t.Fatalf("apply CSRF: %d", denied.Code)
+	}
+	changed := strings.Replace(applyBody, `"threshold_percent":90`, `"threshold_percent":91`, 1)
+	if stale := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodPost, applyPath, changed); stale.Code != 409 || !strings.Contains(stale.Body.String(), "policy_import_preview_changed") {
+		t.Fatalf("changed confirmation: %d %s", stale.Code, stale.Body.String())
+	}
+	if bad := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodPost, applyPath, applyBody+`{}`); bad.Code != 400 {
+		t.Fatalf("trailing content: %d", bad.Code)
+	}
+	created := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodPost, applyPath, applyBody)
+	if created.Code != 201 || !strings.Contains(created.Header().Get("Cache-Control"), "no-store") {
+		t.Fatalf("apply: %d %s", created.Code, created.Body.String())
+	}
+	var result store.PolicyImportResult
+	if err := json.Unmarshal(created.Body.Bytes(), &result); err != nil || result.Replayed || len(result.PolicyIDs) != 1 {
+		t.Fatalf("result: %+v %v", result, err)
+	}
+	// A committed request survives deletion and must not resurrect its policy.
+	if err := db.DeleteAlertPolicy(context.Background(), result.PolicyIDs[0], 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DeleteNotificationChannel(context.Background(), channel.ID); err != nil {
+		t.Fatal(err)
+	}
+	replayed := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodPost, applyPath, applyBody)
+	if replayed.Code != 200 || !strings.Contains(replayed.Body.String(), `"replayed":true`) || !strings.Contains(replayed.Body.String(), result.PolicyIDs[0]) {
+		t.Fatalf("replay: %d %s", replayed.Code, replayed.Body.String())
+	}
+	items, err = db.ListAlertPolicies(context.Background())
+	if err != nil || len(items) != 0 {
+		t.Fatalf("replay wrote policies: %+v %v", items, err)
+	}
 }
 
 func TestAlertPolicyAdministration(t *testing.T) {

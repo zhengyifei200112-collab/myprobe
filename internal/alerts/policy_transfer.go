@@ -22,21 +22,30 @@ type PolicyImportMapping struct {
 	Templates map[string]string `json:"templates"`
 }
 
-// ApplyPolicyImport hashes the typed request before normalization so retry identity
-// does not depend on mutable destination references or changing default values.
-func (s *Service) ApplyPolicyImport(ctx context.Context, requestID string, bundle PolicyBundle, mapping PolicyImportMapping) (store.PolicyImportResult, error) {
+// PolicyImportDigest binds confirmation and retries to the typed source request.
+// It is not an authorization token or a reservation of destination state.
+func PolicyImportDigest(bundle PolicyBundle, mapping PolicyImportMapping) (string, error) {
 	if len(bundle.Policies) == 0 || len(bundle.Policies) > 1000 || len(mapping.Channels) > 1000 || len(mapping.Templates) > 1000 || len(mapping.Nodes) > 100000 {
-		return store.PolicyImportResult{}, store.ErrInvalidAlertPolicy
+		return "", store.ErrInvalidAlertPolicy
 	}
 	raw, err := json.Marshal(struct {
 		Bundle  PolicyBundle        `json:"bundle"`
 		Mapping PolicyImportMapping `json:"mapping"`
 	}{bundle, mapping})
 	if err != nil || len(raw) > 16<<20 {
-		return store.PolicyImportResult{}, store.ErrInvalidAlertPolicy
+		return "", store.ErrInvalidAlertPolicy
 	}
 	sum := sha256.Sum256(raw)
-	digest := hex.EncodeToString(sum[:])
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// ApplyPolicyImport hashes the typed request before normalization so retry identity
+// does not depend on mutable destination references or changing default values.
+func (s *Service) ApplyPolicyImport(ctx context.Context, requestID string, bundle PolicyBundle, mapping PolicyImportMapping) (store.PolicyImportResult, error) {
+	digest, err := PolicyImportDigest(bundle, mapping)
+	if err != nil {
+		return store.PolicyImportResult{}, err
+	}
 	if replay, err := s.store.LookupPolicyImport(ctx, requestID, digest); err != nil {
 		return store.PolicyImportResult{}, err
 	} else if replay != nil {

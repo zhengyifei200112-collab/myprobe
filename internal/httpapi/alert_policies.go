@@ -33,11 +33,58 @@ func (s *Server) previewAlertPolicyImport(c *gin.Context) {
 		policyError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"bundle": bundle, "create_count": len(bundle.Policies)})
+	digest, err := alerts.PolicyImportDigest(request.Bundle, request.Mapping)
+	if err != nil {
+		policyError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"bundle": bundle, "create_count": len(bundle.Policies), "preview_digest": digest})
+}
+
+func (s *Server) applyAlertPolicyImport(c *gin.Context) {
+	var request struct {
+		Bundle        alerts.PolicyBundle        `json:"bundle"`
+		Mapping       alerts.PolicyImportMapping `json:"mapping"`
+		RequestID     string                     `json:"request_id"`
+		PreviewDigest string                     `json:"preview_digest"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, 16<<20))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&request) != nil || !errors.Is(decoder.Decode(new(any)), io.EOF) {
+		policyError(c, store.ErrInvalidAlertPolicy)
+		return
+	}
+	digest, err := alerts.PolicyImportDigest(request.Bundle, request.Mapping)
+	if err != nil {
+		policyError(c, err)
+		return
+	}
+	if request.PreviewDigest != digest {
+		c.JSON(http.StatusConflict, gin.H{"error": "import content changed; preview again", "code": "policy_import_preview_changed"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+	result, err := s.alerts.ApplyPolicyImport(ctx, request.RequestID, request.Bundle, request.Mapping)
+	if err != nil {
+		policyError(c, err)
+		return
+	}
+	status := http.StatusCreated
+	if result.Replayed {
+		status = http.StatusOK
+	} else {
+		s.audit(c, "import", "alert_policy", request.RequestID, gin.H{"policy_ids": result.PolicyIDs, "count": len(result.PolicyIDs)})
+	}
+	c.JSON(status, gin.H{"policy_ids": result.PolicyIDs, "replayed": result.Replayed, "evaluation": s.alerts.PolicyEvaluationStatus()})
 }
 
 func policyError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, store.ErrPolicyImportConflict):
+		c.JSON(409, gin.H{"error": "request ID already used for different import content", "code": "policy_import_request_conflict"})
+	case errors.Is(err, store.ErrPolicyImportLimit):
+		c.JSON(409, gin.H{"error": "policy import history limit reached", "code": "policy_import_limit"})
 	case errors.Is(err, store.ErrInvalidAlertPolicy):
 		c.JSON(400, gin.H{"error": "invalid alert policy configuration"})
 	case errors.Is(err, store.ErrAlertPolicyConflict):
