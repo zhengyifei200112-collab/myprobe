@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Delivery retry deadlines round up to SQLite millisecond precision, preventing
+  sub-millisecond truncation from allowing a retry before its Retry-After deadline.
+
 - Independent in-memory Stores now use separate SQLite shared-cache names, while
   pooled connections within each Store still share its database. This prevents
   state and lock coupling between otherwise isolated test/service instances.

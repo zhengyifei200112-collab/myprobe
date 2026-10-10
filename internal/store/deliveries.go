@@ -310,6 +310,11 @@ func (s *Store) CompleteDelivery(ctx context.Context, id, token string, now time
 			return errors.New("retry must be in the future")
 		}
 		available = outcome.RetryAt.UnixMilli()
+		// A retry deadline is a lower bound. Round up to storage precision so
+		// truncation cannot make a provider's Retry-After eligible early.
+		if time.UnixMilli(available).Before(outcome.RetryAt) {
+			available++
+		}
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE delivery_attempts SET outcome=?,completed_at=?,error_class=? WHERE delivery_id=? AND lease_token=? AND outcome='started'`, attemptStatus, formatTime(now), errorClass, id, token); err != nil {
 		return err
