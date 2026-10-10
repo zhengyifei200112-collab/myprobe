@@ -288,6 +288,17 @@ This method is not an import endpoint. Reference mapping, request idempotency,
 preview/apply contracts and UI remain unfinished; in particular disabled duplicate
 batches require request-level deduplication before public exposure.
 
+`alerts.Service.PreviewPolicyImport` now maps every source channel, explicit node
+and nonempty template reference through supplied destination-ID maps, including
+same-environment imports (no implicit ID reuse). It rejects unsupported bundle
+versions, duplicate/empty source IDs, missing mappings, invalid thresholds and
+unavailable destination references. Single-policy semantic validation is reused;
+the complete destination batch runs through Store dry-run validation for scope
+conflicts and capacity. Returned definitions keep their source IDs for review,
+with normalized destination references, and expose no temporary generated IDs.
+Inputs are not mutated. This is an internal service API; HTTP preview/apply,
+idempotent commit and management-page controls remain pending.
+
 `web/src/admin-api.ts` provides typed create/update/delete/read/list and effective
 preview clients. Scope types distinguish global, explicit-node and tag selectors;
 updates require revisions and every read preserves the evaluation-enabled flag.

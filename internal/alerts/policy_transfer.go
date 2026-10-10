@@ -6,12 +6,85 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/alertpolicy"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
 const PolicyBundleVersion = 1
+
+type PolicyImportMapping struct {
+	Channels  map[string]string `json:"channels"`
+	Nodes     map[string]string `json:"nodes"`
+	Templates map[string]string `json:"templates"`
+}
+
+// PreviewPolicyImport returns normalized destination definitions without writing.
+// SourceID remains a source reference; no temporary Store ID is exposed.
+func (s *Service) PreviewPolicyImport(ctx context.Context, bundle PolicyBundle, mapping PolicyImportMapping) (PolicyBundle, error) {
+	definitions, err := s.preparePolicyImport(ctx, bundle, mapping)
+	if err != nil {
+		return PolicyBundle{}, err
+	}
+	validated, err := s.store.CreateAlertPolicies(ctx, definitions, true)
+	if err != nil {
+		return PolicyBundle{}, err
+	}
+	result := PolicyBundle{Format: bundle.Format, Version: bundle.Version, Policies: make([]PortablePolicy, 0, len(validated))}
+	for i, p := range validated {
+		var config RuleConfig
+		if err := json.Unmarshal(p.Config, &config); err != nil {
+			return PolicyBundle{}, err
+		}
+		result.Policies = append(result.Policies, PortablePolicy{SourceID: bundle.Policies[i].SourceID, Name: p.Name, Key: p.Key, Enabled: p.Enabled, Priority: p.Priority, Scope: p.Scope, ChannelID: p.ChannelID, Kind: p.Kind, Config: config, CooldownSeconds: p.CooldownSeconds})
+	}
+	return result, nil
+}
+
+func (s *Service) preparePolicyImport(ctx context.Context, bundle PolicyBundle, mapping PolicyImportMapping) ([]store.AlertPolicy, error) {
+	if bundle.Format != "myprobe-alert-policies" || bundle.Version != PolicyBundleVersion || len(bundle.Policies) == 0 || len(bundle.Policies) > 1000 || len(mapping.Channels) > 1000 || len(mapping.Templates) > 1000 || len(mapping.Nodes) > 100000 {
+		return nil, store.ErrInvalidAlertPolicy
+	}
+	seen := make(map[string]bool)
+	definitions := make([]store.AlertPolicy, 0, len(bundle.Policies))
+	for _, p := range bundle.Policies {
+		if p.SourceID == "" || len(p.SourceID) > 128 || strings.TrimSpace(p.SourceID) != p.SourceID || seen[p.SourceID] {
+			return nil, store.ErrInvalidAlertPolicy
+		}
+		seen[p.SourceID] = true
+		channelID := mapping.Channels[p.ChannelID]
+		if channelID == "" {
+			return nil, store.ErrInvalidAlertPolicy
+		}
+		scope := p.Scope
+		scope.NodeIDs = append([]string(nil), p.Scope.NodeIDs...)
+		scope.Tags = append([]string(nil), p.Scope.Tags...)
+		for i, source := range scope.NodeIDs {
+			if mapping.Nodes[source] == "" {
+				return nil, store.ErrInvalidAlertPolicy
+			}
+			scope.NodeIDs[i] = mapping.Nodes[source]
+		}
+		config := p.Config
+		if config.TemplateID != "" {
+			config.TemplateID = mapping.Templates[config.TemplateID]
+			if config.TemplateID == "" {
+				return nil, store.ErrInvalidAlertPolicy
+			}
+		}
+		raw, err := json.Marshal(config)
+		if err != nil {
+			return nil, store.ErrInvalidAlertPolicy
+		}
+		definition, err := s.validatePolicy(ctx, store.AlertPolicy{Policy: alertpolicy.Policy{Key: p.Key, Enabled: p.Enabled, Priority: p.Priority, Scope: scope}, Name: p.Name, ChannelID: channelID, Kind: p.Kind, Config: raw, CooldownSeconds: p.CooldownSeconds})
+		if err != nil {
+			return nil, err
+		}
+		definitions = append(definitions, definition)
+	}
+	return definitions, nil
+}
 
 // PolicyBundle is separate from node configuration and encrypted database backup.
 // Source IDs are references for explicit destination mapping, never credentials.

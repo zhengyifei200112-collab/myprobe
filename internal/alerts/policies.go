@@ -46,6 +46,14 @@ func (s *Service) setPolicyEvaluationStatus(state string, at *time.Time) {
 // defaults and threshold semantics, while rejecting unknown input fields so a
 // misspelled threshold cannot silently become a default.
 func (s *Service) SavePolicy(ctx context.Context, policy store.AlertPolicy) (store.AlertPolicy, error) {
+	policy, err := s.validatePolicy(ctx, policy)
+	if err != nil {
+		return store.AlertPolicy{}, err
+	}
+	return s.store.SaveAlertPolicy(ctx, policy)
+}
+
+func (s *Service) validatePolicy(ctx context.Context, policy store.AlertPolicy) (store.AlertPolicy, error) {
 	if len(policy.Config) == 0 || len(policy.Config) > 16384 {
 		return store.AlertPolicy{}, store.ErrInvalidAlertPolicy
 	}
@@ -71,5 +79,5 @@ func (s *Service) SavePolicy(ctx context.Context, policy store.AlertPolicy) (sto
 		}
 	}
 	policy.Config = raw
-	return s.store.SaveAlertPolicy(ctx, policy)
+	return policy, nil
 }
