@@ -104,6 +104,16 @@ encryption keys are separate requirements: possessing the backup password does n
 replace the original channel key. This does not validate cross-release upgrade or
 external provider availability.
 
+The legacy migration tests now continue through policy cutover as well as incident
+migration. A fixture built from migrations before 015 is upgraded, closed/reopened,
+and prepared twice (one mapped rule, then zero). It preserves the incident and job
+IDs, payload, millisecond retry deadline, attempt numbering and explicit immediate
+recovery. The state matrix also prepares all legacy rules and reconciles incidents
+before checking sent/failed active faults, pending triggers, sent/failed recoveries
+and disabled active rules. No extra migration notification is created. This is
+schema-fixture coverage; it does not replace an archived released binary/database
+upgrade or convergence of other feature branches' migration numbers.
+
 Tests exercise cross-connection conflicting saves, stale edits/deletes, disabled
 draft activation, invalid node references, channel deletion restrictions, dynamic
 tag preview and reopen persistence. Endpoint authorization and synthetic browser
