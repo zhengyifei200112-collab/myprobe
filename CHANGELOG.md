@@ -18,6 +18,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Authenticated scoped-policy JSON export with versioned definitions and source
+  references, excluding notification credentials and runtime history. Import and
+  the management-page transfer workflow are still in development.
+
 - Scoped-rule synchronization reuses one validated policy snapshot across nodes,
   reducing repeated selection work without retaining stale cross-cycle caches.
 

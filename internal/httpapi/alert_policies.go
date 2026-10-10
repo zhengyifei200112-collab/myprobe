@@ -27,6 +27,18 @@ func policyError(c *gin.Context, err error) {
 	}
 }
 
+func (s *Server) exportAlertPolicies(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+	bundle, err := s.alerts.ExportPolicyBundle(ctx)
+	if err != nil {
+		policyError(c, err)
+		return
+	}
+	c.Header("Content-Disposition", `attachment; filename="myprobe-alert-policies.json"`)
+	c.JSON(http.StatusOK, bundle)
+}
+
 func (s *Server) listAlertPolicies(c *gin.Context) {
 	limit := 50
 	if raw, ok := c.GetQuery("limit"); ok {

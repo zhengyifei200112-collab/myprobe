@@ -258,6 +258,25 @@ management closure and restarting the evaluator without duplicate notifications.
 
 ## Administrator API
 
+### Portable policy bundle (export implemented; import pending)
+
+`GET /api/v1/admin/alert-policies/export` downloads authenticated, no-store JSON
+with `format: "myprobe-alert-policies"`, `version: 1`, and a `policies` array. This
+is separate from the node configuration snapshot version. Each item includes
+`source_id`, name, policy key, enabled flag, priority, scope, source channel ID,
+kind, typed rule configuration and cooldown. Source node IDs and template ID are
+references, not automatically valid destination objects. Import must explicitly
+map those references, validate the complete batch and commit atomically; it is
+not yet implemented. No destination overwrite semantics are implied by source IDs.
+
+Export excludes channel names/credentials, policy revisions/timestamps, execution
+bindings, events and queued jobs. Configuration uses a field whitelist; unsupported
+legacy fields reject the whole export rather than silently dropping semantics.
+Persisted omitted recovery duration and explicit zero remain distinct. Empty
+exports contain an empty array. Tests cover authenticated download/cache behavior,
+reference preservation, recovery representation and excluded fields. The page
+download control and import preview/apply workflow remain outstanding.
+
 `web/src/admin-api.ts` provides typed create/update/delete/read/list and effective
 preview clients. Scope types distinguish global, explicit-node and tag selectors;
 updates require revisions and every read preserves the evaluation-enabled flag.

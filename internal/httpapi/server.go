@@ -113,6 +113,7 @@ func (s *Server) routes() {
 
 	policies := s.router.Group("/api/v1/admin/alert-policies", privateNoStore(), s.requireSession(true))
 	policies.GET("", s.listAlertPolicies)
+	policies.GET("/export", s.exportAlertPolicies)
 	policies.GET("/effective/:nodeID", s.effectiveAlertPolicies)
 	policies.GET("/:policyID", s.getAlertPolicy)
 	policies.POST("", s.saveAlertPolicy)

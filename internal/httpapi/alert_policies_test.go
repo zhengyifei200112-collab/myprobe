@@ -26,7 +26,7 @@ func TestAlertPolicyAdministration(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := "/api/v1/admin/alert-policies"
-	for _, path := range []string{root, root + "/effective/" + node.ID, root + "/missing"} {
+	for _, path := range []string{root, root + "/export", root + "/effective/" + node.ID, root + "/missing"} {
 		r := httptest.NewRecorder()
 		handler.ServeHTTP(r, httptest.NewRequest(http.MethodGet, path, nil))
 		if r.Code != 401 || !strings.Contains(r.Header().Get("Cache-Control"), "no-store") {
@@ -60,6 +60,10 @@ func TestAlertPolicyAdministration(t *testing.T) {
 		t.Fatal("incorrect state or leaked channel configuration")
 	}
 	id := value.Policy.ID
+	exported := request(http.MethodGet, root+"/export", "")
+	if exported.Code != 200 || !strings.Contains(exported.Body.String(), `"source_id":"`+id+`"`) || !strings.Contains(exported.Body.String(), `"format":"myprobe-alert-policies"`) || strings.Contains(exported.Body.String(), "private-channel-marker") || exported.Header().Get("Content-Disposition") == "" || !strings.Contains(exported.Header().Get("Cache-Control"), "no-store") {
+		t.Fatalf("policy export contract: %d %s", exported.Code, exported.Body.String())
+	}
 	if err = db.SyncAlertPolicyRules(ctx, time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
