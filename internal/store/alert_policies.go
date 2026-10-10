@@ -65,6 +65,60 @@ func (s *Store) ListAlertPolicies(ctx context.Context) ([]AlertPolicy, error) {
 // processes. Caller revisions are compare-and-swap tokens; zero means create.
 // Semantic threshold validation belongs to the alert service before this method.
 func (s *Store) SaveAlertPolicy(ctx context.Context, p AlertPolicy) (AlertPolicy, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return AlertPolicy{}, err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `UPDATE alert_policy_writer SET version=version WHERE id=1`); err != nil {
+		return AlertPolicy{}, err
+	}
+	saved, err := saveAlertPolicy(ctx, tx, p)
+	if err != nil {
+		return AlertPolicy{}, err
+	}
+	if err = tx.Commit(); err != nil {
+		return AlertPolicy{}, err
+	}
+	return saved, nil
+}
+
+// CreateAlertPolicies validates and writes an import batch atomically. It never
+// overwrites existing IDs. Dry runs execute identical validation and roll back.
+func (s *Store) CreateAlertPolicies(ctx context.Context, policies []AlertPolicy, dryRun bool) ([]AlertPolicy, error) {
+	if len(policies) == 0 || len(policies) > 1000 {
+		return nil, ErrInvalidAlertPolicy
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `UPDATE alert_policy_writer SET version=version WHERE id=1`); err != nil {
+		return nil, err
+	}
+	items := make([]AlertPolicy, 0, len(policies))
+	for _, p := range policies {
+		if p.ID != "" || p.Revision != 0 {
+			return nil, ErrInvalidAlertPolicy
+		}
+		saved, err := saveAlertPolicy(ctx, tx, p)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, saved)
+	}
+	if dryRun {
+		if err = tx.Rollback(); err != nil {
+			return nil, err
+		}
+	} else if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func saveAlertPolicy(ctx context.Context, tx *sql.Tx, p AlertPolicy) (AlertPolicy, error) {
 	creating := p.ID == "" && p.Revision == 0
 	if creating {
 		p.ID = randomID()
@@ -77,14 +131,6 @@ func (s *Store) SaveAlertPolicy(ctx context.Context, p AlertPolicy) (AlertPolicy
 		!validAlertKind(p.Kind) || p.ChannelID == "" || len(p.Config) > 16384 || json.Unmarshal(p.Config, &object) != nil || object == nil ||
 		p.CooldownSeconds < 30 || p.CooldownSeconds > 86400*30 || alertpolicy.ValidateSet([]alertpolicy.Policy{p.Policy}) != nil {
 		return AlertPolicy{}, ErrInvalidAlertPolicy
-	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return AlertPolicy{}, err
-	}
-	defer tx.Rollback()
-	if _, err = tx.ExecContext(ctx, `UPDATE alert_policy_writer SET version=version WHERE id=1`); err != nil {
-		return AlertPolicy{}, err
 	}
 	items, err := listAlertPolicies(ctx, tx)
 	if err != nil {
@@ -141,9 +187,6 @@ func (s *Store) SaveAlertPolicy(ctx context.Context, p AlertPolicy) (AlertPolicy
 		_, err = tx.ExecContext(ctx, `UPDATE alert_policies SET revision=?,channel_id=?,definition_json=?,updated_at=? WHERE id=? AND revision=?`, p.Revision, p.ChannelID, string(raw), formatTime(p.UpdatedAt), p.ID, p.Revision-1)
 	}
 	if err != nil {
-		return AlertPolicy{}, err
-	}
-	if err = tx.Commit(); err != nil {
 		return AlertPolicy{}, err
 	}
 	// Round-trip to detach slices from caller-owned input.

@@ -277,6 +277,17 @@ exports contain an empty array. Tests cover authenticated download/cache behavio
 reference preservation, recovery representation and excluded fields. The page
 download control and import preview/apply workflow remain outstanding.
 
+The Store now provides `CreateAlertPolicies` for atomic create-only batches of
+1–1000 definitions (also subject to the total 1000-policy limit). It acquires one
+writer reservation and reuses single-policy structural/reference/conflict checks.
+A later failure rolls back earlier inserts. Dry-run executes the same validation
+and explicitly rolls back; returned preview IDs are temporary and must not be
+treated as destination IDs. Existing IDs/revisions are rejected. Semantic threshold
+and template validation still belong at the service boundary before invoking it.
+This method is not an import endpoint. Reference mapping, request idempotency,
+preview/apply contracts and UI remain unfinished; in particular disabled duplicate
+batches require request-level deduplication before public exposure.
+
 `web/src/admin-api.ts` provides typed create/update/delete/read/list and effective
 preview clients. Scope types distinguish global, explicit-node and tag selectors;
 updates require revisions and every read preserves the evaluation-enabled flag.
