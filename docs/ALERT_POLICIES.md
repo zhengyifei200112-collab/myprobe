@@ -426,5 +426,11 @@ contains the normalized destination `bundle` and `create_count`; all responses a
 private/no-store. Preview rolls back its transaction and creates no policies or
 import replay records. It does not reserve references or authorize a later commit.
 The apply contract must bind the confirmed content and revalidate destination state.
+Policy writes recheck referenced templates inside the same writer transaction as
+channel/node checks, including batch dry runs and imports. The regression test
+`TestPolicyImportRejectsTemplateDeletedAfterPreparation` deletes a template after
+service preparation and verifies neither policies nor replay records are committed.
+This check protects commit-time validity; it does not prevent subsequent template
+deletion or freeze template contents for the lifetime of a policy.
 `TestPolicyImportPreviewAPI` exercises real authentication, CSRF, reference mapping,
 explicit zero recovery, invalid versions/fields/references, body limits and no writes.

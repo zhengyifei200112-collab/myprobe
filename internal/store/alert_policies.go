@@ -176,6 +176,22 @@ func saveAlertPolicy(ctx context.Context, tx *sql.Tx, p AlertPolicy) (AlertPolic
 			return AlertPolicy{}, err
 		}
 	}
+	// Service validation precedes this transaction. Recheck the template under
+	// the writer reservation so a deletion during preparation cannot slip in.
+	if rawTemplate, ok := object["template_id"]; ok {
+		var templateID string
+		if err := json.Unmarshal(rawTemplate, &templateID); err != nil {
+			return AlertPolicy{}, ErrInvalidAlertPolicy
+		}
+		if templateID != "" {
+			if err = tx.QueryRowContext(ctx, `SELECT 1 FROM notification_templates WHERE id=?`, templateID).Scan(&exists); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return AlertPolicy{}, ErrInvalidAlertPolicy
+				}
+				return AlertPolicy{}, err
+			}
+		}
+	}
 	p.Revision++
 	raw, err := json.Marshal(p)
 	if err != nil {

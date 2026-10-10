@@ -4,11 +4,51 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/alertpolicy"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
+
+func TestPolicyImportRejectsTemplateDeletedAfterPreparation(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s := New(db, "", nil, nil)
+	channel, err := db.CreateNotificationChannel(ctx, "destination", store.ChannelKindWebhook, "synthetic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	template, err := db.SaveNotificationTemplate(ctx, "", "destination", "all", "{{message}}", "{{message}}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundle := PolicyBundle{Format: "myprobe-alert-policies", Version: 1, Policies: []PortablePolicy{{SourceID: "source", Name: "CPU", Key: "cpu", Scope: alertpolicy.Scope{Kind: "all"}, ChannelID: "channel", Kind: "cpu", Config: RuleConfig{ThresholdPercent: 90, TemplateID: "template"}, CooldownSeconds: 900}}}
+	mapping := PolicyImportMapping{Channels: map[string]string{"channel": channel.ID}, Templates: map[string]string{"template": template.ID}}
+	prepared, err := s.preparePolicyImport(ctx, bundle, mapping)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DeleteNotificationTemplate(ctx, template.ID); err != nil {
+		t.Fatal(err)
+	}
+	// Reproduce the gap between service validation and acquiring the writer lock.
+	digest := strings.Repeat("a", 64)
+	if _, err := db.ApplyPolicyImport(ctx, "deleted-template", digest, prepared); !errors.Is(err, store.ErrInvalidAlertPolicy) {
+		t.Fatalf("stale template accepted: %v", err)
+	}
+	if replay, err := db.LookupPolicyImport(ctx, "deleted-template", digest); err != nil || replay != nil {
+		t.Fatalf("failed import recorded: %+v %v", replay, err)
+	}
+	items, err := db.ListAlertPolicies(ctx)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("invalid import persisted: %+v %v", items, err)
+	}
+}
 
 func TestPolicyImportApplyReplaysAfterReferencesDisappear(t *testing.T) {
 	ctx := context.Background()

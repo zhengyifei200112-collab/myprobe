@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Policy writes revalidate template references inside their transaction, rejecting
+  imports when a template disappears after service validation without partial writes.
+
 - Delivery retry deadlines round up to SQLite millisecond precision, preventing
   sub-millisecond truncation from allowing a retry before its Retry-After deadline.
 
