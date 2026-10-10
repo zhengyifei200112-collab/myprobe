@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Independent in-memory Stores now use separate SQLite shared-cache names, while
+  pooled connections within each Store still share its database. This prevents
+  state and lock coupling between otherwise isolated test/service instances.
+
 - Policy preparation status now uses the same alert service as the running
   evaluator, preventing the management UI from remaining pending after application.
 

@@ -120,6 +120,14 @@ uses the combined `PrepareAlertPolicyRules` transaction on every tick, including
 startup and subsequent newly created legacy rules. Once bound, use the policy UI
 to edit/delete the rule; legacy endpoints return an actionable 409.
 
+CI run 37912080808 timed out in the alert startup test while creating a rule in a
+shared in-memory database. A separate regression confirmed that independent
+`:memory:` Stores previously shared the fixed SQLite database name and inherited
+each other's nodes. Each Open now uses a unique shared-cache name, preserving
+intra-Store pooling but isolating separate instances. The regression and 20 local
+repetitions of the worker/startup tests pass; Linux CI must verify the timeout
+does not recur. Do not treat local repetition as proof of its complete cause.
+
 Each unmapped old rule becomes an explicit-node policy with its original rule ID,
 channel, enabled flag, cooldown, configuration and timestamps. Its initial key is
 `legacy:<rule ID>` so previously independent rules remain independent. An original

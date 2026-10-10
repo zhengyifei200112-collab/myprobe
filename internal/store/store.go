@@ -64,7 +64,8 @@ func Open(ctx context.Context, path string) (*Store, error) {
 
 func sqliteDSN(path string) string {
 	if path == ":memory:" {
-		return "file:myprobe?mode=memory&cache=shared&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
+		// Share pooled connections within this Open call, not independent Stores.
+		return "file:myprobe-" + randomID() + "?mode=memory&cache=shared&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
 	}
 	return "file:" + url.PathEscape(filepath.ToSlash(path)) +
 		"?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)"
