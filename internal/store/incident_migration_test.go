@@ -79,11 +79,48 @@ func TestLegacyRetryPreservesRepeatOverrideAndMilliseconds(t *testing.T) {
 	if !jobs[0].AvailableAt.Equal(want) {
 		t.Fatalf("deadline=%v want=%v", jobs[0].AvailableAt, want)
 	}
+	// Exercise reopening the upgraded database and the runtime policy cutover,
+	// not just the incident schema migration in isolation.
+	path := s.path
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for attempt, expected := range []int{1, 0} {
+		if mapped, err := s.PrepareAlertPolicyRules(ctx, at.Add(time.Duration(attempt+1)*time.Second)); err != nil || mapped != expected {
+			t.Fatalf("policy cutover %d: mapped=%d err=%v", attempt, mapped, err)
+		}
+	}
+	if err := s.ReconcileIncidents(ctx, at.Add(3*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	current, err := s.Incident(ctx, items[0].ID)
+	if err != nil || current.State != "firing" || current.RuleID != rule.ID || !sameSnapshot(current.RuleSnapshot, items[0].RuleSnapshot) {
+		t.Fatalf("cutover changed upgraded incident: %+v %v", current, err)
+	}
+	policies, err := s.ListAlertPolicies(ctx)
+	if err != nil || len(policies) != 1 || policies[0].ID != rule.ID {
+		t.Fatalf("legacy policy identity: %+v %v", policies, err)
+	}
+	var timing struct {
+		Recovery *int `json:"recovery_seconds"`
+	}
+	if err := json.Unmarshal(policies[0].Config, &timing); err != nil || timing.Recovery == nil || *timing.Recovery != 0 {
+		t.Fatal("policy cutover changed legacy immediate recovery", err)
+	}
+	continued, err := s.ListIncidentDeliveries(ctx, current.ID, 0, 10)
+	if err != nil || len(continued) != 1 || continued[0].ID != jobs[0].ID || !continued[0].AvailableAt.Equal(want) || string(continued[0].Payload) != string(jobs[0].Payload) {
+		t.Fatalf("cutover changed upgraded retry: %+v %v", continued, err)
+	}
 	if job, err := s.ClaimDelivery(ctx, want.Add(-time.Millisecond), time.Minute); err != nil || job != nil {
 		t.Fatalf("early claim: %+v %v", job, err)
 	}
 	job, err := s.ClaimDelivery(ctx, want, time.Minute)
-	if err != nil || job == nil || job.AttemptCount != 2 {
+	if err != nil || job == nil || job.ID != jobs[0].ID || job.AttemptCount != 2 {
 		t.Fatalf("continued retry: %+v %v", job, err)
 	}
 }
@@ -140,6 +177,12 @@ func TestIncidentMigrationPreservesLegacyStatesWithoutMassResend(t *testing.T) {
 		}
 	}
 	if err := s.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if mapped, err := s.PrepareAlertPolicyRules(ctx, now.Add(time.Second)); err != nil || mapped != len(states) {
+		t.Fatalf("legacy state policy cutover: %d %v", mapped, err)
+	}
+	if err := s.ReconcileIncidents(ctx, now.Add(2*time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	for _, test := range states {

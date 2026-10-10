@@ -40,6 +40,12 @@ type Server struct {
 }
 
 func New(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub) *Server {
+	return NewWithAlertService(cfg, database, authService, gateway, hub, alerts.New(database, cfg.EncryptionKey, nil, nil))
+}
+
+// NewWithAlertService shares the evaluator used by the application runtime so
+// administrative preparation status describes that evaluator, not a dormant copy.
+func NewWithAlertService(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub, alertService *alerts.Service) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	gateway.SetTrustedProxies(cfg.TrustedProxies)
@@ -48,7 +54,7 @@ func New(cfg config.Config, database *store.Store, authService *auth.Service, ga
 	}
 	router.Use(gin.Recovery(), securityHeaders())
 	github, _ := auth.NewGitHubService(database, cfg.EncryptionKey, cfg.SessionTTL, nil)
-	server := &Server{config: cfg, store: database, auth: authService, github: github, gateway: gateway, hub: hub, alerts: alerts.New(database, cfg.EncryptionKey, nil, nil), sharing: sharing.New(database, 12*time.Hour), router: router}
+	server := &Server{config: cfg, store: database, auth: authService, github: github, gateway: gateway, hub: hub, alerts: alertService, sharing: sharing.New(database, 12*time.Hour), router: router}
 	server.routes()
 	mux := http.NewServeMux()
 	// WebSocket upgrades bypass Gin's wrapped ResponseWriter. coder/websocket uses
@@ -105,6 +111,16 @@ func (s *Server) routes() {
 	share.GET("/nodes", s.shareNodes)
 	share.GET("/nodes/:nodeID/history", s.shareNodeHistory)
 
+	policies := s.router.Group("/api/v1/admin/alert-policies", privateNoStore(), s.requireSession(true))
+	policies.POST("/import/preview", s.previewAlertPolicyImport)
+	policies.POST("/import/apply", s.applyAlertPolicyImport)
+	policies.GET("", s.listAlertPolicies)
+	policies.GET("/export", s.exportAlertPolicies)
+	policies.GET("/effective/:nodeID", s.effectiveAlertPolicies)
+	policies.GET("/:policyID", s.getAlertPolicy)
+	policies.POST("", s.saveAlertPolicy)
+	policies.PUT("/:policyID", s.saveAlertPolicy)
+	policies.DELETE("/:policyID", s.deleteAlertPolicy)
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
 	admin.GET("/nodes", s.adminNodes)
 	admin.POST("/nodes", s.createNode)
@@ -1173,6 +1189,8 @@ func writeAlertError(c *gin.Context, err error) {
 	status := http.StatusBadRequest
 	if errors.Is(err, store.ErrNotFound) {
 		status = http.StatusNotFound
+	} else if errors.Is(err, store.ErrNotificationChannelInUse) || errors.Is(err, store.ErrAlertRuleManaged) {
+		status = http.StatusConflict
 	} else if errors.Is(err, alerts.ErrEncryptionNotConfigured) {
 		status = http.StatusServiceUnavailable
 	}

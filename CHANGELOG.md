@@ -7,8 +7,77 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Policy writes revalidate template references inside their transaction, rejecting
+  imports when a template disappears after service validation without partial writes.
+
+- Delivery retry deadlines round up to SQLite millisecond precision, preventing
+  sub-millisecond truncation from allowing a retry before its Retry-After deadline.
+
+- Independent in-memory Stores now use separate SQLite shared-cache names, while
+  pooled connections within each Store still share its database. This prevents
+  state and lock coupling between otherwise isolated test/service instances.
+
+- Policy preparation status now uses the same alert service as the running
+  evaluator, preventing the management UI from remaining pending after application.
+
 ### Added
 
+- Authenticated policy-import preview API with explicit destination mappings,
+  strict bounded input and transactional dry run. Submission binds the source
+  content to the preview digest, revalidates destinations, and returns original
+  results for committed retries. The policy page provides file transfer, explicit
+  reference mapping and confirmation, retaining uncertain requests across tab reloads.
+
+- Internal atomic policy-import replay ledger (migration 023), preserving original
+  results across concurrent retries and restarts. The full transfer workflow remains unfinished.
+
+- Authenticated scoped-policy JSON export with versioned definitions and source
+  references, excluding notification credentials and runtime history. Import and
+  the management-page transfer workflow are still in development.
+
+- Scoped-rule synchronization reuses one validated policy snapshot across nodes,
+  reducing repeated selection work without retaining stale cross-cycle caches.
+
+- Policy-managed rule cards now identify their owner and open its current policy
+  editor directly, instead of offering legacy edits/deletes that would conflict.
+
+- Scoped policies now drive alert evaluation: each tick atomically maps legacy
+  rules and applies node/tag selection before incident reconciliation. The policy
+  UI reports preparation state and last successful application. Mapped rules are
+  edited through policies; preparation failure prevents initial worker startup.
+
+- Managed alert observations and notification claims/pre-send checks validate the
+  current policy and node tags, rejecting stale execution rules before the next
+  synchronization while preserving notifications across cosmetic policy edits.
+
+- Atomic scoped-policy preparation combines legacy mapping and execution-rule
+  synchronization, rolling back both if materialization fails. Runtime activation
+  remains pending.
+
+- Legacy rule edits/deletes reject policy-managed execution rules with an actionable
+  conflict, preventing divergence from the owning scoped policy.
+
+- Internal scoped-policy execution-rule synchronization with stable identities,
+  dynamic tag selection and transactional removal of bound rules. Production
+  policy activation remains pending.
+
+- Internal legacy-rule policy mapping preparation (migration 022), preserving rule,
+  incident and queued-delivery identities. Automatic runtime cutover remains pending.
+
+- Notification-center scoped-policy configuration and per-node inheritance preview,
+  with conflict-preserving edits and a clear pending-runtime notice.
+
+- Notification channel deletion reports an actionable conflict when scoped
+  policies still reference the channel, preserving those configurations.
+
+- Administrator scoped-policy CRUD and effective-policy preview APIs, with CSRF,
+  bounded input, revision conflicts and explicit pending-runtime status.
+
+- Internal scoped alert-policy storage and effective-policy resolution with
+  revision checks and transactional conflict detection (migration 021). Runtime
+  evaluation, administration and legacy-rule migration remain in development.
 - In-development migration 015 introduces separate incident, notification delivery
   and attempt storage, with compatibility import of existing active/pending states.
   This foundation must ship together with the new evaluation and delivery engine;

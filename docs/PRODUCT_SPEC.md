@@ -11,6 +11,16 @@
 
 ## Feature parity matrix
 
+Scoped alert-policy inheritance (ALT-02) is in development. Its internal resolver
+and revisioned persistence support global, tag and explicit-node scopes, conflict
+validation and snapshot-based effective-policy previews. Each runtime tick maps
+legacy rules and applies policies atomically before incident evaluation. Management
+APIs and UI report pending/ready/error preparation with the last successful time;
+saving a policy is distinct from applying it or delivering a notification. Failed
+startup preparation prevents notification workers from starting. Live browser,
+full upgrade/restore, capacity and configuration-transfer checks remain release
+gates. See [alert policy design](ALERT_POLICIES.md).
+
 | Area | Requirement | Acceptance evidence | Status |
 | --- | --- | --- | --- |
 | Public overview | Current time, online/offline counts, aggregate traffic and rate | Responsive browser tests and live API data | Implemented |

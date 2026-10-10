@@ -270,6 +270,7 @@ type NotificationTemplate struct {
 }
 
 type AlertRule struct {
+	PolicyID        string          `json:"policy_id,omitempty"`
 	ID              string          `json:"id"`
 	NodeID          string          `json:"node_id"`
 	ChannelID       string          `json:"channel_id"`
