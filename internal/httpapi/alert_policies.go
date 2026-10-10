@@ -11,8 +11,30 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/zhengyifei200112-collab/myprobe/internal/alertpolicy"
+	"github.com/zhengyifei200112-collab/myprobe/internal/alerts"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
+
+func (s *Server) previewAlertPolicyImport(c *gin.Context) {
+	var request struct {
+		Bundle  alerts.PolicyBundle        `json:"bundle"`
+		Mapping alerts.PolicyImportMapping `json:"mapping"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, 16<<20))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&request) != nil || !errors.Is(decoder.Decode(new(any)), io.EOF) {
+		policyError(c, store.ErrInvalidAlertPolicy)
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+	bundle, err := s.alerts.PreviewPolicyImport(ctx, request.Bundle, request.Mapping)
+	if err != nil {
+		policyError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"bundle": bundle, "create_count": len(bundle.Policies)})
+}
 
 func policyError(c *gin.Context, err error) {
 	switch {

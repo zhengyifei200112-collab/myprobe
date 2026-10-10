@@ -13,6 +13,43 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
+func TestPolicyImportPreviewAPI(t *testing.T) {
+	handler, db, _ := securityTestServer(t)
+	defer db.Close()
+	channel, err := db.CreateNotificationChannel(context.Background(), "fixture", store.ChannelKindWebhook, "secret-marker")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := "/api/v1/admin/alert-policies/import/preview"
+	body := fmt.Sprintf(`{"bundle":{"format":"myprobe-alert-policies","version":1,"policies":[{"source_id":"source","name":"CPU","policy_key":"cpu","enabled":true,"scope":{"kind":"all"},"channel_id":"source-channel","kind":"cpu","config":{"threshold_percent":90,"recovery_seconds":0},"cooldown_seconds":900}]},"mapping":{"channels":{"source-channel":%q}}}`, channel.ID)
+	r := httptest.NewRecorder()
+	handler.ServeHTTP(r, httptest.NewRequest(http.MethodPost, path, strings.NewReader(body)))
+	if r.Code != 401 || !strings.Contains(r.Header().Get("Cache-Control"), "no-store") {
+		t.Fatalf("auth: %d", r.Code)
+	}
+	login, credentials := loginSecurityRequest(t, handler, "admin", "correct-password", "", "")
+	if login.Code != 200 {
+		t.Fatal(login.Code)
+	}
+	cookie := login.Result().Cookies()[0]
+	if r := authenticatedRequest(t, handler, cookie, "", http.MethodPost, path, body); r.Code != 403 {
+		t.Fatalf("CSRF: %d", r.Code)
+	}
+	r = authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodPost, path, body)
+	if r.Code != 200 || !strings.Contains(r.Header().Get("Cache-Control"), "no-store") || !strings.Contains(r.Body.String(), `"create_count":1`) || !strings.Contains(r.Body.String(), channel.ID) || !strings.Contains(r.Body.String(), `"recovery_seconds":0`) || strings.Contains(r.Body.String(), "secret-marker") {
+		t.Fatalf("preview: %d %s", r.Code, r.Body.String())
+	}
+	for _, bad := range []string{body + `{}`, strings.Replace(body, `"threshold_percent":90`, `"unknown":90`, 1), strings.Replace(body, `"version":1`, `"version":2`, 1), strings.Replace(body, channel.ID, "missing", 1), strings.Replace(body, `"name":"CPU"`, `"name":"`+strings.Repeat("x", 16<<20)+`"`, 1)} {
+		if r := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodPost, path, bad); r.Code != 400 {
+			t.Fatalf("bad request: %d %s", r.Code, r.Body.String())
+		}
+	}
+	items, err := db.ListAlertPolicies(context.Background())
+	if err != nil || len(items) != 0 {
+		t.Fatalf("preview mutated policies: %+v %v", items, err)
+	}
+}
+
 func TestAlertPolicyAdministration(t *testing.T) {
 	handler, db, _ := securityTestServer(t)
 	defer db.Close()

@@ -18,6 +18,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Authenticated policy-import preview API with explicit destination mappings,
+  strict bounded input and transactional dry run. Import submission and the UI
+  remain in development.
+
 - Internal atomic policy-import replay ledger (migration 023), preserving original
   results across concurrent retries and restarts. Public import remains unfinished.
 

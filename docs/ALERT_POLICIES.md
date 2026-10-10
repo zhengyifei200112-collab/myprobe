@@ -416,4 +416,15 @@ callers cannot commit duplicate batches. Failed new imports leave no replay reco
 `TestPolicyImportApplyReplaysAfterReferencesDisappear` covers service recreation,
 deleted references, changed content/mappings and invalid request keys. Store tests
 cover two connections and database reopen. This is service/store coverage; HTTP
-preview/apply routes and the import UI are still pending.
+apply route and the import UI are still pending.
+
+`POST /api/v1/admin/alert-policies/import/preview` accepts `{bundle, mapping}`
+under administrator session and CSRF protection. It strictly decodes the portable
+types, rejects trailing JSON and unknown fields, and limits the body to 16 MiB
+(single-policy editing retains its separate 64 KiB limit). A successful response
+contains the normalized destination `bundle` and `create_count`; all responses are
+private/no-store. Preview rolls back its transaction and creates no policies or
+import replay records. It does not reserve references or authorize a later commit.
+The apply contract must bind the confirmed content and revalidate destination state.
+`TestPolicyImportPreviewAPI` exercises real authentication, CSRF, reference mapping,
+explicit zero recovery, invalid versions/fields/references, body limits and no writes.
