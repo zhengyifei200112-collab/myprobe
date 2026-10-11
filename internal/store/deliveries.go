@@ -170,6 +170,11 @@ func (s *Store) ClaimDelivery(ctx context.Context, now time.Time, lease time.Dur
 			}
 			continue
 		}
+		if suppressed, err := suppressMaintenanceDelivery(ctx, tx, *d, now); err != nil {
+			return nil, err
+		} else if suppressed {
+			continue
+		}
 		var stale bool
 		if err := tx.QueryRowContext(ctx, "SELECT observation_stale FROM alert_incidents WHERE id=?", d.IncidentID).Scan(&stale); err != nil {
 			return nil, err
@@ -233,6 +238,14 @@ func (s *Store) CheckDeliveryLease(ctx context.Context, id, token string, now ti
 		if err := cancelDelivery(ctx, tx, id, "configuration_changed", now.UTC()); err != nil {
 			return err
 		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		return ErrDeliveryCanceled
+	}
+	if suppressed, err := suppressMaintenanceDelivery(ctx, tx, d, now); err != nil {
+		return err
+	} else if suppressed {
 		if err := tx.Commit(); err != nil {
 			return err
 		}

@@ -20,8 +20,12 @@ The observation transaction now checks active maintenance after state transition
 suppresses new notifications, cancels outstanding jobs with a maintenance reason,
 and resets the repeat clock. Tests verify in-window recovery remains recorded,
 no catch-up for that recovery, fresh continuing faults notify once after end, and
-unknown observations at end do not notify. Worker claim/pre-send guards and
-downtime-spanning suppression markers are still missing; do not expose window
+unknown observations at end do not notify. Worker claim and pre-send checks now
+cancel jobs under active maintenance in the same writer transaction as resetting
+the incident repeat clock. Tests cover pending and already-leased jobs, explicit
+maintenance cancellation reasons, no resurrection at end and a new notification
+only after a fresh observation. A send already past the final check remains a race.
+Downtime-spanning suppression markers are still missing; do not expose window
 creation to users until those paths are integrated. Tag resolution, listing,
 selection provenance, audit actors and full backup tests remain pending.
 

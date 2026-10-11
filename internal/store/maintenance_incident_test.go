@@ -2,9 +2,55 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
+
+func TestMaintenanceCancelsPendingAndLeasedDelivery(t *testing.T) {
+	for _, leased := range []bool{false, true} {
+		t.Run(map[bool]string{false: "pending", true: "leased"}[leased], func(t *testing.T) {
+			s, rule, node := incidentFixture(t, `{"threshold_percent":90}`)
+			ctx := context.Background()
+			at := time.Now().UTC().Truncate(time.Second)
+			i := observe(t, s, rule, node, at, true, true)
+			jobs, err := s.ListIncidentDeliveries(ctx, i.ID, 0, 10)
+			if err != nil || len(jobs) != 1 {
+				t.Fatalf("jobs: %+v %v", jobs, err)
+			}
+			var claimed *NotificationDelivery
+			if leased {
+				claimed, err = s.ClaimDelivery(ctx, at, time.Minute)
+				if err != nil || claimed == nil {
+					t.Fatalf("claim: %+v %v", claimed, err)
+				}
+			}
+			start := at.Add(time.Second)
+			if _, err := s.CreateMaintenanceWindow(ctx, MaintenanceWindow{Reason: "work", Timezone: "UTC", CreatedBy: "admin", NodeIDs: []string{node.ID}, StartsAt: start, EndsAt: start.Add(time.Minute)}); err != nil {
+				t.Fatal(err)
+			}
+			if leased {
+				if err := s.CheckDeliveryLease(ctx, claimed.ID, claimed.LeaseToken, start); !errors.Is(err, ErrDeliveryCanceled) {
+					t.Fatalf("pre-send: %v", err)
+				}
+			} else if job, err := s.ClaimDelivery(ctx, start, time.Minute); err != nil || job != nil {
+				t.Fatalf("maintenance claim: %+v %v", job, err)
+			}
+			saved, err := s.Delivery(ctx, jobs[0].ID)
+			if err != nil || saved.Status != "canceled" || saved.ErrorClass != "maintenance" {
+				t.Fatalf("saved: %+v %v", saved, err)
+			}
+			if job, err := s.ClaimDelivery(ctx, start.Add(time.Minute), time.Minute); err != nil || job != nil {
+				t.Fatalf("old job resurrected: %+v %v", job, err)
+			}
+			observe(t, s, rule, node, start.Add(time.Minute), true, true)
+			job, err := s.ClaimDelivery(ctx, start.Add(time.Minute), time.Minute)
+			if err != nil || job == nil || job.ID == jobs[0].ID {
+				t.Fatalf("fresh post-window: %+v %v", job, err)
+			}
+		})
+	}
+}
 
 func TestMaintenancePreservesIncidentsWithoutQueueing(t *testing.T) {
 	for _, recoverInside := range []bool{true, false} {
