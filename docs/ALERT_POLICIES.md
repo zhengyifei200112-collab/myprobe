@@ -452,7 +452,8 @@ with the current Store. It verifies idempotent policy cutover, original rule ID,
 one incident/job, millisecond retry deadline, integrity and foreign-key checks.
 Run with `MYPROBE_TEST_RELEASE_UPGRADE=1 go test ./internal/store -run
 '^TestReleased021SchemaUpgradeToPolicies$' -count=1 -v` after fetching that release
-history. Ordinary shallow CI skips the opt-in test. This proves the released SQL
+history. The CI release-upgrade step fetches only the pinned commit and enables
+this test explicitly; ordinary local test runs still skip it. This proves the released SQL
 schema path, not execution of the released binary, old-Agent compatibility or
 convergence with migrations on other unmerged branches.
 
