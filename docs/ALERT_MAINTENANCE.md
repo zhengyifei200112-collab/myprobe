@@ -59,6 +59,17 @@ invalid queries and a generic 500 for storage failures. API tests cover session
 protection, no-store, empty results, membership, pagination and invalid inputs.
 Creation and cancellation remain internal pending their preview/audit contract.
 
+The internal member preview resolver now accepts explicit nodes or exact,
+case-sensitive tags with an explicit all/any mode. It rejects ambiguous mixed
+selectors, duplicates, empty matches and missing explicit members, and returns
+ID-sorted IDs and display names. At most 100 selectors and 100 matched members
+are accepted; it rejects excess matches instead of silently truncating the scope.
+Tests cover selection semantics, invalid inputs, changed tag membership, the match
+limit and absence of window writes. Creation must reuse this resolver within its
+write transaction and compare confirmed membership; the current read-only preview
+alone does not guarantee that a subsequent create uses the same members. Selection
+provenance persistence and the HTTP preview/create contract remain pending.
+
 The incident regression matrix now verifies two overlapping windows: canceling
 the first does not resume notifications while the second is active, and either
 natural expiry or cancellation of the final window allows exactly one fresh
