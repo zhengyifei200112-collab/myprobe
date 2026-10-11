@@ -117,3 +117,25 @@ func (s *Store) NodeInMaintenance(ctx context.Context, nodeID string, at time.Ti
 	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM maintenance_windows w JOIN maintenance_window_nodes n ON n.window_id=w.id WHERE n.node_id=? AND w.starts_at_ms<=? AND w.ends_at_ms>? AND (w.canceled_at_ms IS NULL OR w.canceled_at_ms>?))`, nodeID, at.UnixMilli(), at.UnixMilli(), at.UnixMilli()).Scan(&active)
 	return active, err
 }
+
+// NodeMaintenanceOverlaps tests a nonempty half-open interval, including ended
+// and canceled windows. Cancellation clips the effective end without erasing history.
+func (s *Store) NodeMaintenanceOverlaps(ctx context.Context, nodeID string, start, end time.Time) (bool, error) {
+	if nodeID == "" || start.IsZero() || end.IsZero() || !end.After(start) {
+		return false, ErrInvalidMaintenance
+	}
+	// Window endpoints are exact milliseconds. Round the query's exclusive upper
+	// bound upward so an interval ending just after a window start still overlaps.
+	upper := end.UnixMilli()
+	if time.UnixMilli(upper).Before(end) {
+		upper++
+	}
+	var overlaps bool
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(
+		SELECT 1 FROM maintenance_windows w
+		JOIN maintenance_window_nodes n ON n.window_id=w.id
+		WHERE n.node_id=? AND w.starts_at_ms<? AND w.ends_at_ms>?
+		AND (w.canceled_at_ms IS NULL OR (w.canceled_at_ms>w.starts_at_ms AND w.canceled_at_ms>?))
+	)`, nodeID, upper, start.UnixMilli(), start.UnixMilli()).Scan(&overlaps)
+	return overlaps, err
+}

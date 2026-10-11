@@ -108,3 +108,53 @@ func TestMaintenanceRejectsInvalidScopeAndTime(t *testing.T) {
 		t.Fatalf("partial writes: %d %v", count, err)
 	}
 }
+
+func TestMaintenanceHistoricalOverlap(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	node, _, err := db.CreateNode(ctx, CreateNodeParams{Name: "history"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)
+	w, err := db.CreateMaintenanceWindow(ctx, MaintenanceWindow{Reason: "work", Timezone: "UTC", CreatedBy: "admin", NodeIDs: []string{node.ID}, StartsAt: start, EndsAt: start.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check := func(a, b time.Time, want bool) {
+		t.Helper()
+		got, err := db.NodeMaintenanceOverlaps(ctx, node.ID, a, b)
+		if err != nil || got != want {
+			t.Fatalf("[%s,%s): %v want %v (%v)", a, b, got, want, err)
+		}
+	}
+	check(start.Add(-time.Hour), start, false)
+	check(start.Add(-time.Hour), start.Add(time.Nanosecond), true)
+	check(start.Add(-time.Hour), start.Add(2*time.Hour), true)
+	check(start.Add(time.Hour), start.Add(2*time.Hour), false)
+	check(start.Add(time.Hour-time.Nanosecond), start.Add(time.Hour), true)
+	canceled := start.Add(20 * time.Minute)
+	if err := db.CancelMaintenanceWindow(ctx, w.ID, 1, canceled); err != nil {
+		t.Fatal(err)
+	}
+	check(start.Add(-time.Hour), start.Add(2*time.Hour), true)
+	check(canceled, start.Add(time.Hour), false)
+	check(canceled.Add(-time.Nanosecond), canceled, true)
+	for _, at := range []time.Time{start.Add(-time.Second), start} {
+		future, err := db.CreateMaintenanceWindow(ctx, MaintenanceWindow{Reason: "canceled before work", Timezone: "UTC", CreatedBy: "admin", NodeIDs: []string{node.ID}, StartsAt: start.Add(2 * time.Hour), EndsAt: start.Add(3 * time.Hour)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.CancelMaintenanceWindow(ctx, future.ID, 1, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	check(start.Add(time.Hour), start.Add(4*time.Hour), false)
+	if _, err := db.NodeMaintenanceOverlaps(ctx, node.ID, start, start); !errors.Is(err, ErrInvalidMaintenance) {
+		t.Fatalf("empty interval: %v", err)
+	}
+}

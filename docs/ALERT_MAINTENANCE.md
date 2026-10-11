@@ -11,6 +11,11 @@ IANA display timezone are bounded/validated. Cancellation is revision-guarded an
 retains its timestamp, so historical queries before cancellation remain correct.
 Node deletion preserves membership history. Tests cover start/end, overlapping
 windows, stale/repeated cancel, deleted nodes, reopen and invalid-input rollback.
+Historical interval queries also test whether an observation gap overlaps an
+effective maintenance interval. They clip at cancellation, exclude windows canceled
+before starting, and preserve exclusive-end semantics even for sub-millisecond
+query boundaries. This is evidence of overlap only, not proof that a fault actually
+started or recovered during an unobserved interval.
 No evaluator, worker, API or UI uses these windows yet. Tag resolution, listing,
 selection provenance, audit actors and full backup tests remain pending.
 
