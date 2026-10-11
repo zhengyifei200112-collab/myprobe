@@ -61,6 +61,9 @@ func TestLivePolicyBrowserLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	expires := time.Now().Add(time.Hour)
+	if _, _, err = db.CreateNode(ctx, store.CreateNodeParams{Name: "Second import node"}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = db.UpdateNode(ctx, node.ID, store.UpdateNodeParams{Name: node.Name, Tags: node.Tags, ExpiresAt: &expires, LatencyMode: "ping", CollectionSeconds: 5, ReportSeconds: 5}); err != nil {
 		t.Fatal(err)
 	}
