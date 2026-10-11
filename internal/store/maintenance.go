@@ -100,7 +100,7 @@ func (s *Store) ListMaintenanceWindows(ctx context.Context, after string, limit 
 	return items, next, nil
 }
 
-func (s *Store) CreateMaintenanceWindow(ctx context.Context, w MaintenanceWindow) (MaintenanceWindow, error) {
+func normalizeMaintenanceWindow(w MaintenanceWindow) (MaintenanceWindow, error) {
 	w.Reason = strings.TrimSpace(w.Reason)
 	if w.ID != "" || w.Revision != 0 || w.CanceledAt != nil || w.Reason == "" || len(w.Reason) > 1000 || !utf8.ValidString(w.Reason) || strings.IndexFunc(w.Reason, unicode.IsControl) >= 0 || w.CreatedBy == "" || len(w.CreatedBy) > 128 || !utf8.ValidString(w.CreatedBy) || strings.IndexFunc(w.CreatedBy, unicode.IsControl) >= 0 || len(w.NodeIDs) == 0 || len(w.NodeIDs) > 100 || w.StartsAt.IsZero() || w.EndsAt.IsZero() || w.StartsAt.Year() < 1970 || w.EndsAt.Year() > 9999 {
 		return MaintenanceWindow{}, ErrInvalidMaintenance
@@ -122,6 +122,14 @@ func (s *Store) CreateMaintenanceWindow(ctx context.Context, w MaintenanceWindow
 			return MaintenanceWindow{}, ErrInvalidMaintenance
 		}
 		seen[id] = true
+	}
+	return w, nil
+}
+
+func (s *Store) CreateMaintenanceWindow(ctx context.Context, w MaintenanceWindow) (MaintenanceWindow, error) {
+	w, err := normalizeMaintenanceWindow(w)
+	if err != nil {
+		return MaintenanceWindow{}, err
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

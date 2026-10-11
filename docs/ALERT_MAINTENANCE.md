@@ -70,6 +70,17 @@ write transaction and compare confirmed membership; the current read-only previe
 alone does not guarantee that a subsequent create uses the same members. Selection
 provenance persistence and the HTTP preview/create contract remain pending.
 
+An internal full-window preview now combines reason, display timezone, normalized
+UTC millisecond boundaries, canonical selection and ID-sorted named members. It
+shares field validation with internal creation. A versioned SHA-256 confirmation
+digest includes both draft and member IDs/names; reordered selectors and normalized
+round trips are equivalent, while renamed members or changed membership require
+new confirmation. Caller-owned slices are not mutated. Tests cover normalization,
+invalid times/reasons/zones, round trips, membership/name changes and no writes.
+This digest is not an authorization token. Transactional creation must recompute
+it against current data and preserve selection/audit/idempotency state atomically;
+that integration and the full-window HTTP endpoint remain pending.
+
 Scope-only preview is available at
 `POST /api/v1/admin/maintenance-windows/preview-members`. It requires a management
 session and CSRF token and returns private/no-store responses. The body is limited
