@@ -28,9 +28,17 @@ only after a fresh observation. A send already past the final check remains a ra
 Claim and pre-send checks also inspect maintenance overlap since each delivery's
 creation, preventing an old queued transition from sending after downtime spanning
 an entire window. A close/reopen test verifies cancellation of the old job and
-acceptance of a new post-window observation/job. This does not yet reset the repeat
-clock for previously delivered incidents with no outstanding job when the server
-misses the window. Downtime-spanning incident suppression markers are still missing; do not expose window
+acceptance of a new post-window observation/job. A fresh continuing firing
+observation also checks the gap since the persisted last known observation. If it
+crossed maintenance, the same transaction resets the repeat clock, cancels old
+outstanding intent and records the new observation. This reuses the observation
+watermark instead of a separate suppression marker. Unknown observations leave
+that watermark intact and do not enqueue a summary. Tests cover an already
+delivered fault, restart across the window, unknown then fresh evidence, and a
+second restart with no duplicate summary. Recovery first observed after a gap is
+still dated at the observed recovery time; it is not assumed to have happened
+inside maintenance. Further overlapping/cancellation and worker-race integration
+acceptance remains necessary; do not expose window
 creation to users until those paths are integrated. Tag resolution, listing,
 selection provenance, audit actors and full backup tests remain pending.
 

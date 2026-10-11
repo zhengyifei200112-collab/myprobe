@@ -284,6 +284,22 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 		}
 		return &i, tx.Commit()
 	}
+	// A fresh continuing fault after an observation gap crossing maintenance is
+	// a current-state summary, even if the previous notification was delivered.
+	// ObservedAt is persisted with this transaction, so subsequent observations
+	// cannot repeatedly consume the same historical window.
+	if i.State == "firing" && o.Active && i.ObservedAt != nil && o.At.After(*i.ObservedAt) {
+		crossed, err := nodeMaintenanceOverlaps(ctx, tx, i.NodeID, *i.ObservedAt, o.At)
+		if err != nil {
+			return nil, err
+		}
+		if crossed {
+			i.LastEnqueuedAt = nil
+			if err := cancelIncidentDeliveries(ctx, tx, i.ID, "maintenance", o.At); err != nil {
+				return nil, err
+			}
+		}
+	}
 	i.ObservedAt = &o.At
 	i.LastMessage = o.Message
 	justResolved := false

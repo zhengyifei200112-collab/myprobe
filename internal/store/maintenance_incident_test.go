@@ -7,6 +7,63 @@ import (
 	"time"
 )
 
+func TestMaintenanceResumesPreviouslyDeliveredFaultAfterRestart(t *testing.T) {
+	s, rule, node := incidentFixture(t, `{"threshold_percent":90}`)
+	ctx := context.Background()
+	at := time.Now().UTC().Truncate(time.Second)
+	i := observe(t, s, rule, node, at, true, true)
+	job, err := s.ClaimDelivery(ctx, at, time.Minute)
+	if err != nil || job == nil {
+		t.Fatalf("initial claim: %+v %v", job, err)
+	}
+	if err := s.CompleteDelivery(ctx, job.ID, job.LeaseToken, at.Add(time.Second), DeliveryOutcome{Delivered: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateMaintenanceWindow(ctx, MaintenanceWindow{Reason: "planned restart", Timezone: "UTC", CreatedBy: "admin", NodeIDs: []string{node.ID}, StartsAt: at.Add(10 * time.Second), EndsAt: at.Add(30 * time.Second)}); err != nil {
+		t.Fatal(err)
+	}
+	path := s.path
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	observe(t, s, rule, node, at.Add(35*time.Second), false, true)
+	if got := rowCount(t, s, "notification_deliveries"); got != 1 {
+		t.Fatalf("unknown evidence notified: %d", got)
+	}
+	current := observe(t, s, rule, node, at.Add(40*time.Second), true, true)
+	if current.ID != i.ID {
+		t.Fatal("maintenance replaced incident identity")
+	}
+	jobs, err := s.ListIncidentDeliveries(ctx, i.ID, 0, 10)
+	if err != nil || len(jobs) != 2 {
+		t.Fatalf("fresh summary missing: %+v %v", jobs, err)
+	}
+	next, err := s.ClaimDelivery(ctx, at.Add(40*time.Second), time.Minute)
+	if err != nil || next == nil {
+		t.Fatalf("summary claim: %+v %v", next, err)
+	}
+	if err := s.CompleteDelivery(ctx, next.ID, next.LeaseToken, at.Add(41*time.Second), DeliveryOutcome{Delivered: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	observe(t, s, rule, node, at.Add(42*time.Second), true, true)
+	if got := rowCount(t, s, "notification_deliveries"); got != 2 {
+		t.Fatalf("summary repeated after restart: %d", got)
+	}
+}
+
 func TestMaintenanceSkipsOldDeliveryAfterDowntime(t *testing.T) {
 	s, rule, node := incidentFixture(t, `{"threshold_percent":90}`)
 	ctx := context.Background()
