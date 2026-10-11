@@ -11,6 +11,42 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/alertpolicy"
 )
 
+// Dry run includes all batch writes and validations but rolls back so every
+// iteration has the same population. Database creation is outside the timer.
+func BenchmarkPreviewPolicyImport(b *testing.B) {
+	for _, count := range []int{100, 500, 1000} {
+		b.Run(fmt.Sprintf("policies-%d", count), func(b *testing.B) {
+			ctx := context.Background()
+			db, err := Open(ctx, filepath.Join(b.TempDir(), "import.db"))
+			if err != nil {
+				b.Fatal(err)
+			}
+			defer db.Close()
+			channel, err := db.CreateNotificationChannel(ctx, "fixture", ChannelKindWebhook, "synthetic")
+			if err != nil {
+				b.Fatal(err)
+			}
+			policies := make([]AlertPolicy, count)
+			for i := range policies {
+				policies[i] = AlertPolicy{Policy: alertpolicy.Policy{Key: fmt.Sprintf("cpu-%d", i), Enabled: true, Scope: alertpolicy.Scope{Kind: "all"}}, Name: "fixture", ChannelID: channel.ID, Kind: "cpu", Config: json.RawMessage(`{"threshold_percent":90}`), CooldownSeconds: 900}
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for range b.N {
+				items, err := db.CreateAlertPolicies(ctx, policies, true)
+				if err != nil || len(items) != count {
+					b.Fatalf("preview: %d %v", len(items), err)
+				}
+			}
+			b.StopTimer()
+			items, err := db.ListAlertPolicies(ctx)
+			if err != nil || len(items) != 0 {
+				b.Fatalf("preview persisted rows: %d %v", len(items), err)
+			}
+		})
+	}
+}
+
 // Measures warm, unchanged preparation with real on-disk SQLite transactions.
 // Fixture creation and the first materialization are outside the timed region.
 func BenchmarkPrepareAlertPolicyRules(b *testing.B) {

@@ -98,15 +98,20 @@ func (s *Store) CreateAlertPolicies(ctx context.Context, policies []AlertPolicy,
 		return nil, err
 	}
 	items := make([]AlertPolicy, 0, len(policies))
+	existing, err := listAlertPolicies(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
 	for _, p := range policies {
 		if p.ID != "" || p.Revision != 0 {
 			return nil, ErrInvalidAlertPolicy
 		}
-		saved, err := saveAlertPolicy(ctx, tx, p)
+		saved, err := saveAlertPolicyWithSnapshot(ctx, tx, p, existing)
 		if err != nil {
 			return nil, err
 		}
 		items = append(items, saved)
+		existing = append(existing, saved)
 	}
 	if dryRun {
 		if err = tx.Rollback(); err != nil {
@@ -119,6 +124,15 @@ func (s *Store) CreateAlertPolicies(ctx context.Context, policies []AlertPolicy,
 }
 
 func saveAlertPolicy(ctx context.Context, tx *sql.Tx, p AlertPolicy) (AlertPolicy, error) {
+	items, err := listAlertPolicies(ctx, tx)
+	if err != nil {
+		return AlertPolicy{}, err
+	}
+	return saveAlertPolicyWithSnapshot(ctx, tx, p, items)
+}
+
+// Caller owns the writer transaction and includes every earlier batch write in items.
+func saveAlertPolicyWithSnapshot(ctx context.Context, tx *sql.Tx, p AlertPolicy, items []AlertPolicy) (AlertPolicy, error) {
 	creating := p.ID == "" && p.Revision == 0
 	if creating {
 		p.ID = randomID()
@@ -132,10 +146,7 @@ func saveAlertPolicy(ctx context.Context, tx *sql.Tx, p AlertPolicy) (AlertPolic
 		p.CooldownSeconds < 30 || p.CooldownSeconds > 86400*30 || alertpolicy.ValidateSet([]alertpolicy.Policy{p.Policy}) != nil {
 		return AlertPolicy{}, ErrInvalidAlertPolicy
 	}
-	items, err := listAlertPolicies(ctx, tx)
-	if err != nil {
-		return AlertPolicy{}, err
-	}
+	var err error
 	if creating && len(items) >= 1000 {
 		return AlertPolicy{}, ErrInvalidAlertPolicy
 	}

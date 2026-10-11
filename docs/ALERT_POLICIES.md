@@ -457,6 +457,20 @@ this test explicitly; ordinary local test runs still skip it. This proves the re
 schema path, not execution of the released binary, old-Agent compatibility or
 convergence with migrations on other unmerged branches.
 
+Import batches reuse a transaction-local policy snapshot, appending each validated
+write before checking the next item. The writer reservation, reference validation,
+capacity/conflict checks and all-or-nothing rollback remain unchanged. This avoids
+reloading and decoding all earlier rows on every item.
+
+`BenchmarkPreviewPolicyImport` uses on-disk SQLite, an empty destination and
+100/500/1000 enabled independent-key policies; it times the transactional dry run
+and verifies zero persisted rows. On Windows/amd64, i5-13490F, one iteration per
+case, before/after times were 26.3/5.5 ms, 575.4/69.6 ms and 2389.2/265.6 ms.
+At 1000 policies, cumulative allocated bytes fell from 1.63 GB to 338 MB. These
+are allocation totals, not peak RSS. Single-run local measurements exclude service
+normalization, HTTP/UI, populated destinations and concurrent runtime work; they
+do not establish production capacity or a guaranteed request latency.
+
 The digest binds typed source content, not proof of a past preview or permission.
 It has no expiry and does not freeze template contents, channel credentials or
 dynamic tag membership. Both endpoints require session/CSRF protection, accept at

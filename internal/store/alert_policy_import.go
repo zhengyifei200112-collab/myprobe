@@ -81,15 +81,20 @@ func (s *Store) ApplyPolicyImport(ctx context.Context, requestID, digest string,
 		return PolicyImportResult{}, ErrPolicyImportLimit
 	}
 	result := PolicyImportResult{PolicyIDs: make([]string, 0, len(policies))}
+	definitions, err := listAlertPolicies(ctx, tx)
+	if err != nil {
+		return PolicyImportResult{}, err
+	}
 	for _, p := range policies {
 		if p.ID != "" || p.Revision != 0 {
 			return PolicyImportResult{}, ErrInvalidAlertPolicy
 		}
-		p, err = saveAlertPolicy(ctx, tx, p)
+		p, err = saveAlertPolicyWithSnapshot(ctx, tx, p, definitions)
 		if err != nil {
 			return PolicyImportResult{}, err
 		}
 		result.PolicyIDs = append(result.PolicyIDs, p.ID)
+		definitions = append(definitions, p)
 	}
 	encoded, err := json.Marshal(result.PolicyIDs)
 	if err != nil {
