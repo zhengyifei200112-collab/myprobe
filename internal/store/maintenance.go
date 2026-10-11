@@ -27,6 +27,79 @@ type MaintenanceWindow struct {
 	CreatedAt  time.Time  `json:"created_at"`
 }
 
+// ListMaintenanceWindows reads window metadata and frozen membership from one
+// snapshot. IDs provide a stable cursor, not chronological ordering.
+func (s *Store) ListMaintenanceWindows(ctx context.Context, after string, limit int) ([]MaintenanceWindow, string, error) {
+	if limit < 1 || limit > 100 || len(after) > 128 {
+		return nil, "", ErrInvalidMaintenance
+	}
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, "", err
+	}
+	defer tx.Rollback()
+	rows, err := tx.QueryContext(ctx, `SELECT id,revision,reason,timezone,starts_at_ms,ends_at_ms,canceled_at_ms,created_by,created_at FROM maintenance_windows WHERE id>? ORDER BY id LIMIT ?`, after, limit+1)
+	if err != nil {
+		return nil, "", err
+	}
+	items := make([]MaintenanceWindow, 0, limit+1)
+	for rows.Next() {
+		var w MaintenanceWindow
+		var start, end int64
+		var canceled sql.NullInt64
+		var created string
+		if err := rows.Scan(&w.ID, &w.Revision, &w.Reason, &w.Timezone, &start, &end, &canceled, &w.CreatedBy, &created); err != nil {
+			rows.Close()
+			return nil, "", err
+		}
+		w.StartsAt, w.EndsAt = time.UnixMilli(start).UTC(), time.UnixMilli(end).UTC()
+		if canceled.Valid {
+			at := time.UnixMilli(canceled.Int64).UTC()
+			w.CanceledAt = &at
+		}
+		w.CreatedAt, err = parseTime(created)
+		if err != nil {
+			rows.Close()
+			return nil, "", err
+		}
+		w.NodeIDs = []string{}
+		items = append(items, w)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, "", err
+	}
+	next := ""
+	if len(items) > limit {
+		items = items[:limit]
+		next = items[len(items)-1].ID
+	}
+	for i := range items {
+		members, err := tx.QueryContext(ctx, `SELECT node_id FROM maintenance_window_nodes WHERE window_id=? ORDER BY node_id`, items[i].ID)
+		if err != nil {
+			return nil, "", err
+		}
+		for members.Next() {
+			var id string
+			if err := members.Scan(&id); err != nil {
+				members.Close()
+				return nil, "", err
+			}
+			items[i].NodeIDs = append(items[i].NodeIDs, id)
+		}
+		err = members.Err()
+		members.Close()
+		if err != nil {
+			return nil, "", err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, "", err
+	}
+	return items, next, nil
+}
+
 func (s *Store) CreateMaintenanceWindow(ctx context.Context, w MaintenanceWindow) (MaintenanceWindow, error) {
 	w.Reason = strings.TrimSpace(w.Reason)
 	if w.ID != "" || w.Revision != 0 || w.CanceledAt != nil || w.Reason == "" || len(w.Reason) > 1000 || !utf8.ValidString(w.Reason) || strings.IndexFunc(w.Reason, unicode.IsControl) >= 0 || w.CreatedBy == "" || len(w.CreatedBy) > 128 || !utf8.ValidString(w.CreatedBy) || strings.IndexFunc(w.CreatedBy, unicode.IsControl) >= 0 || len(w.NodeIDs) == 0 || len(w.NodeIDs) > 100 || w.StartsAt.IsZero() || w.EndsAt.IsZero() || w.StartsAt.Year() < 1970 || w.EndsAt.Year() > 9999 {

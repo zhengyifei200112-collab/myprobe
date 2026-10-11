@@ -39,8 +39,14 @@ second restart with no duplicate summary. Recovery first observed after a gap is
 still dated at the observed recovery time; it is not assumed to have happened
 inside maintenance. Further overlapping/cancellation and worker-race integration
 acceptance remains necessary; do not expose window
-creation to users until those paths are integrated. Tag resolution, listing,
+creation to users until those paths are integrated. Tag resolution,
 selection provenance, audit actors and full backup tests remain pending.
+
+Store listing reads metadata and frozen node IDs in one read transaction, capped
+at 100 windows per page. Its exclusive ID cursor is stable but not chronological;
+the eventual UI must not imply creation-time ordering. Pagination tests verify no
+duplicates/missing rows, empty arrays, input limits and retained canceled-window
+membership after node deletion. No listing API is exposed yet.
 
 The incident regression matrix now verifies two overlapping windows: canceling
 the first does not resume notifications while the second is active, and either

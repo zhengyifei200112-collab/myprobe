@@ -8,6 +8,69 @@ import (
 	"time"
 )
 
+func TestMaintenancePaginationRetainsHistoricalMembers(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	empty, next, err := db.ListMaintenanceWindows(ctx, "", 10)
+	if err != nil || empty == nil || len(empty) != 0 || next != "" {
+		t.Fatalf("empty: %+v %q %v", empty, next, err)
+	}
+	node, _, err := db.CreateNode(ctx, CreateNodeParams{Name: "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().UTC().Truncate(time.Millisecond)
+	expected := map[string]MaintenanceWindow{}
+	for i := 0; i < 5; i++ {
+		w, err := db.CreateMaintenanceWindow(ctx, MaintenanceWindow{Reason: "pagination", Timezone: "UTC", CreatedBy: "admin", NodeIDs: []string{node.ID}, StartsAt: at, EndsAt: at.Add(time.Hour)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			if err := db.CancelMaintenanceWindow(ctx, w.ID, 1, at); err != nil {
+				t.Fatal(err)
+			}
+			w.Revision = 2
+			w.CanceledAt = &at
+		}
+		expected[w.ID] = w
+	}
+	if err := db.DeleteNode(ctx, node.ID); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	cursor := ""
+	for page := 0; page < 4; page++ {
+		items, next, err := db.ListMaintenanceWindows(ctx, cursor, 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, w := range items {
+			original, ok := expected[w.ID]
+			if !ok || seen[w.ID] || w.ID <= cursor || len(w.NodeIDs) != 1 || w.NodeIDs[0] != node.ID || w.Revision != original.Revision || (w.CanceledAt == nil) != (original.CanceledAt == nil) || !w.StartsAt.Equal(at) {
+				t.Fatalf("invalid page item: %+v", w)
+			}
+			seen[w.ID] = true
+		}
+		if next == "" {
+			break
+		}
+		cursor = next
+	}
+	if len(seen) != 5 {
+		t.Fatalf("missing windows: %d", len(seen))
+	}
+	for _, limit := range []int{0, 101} {
+		if _, _, err := db.ListMaintenanceWindows(ctx, "", limit); !errors.Is(err, ErrInvalidMaintenance) {
+			t.Fatalf("limit %d: %v", limit, err)
+		}
+	}
+}
+
 func TestMaintenanceBoundariesCancellationAndReopen(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "maintenance.db")
