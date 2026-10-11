@@ -59,8 +59,11 @@ async function inspect() {
   await run(async () => {
     if (!bundle.value || !complete.value) return
     preview.value = null
-    preview.value = await previewPolicyImport(bundle.value, mapping)
-    requestID.value = crypto.randomUUID()
+    const response = await previewPolicyImport(bundle.value, mapping)
+    // getRandomValues is available on direct HTTP deployments too; randomUUID
+    // requires a secure context. Keep 128 bits of randomness without weak fallback.
+    requestID.value = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('')
+    preview.value = response
   })
 }
 const storageKey = 'myprobe-policy-import-pending-v1'

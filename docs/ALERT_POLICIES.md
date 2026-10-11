@@ -480,6 +480,10 @@ The UI must explain dynamic matching and invalidate its preview when input chang
 
 The policy page now has a transfer panel for JSON download/upload, explicit channel,
 node and template mapping, normalized definition preview and confirmed creation.
+Request IDs use 128 random bits from `crypto.getRandomValues` rather than depending
+on secure-context-only `crypto.randomUUID`. The browser lifecycle deliberately
+removes randomUUID and still verifies preview, commit and refresh replay. This
+tests the missing API capability on loopback, not a remote HTTP deployment.
 Submitting stores the source, mapping, digest and request key in tab-scoped
 sessionStorage before sending. A lost response keeps those values through reload;
 retry uses the same identity. A successful response clears the record. Explicit

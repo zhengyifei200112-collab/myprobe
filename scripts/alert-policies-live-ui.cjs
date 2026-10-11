@@ -7,6 +7,9 @@ const path = require('node:path');
   const browser = await chromium.launch({channel:'msedge',headless:true});
   try {
     const context = await browser.newContext({baseURL:process.env.POLICY_BROWSER_URL});
+    // Exercise the browser capability boundary of non-local HTTP deployment.
+    // The backend still uses loopback; no fixture credentials leave this machine.
+    await context.addInitScript(()=>Object.defineProperty(crypto,'randomUUID',{value:undefined,configurable:true}));
     const login = await context.request.post('/api/v1/auth/login',{data:{username:'browser-admin',password:process.env.POLICY_BROWSER_PASSWORD}});
     assert.equal(login.status(),200,'fixture authentication');
     const csrf=(await login.json()).csrf_token;

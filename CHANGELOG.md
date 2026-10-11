@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Policy-import confirmation generates random request IDs without requiring the
+  secure-context-only randomUUID API, supporting direct HTTP browser deployments.
+
 - Invalid tab recovery records no longer break policy import rendering. The page
   preserves the uncertain record and offers explicit clearing after result review.
 
