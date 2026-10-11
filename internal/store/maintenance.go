@@ -125,6 +125,11 @@ func suppressMaintenanceDelivery(ctx context.Context, tx *sql.Tx, d Notification
 		return false, err
 	}
 	active, err := nodeInMaintenance(ctx, tx, nodeID, now)
+	if err == nil && !active && now.After(d.CreatedAt) {
+		// The server may have been stopped for the entire window. An old queued
+		// transition must not be delivered merely because maintenance ended.
+		active, err = nodeMaintenanceOverlaps(ctx, tx, nodeID, d.CreatedAt, now)
+	}
 	if err != nil || !active {
 		return false, err
 	}
@@ -147,6 +152,10 @@ func nodeInMaintenance(ctx context.Context, q maintenanceQuery, nodeID string, a
 // NodeMaintenanceOverlaps tests a nonempty half-open interval, including ended
 // and canceled windows. Cancellation clips the effective end without erasing history.
 func (s *Store) NodeMaintenanceOverlaps(ctx context.Context, nodeID string, start, end time.Time) (bool, error) {
+	return nodeMaintenanceOverlaps(ctx, s.db, nodeID, start, end)
+}
+
+func nodeMaintenanceOverlaps(ctx context.Context, q maintenanceQuery, nodeID string, start, end time.Time) (bool, error) {
 	if nodeID == "" || start.IsZero() || end.IsZero() || !end.After(start) {
 		return false, ErrInvalidMaintenance
 	}
@@ -157,7 +166,7 @@ func (s *Store) NodeMaintenanceOverlaps(ctx context.Context, nodeID string, star
 		upper++
 	}
 	var overlaps bool
-	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(
 		SELECT 1 FROM maintenance_windows w
 		JOIN maintenance_window_nodes n ON n.window_id=w.id
 		WHERE n.node_id=? AND w.starts_at_ms<? AND w.ends_at_ms>?

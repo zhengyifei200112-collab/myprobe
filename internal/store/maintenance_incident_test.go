@@ -7,6 +7,45 @@ import (
 	"time"
 )
 
+func TestMaintenanceSkipsOldDeliveryAfterDowntime(t *testing.T) {
+	s, rule, node := incidentFixture(t, `{"threshold_percent":90}`)
+	ctx := context.Background()
+	at := time.Now().UTC().Truncate(time.Second)
+	i := observe(t, s, rule, node, at, true, true)
+	jobs, err := s.ListIncidentDeliveries(ctx, i.ID, 0, 10)
+	if err != nil || len(jobs) != 1 {
+		t.Fatalf("jobs: %+v %v", jobs, err)
+	}
+	if _, err := s.CreateMaintenanceWindow(ctx, MaintenanceWindow{Reason: "offline maintenance", Timezone: "UTC", CreatedBy: "admin", NodeIDs: []string{node.ID}, StartsAt: at.Add(time.Minute), EndsAt: at.Add(2 * time.Minute)}); err != nil {
+		t.Fatal(err)
+	}
+	path := s.path
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	now := at.Add(3 * time.Minute)
+	if job, err := s.ClaimDelivery(ctx, now, time.Minute); err != nil || job != nil {
+		t.Fatalf("old transition delivered after downtime: %+v %v", job, err)
+	}
+	saved, err := s.Delivery(ctx, jobs[0].ID)
+	if err != nil || saved.Status != "canceled" || saved.ErrorClass != "maintenance" {
+		t.Fatalf("historical cancellation: %+v %v", saved, err)
+	}
+	observe(t, s, rule, node, now, true, true)
+	current, err := s.ClaimDelivery(ctx, now, time.Minute)
+	if err != nil || current == nil || current.ID == jobs[0].ID {
+		t.Fatalf("current fault: %+v %v", current, err)
+	}
+	if err := s.CheckDeliveryLease(ctx, current.ID, current.LeaseToken, now.Add(time.Second)); err != nil {
+		t.Fatalf("new transition incorrectly suppressed by past window: %v", err)
+	}
+}
+
 func TestMaintenanceCancelsPendingAndLeasedDelivery(t *testing.T) {
 	for _, leased := range []bool{false, true} {
 		t.Run(map[bool]string{false: "pending", true: "leased"}[leased], func(t *testing.T) {

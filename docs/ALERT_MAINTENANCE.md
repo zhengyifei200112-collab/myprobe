@@ -25,7 +25,12 @@ cancel jobs under active maintenance in the same writer transaction as resetting
 the incident repeat clock. Tests cover pending and already-leased jobs, explicit
 maintenance cancellation reasons, no resurrection at end and a new notification
 only after a fresh observation. A send already past the final check remains a race.
-Downtime-spanning suppression markers are still missing; do not expose window
+Claim and pre-send checks also inspect maintenance overlap since each delivery's
+creation, preventing an old queued transition from sending after downtime spanning
+an entire window. A close/reopen test verifies cancellation of the old job and
+acceptance of a new post-window observation/job. This does not yet reset the repeat
+clock for previously delivered incidents with no outstanding job when the server
+misses the window. Downtime-spanning incident suppression markers are still missing; do not expose window
 creation to users until those paths are integrated. Tag resolution, listing,
 selection provenance, audit actors and full backup tests remain pending.
 
