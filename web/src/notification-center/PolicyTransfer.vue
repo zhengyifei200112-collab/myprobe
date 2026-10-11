@@ -9,6 +9,13 @@ const bundle = ref<PolicyBundle | null>(null), preview = ref<PolicyImportPreview
 const templates = ref<NotificationTemplate[]>([]), busy = ref(false), error = ref(''), result = ref('')
 const mapping = reactive<PolicyImportMapping>({ channels: Object.create(null), nodes: Object.create(null), templates: Object.create(null) })
 const requestID = ref(''), attempted = ref(false)
+const recoveryInvalid = ref(false)
+function validateBundle(value: PolicyBundle) {
+  if (value?.format !== 'myprobe-alert-policies' || value.version !== 1 || !Array.isArray(value.policies) || !value.policies.length || value.policies.length > 1000) throw new Error('请选择包含 1—1000 条策略的 v1 策略导出文件。')
+  for (const p of value.policies) {
+    if (!p || typeof p.source_id !== 'string' || typeof p.name !== 'string' || typeof p.channel_id !== 'string' || !p.scope || !['all', 'nodes', 'tags'].includes(p.scope.kind) || !p.config || typeof p.config !== 'object' || Array.isArray(p.config) || (p.scope.kind === 'nodes' && (!Array.isArray(p.scope.node_ids) || !p.scope.node_ids.every((id: unknown) => typeof id === 'string'))) || (p.config.template_id != null && typeof p.config.template_id !== 'string')) throw new Error('策略文件结构无效。')
+  }
+}
 const references = computed(() => {
   const channels = new Set<string>(), nodes = new Set<string>(), templates = new Set<string>()
   for (const p of bundle.value?.policies ?? []) {
@@ -33,10 +40,7 @@ async function readFile(event: Event) {
     invalidate(); bundle.value = null
     if (file.size > 16 * 1024 * 1024) throw new Error('文件不能超过 16 MiB。')
     const value = JSON.parse(await file.text())
-    if (value?.format !== 'myprobe-alert-policies' || value.version !== 1 || !Array.isArray(value.policies) || !value.policies.length || value.policies.length > 1000) throw new Error('请选择包含 1—1000 条策略的 v1 策略导出文件。')
-    for (const p of value.policies) {
-      if (!p || typeof p.channel_id !== 'string' || !p.scope || !['all', 'nodes', 'tags'].includes(p.scope.kind) || !p.config || (p.scope.kind === 'nodes' && (!Array.isArray(p.scope.node_ids) || !p.scope.node_ids.every((id: unknown) => typeof id === 'string'))) || (p.config.template_id != null && typeof p.config.template_id !== 'string')) throw new Error('策略文件结构无效。')
-    }
+    validateBundle(value)
     Object.assign(mapping, { channels: Object.create(null), nodes: Object.create(null), templates: Object.create(null) })
     bundle.value = value
     templates.value = (await loadNotificationTemplates()).templates
@@ -85,13 +89,26 @@ async function submit() {
     emit('imported')
   })
 }
+function discardRecovery() {
+  try {
+    sessionStorage.removeItem(storageKey); recoveryInvalid.value = false; error.value = ''
+  } catch { error.value = '无法清除浏览器记录，请检查存储权限。' }
+}
 onMounted(() => {
   try {
     const raw = sessionStorage.getItem(storageKey)
     if (!raw) return
     const pending = JSON.parse(raw)
+    validateBundle(pending?.bundle)
+    validateBundle(pending?.preview?.bundle)
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(pending.requestID ?? '') || !/^[a-f0-9]{64}$/.test(pending.preview.preview_digest ?? '') || pending.preview.create_count !== pending.bundle.policies.length) throw new Error('invalid recovery identity')
+    for (const key of ['channels', 'nodes', 'templates']) {
+      const values = pending.mapping?.[key]
+      if (!values || typeof values !== 'object' || Array.isArray(values) || !Object.values(values).every(v => typeof v === 'string')) throw new Error('invalid recovery mapping')
+    }
     bundle.value = pending.bundle; Object.assign(mapping, pending.mapping); preview.value = pending.preview; requestID.value = pending.requestID; attempted.value = true
-  } catch { error.value = '无法读取待确认导入记录。请检查浏览器存储。' }
+    void loadNotificationTemplates().then(response => { templates.value = response.templates }).catch(() => { /* Existing IDs still suffice for an identical retry. */ })
+  } catch { recoveryInvalid.value = true; error.value = '无法读取待确认导入记录。请先核对策略列表和审计记录，确认上次导入结果；清除本地记录不会撤销已提交的策略。' }
 })
 </script>
 
@@ -100,8 +117,9 @@ onMounted(() => {
     <summary>策略导入与导出</summary>
     <p>只新增策略，不覆盖现有策略。文件不含通知凭据和故障历史；完整迁移请使用数据库备份。</p>
     <p v-if="error" role="alert">{{ error }}</p><p v-if="result" role="status">{{ result }}</p>
+    <button v-if="recoveryInvalid" @click="discardRecovery">已核对导入结果，清除损坏的本地记录</button>
     <button :disabled="busy" @click="download">导出策略文件</button>
-    <label>导入策略文件<input type="file" accept="application/json,.json" :disabled="busy || attempted" @change="readFile"></label>
+    <label>导入策略文件<input type="file" accept="application/json,.json" :disabled="busy || attempted || recoveryInvalid" @change="readFile"></label>
     <template v-if="bundle">
       <p>文件包含 {{ bundle.policies.length }} 条策略。请选择目的地引用；不会按名称自动匹配。</p>
       <fieldset :disabled="busy || attempted" @change="invalidate">

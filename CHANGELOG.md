@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Invalid tab recovery records no longer break policy import rendering. The page
+  preserves the uncertain record and offers explicit clearing after result review.
+
 - Policy writes revalidate template references inside their transaction, rejecting
   imports when a template disappears after service validation without partial writes.
 

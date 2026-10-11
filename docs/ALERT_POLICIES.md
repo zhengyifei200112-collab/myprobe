@@ -457,8 +457,13 @@ must be available; stored policy definitions contain no notification credentials
 The live browser test exports a disabled fixture policy, maps its channel, previews
 it at six theme/width combinations, commits against the real API while discarding
 the response, reloads and confirms replay without duplicates. This does not yet
-cover every rejection/recovery path, multi-node/template mapping or malformed
-browser recovery storage; those remain release acceptance work.
+cover every rejection/recovery path or multi-node imports; those remain release
+acceptance work. Additional browser cases cover explicit node/template mappings,
+deletion of the selected template after preview (no writes, editing re-enabled),
+and malformed recovery JSON/structure/identity. Recovery data is validated before
+assigning reactive state; malformed records are retained and new imports blocked
+until the user explicitly confirms they checked the prior result and clears the
+local record. Clearing browser data never rolls back a server-side import.
 Policy writes recheck referenced templates inside the same writer transaction as
 channel/node checks, including batch dry runs and imports. The regression test
 `TestPolicyImportRejectsTemplateDeletedAfterPreparation` deletes a template after
