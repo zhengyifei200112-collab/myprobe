@@ -41,6 +41,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   to named members, with session/CSRF protection and a 100-member limit. Preview
   does not create a window or reserve members for a subsequent operation.
 
+- Full maintenance preview returns normalized window fields, named membership and
+  a confirmation digest, sharing validation with internal window creation.
+
 - Policy-import confirmation displays readable scope, destination names, threshold
   units and timing fields instead of requiring users to inspect raw JSON.
 

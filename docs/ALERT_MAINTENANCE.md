@@ -79,7 +79,25 @@ new confirmation. Caller-owned slices are not mutated. Tests cover normalization
 invalid times/reasons/zones, round trips, membership/name changes and no writes.
 This digest is not an authorization token. Transactional creation must recompute
 it against current data and preserve selection/audit/idempotency state atomically;
-that integration and the full-window HTTP endpoint remain pending.
+that transactional creation integration remains pending.
+
+Full-window preview is exposed through
+`POST /api/v1/admin/maintenance-windows/preview`, with the same session/CSRF,
+private/no-store, 64 KiB strict-body and five-second deadline protections as member
+preview. Its body is a draft, for example:
+
+```json
+{"selection":{"kind":"tags","tags":["prod"],"tag_mode":"all"},"reason":"planned work","timezone":"Asia/Shanghai","starts_at":"2026-10-11T10:00:00+08:00","ends_at":"2026-10-11T11:00:00+08:00"}
+```
+
+The response contains `draft`, `members`, and `preview_digest`. Use the returned
+normalized draft for confirmation. Invalid drafts return 400 with
+`invalid_maintenance_draft`; excess matches use `maintenance_member_limit`.
+Tests verify permission checks, UTC millisecond normalization, digest round trips,
+invalid fields/times, strict decoding, request limits and absence of writes.
+Preview does not enforce future-only dates or reserve storage capacity; creation
+must define and enforce its own admission checks without claiming preview has
+already created, scheduled or frozen a window.
 
 Scope-only preview is available at
 `POST /api/v1/admin/maintenance-windows/preview-members`. It requires a management

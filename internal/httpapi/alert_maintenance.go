@@ -13,6 +13,31 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
+func (s *Server) previewMaintenanceWindow(c *gin.Context) {
+	var draft store.MaintenanceDraft
+	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&draft) != nil || !errors.Is(decoder.Decode(new(any)), io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid maintenance draft", "code": "invalid_maintenance_draft"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+	preview, err := s.store.PreviewMaintenanceWindow(ctx, draft)
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrInvalidMaintenance):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid maintenance fields or selection", "code": "invalid_maintenance_draft"})
+		case errors.Is(err, store.ErrMaintenanceLimit):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "selection exceeds 100 nodes", "code": "maintenance_member_limit"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to preview maintenance window"})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, preview)
+}
+
 // previewMaintenanceMembers resolves scope only. It neither reserves membership
 // nor authorizes a later creation without transactional revalidation.
 func (s *Server) previewMaintenanceMembers(c *gin.Context) {

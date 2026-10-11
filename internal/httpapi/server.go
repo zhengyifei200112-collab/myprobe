@@ -115,6 +115,7 @@ func (s *Server) routes() {
 	maintenance := s.router.Group("/api/v1/admin/maintenance-windows", privateNoStore(), s.requireSession(true))
 	maintenance.GET("", s.listMaintenanceWindows)
 	maintenance.POST("/preview-members", s.previewMaintenanceMembers)
+	maintenance.POST("/preview", s.previewMaintenanceWindow)
 	policies.POST("/import/preview", s.previewAlertPolicyImport)
 	policies.POST("/import/apply", s.applyAlertPolicyImport)
 	policies.GET("", s.listAlertPolicies)

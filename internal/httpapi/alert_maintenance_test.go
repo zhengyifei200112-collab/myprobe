@@ -12,6 +12,63 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
+func TestMaintenanceFullPreviewAPI(t *testing.T) {
+	handler, db, _ := securityTestServer(t)
+	defer db.Close()
+	const path = "/api/v1/admin/maintenance-windows/preview"
+	const payload = `{"selection":{"kind":"tags","tags":["prod"],"tag_mode":"all"},"reason":" planned work ","timezone":"Asia/Shanghai","starts_at":"2026-10-11T10:00:00.123456+08:00","ends_at":"2026-10-11T11:00:00+08:00"}`
+	unauthorized := httptest.NewRecorder()
+	handler.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodPost, path, strings.NewReader(payload)))
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatal(unauthorized.Code)
+	}
+	login, credentials := loginSecurityRequest(t, handler, "admin", "correct-password", "", "")
+	if login.Code != http.StatusOK {
+		t.Fatal(login.Code)
+	}
+	cookie := login.Result().Cookies()[0]
+	if response := authenticatedRequest(t, handler, cookie, "", http.MethodPost, path, payload); response.Code != http.StatusForbidden {
+		t.Fatalf("csrf: %d", response.Code)
+	}
+	ctx := context.Background()
+	node, _, err := db.CreateNode(ctx, store.CreateNodeParams{Name: "preview", Tags: []string{"prod"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := func(payload string) *httptest.ResponseRecorder {
+		return authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodPost, path, payload)
+	}
+	response := read(payload)
+	if response.Code != http.StatusOK || !strings.Contains(response.Header().Get("Cache-Control"), "no-store") {
+		t.Fatalf("preview: %d %s", response.Code, response.Body.String())
+	}
+	var first store.MaintenancePreview
+	if err := json.Unmarshal(response.Body.Bytes(), &first); err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Digest) != 64 || first.Draft.Reason != "planned work" || first.Draft.StartsAt.Format(time.RFC3339Nano) != "2026-10-11T02:00:00.123Z" || len(first.Members) != 1 || first.Members[0].ID != node.ID {
+		t.Fatalf("preview: %+v", first)
+	}
+	normalized, err := json.Marshal(first.Draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var roundTrip store.MaintenancePreview
+	response = read(string(normalized))
+	if err := json.Unmarshal(response.Body.Bytes(), &roundTrip); err != nil || response.Code != http.StatusOK || roundTrip.Digest != first.Digest {
+		t.Fatalf("round trip: %s %v", response.Body.String(), err)
+	}
+	for _, invalid := range []string{`null`, `{}`, payload + `{}`, strings.Replace(payload, `"reason":`, `"extra":true,"reason":`, 1), strings.Replace(payload, "Asia/Shanghai", "Local", 1), strings.Replace(payload, "planned work", "", 1), strings.Replace(payload, "2026-10-11T11:00:00+08:00", "2026-10-11T09:00:00+08:00", 1), strings.Replace(payload, "planned work", strings.Repeat("x", 64<<10), 1)} {
+		if response := read(invalid); response.Code != http.StatusBadRequest {
+			t.Fatalf("invalid: %d %s", response.Code, response.Body.String())
+		}
+	}
+	windows, _, err := db.ListMaintenanceWindows(ctx, "", 10)
+	if err != nil || len(windows) != 0 {
+		t.Fatalf("preview wrote: %v %v", windows, err)
+	}
+}
+
 func TestMaintenanceMemberPreviewAPI(t *testing.T) {
 	handler, db, _ := securityTestServer(t)
 	defer db.Close()
