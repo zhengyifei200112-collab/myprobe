@@ -9,9 +9,76 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/alertpolicy"
 )
+
+func TestPolicyImportReplaySurvivesDatabaseRestore(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "live.db")
+	db, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	channel, err := db.CreateNotificationChannel(ctx, "fixture", ChannelKindWebhook, "synthetic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := AlertPolicy{Policy: alertpolicy.Policy{Key: "cpu", Scope: alertpolicy.Scope{Kind: "all"}}, Name: "fixture", ChannelID: channel.ID, Kind: "cpu", Config: json.RawMessage(`{"threshold_percent":90}`), CooldownSeconds: 900}
+	digest := strings.Repeat("a", 64)
+	original, err := db.ApplyPolicyImport(ctx, "before-backup", digest, []AlertPolicy{p})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A historical result remains useful even when its policy was deleted before backup.
+	if err := db.DeleteAlertPolicy(ctx, original.PolicyIDs[0], 1); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := filepath.Join(dir, "snapshot.db")
+	if err := db.ConsistentBackup(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	after, err := db.ApplyPolicyImport(ctx, "after-backup", digest, []AlertPolicy{p})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := StageDatabaseRestore(ctx, path, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ApplyPendingRestore(ctx, path, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Close()
+	replay, err := restored.ApplyPolicyImport(ctx, "before-backup", digest, []AlertPolicy{p})
+	if err != nil || !replay.Replayed || !reflect.DeepEqual(replay.PolicyIDs, original.PolicyIDs) {
+		t.Fatalf("restored replay: %+v %v", replay, err)
+	}
+	if _, err := restored.ApplyPolicyImport(ctx, "before-backup", strings.Repeat("b", 64), []AlertPolicy{p}); !errors.Is(err, ErrPolicyImportConflict) {
+		t.Fatalf("restored conflict: %v", err)
+	}
+	items, err := restored.ListAlertPolicies(ctx)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("replay resurrected policies: %+v %v", items, err)
+	}
+	// Restore rewinds the ledger as well: post-backup imports cannot be claimed as replayed.
+	if recorded, err := restored.LookupPolicyImport(ctx, "after-backup", digest); err != nil || recorded != nil {
+		t.Fatalf("future record survived restore: %+v %v", recorded, err)
+	}
+	fresh, err := restored.ApplyPolicyImport(ctx, "after-backup", digest, []AlertPolicy{p})
+	if err != nil || fresh.Replayed || len(fresh.PolicyIDs) != 1 || fresh.PolicyIDs[0] == after.PolicyIDs[0] {
+		t.Fatalf("restored future import: %+v %v", fresh, err)
+	}
+}
 
 func TestPolicyImportRetriesAcrossConnectionsAndReopen(t *testing.T) {
 	ctx := context.Background()

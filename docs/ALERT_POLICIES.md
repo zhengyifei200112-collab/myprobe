@@ -437,6 +437,14 @@ objects are deleted. A request key reused for different content returns 409
 not credentials; replay does not repeat that entry. Audit storage follows the
 existing post-commit audit path and is not atomic with the policy transaction.
 
+`TestPolicyImportReplaySurvivesDatabaseRestore` takes a consistent snapshot, stages
+and applies a restore, and reopens the database. A request recorded before backup
+still returns its original ID after its policy was deleted, and different content
+still conflicts. Post-backup records and policies rewind together; reapplying such
+a request is a fresh import with a new ID. Replay guarantees are bounded by the
+restored database history, not an external permanent idempotency registry. This
+test uses the current schema and does not establish cross-release compatibility.
+
 The digest binds typed source content, not proof of a past preview or permission.
 It has no expiry and does not freeze template contents, channel credentials or
 dynamic tag membership. Both endpoints require session/CSRF protection, accept at
