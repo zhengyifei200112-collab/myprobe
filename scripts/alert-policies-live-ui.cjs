@@ -62,6 +62,11 @@ const path = require('node:path');
     await page.getByRole('combobox',{name:'渠道：source-channel',exact:true}).selectOption(process.env.POLICY_BROWSER_CHANNEL);
     await page.getByRole('button',{name:'预览导入',exact:true}).click();
     await page.getByRole('heading',{name:'将新增 1 条策略',exact:true}).waitFor();
+    await page.locator('.policy-transfer section details summary').click();
+    const readablePreview=page.locator('.policy-preview');
+    await readablePreview.getByText('包含全部标签：browser',{exact:true}).waitFor();
+    await readablePreview.getByText('Browser receiver',{exact:true}).waitFor();
+    await readablePreview.getByText('提前 1 天',{exact:true}).waitFor();
     for(const theme of ['light','dark']) for(const width of [360,768,1440]) {
       await page.setViewportSize({width,height:1000});
       await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);

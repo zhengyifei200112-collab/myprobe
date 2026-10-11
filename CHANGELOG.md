@@ -30,6 +30,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Policy-import confirmation displays readable scope, destination names, threshold
+  units and timing fields instead of requiring users to inspect raw JSON.
+
 - Authenticated policy-import preview API with explicit destination mappings,
   strict bounded input and transactional dry run. Submission binds the source
   content to the preview digest, revalidates destinations, and returns original
