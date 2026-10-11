@@ -112,6 +112,8 @@ func (s *Server) routes() {
 	share.GET("/nodes/:nodeID/history", s.shareNodeHistory)
 
 	policies := s.router.Group("/api/v1/admin/alert-policies", privateNoStore(), s.requireSession(true))
+	maintenance := s.router.Group("/api/v1/admin/maintenance-windows", privateNoStore(), s.requireSession(true))
+	maintenance.GET("", s.listMaintenanceWindows)
 	policies.POST("/import/preview", s.previewAlertPolicyImport)
 	policies.POST("/import/apply", s.applyAlertPolicyImport)
 	policies.GET("", s.listAlertPolicies)

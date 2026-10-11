@@ -46,7 +46,18 @@ Store listing reads metadata and frozen node IDs in one read transaction, capped
 at 100 windows per page. Its exclusive ID cursor is stable but not chronological;
 the eventual UI must not imply creation-time ordering. Pagination tests verify no
 duplicates/missing rows, empty arrays, input limits and retained canceled-window
-membership after node deletion. No listing API is exposed yet.
+membership after node deletion.
+
+The authenticated, private/no-store management endpoint
+`GET /api/v1/admin/maintenance-windows` returns `windows` and `next_cursor`.
+`limit` defaults to 25, must be a single integer from 1 through 100 when supplied,
+and rejects empty or repeated values. `after` is the exclusive ID cursor, bounded
+to 128 bytes. An empty result is an array, and an empty cursor marks the last page.
+This is ID ordering, not creation-time ordering; separate requests do not share a
+database snapshot. The handler has a five-second query deadline, returns 400 for
+invalid queries and a generic 500 for storage failures. API tests cover session
+protection, no-store, empty results, membership, pagination and invalid inputs.
+Creation and cancellation remain internal pending their preview/audit contract.
 
 The incident regression matrix now verifies two overlapping windows: canceling
 the first does not resume notifications while the second is active, and either

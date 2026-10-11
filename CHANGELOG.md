@@ -31,8 +31,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Internal maintenance-window storage (migration 024), frozen node membership,
-  revisioned cancellation and historical half-open interval queries. Notification
-  suppression and management endpoints are not connected yet.
+  revisioned cancellation and historical half-open interval queries. Event enqueue,
+  delivery claim and pre-send checks suppress maintenance notifications, including
+  observation gaps spanning a window. An authenticated, uncached management list
+  API provides bounded ID-cursor pagination. Creation/cancellation UI and mutation
+  APIs remain pending; this is not yet a complete user-facing maintenance feature.
 
 - Policy-import confirmation displays readable scope, destination names, threshold
   units and timing fields instead of requiring users to inspect raw JSON.
