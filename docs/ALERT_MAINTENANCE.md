@@ -4,6 +4,16 @@ Status: design and implementation in progress; no maintenance suppression is
 enabled yet. Roadmap task ALT-03. This branch depends on scoped-policy PR #54 and
 uses it as a stacked base; it must not duplicate incident or policy state machines.
 
+Storage foundation: migration 024 adds windows, frozen node membership and a writer
+reservation. Create validates all member IDs atomically, at most 100 members and
+1000 retained windows. Times normalize to UTC milliseconds; reason, creator and
+IANA display timezone are bounded/validated. Cancellation is revision-guarded and
+retains its timestamp, so historical queries before cancellation remain correct.
+Node deletion preserves membership history. Tests cover start/end, overlapping
+windows, stale/repeated cancel, deleted nodes, reopen and invalid-input rollback.
+No evaluator, worker, API or UI uses these windows yet. Tag resolution, listing,
+selection provenance, audit actors and full backup tests remain pending.
+
 ## User behavior
 
 First delivery supports one-time windows for explicitly selected nodes or a tag

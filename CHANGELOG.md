@@ -30,6 +30,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Internal maintenance-window storage (migration 024), frozen node membership,
+  revisioned cancellation and historical half-open interval queries. Notification
+  suppression and management endpoints are not connected yet.
+
 - Policy-import confirmation displays readable scope, destination names, threshold
   units and timing fields instead of requiring users to inspect raw JSON.
 
