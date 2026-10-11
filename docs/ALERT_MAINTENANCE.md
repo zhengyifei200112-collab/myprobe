@@ -70,6 +70,28 @@ write transaction and compare confirmed membership; the current read-only previe
 alone does not guarantee that a subsequent create uses the same members. Selection
 provenance persistence and the HTTP preview/create contract remain pending.
 
+Scope-only preview is available at
+`POST /api/v1/admin/maintenance-windows/preview-members`. It requires a management
+session and CSRF token and returns private/no-store responses. The body is limited
+to 64 KiB, rejects unknown fields and trailing JSON, and contains `selection`:
+
+```json
+{"selection":{"kind":"tags","tags":["prod"],"tag_mode":"all"}}
+```
+
+For explicit selection use `{"kind":"nodes","node_ids":["node-id"]}`.
+The response contains the input `selection`, ID-sorted `members` (`id`, `name`),
+and `member_count`. Empty/invalid selections return 400 with
+`invalid_maintenance_selection`; more than 100 matched nodes return 400 with
+`maintenance_member_limit`. Storage errors return a generic 500. Queries have a
+five-second deadline. Tests cover login/CSRF, no-store, exact membership, strict
+decoding, body limit and no window creation.
+
+This endpoint previews scope only, not times, reason or a complete window. It
+issues no creation approval token and reserves no membership. Full creation
+confirmation must bind the window fields and resolved members and recheck them
+transactionally; clients must not treat this result as an already frozen window.
+
 The incident regression matrix now verifies two overlapping windows: canceling
 the first does not resume notifications while the second is active, and either
 natural expiry or cancellation of the final window allows exactly one fresh

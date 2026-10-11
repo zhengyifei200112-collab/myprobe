@@ -37,6 +37,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   API provides bounded ID-cursor pagination. Creation/cancellation UI and mutation
   APIs remain pending; this is not yet a complete user-facing maintenance feature.
 
+- Maintenance member preview API resolves explicit nodes or all/any tag selections
+  to named members, with session/CSRF protection and a 100-member limit. Preview
+  does not create a window or reserve members for a subsequent operation.
+
 - Policy-import confirmation displays readable scope, destination names, threshold
   units and timing fields instead of requiring users to inspect raw JSON.
 
