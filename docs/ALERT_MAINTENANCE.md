@@ -1,7 +1,7 @@
 # Alert maintenance implementation contract
 
-Status: design and implementation in progress; no maintenance suppression is
-enabled yet. Roadmap task ALT-03. This branch depends on scoped-policy PR #54 and
+Status: implementation in progress; event enqueue suppression exists internally,
+but maintenance is not exposed as a usable feature. Roadmap task ALT-03. This branch depends on scoped-policy PR #54 and
 uses it as a stacked base; it must not duplicate incident or policy state machines.
 
 Storage foundation: migration 024 adds windows, frozen node membership and a writer
@@ -16,7 +16,13 @@ effective maintenance interval. They clip at cancellation, exclude windows cance
 before starting, and preserve exclusive-end semantics even for sub-millisecond
 query boundaries. This is evidence of overlap only, not proof that a fault actually
 started or recovered during an unobserved interval.
-No evaluator, worker, API or UI uses these windows yet. Tag resolution, listing,
+The observation transaction now checks active maintenance after state transitions,
+suppresses new notifications, cancels outstanding jobs with a maintenance reason,
+and resets the repeat clock. Tests verify in-window recovery remains recorded,
+no catch-up for that recovery, fresh continuing faults notify once after end, and
+unknown observations at end do not notify. Worker claim/pre-send guards and
+downtime-spanning suppression markers are still missing; do not expose window
+creation to users until those paths are integrated. Tag resolution, listing,
 selection provenance, audit actors and full backup tests remain pending.
 
 ## User behavior

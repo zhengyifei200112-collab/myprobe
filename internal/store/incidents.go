@@ -326,6 +326,24 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 		}
 		notify = attempted > 0 || (i.Origin == "legacy" && i.NotificationSequence > 0)
 	}
+	{
+		maintenance, err := nodeInMaintenance(ctx, tx, i.NodeID, o.At)
+		if err != nil {
+			return nil, err
+		}
+		if maintenance {
+			// Preserve fault transitions while suppressing this notification intent.
+			// Reset the repeat clock so a continuing fresh fault can notify at end.
+			i.LastEnqueuedAt = nil
+			if err := cancelIncidentDeliveries(ctx, tx, i.ID, "maintenance", o.At); err != nil {
+				return nil, err
+			}
+			if err := saveIncident(ctx, tx, &i); err != nil {
+				return nil, err
+			}
+			return &i, tx.Commit()
+		}
+	}
 	if notify {
 		if err := queueIncidentNotification(ctx, tx, &i, rule.ChannelID, o); err != nil {
 			return nil, err

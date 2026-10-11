@@ -110,11 +110,19 @@ func (s *Store) CancelMaintenanceWindow(ctx context.Context, id string, revision
 
 // NodeInMaintenance includes past windows so restarts can inspect historical times.
 func (s *Store) NodeInMaintenance(ctx context.Context, nodeID string, at time.Time) (bool, error) {
+	return nodeInMaintenance(ctx, s.db, nodeID, at)
+}
+
+type maintenanceQuery interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func nodeInMaintenance(ctx context.Context, q maintenanceQuery, nodeID string, at time.Time) (bool, error) {
 	if nodeID == "" || at.IsZero() {
 		return false, ErrInvalidMaintenance
 	}
 	var active bool
-	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM maintenance_windows w JOIN maintenance_window_nodes n ON n.window_id=w.id WHERE n.node_id=? AND w.starts_at_ms<=? AND w.ends_at_ms>? AND (w.canceled_at_ms IS NULL OR w.canceled_at_ms>?))`, nodeID, at.UnixMilli(), at.UnixMilli(), at.UnixMilli()).Scan(&active)
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM maintenance_windows w JOIN maintenance_window_nodes n ON n.window_id=w.id WHERE n.node_id=? AND w.starts_at_ms<=? AND w.ends_at_ms>? AND (w.canceled_at_ms IS NULL OR w.canceled_at_ms>?))`, nodeID, at.UnixMilli(), at.UnixMilli(), at.UnixMilli()).Scan(&active)
 	return active, err
 }
 
