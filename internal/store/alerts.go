@@ -207,8 +207,35 @@ func (s *Store) DeleteNotificationTemplate(ctx context.Context, id string) error
 	return nil
 }
 
+var ErrNotificationChannelInUse = errors.New("notification channel is referenced by an alert policy; update or delete the policy first")
+
 func (s *Store) DeleteNotificationChannel(ctx context.Context, id string) error {
-	return deleteByID(ctx, s.db, "notification_channels", id)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	// The write reservation also serializes this check with policy creation.
+	result, err := tx.ExecContext(ctx, `DELETE FROM notification_channels WHERE id=? AND NOT EXISTS(SELECT 1 FROM alert_policies WHERE channel_id=?)`, id, id)
+	if err != nil {
+		return err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		var exists int
+		err = tx.QueryRowContext(ctx, `SELECT 1 FROM notification_channels WHERE id=?`, id).Scan(&exists)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		return ErrNotificationChannelInUse
+	}
+	return tx.Commit()
 }
 
 func (s *Store) CreateAlertRule(ctx context.Context, nodeID, channelID, kind string, config json.RawMessage, cooldown int) (AlertRule, error) {
@@ -233,12 +260,13 @@ func (s *Store) UpdateAlertRule(ctx context.Context, id, nodeID, channelID, kind
 		return AlertRule{}, errors.New("invalid alert rule")
 	}
 	result, err := s.db.ExecContext(ctx, `UPDATE alert_rules SET node_id=?,channel_id=?,kind=?,config_json=?,enabled=?,cooldown_seconds=?,updated_at=?
-		WHERE id=? AND EXISTS(SELECT 1 FROM nodes WHERE id=?) AND EXISTS(SELECT 1 FROM notification_channels WHERE id=?)`, nodeID, channelID, kind, string(config), enabled, cooldown, nowText(), id, nodeID, channelID)
+		WHERE id=? AND EXISTS(SELECT 1 FROM nodes WHERE id=?) AND EXISTS(SELECT 1 FROM notification_channels WHERE id=?)
+		AND NOT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id)`, nodeID, channelID, kind, string(config), enabled, cooldown, nowText(), id, nodeID, channelID)
 	if err != nil {
 		return AlertRule{}, err
 	}
 	if count, _ := result.RowsAffected(); count == 0 {
-		return AlertRule{}, ErrNotFound
+		return AlertRule{}, s.alertRuleWriteConflict(ctx, id)
 	}
 	return s.AlertRule(ctx, id)
 }
@@ -247,7 +275,7 @@ func (s *Store) AlertRule(ctx context.Context, id string) (AlertRule, error) {
 	var item AlertRule
 	var raw, created, updated string
 	var enabled int
-	err := s.db.QueryRowContext(ctx, `SELECT id,node_id,channel_id,kind,config_json,enabled,cooldown_seconds,created_at,updated_at FROM alert_rules WHERE id=?`, id).Scan(&item.ID, &item.NodeID, &item.ChannelID, &item.Kind, &raw, &enabled, &item.CooldownSeconds, &created, &updated)
+	err := s.db.QueryRowContext(ctx, `SELECT id,node_id,channel_id,kind,config_json,enabled,cooldown_seconds,created_at,updated_at,COALESCE((SELECT policy_id FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id),'') FROM alert_rules WHERE id=?`, id).Scan(&item.ID, &item.NodeID, &item.ChannelID, &item.Kind, &raw, &enabled, &item.CooldownSeconds, &created, &updated, &item.PolicyID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return AlertRule{}, ErrNotFound
 	}
@@ -262,7 +290,7 @@ func (s *Store) AlertRule(ctx context.Context, id string) (AlertRule, error) {
 }
 
 func (s *Store) ListAlertRules(ctx context.Context) ([]AlertRule, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,node_id,channel_id,kind,config_json,enabled,cooldown_seconds,created_at,updated_at FROM alert_rules ORDER BY created_at`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,node_id,channel_id,kind,config_json,enabled,cooldown_seconds,created_at,updated_at,COALESCE((SELECT policy_id FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id),'') FROM alert_rules ORDER BY created_at`)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +300,7 @@ func (s *Store) ListAlertRules(ctx context.Context) ([]AlertRule, error) {
 		var item AlertRule
 		var raw, created, updated string
 		var enabled int
-		if err := rows.Scan(&item.ID, &item.NodeID, &item.ChannelID, &item.Kind, &raw, &enabled, &item.CooldownSeconds, &created, &updated); err != nil {
+		if err := rows.Scan(&item.ID, &item.NodeID, &item.ChannelID, &item.Kind, &raw, &enabled, &item.CooldownSeconds, &created, &updated, &item.PolicyID); err != nil {
 			return nil, err
 		}
 		item.Config = json.RawMessage(raw)
@@ -285,7 +313,33 @@ func (s *Store) ListAlertRules(ctx context.Context) ([]AlertRule, error) {
 }
 
 func (s *Store) DeleteAlertRule(ctx context.Context, id string) error {
-	return deleteByID(ctx, s.db, "alert_rules", id)
+	result, err := s.db.ExecContext(ctx, `DELETE FROM alert_rules WHERE id=? AND NOT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id)`, id)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return s.alertRuleWriteConflict(ctx, id)
+	}
+	return nil
+}
+
+var ErrAlertRuleManaged = errors.New("rule is managed by a scoped policy; edit or delete the policy instead")
+
+// The mutation itself checks binding ownership atomically. This follow-up read
+// only classifies rejection; a concurrent removal cannot authorize a stale write.
+func (s *Store) alertRuleWriteConflict(ctx context.Context, id string) error {
+	var exists bool
+	if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=?)`, id).Scan(&exists); err != nil {
+		return err
+	}
+	if exists {
+		return ErrAlertRuleManaged
+	}
+	return ErrNotFound
 }
 
 func validAlertKind(kind string) bool {

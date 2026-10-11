@@ -69,7 +69,7 @@ func main() {
 	alertService := alerts.New(database, cfg.EncryptionKey, nil, logger)
 	go alertService.Run(runCtx)
 	go runRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger)
-	api := httpapi.New(cfg, database, authService, gateway, hub)
+	api := httpapi.NewWithAlertService(cfg, database, authService, gateway, hub, alertService)
 	server := &http.Server{
 		Addr: cfg.ListenAddress, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 90 * time.Second,

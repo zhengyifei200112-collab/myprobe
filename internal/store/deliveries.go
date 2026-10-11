@@ -99,6 +99,9 @@ func validDeliveryState(ctx context.Context, tx *sql.Tx, d NotificationDelivery)
 	if !rule.Enabled || rule.ChannelID != d.ChannelID || !sameSnapshot(i.RuleSnapshot, snapshotRule(rule)) {
 		return false, nil
 	}
+	if valid, err := policyRuleCurrent(ctx, tx, rule); err != nil || !valid {
+		return false, err
+	}
 	var enabled bool
 	var provider string
 	err = tx.QueryRowContext(ctx, "SELECT enabled,COALESCE(NULLIF(provider,''),kind) FROM notification_channels WHERE id=?", d.ChannelID).Scan(&enabled, &provider)
@@ -307,6 +310,11 @@ func (s *Store) CompleteDelivery(ctx context.Context, id, token string, now time
 			return errors.New("retry must be in the future")
 		}
 		available = outcome.RetryAt.UnixMilli()
+		// A retry deadline is a lower bound. Round up to storage precision so
+		// truncation cannot make a provider's Retry-After eligible early.
+		if time.UnixMilli(available).Before(outcome.RetryAt) {
+			available++
+		}
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE delivery_attempts SET outcome=?,completed_at=?,error_class=? WHERE delivery_id=? AND lease_token=? AND outcome='started'`, attemptStatus, formatTime(now), errorClass, id, token); err != nil {
 		return err
