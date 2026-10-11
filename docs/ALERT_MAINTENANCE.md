@@ -42,6 +42,13 @@ acceptance remains necessary; do not expose window
 creation to users until those paths are integrated. Tag resolution, listing,
 selection provenance, audit actors and full backup tests remain pending.
 
+The incident regression matrix now verifies two overlapping windows: canceling
+the first does not resume notifications while the second is active, and either
+natural expiry or cancellation of the final window allows exactly one fresh
+summary before normal repeats. A separate already-notified incident test confirms
+recovery during maintenance is recorded without a recovery delivery or catch-up,
+while retaining the original delivered firing history.
+
 ## User behavior
 
 First delivery supports one-time windows for explicitly selected nodes or a tag

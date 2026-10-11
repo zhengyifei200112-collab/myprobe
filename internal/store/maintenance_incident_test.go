@@ -7,6 +7,85 @@ import (
 	"time"
 )
 
+func TestOverlappingMaintenanceWaitsForLastWindow(t *testing.T) {
+	for _, cancelLast := range []bool{false, true} {
+		t.Run(map[bool]string{false: "natural-end", true: "cancel-last"}[cancelLast], func(t *testing.T) {
+			s, rule, node := incidentFixture(t, `{"threshold_percent":90}`)
+			ctx := context.Background()
+			at := time.Now().UTC().Truncate(time.Second)
+			create := func(start, end time.Time) MaintenanceWindow {
+				t.Helper()
+				w, err := s.CreateMaintenanceWindow(ctx, MaintenanceWindow{Reason: "overlap", Timezone: "UTC", CreatedBy: "admin", NodeIDs: []string{node.ID}, StartsAt: start, EndsAt: end})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return w
+			}
+			first := create(at, at.Add(time.Minute))
+			last := create(at.Add(20*time.Second), at.Add(2*time.Minute))
+			i := observe(t, s, rule, node, at, true, true)
+			observe(t, s, rule, node, at.Add(25*time.Second), true, true)
+			if err := s.CancelMaintenanceWindow(ctx, first.ID, 1, at.Add(30*time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			observe(t, s, rule, node, at.Add(30*time.Second), true, true)
+			observe(t, s, rule, node, at.Add(time.Minute), true, true)
+			if got := rowCount(t, s, "notification_deliveries"); got != 0 {
+				t.Fatalf("notified while second window active: %d", got)
+			}
+			end := at.Add(2 * time.Minute)
+			if cancelLast {
+				end = at.Add(90 * time.Second)
+				if err := s.CancelMaintenanceWindow(ctx, last.ID, 1, end); err != nil {
+					t.Fatal(err)
+				}
+			}
+			observe(t, s, rule, node, end, true, true)
+			jobs, err := s.ListIncidentDeliveries(ctx, i.ID, 0, 10)
+			if err != nil || len(jobs) != 1 {
+				t.Fatalf("final window summary: %+v %v", jobs, err)
+			}
+			job, err := s.ClaimDelivery(ctx, end, time.Minute)
+			if err != nil || job == nil {
+				t.Fatalf("summary claim: %+v %v", job, err)
+			}
+			if err := s.CompleteDelivery(ctx, job.ID, job.LeaseToken, end.Add(time.Second), DeliveryOutcome{Delivered: true}); err != nil {
+				t.Fatal(err)
+			}
+			observe(t, s, rule, node, end.Add(2*time.Second), true, true)
+			if got := rowCount(t, s, "notification_deliveries"); got != 1 {
+				t.Fatalf("repeated end summary: %d", got)
+			}
+		})
+	}
+}
+
+func TestNotifiedIncidentRecoveryDuringMaintenanceIsNotSent(t *testing.T) {
+	s, rule, node := incidentFixture(t, `{"threshold_percent":90}`)
+	ctx := context.Background()
+	at := time.Now().UTC().Truncate(time.Second)
+	i := observe(t, s, rule, node, at, true, true)
+	job, err := s.ClaimDelivery(ctx, at, time.Minute)
+	if err != nil || job == nil {
+		t.Fatalf("claim: %+v %v", job, err)
+	}
+	if err := s.CompleteDelivery(ctx, job.ID, job.LeaseToken, at.Add(time.Second), DeliveryOutcome{Delivered: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateMaintenanceWindow(ctx, MaintenanceWindow{Reason: "work", Timezone: "UTC", CreatedBy: "admin", NodeIDs: []string{node.ID}, StartsAt: at.Add(10 * time.Second), EndsAt: at.Add(time.Minute)}); err != nil {
+		t.Fatal(err)
+	}
+	resolved := observe(t, s, rule, node, at.Add(20*time.Second), true, false)
+	if resolved.State != "resolved" || resolved.ResolutionReason != "recovered" {
+		t.Fatalf("recovery not recorded: %+v", resolved)
+	}
+	observe(t, s, rule, node, at.Add(time.Minute), true, false)
+	jobs, err := s.ListIncidentDeliveries(ctx, i.ID, 0, 10)
+	if err != nil || len(jobs) != 1 || jobs[0].Status != "delivered" {
+		t.Fatalf("recovery catch-up or lost delivery history: %+v %v", jobs, err)
+	}
+}
+
 func TestMaintenanceResumesPreviouslyDeliveredFaultAfterRestart(t *testing.T) {
 	s, rule, node := incidentFixture(t, `{"threshold_percent":90}`)
 	ctx := context.Background()
