@@ -81,6 +81,19 @@ This digest is not an authorization token. Transactional creation must recompute
 it against current data and preserve selection/audit/idempotency state atomically;
 that transactional creation integration remains pending.
 
+Internal confirmed creation now re-resolves the draft under the maintenance
+writer transaction and rejects a changed digest. Migration 025 stores selection
+provenance and create-request replay identities. The window, frozen members,
+selector, replay record and existing audit-log entry commit atomically. Actor IDs
+must identify authenticated users; the audit foreign key rejects unknown actors.
+The request digest binds typed draft content, preview digest and actor. Successful
+same-content retries return the original window ID before rechecking mutable nodes;
+different content under the same request ID conflicts. Replay records are retained
+with the bounded window history, with no automatic expiry or window deletion API.
+Tests inject audit failure to prove rollback, check stale confirmation and replay
+after node deletion. Concurrent/restart/backup acceptance and public mutation APIs
+remain pending. This does not yet impose future-only creation admission.
+
 Full-window preview is exposed through
 `POST /api/v1/admin/maintenance-windows/preview`, with the same session/CSRF,
 private/no-store, 64 KiB strict-body and five-second deadline protections as member

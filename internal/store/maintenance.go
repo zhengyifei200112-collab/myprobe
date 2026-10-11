@@ -139,6 +139,17 @@ func (s *Store) CreateMaintenanceWindow(ctx context.Context, w MaintenanceWindow
 	if _, err := tx.ExecContext(ctx, `UPDATE maintenance_writer SET version=version WHERE id=1`); err != nil {
 		return MaintenanceWindow{}, err
 	}
+	w, err = insertMaintenanceWindow(ctx, tx, w)
+	if err != nil {
+		return MaintenanceWindow{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return MaintenanceWindow{}, err
+	}
+	return w, nil
+}
+
+func insertMaintenanceWindow(ctx context.Context, tx *sql.Tx, w MaintenanceWindow) (MaintenanceWindow, error) {
 	var count int
 	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM maintenance_windows`).Scan(&count); err != nil {
 		return MaintenanceWindow{}, err
@@ -162,9 +173,6 @@ func (s *Store) CreateMaintenanceWindow(ctx context.Context, w MaintenanceWindow
 		if _, err := tx.ExecContext(ctx, `INSERT INTO maintenance_window_nodes(window_id,node_id) VALUES(?,?)`, w.ID, id); err != nil {
 			return MaintenanceWindow{}, err
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return MaintenanceWindow{}, err
 	}
 	w.NodeIDs = append([]string(nil), w.NodeIDs...)
 	return w, nil

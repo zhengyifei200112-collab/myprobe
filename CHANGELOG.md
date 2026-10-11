@@ -44,6 +44,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Full maintenance preview returns normalized window fields, named membership and
   a confirmation digest, sharing validation with internal window creation.
 
+- Internal confirmed maintenance creation atomically checks current membership and
+  saves the window, selector provenance, audit and retry identity (migration 025).
+  Public creation and cancellation endpoints remain pending.
+
 - Policy-import confirmation displays readable scope, destination names, threshold
   units and timing fields instead of requiring users to inspect raw JSON.
 
