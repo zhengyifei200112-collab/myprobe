@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Maintenance decision and delivery-link writes now use bounded batches within
+  the original transaction, reducing repeated SQL work under overlapping windows.
+  Later-batch failures roll back earlier records and preserve queued-task state.
+
 - A provider response arriving after maintenance cancels an in-flight notification
   now updates that attempt instead of losing the result to lease revocation. The
   task stays canceled, with no retry or repeat-clock change. Delivery details

@@ -183,6 +183,9 @@ means the claim/pre-send path suppressed an old/current queued job. The separate
 job is about to be canceled. Later post-window jobs do not inherit those links.
 Recording, cancellation, repeat-clock reset and incident changes share the same
 writer transaction; failed link/decision inserts roll back the entire operation.
+Decision/link writes use batches of at most 200 window IDs (204 bound parameters),
+including all batches in that transaction. Tests fail a later batch to verify
+earlier inserts and job/incident changes do not partially commit.
 There is no inferred historical backfill. Legacy windows/decisions remain unknown
 when no new processing decision has been recorded.
 
@@ -387,6 +390,12 @@ maintenance duration explicitly, and do not label existing success rate as SLA.
 
 Proposed initial bounds: 1000 windows and 100 nodes per window, one-time only.
 Validate these against workload evidence before claiming supported capacity.
+The on-disk Store benchmark exercises 100 nodes under 1/100/1000 overlapping
+windows and verifies exact populations, quota rejection and suppression. Batched
+decision/link writes reduced the measured 1000-window warm pass median from about
+5.08 s to 1.47 s on one Windows machine. This is not a full-system capacity claim;
+method, samples and outstanding workloads are recorded in
+[MAINTENANCE_CAPACITY.zh-CN.md](MAINTENANCE_CAPACITY.zh-CN.md).
 Recurring calendars, notification aggregation and service-wide quorum rules are
 outside this first window implementation. Acknowledgement and incident silence
 remain separate ALT-03 packages; completion of windows alone does not finish ALT-03.

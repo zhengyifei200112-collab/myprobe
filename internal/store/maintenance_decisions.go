@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 )
 
@@ -42,18 +43,28 @@ func matchingMaintenanceIDs(ctx context.Context, q maintenanceSelectionQuery, no
 // Called before canceling jobs while the writer is held. Empty deliveryID links
 // only jobs that this observation is about to cancel; a worker passes its job ID.
 func recordMaintenanceDecision(ctx context.Context, tx *sql.Tx, incidentID string, windowIDs []string, kind string, at time.Time, deliveryID string) error {
-	for _, id := range windowIDs {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO incident_maintenance_decisions(incident_id,window_id,kind,first_at_ms,last_at_ms) VALUES(?,?,?,?,?) ON CONFLICT(incident_id,window_id,kind) DO UPDATE SET first_at_ms=min(first_at_ms,excluded.first_at_ms),last_at_ms=max(last_at_ms,excluded.last_at_ms)`, incidentID, id, kind, at.UnixMilli(), at.UnixMilli()); err != nil {
+	// Keep statement/parameter size bounded even at the 1000-window limit. All
+	// batches share the caller's writer transaction, including link/cancel work.
+	for len(windowIDs) > 0 {
+		batch := windowIDs[:min(len(windowIDs), 200)]
+		windowIDs = windowIDs[len(batch):]
+		matched := `WITH matched(window_id) AS (VALUES ` + strings.TrimSuffix(strings.Repeat(`(?),`, len(batch)), ",") + `) `
+		args := make([]any, 0, len(batch)+4)
+		for _, id := range batch {
+			args = append(args, id)
+		}
+		decisionArgs := append(args, incidentID, kind, at.UnixMilli(), at.UnixMilli())
+		if _, err := tx.ExecContext(ctx, matched+`INSERT INTO incident_maintenance_decisions(incident_id,window_id,kind,first_at_ms,last_at_ms) SELECT ?,window_id,?,?,? FROM matched WHERE 1 ON CONFLICT(incident_id,window_id,kind) DO UPDATE SET first_at_ms=min(first_at_ms,excluded.first_at_ms),last_at_ms=max(last_at_ms,excluded.last_at_ms)`, decisionArgs...); err != nil {
 			return err
 		}
-		query := `INSERT INTO delivery_maintenance_links(delivery_id,window_id,recorded_at_ms) SELECT id,?,? FROM notification_deliveries WHERE incident_id=? AND status IN ('pending','inflight')`
-		args := []any{id, at.UnixMilli(), incidentID}
+		query := matched + `INSERT INTO delivery_maintenance_links(delivery_id,window_id,recorded_at_ms) SELECT d.id,m.window_id,? FROM notification_deliveries d CROSS JOIN matched m WHERE d.incident_id=? AND d.status IN ('pending','inflight')`
+		linkArgs := append(args, at.UnixMilli(), incidentID)
 		if deliveryID != "" {
-			query += ` AND id=?`
-			args = append(args, deliveryID)
+			query += ` AND d.id=?`
+			linkArgs = append(linkArgs, deliveryID)
 		}
 		query += ` ON CONFLICT(delivery_id,window_id) DO NOTHING`
-		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+		if _, err := tx.ExecContext(ctx, query, linkArgs...); err != nil {
 			return err
 		}
 	}
