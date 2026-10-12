@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
 type ChannelConfig struct {
@@ -35,16 +37,18 @@ type ChannelConfig struct {
 }
 
 type Notification struct {
-	IncidentID     string    `json:"incident_id,omitempty"`
-	IdempotencyKey string    `json:"-"`
-	Title          string    `json:"title"`
-	Message        string    `json:"message"`
-	State          string    `json:"state"`
-	Kind           string    `json:"kind"`
-	NodeID         string    `json:"node_id"`
-	NodeName       string    `json:"node_name"`
-	RuleID         string    `json:"rule_id"`
-	Timestamp      time.Time `json:"timestamp"`
+	AggregateID    string                              `json:"aggregate_id,omitempty"`
+	Members        []store.AggregateNotificationMember `json:"members,omitempty"`
+	IncidentID     string                              `json:"incident_id,omitempty"`
+	IdempotencyKey string                              `json:"-"`
+	Title          string                              `json:"title"`
+	Message        string                              `json:"message"`
+	State          string                              `json:"state"`
+	Kind           string                              `json:"kind"`
+	NodeID         string                              `json:"node_id"`
+	NodeName       string                              `json:"node_name"`
+	RuleID         string                              `json:"rule_id"`
+	Timestamp      time.Time                           `json:"timestamp"`
 }
 
 type Sender interface {
@@ -109,6 +113,9 @@ func (s *HTTPSender) webhook(ctx context.Context, config ChannelConfig, notifica
 	body, _ := json.Marshal(notification)
 	if config.BodyTemplate != "" {
 		body = []byte(renderTemplate(config.BodyTemplate, notification))
+	}
+	if notification.AggregateID != "" && len(body) > store.AggregatePayloadByteLimit {
+		return &DeliveryError{Class: "aggregate_payload_too_large", Permanent: true}
 	}
 	method := strings.ToUpper(strings.TrimSpace(config.Method))
 	if method == "" {

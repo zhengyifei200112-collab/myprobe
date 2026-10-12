@@ -15,6 +15,7 @@ import (
 )
 
 type RuleConfig struct {
+	AggregationSeconds      *int    `json:"aggregation_seconds,omitempty"`
 	RecoverySeconds         *int    `json:"recovery_seconds,omitempty"`
 	OfflineSeconds          int     `json:"offline_seconds,omitempty"`
 	ThresholdPercent        float64 `json:"threshold_percent,omitempty"`
@@ -427,6 +428,9 @@ func (s *Service) decryptConfig(channel store.NotificationChannel) (ChannelConfi
 }
 
 func normalizeRuleConfig(kind string, config RuleConfig) (json.RawMessage, error) {
+	if config.AggregationSeconds != nil && (*config.AggregationSeconds < 0 || *config.AggregationSeconds > 300 || (*config.AggregationSeconds > 0 && *config.AggregationSeconds < 5)) {
+		return nil, errors.New("aggregation window must be zero or 5 through 300 seconds")
+	}
 	if config.DurationSeconds < 0 || config.DurationSeconds > 86400*30 || config.RepeatSeconds < 0 || config.RepeatSeconds > 86400*30 {
 		return nil, errors.New("invalid duration or repeat interval")
 	}

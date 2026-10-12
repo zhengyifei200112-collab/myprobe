@@ -39,6 +39,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Notification aggregation foundation (migration 030): explicit policy windows,
+  bounded per-policy/channel/type shards, durable transport attempts and exact
+  per-event attempt links. The worker revalidates each member before sending;
+  unchanged retries preserve content/key and stale members wait independently.
+  Real loopback receiver measurements cover 5/50/100-node storms. Management UI,
+  deep links and remaining acceptance are in development; this is unreleased.
+
 - Incident silence intervals, revisioned cancellation, atomic optional
   acknowledgement and replay history (migration 029). Existing observation/outbox
   paths combine maintenance and silence, wait for fresh evidence after the final

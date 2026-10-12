@@ -160,3 +160,16 @@ history and exact delivery causes, with original-operation recovery across reloa
 and incident selection. Real receiver/browser acceptance covers both themes and
 360/768/1440 px. Release integration and full capacity remain pending; no public fields change.
 See [INCIDENT_SILENCE.md](INCIDENT_SILENCE.md) for semantics and acceptance gates.
+
+## Notification aggregation foundation (AGG-01/ALT-05, in development)
+
+Migration 030 retains logical event deliveries and adds bounded transport groups,
+immutable send attempts and exact per-event links. Explicit policy
+`aggregation_seconds` (5–300; zero/omission preserves immediate behavior) groups
+by policy ID/revision, channel/provider and notification type, at most 10 events
+per fixed window. Final checks remove recovered/muted members and defer stale
+members independently; completion/history stays atomic. Text and JSON transport
+bounds are enforced and unchanged retries keep their content/key. Transport-only
+edits do not recreate technical incidents. Management configuration/history,
+authenticated deep links, broader runtime/browser evidence and release/capacity
+remain pending. See [NOTIFICATION_AGGREGATION.md](NOTIFICATION_AGGREGATION.md).

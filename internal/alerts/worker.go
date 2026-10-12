@@ -32,6 +32,9 @@ func (s *Service) runDeliveryWorker(ctx context.Context) {
 // DeliverOne performs network I/O outside database transactions. An ambiguous
 // completion remains leased until recovery; delivery is at least once.
 func (s *Service) DeliverOne(ctx context.Context, now time.Time) (bool, error) {
+	if worked, err := s.deliverAggregate(ctx, now); worked || err != nil {
+		return worked, err
+	}
 	started := time.Now()
 	job, err := s.store.ClaimDelivery(ctx, now, time.Minute)
 	if err != nil || job == nil {
@@ -62,10 +65,15 @@ func (s *Service) DeliverOne(ctx context.Context, now time.Time) (bool, error) {
 		cancel()
 	}
 	finished := now.Add(time.Since(started))
+	outcome := deliveryOutcome(deliveryErr, job.AttemptCount, finished)
+	return true, s.store.CompleteDelivery(ctx, job.ID, job.LeaseToken, finished, outcome)
+}
+
+func deliveryOutcome(deliveryErr error, attempt int, finished time.Time) store.DeliveryOutcome {
 	outcome := store.DeliveryOutcome{Delivered: deliveryErr == nil}
 	if deliveryErr != nil {
 		outcome.ErrorClass = "delivery_failed"
-		delay := retryDelay(job.AttemptCount)
+		delay := retryDelay(attempt)
 		var classified *DeliveryError
 		if errors.As(deliveryErr, &classified) {
 			outcome.ErrorClass, outcome.Permanent = classified.Class, classified.Permanent
@@ -76,7 +84,7 @@ func (s *Service) DeliverOne(ctx context.Context, now time.Time) (bool, error) {
 		}
 		outcome.RetryAt = finished.Add(delay)
 	}
-	return true, s.store.CompleteDelivery(ctx, job.ID, job.LeaseToken, finished, outcome)
+	return outcome
 }
 
 func retryDelay(attempt int) time.Duration {

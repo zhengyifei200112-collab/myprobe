@@ -14,6 +14,7 @@ var ErrDeliveryCanceled = errors.New("notification delivery no longer applicable
 var ErrDeliveryDeferred = errors.New("notification observation became stale")
 
 type NotificationDelivery struct {
+	AggregateID      string          `json:"aggregate_id,omitempty"`
 	Seq              int64           `json:"seq"`
 	ID               string          `json:"id"`
 	IncidentID       string          `json:"incident_id"`
@@ -34,21 +35,22 @@ type NotificationDelivery struct {
 	ErrorClass       string          `json:"error_class,omitempty"`
 }
 
-const deliveryColumns = `seq,id,incident_id,channel_id,channel_name,provider,notification_type,idempotency_key,payload_json,status,attempt_count,available_at_ms,lease_token,lease_until_ms,created_at,updated_at,finished_at,error_class`
+const deliveryColumns = `seq,id,incident_id,channel_id,channel_name,provider,notification_type,idempotency_key,payload_json,status,attempt_count,available_at_ms,lease_token,lease_until_ms,created_at,updated_at,finished_at,error_class,aggregate_id`
 
 func scanDelivery(row rowScanner) (NotificationDelivery, error) {
 	var d NotificationDelivery
 	var payload, created, updated string
-	var finished, lease sql.NullString
+	var finished, lease, aggregate sql.NullString
 	var available int64
 	var until sql.NullInt64
-	err := row.Scan(&d.Seq, &d.ID, &d.IncidentID, &d.ChannelID, &d.ChannelName, &d.Provider, &d.NotificationType, &d.IdempotencyKey, &payload, &d.Status, &d.AttemptCount, &available, &lease, &until, &created, &updated, &finished, &d.ErrorClass)
+	err := row.Scan(&d.Seq, &d.ID, &d.IncidentID, &d.ChannelID, &d.ChannelName, &d.Provider, &d.NotificationType, &d.IdempotencyKey, &payload, &d.Status, &d.AttemptCount, &available, &lease, &until, &created, &updated, &finished, &d.ErrorClass, &aggregate)
 	if err != nil {
 		return d, err
 	}
 	d.Payload = json.RawMessage(payload)
 	d.AvailableAt = time.UnixMilli(available).UTC()
 	d.LeaseToken = lease.String
+	d.AggregateID = aggregate.String
 	if until.Valid {
 		at := time.UnixMilli(until.Int64).UTC()
 		d.LeaseUntil = &at
@@ -129,18 +131,18 @@ func (s *Store) ClaimDelivery(ctx context.Context, now time.Time, lease time.Dur
 	if _, err = tx.ExecContext(ctx, "UPDATE notification_deliveries SET updated_at=updated_at WHERE seq=-1"); err != nil {
 		return nil, err
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE delivery_attempts SET outcome='unknown',completed_at=?,error_class='lease_expired' WHERE outcome='started' AND delivery_id IN (SELECT id FROM notification_deliveries WHERE status='inflight' AND lease_until_ms<=?)`, formatTime(now), now.UnixMilli()); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE delivery_attempts SET outcome='unknown',completed_at=?,error_class='lease_expired' WHERE outcome='started' AND delivery_id IN (SELECT id FROM notification_deliveries WHERE aggregate_id IS NULL AND status='inflight' AND lease_until_ms<=?)`, formatTime(now), now.UnixMilli()); err != nil {
 		return nil, err
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE alert_incidents SET last_enqueued_at=? WHERE id IN (SELECT incident_id FROM notification_deliveries WHERE status='inflight' AND lease_until_ms<=? AND attempt_count>=5)`, formatTime(now), now.UnixMilli()); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE alert_incidents SET last_enqueued_at=? WHERE id IN (SELECT incident_id FROM notification_deliveries WHERE aggregate_id IS NULL AND status='inflight' AND lease_until_ms<=? AND attempt_count>=5)`, formatTime(now), now.UnixMilli()); err != nil {
 		return nil, err
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE notification_deliveries SET status=CASE WHEN attempt_count>=5 THEN 'failed' ELSE 'pending' END,finished_at=CASE WHEN attempt_count>=5 THEN ? ELSE NULL END,lease_token=NULL,lease_until_ms=NULL,available_at_ms=?,updated_at=?,error_class='lease_expired' WHERE status='inflight' AND lease_until_ms<=?`, formatTime(now), now.UnixMilli(), formatTime(now), now.UnixMilli()); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE notification_deliveries SET status=CASE WHEN attempt_count>=5 THEN 'failed' ELSE 'pending' END,finished_at=CASE WHEN attempt_count>=5 THEN ? ELSE NULL END,lease_token=NULL,lease_until_ms=NULL,available_at_ms=?,updated_at=?,error_class='lease_expired' WHERE aggregate_id IS NULL AND status='inflight' AND lease_until_ms<=?`, formatTime(now), now.UnixMilli(), formatTime(now), now.UnixMilli()); err != nil {
 		return nil, err
 	}
 	// Limit cleanup work per claim. Unknown observations pause firing jobs without
 	// using an attempt; disabled/deleted destinations cancel outstanding work.
-	rows, err := tx.QueryContext(ctx, "SELECT "+deliveryColumns+" FROM notification_deliveries WHERE status='pending' AND available_at_ms<=? AND NOT EXISTS (SELECT 1 FROM alert_incidents i WHERE i.id=notification_deliveries.incident_id AND i.state='firing' AND i.observation_stale=1 AND notification_deliveries.notification_type='firing') ORDER BY seq LIMIT 100", now.UnixMilli())
+	rows, err := tx.QueryContext(ctx, "SELECT "+deliveryColumns+" FROM notification_deliveries WHERE aggregate_id IS NULL AND status='pending' AND available_at_ms<=? AND NOT EXISTS (SELECT 1 FROM alert_incidents i WHERE i.id=notification_deliveries.incident_id AND i.state='firing' AND i.observation_stale=1 AND notification_deliveries.notification_type='firing') ORDER BY seq LIMIT 100", now.UnixMilli())
 	if err != nil {
 		return nil, err
 	}
@@ -227,6 +229,9 @@ func (s *Store) CheckDeliveryLease(ctx context.Context, id, token string, now ti
 	if err != nil {
 		return err
 	}
+	if d.AggregateID != "" {
+		return ErrDeliveryLeaseLost
+	}
 	if d.Status == "canceled" && (d.ErrorClass == "silence" || d.ErrorClass == "maintenance" || d.ErrorClass == "maintenance_and_silence") {
 		var ownsAttempt bool
 		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM delivery_attempts WHERE delivery_id=? AND lease_token=? AND attempt_number=?)`, d.ID, token, d.AttemptCount).Scan(&ownsAttempt); err != nil {
@@ -311,6 +316,17 @@ func (s *Store) CompleteDelivery(ctx context.Context, id, token string, now time
 	if err != nil {
 		return err
 	}
+	if d.AggregateID != "" {
+		return ErrDeliveryLeaseLost
+	}
+	if err := completeDeliveryInTransaction(ctx, tx, d, token, now, outcome); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func completeDeliveryInTransaction(ctx context.Context, tx *sql.Tx, d NotificationDelivery, token string, now time.Time, outcome DeliveryOutcome) error {
+	id := d.ID
 	if d.Status == "canceled" {
 		return completeCanceledAttempt(ctx, tx, d, token, now, outcome)
 	}
@@ -361,7 +377,7 @@ func (s *Store) CompleteDelivery(ctx context.Context, id, token string, now time
 	if err := recordDeliveryHistory(ctx, tx, d, now, outcome.Delivered, errorClass); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return nil
 }
 
 // A cancellation revokes retry authority, but a still-running sender can obtain
@@ -395,7 +411,7 @@ func completeCanceledAttempt(ctx context.Context, tx *sql.Tx, d NotificationDeli
 	}
 	// Terminal/identical refinements may be retried after a lost database result.
 	if previous == status && previousError == errorClass {
-		return tx.Commit()
+		return nil
 	}
 	if previous != "unknown" || previousError != d.ErrorClass {
 		return ErrDeliveryLeaseLost
@@ -406,7 +422,7 @@ func completeCanceledAttempt(ctx context.Context, tx *sql.Tx, d NotificationDeli
 	if err := recordDeliveryHistory(ctx, tx, d, now, outcome.Delivered, errorClass); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return nil
 }
 
 func recordDeliveryHistory(ctx context.Context, tx *sql.Tx, d NotificationDelivery, now time.Time, delivered bool, errorClass string) error {
