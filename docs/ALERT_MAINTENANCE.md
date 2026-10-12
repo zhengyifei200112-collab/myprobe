@@ -1,8 +1,9 @@
 # Alert maintenance implementation contract
 
-Status: implementation in progress; management preview/create/cancel/list APIs and
-notification suppression exist; management UI and live worker/browser acceptance
-remain pending. Roadmap task ALT-03. This branch depends on scoped-policy PR #54 and
+Status: implementation in progress; management preview/create/cancel/list, browser
+UI and notification suppression exist. Real browser and local-channel runtime
+tests cover the main lifecycle; additional release integration remains necessary.
+Roadmap task ALT-03. This branch depends on scoped-policy PR #54 and
 uses it as a stacked base; it must not duplicate incident or policy state machines.
 
 Storage foundation: migration 024 adds windows, frozen node membership and a writer
@@ -38,9 +39,10 @@ that watermark intact and do not enqueue a summary. Tests cover an already
 delivered fault, restart across the window, unknown then fresh evidence, and a
 second restart with no duplicate summary. Recovery first observed after a gap is
 still dated at the observed recovery time; it is not assumed to have happened
-inside maintenance. Store tests cover overlap and cancellation; live worker-race
-and browser integration acceptance remain necessary before declaring the feature
-release-ready. Tag resolution, selection provenance, audit actors and current-schema
+inside maintenance. Store tests cover overlap and cancellation. Local-channel worker
+tests verify zero notifications for a fault recovered inside maintenance and one
+fresh summary for a continuing fault after API cancellation, without restart
+duplicates. Tag resolution, selection provenance, audit actors and current-schema
 backup/restore tests are implemented.
 
 Store listing reads metadata and frozen node IDs in one read transaction, capped
@@ -136,6 +138,58 @@ strict input, confirmation conflicts, replay, provenance and retained deleted me
 Database restoration rewinds requests and cancellations to the snapshot. Requests
 already in the snapshot replay; operations after the snapshot may execute anew on
 retry. Review restored windows/audit before retrying uncertain browser requests.
+
+## Management UI and live acceptance
+
+The notification center's Maintenance tab provides a one-time window form,
+explicit-node multiple selection, all/any tags, full preview with named members,
+confirmation, status/history listing, pagination and revisioned cancel confirmation.
+Input dates use the browser's IANA timezone and preview returns normalized UTC
+instants. Lists show upcoming/active/ended/canceled status, frozen members,
+provenance, actors and cancellation time. Refresh also reloads current node options;
+historical membership does not change when the inventory is refreshed.
+
+Form changes invalidate previews. Before either mutation the tab persists the
+original request to sessionStorage. Lost responses retain and lock that operation
+for identical retry, including after reload. Invalid recovery records retain
+uncertainty and block new mutations; explicit clearing requires result review.
+Unavailable browser storage prevents sending. Definite validation/conflict
+rejections permit new preview; request-identity conflict retains the record. A late
+response may clear only its own record, never a newer operation's record. Closing
+the tab can lose recovery history, and snapshot restore can rewind server identities.
+
+The delivery view explains the persisted `maintenance` cancellation reason and
+links to the maintenance tab. It does not infer historical window identity or
+pretend every incident without a delivery was necessarily suppressed by maintenance.
+Specific incident/window association and active suppression metadata remain future
+context work.
+
+`TestMaintenanceAPIRuntimeNotifications` combines authenticated preview/create/cancel,
+the actual evaluator and running workers with an isolated HTTP receiver. It checks
+in-window recovery sends nothing, an older queued firing is canceled, a fresh
+continuing fault sends one summary, and restarted evaluation/worker sends no duplicate.
+
+The opt-in `TestLiveMaintenanceBrowserLifecycle` uses the embedded frontend and
+real SQLite/API/queue worker. It verifies tags and explicit selections, preview
+invalidation, membership changes, lost create/cancel responses across reload,
+corrupt recovery records, blocked storage, refreshed inventory and the suppressed
+delivery explanation/link. Screenshots cover preview/history in both themes at
+360/768/1440 px, with no page overflow and no browser exceptions. Screenshots were
+visually inspected. Fixtures contain no real infrastructure or credentials.
+
+Run after building the embedded assets:
+
+```powershell
+$env:MYPROBE_TEST_MAINTENANCE_BROWSER='1'
+$env:PLAYWRIGHT_MODULE='<absolute path to installed playwright module>'
+go test ./internal/httpapi -run '^TestLiveMaintenanceBrowserLifecycle$' -count=1 -v
+Remove-Item Env:MYPROBE_TEST_MAINTENANCE_BROWSER
+```
+
+Playwright and Edge are required locally; standard tests skip this browser test
+without opt-in. CI still runs the runtime and Store/API tests. Live races at the
+send boundary, full released-version upgrade integration and the proposed capacity
+remain separate release evidence; successful screenshots alone do not establish them.
 
 Full-window preview is exposed through
 `POST /api/v1/admin/maintenance-windows/preview`, with the same session/CSRF,

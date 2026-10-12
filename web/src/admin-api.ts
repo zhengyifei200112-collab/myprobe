@@ -196,6 +196,43 @@ export interface AuthSettings { password_enabled: true; github: GitHubOAuthSetti
 
 let csrfToken = ''
 
+export interface MaintenanceSelection {
+  kind: 'nodes' | 'tags'
+  node_ids?: string[]
+  tags?: string[]
+  tag_mode?: 'all' | 'any'
+}
+export interface MaintenanceDraft {
+  selection: MaintenanceSelection
+  reason: string
+  timezone: string
+  starts_at: string
+  ends_at: string
+}
+export interface MaintenancePreview {
+  draft: MaintenanceDraft
+  members: Array<{ id: string; name: string }>
+  preview_digest: string
+}
+export interface MaintenanceWindow {
+  id: string
+  revision: number
+  reason: string
+  timezone: string
+  starts_at: string
+  ends_at: string
+  canceled_at?: string
+  canceled_by?: string
+  node_ids: string[]
+  selection?: MaintenanceSelection
+  created_by: string
+  created_at: string
+}
+export const loadMaintenanceWindows = (after = '') => request<{ windows: MaintenanceWindow[]; next_cursor: string }>(`/api/v1/admin/maintenance-windows?${new URLSearchParams({ after, limit: '25' })}`)
+export const previewMaintenanceWindow = (draft: MaintenanceDraft) => request<MaintenancePreview>('/api/v1/admin/maintenance-windows/preview', { method: 'POST', body: JSON.stringify(draft) })
+export const createMaintenanceWindow = (preview: MaintenancePreview, requestID: string) => request<{ window_id: string; replayed: boolean }>('/api/v1/admin/maintenance-windows', { method: 'POST', body: JSON.stringify({ draft: preview.draft, preview_digest: preview.preview_digest, request_id: requestID }) })
+export const cancelMaintenanceWindow = (id: string, revision: number) => request<{ window_id: string; revision: number; canceled_at: string; replayed: boolean }>(`/api/v1/admin/maintenance-windows/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: JSON.stringify({ revision }) })
+
 export class AdminAPIError extends Error {
   constructor(message: string, public status: number, public code?: string) { super(message) }
 }

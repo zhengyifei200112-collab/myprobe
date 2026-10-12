@@ -5,6 +5,7 @@ import type { NodeMetadata } from '../types'
 import { DsButton, DsSelect, DsEmptyState } from '../design-system'
 
 defineProps<{ nodes: NodeMetadata[] }>()
+const emit = defineEmits<{ maintenance: [] }>()
 const nodeID = ref('')
 const reasons: Record<string,string> = { recovered: '观测已恢复正常', condition_cleared: '触发前异常已消失', rule_disabled: '规则已停用', rule_deleted: '规则或节点已删除', rule_changed: '规则配置已变更', legacy_recovery: '旧版本记录的恢复' }
 const state = ref(''), items = ref<Incident[]>([]), next = ref(0)
@@ -57,7 +58,23 @@ onMounted(() => refresh())
     <article v-for="item in items" :key="item.id"><h3>{{ item.node_name }} · {{ labels[item.state] }}</h3><p>{{ item.message }}</p><p v-if="item.observation_stale">数据已过期，等待新观测；当前状态不表示已经恢复。</p><p>开始：{{ date(item.started_at) }}{{ item.approximate_start ? '（旧记录迁移，时间近似）' : '' }}</p><p v-if="item.resolution_reason">结束原因：{{ reasons[item.resolution_reason] || item.resolution_reason }}</p><p v-if="item.resolved_at">结束：{{ date(item.resolved_at) }}</p><DsButton size="small" @click="inspect(item)">查看 {{ item.node_name }} 的投递记录</DsButton></article>
     <DsEmptyState v-if="!busy && !error && !items.length" title="暂无匹配事件" description="告警满足触发条件后会记录在这里。" />
     <DsButton v-if="next" :disabled="busy" @click="refresh(true)">加载更多事件</DsButton>
-    <section v-if="selected" class="delivery-detail" aria-label="事件投递记录" aria-live="polite"><h3 ref="detailHeading" tabindex="-1">{{ selected.node_name }} · 投递记录</h3><p v-if="detailError" role="alert">{{ detailError }}</p><DsButton :disabled="detailBusy" @click="inspect(selected)">刷新投递记录</DsButton><p v-if="detailBusy" role="status">正在加载投递记录…</p><article v-for="job in deliveries" :key="job.id"><strong>{{ job.channel_name }} · {{ job.status === 'pending' ? '等待发送' : labels[job.status] || job.status }}</strong><p>{{ job.notification_type === 'firing' ? '故障通知' : '恢复通知' }} · 已尝试 {{ job.attempt_count }} 次</p><p>{{ date(job.created_at) }}</p><p v-if="job.error_class">错误分类：{{ job.error_class }}</p><DsButton size="small" :disabled="attemptBusy[job.id]" @click="showAttempts(job.id)">查看每次尝试</DsButton><p v-if="attemptBusy[job.id]" role="status">正在加载尝试记录…</p><p v-if="attempts[job.id]?.length === 0 && !attemptBusy[job.id]">尚未开始投递尝试。</p><p v-if="attemptErrors[job.id]" role="alert">{{ attemptErrors[job.id] }}</p><ol v-if="attempts[job.id]"><li v-for="attempt in attempts[job.id]" :key="attempt.number">第 {{ attempt.number }} 次：{{ outcomeLabels[attempt.outcome] || attempt.outcome }} · {{ date(attempt.started_at) }}<span v-if="attempt.completed_at"> → {{ date(attempt.completed_at) }}</span><span v-if="attempt.error_class"> · {{ attempt.error_class }}</span></li></ol></article><p v-if="!detailBusy && !detailError && !deliveries.length">暂无投递任务；事件记录不依赖通知渠道可用性。</p><DsButton v-if="deliveryNext" :disabled="detailBusy" @click="inspect(selected, true)">加载更多投递记录</DsButton></section>
+    <section v-if="selected" class="delivery-detail" aria-label="事件投递记录" aria-live="polite">
+      <h3 ref="detailHeading" tabindex="-1">{{ selected.node_name }} · 投递记录</h3>
+      <p v-if="detailError" role="alert">{{ detailError }}</p>
+      <DsButton :disabled="detailBusy" @click="inspect(selected)">刷新投递记录</DsButton>
+      <p v-if="detailBusy" role="status">正在加载投递记录…</p>
+      <article v-for="job in deliveries" :key="job.id">
+        <strong>{{ job.channel_name }} · {{ job.status === 'pending' ? '等待发送' : labels[job.status] || job.status }}</strong>
+        <p>{{ job.notification_type === 'firing' ? '故障通知' : '恢复通知' }} · 已尝试 {{ job.attempt_count }} 次</p><p>{{ date(job.created_at) }}</p>
+        <template v-if="job.error_class==='maintenance'"><p>通知因维护窗口被抑制，故障事件继续记录。维护结束后依据新鲜观测恢复提醒。</p><DsButton size="small" @click="emit('maintenance')">查看维护窗口</DsButton></template>
+        <p v-else-if="job.error_class">错误分类：{{ job.error_class }}</p>
+        <DsButton size="small" :disabled="attemptBusy[job.id]" @click="showAttempts(job.id)">查看每次尝试</DsButton>
+        <p v-if="attemptBusy[job.id]" role="status">正在加载尝试记录…</p><p v-if="attempts[job.id]?.length === 0 && !attemptBusy[job.id]">尚未开始投递尝试。</p><p v-if="attemptErrors[job.id]" role="alert">{{ attemptErrors[job.id] }}</p>
+        <ol v-if="attempts[job.id]"><li v-for="attempt in attempts[job.id]" :key="attempt.number">第 {{ attempt.number }} 次：{{ outcomeLabels[attempt.outcome] || attempt.outcome }} · {{ date(attempt.started_at) }}<span v-if="attempt.completed_at"> → {{ date(attempt.completed_at) }}</span><span v-if="attempt.error_class"> · {{ attempt.error_class }}</span></li></ol>
+      </article>
+      <p v-if="!detailBusy && !detailError && !deliveries.length">暂无投递任务；事件记录不依赖通知渠道可用性。</p>
+      <DsButton v-if="deliveryNext" :disabled="detailBusy" @click="inspect(selected, true)">加载更多投递记录</DsButton>
+    </section>
   </section>
 </template>
 
