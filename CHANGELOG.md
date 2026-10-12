@@ -34,8 +34,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   revisioned cancellation and historical half-open interval queries. Event enqueue,
   delivery claim and pre-send checks suppress maintenance notifications, including
   observation gaps spanning a window. An authenticated, uncached management list
-  API provides bounded ID-cursor pagination. Creation/cancellation UI and mutation
-  APIs remain pending; this is not yet a complete user-facing maintenance feature.
+  API provides bounded ID-cursor pagination. Management UI and live integration
+  acceptance remain pending; this is not yet a released maintenance feature.
 
 - Maintenance member preview API resolves explicit nodes or all/any tag selections
   to named members, with session/CSRF protection and a 100-member limit. Preview
@@ -46,7 +46,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Internal confirmed maintenance creation atomically checks current membership and
   saves the window, selector provenance, audit and retry identity (migration 025).
-  Public creation and cancellation endpoints remain pending.
+  Protected creation/cancellation APIs bind actors to authenticated sessions,
+  preserve cancellation history (migration 026), and replay confirmed requests.
+  Ended windows cannot be newly created/canceled; committed retries still replay.
 
 - Policy-import confirmation displays readable scope, destination names, threshold
   units and timing fields instead of requiring users to inspect raw JSON.

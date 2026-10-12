@@ -1,7 +1,8 @@
 # Alert maintenance implementation contract
 
-Status: implementation in progress; event enqueue suppression exists internally,
-but maintenance is not exposed as a usable feature. Roadmap task ALT-03. This branch depends on scoped-policy PR #54 and
+Status: implementation in progress; management preview/create/cancel/list APIs and
+notification suppression exist; management UI and live worker/browser acceptance
+remain pending. Roadmap task ALT-03. This branch depends on scoped-policy PR #54 and
 uses it as a stacked base; it must not duplicate incident or policy state machines.
 
 Storage foundation: migration 024 adds windows, frozen node membership and a writer
@@ -37,10 +38,10 @@ that watermark intact and do not enqueue a summary. Tests cover an already
 delivered fault, restart across the window, unknown then fresh evidence, and a
 second restart with no duplicate summary. Recovery first observed after a gap is
 still dated at the observed recovery time; it is not assumed to have happened
-inside maintenance. Further overlapping/cancellation and worker-race integration
-acceptance remains necessary; do not expose window
-creation to users until those paths are integrated. Tag resolution,
-selection provenance, audit actors and full backup tests remain pending.
+inside maintenance. Store tests cover overlap and cancellation; live worker-race
+and browser integration acceptance remain necessary before declaring the feature
+release-ready. Tag resolution, selection provenance, audit actors and current-schema
+backup/restore tests are implemented.
 
 Store listing reads metadata and frozen node IDs in one read transaction, capped
 at 100 windows per page. Its exclusive ID cursor is stable but not chronological;
@@ -57,7 +58,8 @@ This is ID ordering, not creation-time ordering; separate requests do not share 
 database snapshot. The handler has a five-second query deadline, returns 400 for
 invalid queries and a generic 500 for storage failures. API tests cover session
 protection, no-store, empty results, membership, pagination and invalid inputs.
-Creation and cancellation remain internal pending their preview/audit contract.
+Listings also return persisted `selection` and `canceled_by` when available.
+Legacy internal windows omit provenance rather than inventing their selection.
 
 The internal member preview resolver now accepts explicit nodes or exact,
 case-sensitive tags with an explicit all/any mode. It rejects ambiguous mixed
@@ -67,8 +69,8 @@ are accepted; it rejects excess matches instead of silently truncating the scope
 Tests cover selection semantics, invalid inputs, changed tag membership, the match
 limit and absence of window writes. Creation must reuse this resolver within its
 write transaction and compare confirmed membership; the current read-only preview
-alone does not guarantee that a subsequent create uses the same members. Selection
-provenance persistence and the HTTP preview/create contract remain pending.
+alone does not guarantee that a subsequent create uses the same members. Confirmed
+creation uses the same resolver inside its writer transaction.
 
 An internal full-window preview now combines reason, display timezone, normalized
 UTC millisecond boundaries, canonical selection and ID-sorted named members. It
@@ -78,8 +80,8 @@ round trips are equivalent, while renamed members or changed membership require
 new confirmation. Caller-owned slices are not mutated. Tests cover normalization,
 invalid times/reasons/zones, round trips, membership/name changes and no writes.
 This digest is not an authorization token. Transactional creation must recompute
-it against current data and preserve selection/audit/idempotency state atomically;
-that transactional creation integration remains pending.
+it against current data and preserve selection/audit/idempotency state atomically,
+as implemented by confirmed creation.
 
 Internal confirmed creation now re-resolves the draft under the maintenance
 writer transaction and rejects a changed digest. Migration 025 stores selection
@@ -91,8 +93,49 @@ same-content retries return the original window ID before rechecking mutable nod
 different content under the same request ID conflicts. Replay records are retained
 with the bounded window history, with no automatic expiry or window deletion API.
 Tests inject audit failure to prove rollback, check stale confirmation and replay
-after node deletion. Concurrent/restart/backup acceptance and public mutation APIs
-remain pending. This does not yet impose future-only creation admission.
+after node deletion. Eight concurrent create requests produce one window; eight
+same-actor cancel requests produce one cancellation. Close/reopen and full staged
+database restore preserve provenance, cancellation, audit and original request
+results. This validates current-schema restoration, not all released-version
+upgrade combinations or external notification behavior after restoration.
+
+## Management mutations
+
+`POST /api/v1/admin/maintenance-windows` accepts `draft` (use the normalized preview
+draft), `preview_digest`, and a caller-generated `request_id` of 1–128 ASCII
+alphanumeric/underscore/hyphen characters. The request limit is 64 KiB. First
+creation returns 201 with `window_id` and `replayed:false`; identical retries return
+200 and the original ID with `replayed:true`. Keep the same typed body and request
+ID after a lost response. The preview digest uses canonical selection ordering,
+but request replay identity binds the exact typed body, confirmation and actor;
+changing selector order under an already-used key is a conflict.
+
+New creation requires an end strictly after the current server time. An already
+started window is permitted for ongoing work; an entirely ended window is rejected.
+Successful historical retries remain valid after expiry/cancellation or node
+deletion. Preview itself still permits historical dates. UTC year bounds are
+validated after offset normalization. There is no editing or destructive deletion.
+
+`POST /api/v1/admin/maintenance-windows/:windowID/cancel` accepts only `revision`,
+with a 4 KiB body limit. It returns `window_id`, incremented `revision`,
+`canceled_at` in UTC milliseconds, and `replayed`. Retrying the original confirmed
+revision by the same authenticated actor returns the original result. Another
+actor or revision conflicts. Ended uncanceled windows cannot be canceled. Migration
+026 retains the confirmed revision and actor. Cancellation, action provenance and
+audit commit together; failed audit inserts leave the window unchanged.
+
+Both endpoints require session/CSRF, return private/no-store, reject unknown fields
+and trailing JSON, and have five-second operation deadlines. Actor identity comes
+only from the session. Errors: 400 `invalid_maintenance`; 404
+`maintenance_not_found`; 409 `maintenance_preview_changed`,
+`maintenance_request_conflict`, `maintenance_conflict`, `maintenance_expired`, or
+`maintenance_limit`; generic 500 `maintenance_unavailable`. A removed/empty selection
+may return 400; obtain a new preview. Mutation API tests cover authentication, CSRF,
+strict input, confirmation conflicts, replay, provenance and retained deleted members.
+
+Database restoration rewinds requests and cancellations to the snapshot. Requests
+already in the snapshot replay; operations after the snapshot may execute anew on
+retry. Review restored windows/audit before retrying uncertain browser requests.
 
 Full-window preview is exposed through
 `POST /api/v1/admin/maintenance-windows/preview`, with the same session/CSRF,
@@ -109,7 +152,7 @@ normalized draft for confirmation. Invalid drafts return 400 with
 Tests verify permission checks, UTC millisecond normalization, digest round trips,
 invalid fields/times, strict decoding, request limits and absence of writes.
 Preview does not enforce future-only dates or reserve storage capacity; creation
-must define and enforce its own admission checks without claiming preview has
+enforces its own admission checks without claiming preview has
 already created, scheduled or frozen a window.
 
 Scope-only preview is available at

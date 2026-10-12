@@ -108,3 +108,15 @@ This work remains in development, not released. Evidence and remaining gates are
 in [INCIDENT_DELIVERY.md](INCIDENT_DELIVERY.md). Scoped policy inheritance,
 maintenance/acknowledgement/silence and aggregation remain later M2 tasks; this
 foundation must not be presented as completion of the full roadmap.
+
+## Maintenance development
+
+The maintenance branch adds one-time windows, explicit/tag selections frozen on
+creation, preview confirmation and authenticated create/cancel/list APIs. Metrics
+and incidents continue during maintenance; enqueue, claim and pre-send checks
+suppress notifications. Historical membership and cancellation remain readable
+after node deletion. Store tests cover current-schema backup/restore, concurrent
+requests and retries; API tests cover permission and strict input contracts.
+The management UI and live worker/browser acceptance remain pending. This work is
+unreleased and does not complete acknowledgement, silence, aggregation or HTTP
+maintenance statistics. See [ALERT_MAINTENANCE.md](ALERT_MAINTENANCE.md).

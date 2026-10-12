@@ -7,10 +7,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"time"
 )
 
 var ErrMaintenancePreviewChanged = errors.New("maintenance preview changed")
 var ErrMaintenanceRequestConflict = errors.New("maintenance request reused with different content")
+var ErrMaintenanceExpired = errors.New("maintenance window has already ended")
 
 type MaintenanceCreateResult struct {
 	WindowID string `json:"window_id"`
@@ -60,6 +62,11 @@ func (s *Store) CreateConfirmedMaintenance(ctx context.Context, draft Maintenanc
 	}
 	if preview.Digest != previewDigest {
 		return MaintenanceCreateResult{}, ErrMaintenancePreviewChanged
+	}
+	// A retry of a committed request was handled above, even after expiry.
+	// New windows may begin in the past (ongoing work) but must still have effect.
+	if !preview.Draft.EndsAt.After(time.Now().UTC()) {
+		return MaintenanceCreateResult{}, ErrMaintenanceExpired
 	}
 	ids := make([]string, len(preview.Members))
 	for i, member := range preview.Members {

@@ -13,6 +13,75 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
+func (s *Server) createMaintenanceWindow(c *gin.Context) {
+	var request struct {
+		Draft         store.MaintenanceDraft `json:"draft"`
+		PreviewDigest string                 `json:"preview_digest"`
+		RequestID     string                 `json:"request_id"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&request) != nil || !errors.Is(decoder.Decode(new(any)), io.EOF) {
+		maintenanceMutationError(c, store.ErrInvalidMaintenance)
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+	session := c.MustGet("session").(store.Session)
+	result, err := s.store.CreateConfirmedMaintenance(ctx, request.Draft, request.PreviewDigest, request.RequestID, session.UserID)
+	if err != nil {
+		maintenanceMutationError(c, err)
+		return
+	}
+	status := http.StatusCreated
+	if result.Replayed {
+		status = http.StatusOK
+	}
+	c.JSON(status, result)
+}
+
+func (s *Server) cancelMaintenanceWindow(c *gin.Context) {
+	var request struct {
+		Revision int64 `json:"revision"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, 4<<10))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&request) != nil || !errors.Is(decoder.Decode(new(any)), io.EOF) {
+		maintenanceMutationError(c, store.ErrInvalidMaintenance)
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+	session := c.MustGet("session").(store.Session)
+	result, err := s.store.CancelConfirmedMaintenance(ctx, c.Param("windowID"), request.Revision, session.UserID, time.Now().UTC())
+	if err != nil {
+		maintenanceMutationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func maintenanceMutationError(c *gin.Context, err error) {
+	status, code, message := http.StatusInternalServerError, "maintenance_unavailable", "unable to update maintenance window"
+	switch {
+	case errors.Is(err, store.ErrInvalidMaintenance):
+		status, code, message = http.StatusBadRequest, "invalid_maintenance", "invalid maintenance fields or selection"
+	case errors.Is(err, store.ErrMaintenancePreviewChanged):
+		status, code, message = http.StatusConflict, "maintenance_preview_changed", "maintenance content or members changed; preview again"
+	case errors.Is(err, store.ErrMaintenanceRequestConflict):
+		status, code, message = http.StatusConflict, "maintenance_request_conflict", "request ID was used for different content"
+	case errors.Is(err, store.ErrMaintenanceConflict):
+		status, code, message = http.StatusConflict, "maintenance_conflict", "maintenance window changed or was canceled; refresh"
+	case errors.Is(err, store.ErrMaintenanceExpired):
+		status, code, message = http.StatusConflict, "maintenance_expired", "maintenance window has ended"
+	case errors.Is(err, store.ErrMaintenanceLimit):
+		status, code, message = http.StatusConflict, "maintenance_limit", "maintenance capacity limit reached"
+	case errors.Is(err, store.ErrNotFound):
+		status, code, message = http.StatusNotFound, "maintenance_not_found", "maintenance window does not exist"
+	}
+	c.JSON(status, gin.H{"error": message, "code": code})
+}
+
 func (s *Server) previewMaintenanceWindow(c *gin.Context) {
 	var draft store.MaintenanceDraft
 	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10))

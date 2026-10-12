@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -15,16 +16,18 @@ var ErrMaintenanceConflict = errors.New("maintenance window changed or canceled"
 var ErrMaintenanceLimit = errors.New("maintenance window limit reached")
 
 type MaintenanceWindow struct {
-	ID         string     `json:"id"`
-	Revision   int64      `json:"revision"`
-	Reason     string     `json:"reason"`
-	Timezone   string     `json:"timezone"`
-	StartsAt   time.Time  `json:"starts_at"`
-	EndsAt     time.Time  `json:"ends_at"`
-	CanceledAt *time.Time `json:"canceled_at,omitempty"`
-	NodeIDs    []string   `json:"node_ids"`
-	CreatedBy  string     `json:"created_by"`
-	CreatedAt  time.Time  `json:"created_at"`
+	ID         string                `json:"id"`
+	Revision   int64                 `json:"revision"`
+	Reason     string                `json:"reason"`
+	Timezone   string                `json:"timezone"`
+	StartsAt   time.Time             `json:"starts_at"`
+	EndsAt     time.Time             `json:"ends_at"`
+	CanceledAt *time.Time            `json:"canceled_at,omitempty"`
+	NodeIDs    []string              `json:"node_ids"`
+	CreatedBy  string                `json:"created_by"`
+	CreatedAt  time.Time             `json:"created_at"`
+	Selection  *MaintenanceSelection `json:"selection,omitempty"`
+	CanceledBy string                `json:"canceled_by,omitempty"`
 }
 
 // ListMaintenanceWindows reads window metadata and frozen membership from one
@@ -38,7 +41,7 @@ func (s *Store) ListMaintenanceWindows(ctx context.Context, after string, limit 
 		return nil, "", err
 	}
 	defer tx.Rollback()
-	rows, err := tx.QueryContext(ctx, `SELECT id,revision,reason,timezone,starts_at_ms,ends_at_ms,canceled_at_ms,created_by,created_at FROM maintenance_windows WHERE id>? ORDER BY id LIMIT ?`, after, limit+1)
+	rows, err := tx.QueryContext(ctx, `SELECT w.id,w.revision,w.reason,w.timezone,w.starts_at_ms,w.ends_at_ms,w.canceled_at_ms,w.created_by,w.created_at,s.selection_json,c.actor FROM maintenance_windows w LEFT JOIN maintenance_selections s ON s.window_id=w.id LEFT JOIN maintenance_cancel_actions c ON c.window_id=w.id WHERE w.id>? ORDER BY w.id LIMIT ?`, after, limit+1)
 	if err != nil {
 		return nil, "", err
 	}
@@ -48,7 +51,8 @@ func (s *Store) ListMaintenanceWindows(ctx context.Context, after string, limit 
 		var start, end int64
 		var canceled sql.NullInt64
 		var created string
-		if err := rows.Scan(&w.ID, &w.Revision, &w.Reason, &w.Timezone, &start, &end, &canceled, &w.CreatedBy, &created); err != nil {
+		var selection, cancelActor sql.NullString
+		if err := rows.Scan(&w.ID, &w.Revision, &w.Reason, &w.Timezone, &start, &end, &canceled, &w.CreatedBy, &created, &selection, &cancelActor); err != nil {
 			rows.Close()
 			return nil, "", err
 		}
@@ -56,6 +60,14 @@ func (s *Store) ListMaintenanceWindows(ctx context.Context, after string, limit 
 		if canceled.Valid {
 			at := time.UnixMilli(canceled.Int64).UTC()
 			w.CanceledAt = &at
+		}
+		w.CanceledBy = cancelActor.String
+		if selection.Valid {
+			w.Selection = new(MaintenanceSelection)
+			if err := json.Unmarshal([]byte(selection.String), w.Selection); err != nil {
+				rows.Close()
+				return nil, "", err
+			}
 		}
 		w.CreatedAt, err = parseTime(created)
 		if err != nil {
@@ -102,7 +114,7 @@ func (s *Store) ListMaintenanceWindows(ctx context.Context, after string, limit 
 
 func normalizeMaintenanceWindow(w MaintenanceWindow) (MaintenanceWindow, error) {
 	w.Reason = strings.TrimSpace(w.Reason)
-	if w.ID != "" || w.Revision != 0 || w.CanceledAt != nil || w.Reason == "" || len(w.Reason) > 1000 || !utf8.ValidString(w.Reason) || strings.IndexFunc(w.Reason, unicode.IsControl) >= 0 || w.CreatedBy == "" || len(w.CreatedBy) > 128 || !utf8.ValidString(w.CreatedBy) || strings.IndexFunc(w.CreatedBy, unicode.IsControl) >= 0 || len(w.NodeIDs) == 0 || len(w.NodeIDs) > 100 || w.StartsAt.IsZero() || w.EndsAt.IsZero() || w.StartsAt.Year() < 1970 || w.EndsAt.Year() > 9999 {
+	if w.ID != "" || w.Revision != 0 || w.CanceledAt != nil || w.CanceledBy != "" || w.Selection != nil || w.Reason == "" || len(w.Reason) > 1000 || !utf8.ValidString(w.Reason) || strings.IndexFunc(w.Reason, unicode.IsControl) >= 0 || w.CreatedBy == "" || len(w.CreatedBy) > 128 || !utf8.ValidString(w.CreatedBy) || strings.IndexFunc(w.CreatedBy, unicode.IsControl) >= 0 || len(w.NodeIDs) == 0 || len(w.NodeIDs) > 100 || w.StartsAt.IsZero() || w.EndsAt.IsZero() || w.StartsAt.Year() < 1970 || w.EndsAt.Year() > 9999 {
 		return MaintenanceWindow{}, ErrInvalidMaintenance
 	}
 	if w.Timezone == "" || len(w.Timezone) > 128 || w.Timezone == "Local" {
@@ -113,7 +125,7 @@ func normalizeMaintenanceWindow(w MaintenanceWindow) (MaintenanceWindow, error) 
 	}
 	w.StartsAt = w.StartsAt.UTC().Truncate(time.Millisecond)
 	w.EndsAt = w.EndsAt.UTC().Truncate(time.Millisecond)
-	if !w.EndsAt.After(w.StartsAt) {
+	if w.StartsAt.Year() < 1970 || w.StartsAt.Year() > 9999 || w.EndsAt.Year() < 1970 || w.EndsAt.Year() > 9999 || !w.EndsAt.After(w.StartsAt) {
 		return MaintenanceWindow{}, ErrInvalidMaintenance
 	}
 	seen := make(map[string]bool, len(w.NodeIDs))

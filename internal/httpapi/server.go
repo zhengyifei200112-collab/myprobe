@@ -116,6 +116,8 @@ func (s *Server) routes() {
 	maintenance.GET("", s.listMaintenanceWindows)
 	maintenance.POST("/preview-members", s.previewMaintenanceMembers)
 	maintenance.POST("/preview", s.previewMaintenanceWindow)
+	maintenance.POST("", s.createMaintenanceWindow)
+	maintenance.POST("/:windowID/cancel", s.cancelMaintenanceWindow)
 	policies.POST("/import/preview", s.previewAlertPolicyImport)
 	policies.POST("/import/apply", s.applyAlertPolicyImport)
 	policies.GET("", s.listAlertPolicies)
