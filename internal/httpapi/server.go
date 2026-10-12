@@ -161,6 +161,8 @@ func (s *Server) routes() {
 	admin.GET("/incidents", s.listIncidents)
 	admin.GET("/notification-deliveries/:deliveryID/attempts", s.deliveryAttempts)
 	admin.GET("/incidents/:incidentID/deliveries", s.incidentDeliveries)
+	s.router.GET("/api/v1/admin/incidents/:incidentID/maintenance", privateNoStore(), s.requireSession(true), s.incidentMaintenance)
+	s.router.GET("/api/v1/admin/notification-deliveries/:deliveryID/maintenance", privateNoStore(), s.requireSession(true), s.deliveryMaintenance)
 	admin.GET("/notification-templates", s.listNotificationTemplates)
 	admin.POST("/notification-templates", s.createNotificationTemplate)
 	admin.PATCH("/notification-templates/:templateID", s.updateNotificationTemplate)

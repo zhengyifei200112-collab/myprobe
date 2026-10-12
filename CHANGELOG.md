@@ -30,6 +30,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Recorded maintenance context for incidents and individual canceled deliveries
+  (migration 027). Protected paginated APIs and incident details distinguish
+  current frozen-member scope from actual evaluation/gap/worker decisions, retaining
+  links through restart and backup restoration without inferring older causes.
+
 - Internal maintenance-window storage (migration 024), frozen node membership,
   revisioned cancellation and historical half-open interval queries. Event enqueue,
   delivery claim and pre-send checks suppress maintenance notifications, including

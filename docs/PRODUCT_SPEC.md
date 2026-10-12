@@ -118,7 +118,10 @@ suppress notifications. Historical membership and cancellation remain readable
 after node deletion. Store tests cover current-schema backup/restore, concurrent
 requests and retries; API tests cover permission and strict input contracts.
 The notification-center UI supports preview, frozen membership, history/status,
-cancel and uncertain-result retry across reload. Real browser tests cover both
+cancel and uncertain-result retry across reload. Incident details expose queried
+current scope and actual historical window decisions, and canceled jobs expose
+their recorded window links (migration 027), without historical cause backfill.
+Real browser tests cover both
 themes/three widths, and real local-channel workers validate suppression and a
 continuing-fault summary. Released-version integration and additional release
 evidence remain pending. This work is unreleased and does not complete

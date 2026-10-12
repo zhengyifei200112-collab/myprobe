@@ -159,10 +159,59 @@ response may clear only its own record, never a newer operation's record. Closin
 the tab can lose recovery history, and snapshot restore can rewind server identities.
 
 The delivery view explains the persisted `maintenance` cancellation reason and
-links to the maintenance tab. It does not infer historical window identity or
-pretend every incident without a delivery was necessarily suppressed by maintenance.
-Specific incident/window association and active suppression metadata remain future
-context work.
+links to the maintenance tab. Incident details show current scope and recorded
+decisions; individual canceled jobs can expand their exact recorded window links.
+An empty history does not prove there was no suppression before tracking existed.
+
+### Recorded context (migration 027)
+
+`incident_maintenance_decisions` records one row per incident/window/decision kind,
+maintaining first/last decision timestamps. `observation` means known-event
+evaluation under active maintenance, not proof that a message was due;
+`observation_gap` means the interval since the last known observation overlapped
+maintenance, not proof of an outage or recovery inside that interval; `delivery`
+means the claim/pre-send path suppressed an old/current queued job. The separate
+`delivery_maintenance_links` table records exact job/window association while that
+job is about to be canceled. Later post-window jobs do not inherit those links.
+Recording, cancellation, repeat-clock reset and incident changes share the same
+writer transaction; failed link/decision inserts roll back the entire operation.
+There is no inferred historical backfill. Legacy windows/decisions remain unknown
+when no new processing decision has been recorded.
+
+Management read APIs:
+
+- `GET /api/v1/admin/incidents/:incidentID/maintenance`: `windows` (window identity,
+  reason, timezone, boundaries, optional cancellation, page-query `active` flag and
+  typed `decisions`), `next_cursor`, `checked_at`, `node_exists`, `node_in_maintenance`.
+  Current scope uses frozen membership, independently of past decision history.
+  Deleted nodes retain history but are not claimed to have active current scope.
+- `GET /api/v1/admin/notification-deliveries/:deliveryID/maintenance`: only recorded
+  job/window links, with `recorded_at`, `windows` and `next_cursor`. Never derives
+  links from overlapping timestamps alone.
+
+Both are session-protected, private/no-store (including unauthorized/errors), have
+five-second deadlines and read each page in one database snapshot. `limit` defaults
+to 25, accepts one integer 1–100; `after` is an exclusive ID cursor up to 128 bytes.
+Repeated/invalid pagination is 400, missing objects 404, storage errors a generic
+500. Empty collections are arrays. Separate pages can reflect different times;
+current scope is a query snapshot, so the UI labels it and offers refresh rather
+than treating it as a continuously updated assertion.
+
+The incident context loads independently of delivery history, so its read failure
+does not hide deliveries. Job-specific context loads only when expanded; stale
+responses cannot replace a newer selected subject. Window boundary/cancellation
+times use the window timezone; decision/check times use the browser timezone with
+an explicit label. These are processing times, not actual fault/recovery/receipt
+times. Store tests cover overlap, stable pagination, no invented history, deleted
+members, backup/restore, gap/worker sources, later-job isolation and insert-failure
+rollback at evaluation/claim/pre-send. API tests cover access/cache and query bounds.
+Real browser screenshots cover active and ended context and exact queued-job links
+in both themes at 360/768/1440 px.
+
+Decision records are bounded per incident/window/kind; delivery links grow with
+canceled jobs. Existing incident/outbox retention does not automatically purge them.
+Restoring pre-027 backups creates empty tracking tables during migration, without
+backfilling causes. Restoring a current-schema backup preserves recorded links.
 
 `TestMaintenanceAPIRuntimeNotifications` combines authenticated preview/create/cancel,
 the actual evaluator and running workers with an isolated HTTP receiver. It checks

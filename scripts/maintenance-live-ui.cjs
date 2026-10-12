@@ -57,6 +57,17 @@ const path = require('node:path');
     await page.getByRole('tab', { name: '故障事件', exact: true }).click();
     await page.getByRole('button', { name: '查看 Maintenance node 的投递记录', exact: true }).click();
     await page.getByText('通知因维护窗口被抑制，故障事件继续记录。维护结束后依据新鲜观测恢复提醒。', { exact: true }).waitFor();
+    const incidentContext = page.getByRole('region', { name: '事件维护关联', exact: true });
+    await incidentContext.getByText('查询时节点处于维护中，通知受到抑制；故障状态继续记录。', { exact: true }).waitFor();
+    await incidentContext.getByText('Live corrected work', { exact: true }).waitFor();
+    await page.getByText('此通知关联的维护窗口', { exact: true }).click();
+    const deliveryContext = page.getByRole('region', { name: '通知维护关联', exact: true });
+    await deliveryContext.getByText('Live corrected work', { exact: true }).waitFor();
+    for (const theme of ['light','dark']) for (const width of [360,768,1440]) {
+      await page.setViewportSize({width,height:1000}); await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme); await page.evaluate(()=>scrollTo(0,0));
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`context overflow ${theme}/${width}`);
+      await page.screenshot({path:path.join(output,`context-${theme}-${width}.png`),fullPage:true});
+    }
     await page.getByRole('button', { name: '查看维护窗口', exact: true }).click();
     await page.getByRole('heading', { name: '新建一次性维护', exact: true }).waitFor();
     await page.getByRole('button', { name: '取消此维护', exact: true }).click();
@@ -74,6 +85,11 @@ const path = require('node:path');
     assert.deepEqual((await replayCancel).postDataJSON(), cancelOriginal);
     await page.getByText('已确认此前取消结果', { exact: false }).waitFor();
     assert.equal((await read())[0].revision, 2);
+    await page.getByRole('tab', { name: '故障事件', exact: true }).click();
+    await page.getByRole('button', { name: '查看 Maintenance node 的投递记录', exact: true }).click();
+    await page.getByRole('region', { name: '事件维护关联', exact: true }).getByText('查询时节点没有生效的维护窗口。', {exact:true}).waitFor();
+    await page.getByRole('region', { name: '事件维护关联', exact: true }).getByText('Live corrected work',{exact:true}).waitFor();
+    await page.getByRole('tab', { name: '维护窗口', exact:true }).click();
     await page.getByText('查看冻结成员与记录', { exact: true }).click();
     for (const theme of ['light', 'dark']) for (const width of [360, 768, 1440]) {
       await page.setViewportSize({ width, height: 1000 }); await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);

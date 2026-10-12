@@ -228,6 +228,18 @@ export interface MaintenanceWindow {
   created_by: string
   created_at: string
 }
+export interface MaintenanceWindowRef {
+  id: string; reason: string; timezone: string; starts_at: string; ends_at: string; canceled_at?: string
+}
+export interface IncidentMaintenancePage {
+  windows: Array<MaintenanceWindowRef & { active: boolean; decisions: Array<{ kind: 'observation' | 'observation_gap' | 'delivery'; first_at: string; last_at: string }> }>
+  next_cursor: string; checked_at: string; node_exists: boolean; node_in_maintenance: boolean
+}
+export interface DeliveryMaintenancePage {
+  windows: Array<MaintenanceWindowRef & { recorded_at: string }>; next_cursor: string
+}
+export const loadIncidentMaintenance = (id: string, after = '') => request<IncidentMaintenancePage>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/maintenance?${new URLSearchParams({ after, limit: '25' })}`)
+export const loadDeliveryMaintenance = (id: string, after = '') => request<DeliveryMaintenancePage>(`/api/v1/admin/notification-deliveries/${encodeURIComponent(id)}/maintenance?${new URLSearchParams({ after, limit: '25' })}`)
 export const loadMaintenanceWindows = (after = '') => request<{ windows: MaintenanceWindow[]; next_cursor: string }>(`/api/v1/admin/maintenance-windows?${new URLSearchParams({ after, limit: '25' })}`)
 export const previewMaintenanceWindow = (draft: MaintenanceDraft) => request<MaintenancePreview>('/api/v1/admin/maintenance-windows/preview', { method: 'POST', body: JSON.stringify(draft) })
 export const createMaintenanceWindow = (preview: MaintenancePreview, requestID: string) => request<{ window_id: string; replayed: boolean }>('/api/v1/admin/maintenance-windows', { method: 'POST', body: JSON.stringify({ draft: preview.draft, preview_digest: preview.preview_digest, request_id: requestID }) })

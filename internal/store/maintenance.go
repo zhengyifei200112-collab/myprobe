@@ -225,13 +225,16 @@ func suppressMaintenanceDelivery(ctx context.Context, tx *sql.Tx, d Notification
 	if err := tx.QueryRowContext(ctx, `SELECT node_id FROM alert_incidents WHERE id=?`, d.IncidentID).Scan(&nodeID); err != nil {
 		return false, err
 	}
-	active, err := nodeInMaintenance(ctx, tx, nodeID, now)
-	if err == nil && !active && now.After(d.CreatedAt) {
+	ids, err := matchingMaintenanceIDs(ctx, tx, nodeID, time.Time{}, now, false)
+	if err == nil && len(ids) == 0 && now.After(d.CreatedAt) {
 		// The server may have been stopped for the entire window. An old queued
 		// transition must not be delivered merely because maintenance ended.
-		active, err = nodeMaintenanceOverlaps(ctx, tx, nodeID, d.CreatedAt, now)
+		ids, err = matchingMaintenanceIDs(ctx, tx, nodeID, d.CreatedAt, now, true)
 	}
-	if err != nil || !active {
+	if err != nil || len(ids) == 0 {
+		return false, err
+	}
+	if err := recordMaintenanceDecision(ctx, tx, d.IncidentID, ids, "delivery", now, d.ID); err != nil {
 		return false, err
 	}
 	if err := cancelDelivery(ctx, tx, d.ID, "maintenance", now); err != nil {
@@ -246,7 +249,7 @@ func nodeInMaintenance(ctx context.Context, q maintenanceQuery, nodeID string, a
 		return false, ErrInvalidMaintenance
 	}
 	var active bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM maintenance_windows w JOIN maintenance_window_nodes n ON n.window_id=w.id WHERE n.node_id=? AND w.starts_at_ms<=? AND w.ends_at_ms>? AND (w.canceled_at_ms IS NULL OR w.canceled_at_ms>?))`, nodeID, at.UnixMilli(), at.UnixMilli(), at.UnixMilli()).Scan(&active)
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM maintenance_windows w JOIN maintenance_window_nodes n ON n.window_id=w.id WHERE n.node_id=? AND (`+activeMaintenancePredicate+`))`, nodeID, at.UnixMilli(), at.UnixMilli(), at.UnixMilli()).Scan(&active)
 	return active, err
 }
 
@@ -270,8 +273,7 @@ func nodeMaintenanceOverlaps(ctx context.Context, q maintenanceQuery, nodeID str
 	err := q.QueryRowContext(ctx, `SELECT EXISTS(
 		SELECT 1 FROM maintenance_windows w
 		JOIN maintenance_window_nodes n ON n.window_id=w.id
-		WHERE n.node_id=? AND w.starts_at_ms<? AND w.ends_at_ms>?
-		AND (w.canceled_at_ms IS NULL OR (w.canceled_at_ms>w.starts_at_ms AND w.canceled_at_ms>?))
+		WHERE n.node_id=? AND (`+overlappingMaintenancePredicate+`)
 	)`, nodeID, upper, start.UnixMilli(), start.UnixMilli()).Scan(&overlaps)
 	return overlaps, err
 }

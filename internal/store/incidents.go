@@ -289,12 +289,15 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 	// ObservedAt is persisted with this transaction, so subsequent observations
 	// cannot repeatedly consume the same historical window.
 	if i.State == "firing" && o.Active && i.ObservedAt != nil && o.At.After(*i.ObservedAt) {
-		crossed, err := nodeMaintenanceOverlaps(ctx, tx, i.NodeID, *i.ObservedAt, o.At)
+		windows, err := matchingMaintenanceIDs(ctx, tx, i.NodeID, *i.ObservedAt, o.At, true)
 		if err != nil {
 			return nil, err
 		}
-		if crossed {
+		if len(windows) > 0 {
 			i.LastEnqueuedAt = nil
+			if err := recordMaintenanceDecision(ctx, tx, i.ID, windows, "observation_gap", o.At, ""); err != nil {
+				return nil, err
+			}
 			if err := cancelIncidentDeliveries(ctx, tx, i.ID, "maintenance", o.At); err != nil {
 				return nil, err
 			}
@@ -343,14 +346,17 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 		notify = attempted > 0 || (i.Origin == "legacy" && i.NotificationSequence > 0)
 	}
 	{
-		maintenance, err := nodeInMaintenance(ctx, tx, i.NodeID, o.At)
+		windows, err := matchingMaintenanceIDs(ctx, tx, i.NodeID, time.Time{}, o.At, false)
 		if err != nil {
 			return nil, err
 		}
-		if maintenance {
+		if len(windows) > 0 {
 			// Preserve fault transitions while suppressing this notification intent.
 			// Reset the repeat clock so a continuing fresh fault can notify at end.
 			i.LastEnqueuedAt = nil
+			if err := recordMaintenanceDecision(ctx, tx, i.ID, windows, "observation", o.At, ""); err != nil {
+				return nil, err
+			}
 			if err := cancelIncidentDeliveries(ctx, tx, i.ID, "maintenance", o.At); err != nil {
 				return nil, err
 			}
