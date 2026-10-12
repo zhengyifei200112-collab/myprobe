@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,6 +24,11 @@ func TestLiveMaintenanceBrowserLifecycle(t *testing.T) {
 	if os.Getenv("MYPROBE_TEST_MAINTENANCE_BROWSER") != "1" {
 		t.Skip("requires Playwright and Edge; opt in with MYPROBE_TEST_MAINTENANCE_BROWSER=1")
 	}
+	t.Run("unsent", func(t *testing.T) { runMaintenanceBrowserLifecycle(t, false) })
+	t.Run("late-ack", func(t *testing.T) { runMaintenanceBrowserLifecycle(t, true) })
+}
+
+func runMaintenanceBrowserLifecycle(t *testing.T, alreadySending bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "browser.db"))
@@ -38,11 +45,27 @@ func TestLiveMaintenanceBrowserLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	accepted, release := make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	releaseResponse := func() { releaseOnce.Do(func() { close(release) }) }
+	var calls atomic.Int32
 	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("maintenance browser fixture unexpectedly sent notification")
+		if !alreadySending || calls.Add(1) != 1 {
+			t.Error("maintenance browser fixture unexpectedly sent notification")
+		} else {
+			if r.Header.Get("Idempotency-Key") == "" {
+				t.Error("missing receiver idempotency key")
+			}
+			close(accepted)
+			select {
+			case <-release:
+			case <-ctx.Done():
+			}
+		}
 		w.WriteHeader(204)
 	}))
 	defer receiver.Close()
+	defer releaseResponse()
 	key := rand.Text() + rand.Text()
 	svc := alerts.New(db, key, alerts.NewHTTPSender(receiver.Client()), nil)
 	channel, err := svc.CreateChannel(ctx, "Browser local receiver", "webhook", alerts.ChannelConfig{URL: receiver.URL})
@@ -61,6 +84,15 @@ func TestLiveMaintenanceBrowserLifecycle(t *testing.T) {
 	api := NewWithAlertService(config.Config{EncryptionKey: key}, db, authService, agentgateway.New(db, hub), hub, svc)
 	server := httptest.NewServer(api.Handler())
 	defer server.Close()
+	senderDone := make(chan error, 1)
+	if alreadySending {
+		go func() { _, err := svc.DeliverOne(ctx, time.Now().UTC()); senderDone <- err }()
+		select {
+		case <-accepted:
+		case <-ctx.Done():
+			t.Fatal("receiver never accepted browser fixture request")
+		}
+	}
 	workerDone := make(chan struct{})
 	go func() {
 		defer close(workerDone)
@@ -73,7 +105,17 @@ func TestLiveMaintenanceBrowserLifecycle(t *testing.T) {
 				return
 			}
 			if len(windows) > 0 {
-				if _, err := svc.DeliverOne(ctx, time.Now().UTC()); err != nil {
+				var err error
+				if alreadySending {
+					_, err = db.ObserveAlert(ctx, rule, node, store.AlertObservation{At: time.Now().UTC(), Known: true, Active: true, Message: "synthetic browser fault"})
+					releaseResponse()
+					if sendErr := <-senderDone; err == nil {
+						err = sendErr
+					}
+				} else {
+					_, err = svc.DeliverOne(ctx, time.Now().UTC())
+				}
+				if err != nil && ctx.Err() == nil {
 					t.Error(err)
 				}
 				return
@@ -85,9 +127,14 @@ func TestLiveMaintenanceBrowserLifecycle(t *testing.T) {
 			}
 		}
 	}()
-	defer func() { cancel(); <-workerDone }()
+	defer func() { cancel(); releaseResponse(); <-workerDone }()
 	command := exec.CommandContext(ctx, "node", "../../scripts/maintenance-live-ui.cjs")
 	command.Env = append(os.Environ(), "MAINTENANCE_BROWSER_URL="+server.URL, "MAINTENANCE_BROWSER_PASSWORD="+password)
+	if alreadySending {
+		command.Env = append(command.Env, "MAINTENANCE_BROWSER_SENT=1")
+	} else {
+		command.Env = append(command.Env, "MAINTENANCE_BROWSER_SENT=0")
+	}
 	output, err := command.CombinedOutput()
 	t.Log(string(output))
 	if err != nil {
@@ -105,5 +152,16 @@ func TestLiveMaintenanceBrowserLifecycle(t *testing.T) {
 	jobs, err := db.ListIncidentDeliveries(ctx, incident.ID, 0, 10)
 	if err != nil || len(jobs) != 1 || jobs[0].Status != "canceled" || jobs[0].ErrorClass != "maintenance" {
 		t.Fatalf("browser suppressed delivery: %+v %v", jobs, err)
+	}
+	attempts, err := db.ListDeliveryAttempts(ctx, jobs[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if alreadySending {
+		if calls.Load() != 1 || len(attempts) != 1 || attempts[0].Outcome != "delivered" {
+			t.Fatalf("browser late ACK: calls=%d attempts=%+v", calls.Load(), attempts)
+		}
+	} else if calls.Load() != 0 || len(attempts) != 0 {
+		t.Fatalf("browser unsent: calls=%d attempts=%+v", calls.Load(), attempts)
 	}
 }

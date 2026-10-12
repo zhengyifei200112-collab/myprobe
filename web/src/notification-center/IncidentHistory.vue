@@ -70,11 +70,12 @@ onMounted(() => refresh())
       <article v-for="job in deliveries" :key="job.id">
         <strong>{{ job.channel_name }} · {{ job.status === 'pending' ? '等待发送' : labels[job.status] || job.status }}</strong>
         <p>{{ job.notification_type === 'firing' ? '故障通知' : '恢复通知' }} · 已尝试 {{ job.attempt_count }} 次</p><p>{{ date(job.created_at) }}</p>
-        <template v-if="job.error_class==='maintenance'"><p>通知因维护窗口被抑制，故障事件继续记录。维护结束后依据新鲜观测恢复提醒。</p><DsButton size="small" @click="emit('maintenance')">查看维护窗口</DsButton></template>
+        <template v-if="job.error_class==='maintenance'"><p>维护窗口已取消此投递任务，故障事件继续记录。已发出的请求无法撤回；维护结束后依据新鲜观测恢复提醒。</p><DsButton size="small" @click="emit('maintenance')">查看维护窗口</DsButton></template>
         <p v-else-if="job.error_class">错误分类：{{ job.error_class }}</p>
         <details v-if="job.error_class==='maintenance'" @toggle="toggleMaintenance($event,job.id)"><summary>此通知关联的维护窗口</summary><MaintenanceContext v-if="openDeliveryMaintenance[job.id]" subject="delivery" :id="job.id" @maintenance="emit('maintenance')" /></details>
         <DsButton size="small" :disabled="attemptBusy[job.id]" @click="showAttempts(job.id)">查看每次尝试</DsButton>
         <p v-if="attemptBusy[job.id]" role="status">正在加载尝试记录…</p><p v-if="attempts[job.id]?.length === 0 && !attemptBusy[job.id]">尚未开始投递尝试。</p><p v-if="attemptErrors[job.id]" role="alert">{{ attemptErrors[job.id] }}</p>
+        <p v-if="job.status==='canceled' && attempts[job.id]?.some(attempt => attempt.outcome==='delivered')" role="status">任务已取消，但已开始的一次发送获得渠道成功确认。取消不会撤回已发送的通知。</p>
         <ol v-if="attempts[job.id]"><li v-for="attempt in attempts[job.id]" :key="attempt.number">第 {{ attempt.number }} 次：{{ outcomeLabels[attempt.outcome] || attempt.outcome }} · {{ date(attempt.started_at) }}<span v-if="attempt.completed_at"> → {{ date(attempt.completed_at) }}</span><span v-if="attempt.error_class"> · {{ attempt.error_class }}</span></li></ol>
       </article>
       <p v-if="!detailBusy && !detailError && !deliveries.length">暂无投递任务；事件记录不依赖通知渠道可用性。</p>

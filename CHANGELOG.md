@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A provider response arriving after maintenance cancels an in-flight notification
+  now updates that attempt instead of losing the result to lease revocation. The
+  task stays canceled, with no retry or repeat-clock change. Delivery details
+  explain that a canceled task may already have reached its channel.
+
 - Policy-import confirmation generates random request IDs without requiring the
   secure-context-only randomUUID API, supporting direct HTTP browser deployments.
 

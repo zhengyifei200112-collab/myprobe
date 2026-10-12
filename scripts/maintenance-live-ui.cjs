@@ -56,7 +56,15 @@ const path = require('node:path');
     assert.equal(await page.evaluate(() => sessionStorage.getItem('myprobe-maintenance-pending-v1')), null);
     await page.getByRole('tab', { name: '故障事件', exact: true }).click();
     await page.getByRole('button', { name: '查看 Maintenance node 的投递记录', exact: true }).click();
-    await page.getByText('通知因维护窗口被抑制，故障事件继续记录。维护结束后依据新鲜观测恢复提醒。', { exact: true }).waitFor();
+    await page.getByText('维护窗口已取消此投递任务，故障事件继续记录。已发出的请求无法撤回；维护结束后依据新鲜观测恢复提醒。', { exact: true }).waitFor();
+    await page.getByRole('button', { name: '查看每次尝试', exact: true }).click();
+    if (process.env.MAINTENANCE_BROWSER_SENT === '1') {
+      await page.getByText('任务已取消，但已开始的一次发送获得渠道成功确认。取消不会撤回已发送的通知。', {exact:true}).waitFor();
+      await page.getByText('第 1 次：已送达', {exact:false}).waitFor();
+    } else {
+      await page.getByText('尚未开始投递尝试。', {exact:true}).waitFor();
+      assert.equal(await page.getByText('任务已取消，但已开始的一次发送获得渠道成功确认。取消不会撤回已发送的通知。', {exact:true}).count(),0);
+    }
     const incidentContext = page.getByRole('region', { name: '事件维护关联', exact: true });
     await incidentContext.getByText('查询时节点处于维护中，通知受到抑制；故障状态继续记录。', { exact: true }).waitFor();
     await incidentContext.getByText('Live corrected work', { exact: true }).waitFor();
@@ -145,6 +153,6 @@ const path = require('node:path');
     await page.getByRole('button', { name: '确认取消维护窗口', exact: true }).click();
     await page.getByText('维护窗口已取消', { exact: false }).waitFor();
     assert.deepEqual(errors, [], 'browser rendering errors');
-    console.log('MAINTENANCE_BROWSER_OK', JSON.stringify({ windows: (await read()).length, screenshots: output, themes: 2, widths: [360, 768, 1440], lostCreateResponse: true, lostCancelResponse: true, changedMembers: true, explicitMembers: 2, blockedStorage: true, corruptedRecovery: 3 }));
+    console.log('MAINTENANCE_BROWSER_OK', JSON.stringify({ windows: (await read()).length, screenshots: output, themes: 2, widths: [360, 768, 1440], lateAck: process.env.MAINTENANCE_BROWSER_SENT === '1', lostCreateResponse: true, lostCancelResponse: true, changedMembers: true, explicitMembers: 2, blockedStorage: true, corruptedRecovery: 3 }));
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });

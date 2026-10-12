@@ -27,6 +27,14 @@ cancel jobs under active maintenance in the same writer transaction as resetting
 the incident repeat clock. Tests cover pending and already-leased jobs, explicit
 maintenance cancellation reasons, no resurrection at end and a new notification
 only after a fresh observation. A send already past the final check remains a race.
+If cancellation wins while that sender is running, its logical job stays canceled
+and cannot retry. The latest canceled attempt's original token may still record
+a real success, rejection or transport uncertainty. That refinement neither
+revives the job nor changes the incident repeat clock; a replay of the identical
+result is harmless. A superseded token or conflicting result is rejected. Until
+a result arrives, cancellation leaves the running attempt unknown. Process exit
+may leave it unknown permanently; the implementation does not reconstruct a remote
+result. Cancellation timestamps remain distinct from attempt-completion timestamps.
 Claim and pre-send checks also inspect maintenance overlap since each delivery's
 creation, preventing an old queued transition from sending after downtime spanning
 an entire window. A close/reopen test verifies cancellation of the old job and
@@ -225,6 +233,19 @@ corrupt recovery records, blocked storage, refreshed inventory and the suppresse
 delivery explanation/link. Screenshots cover preview/history in both themes at
 360/768/1440 px, with no page overflow and no browser exceptions. Screenshots were
 visually inspected. Fixtures contain no real infrastructure or credentials.
+It runs both a queued-but-unsent case (zero receipts/attempts) and a real request
+already accepted by the local receiver. The latter delays the 204 response until
+maintenance cancels the job, then verifies one receipt, a delivered attempt and
+the UI explanation that cancellation cannot withdraw an already sent notification.
+
+`TestMaintenanceRaceRetainsCompletedAttempt` uses a real evaluator, worker and
+HTTP receiver. Cases cover success, permanent rejection, lost response, a policy
+disabled during the send and ACK before any maintenance evaluation. Canceled jobs
+keep their terminal state; restart after window cancellation produces one fresh
+summary only for a continuing enabled fault, with a new logical idempotency key.
+Window existence alone does not invent a past suppression link. Store tests also
+cover identical replay, conflicting/superseded tokens, a newer summary completing
+before the old result, and atomic rollback if legacy-history insertion fails.
 
 Run after building the embedded assets:
 
@@ -236,9 +257,9 @@ Remove-Item Env:MYPROBE_TEST_MAINTENANCE_BROWSER
 ```
 
 Playwright and Edge are required locally; standard tests skip this browser test
-without opt-in. CI still runs the runtime and Store/API tests. Live races at the
-send boundary, full released-version upgrade integration and the proposed capacity
-remain separate release evidence; successful screenshots alone do not establish them.
+without opt-in. CI still runs the runtime, send-race and Store/API tests. Full
+released-version integration across branches and the proposed capacity remain
+separate release evidence; successful screenshots alone do not establish them.
 
 Full-window preview is exposed through
 `POST /api/v1/admin/maintenance-windows/preview`, with the same session/CSRF,
@@ -315,8 +336,9 @@ the final check/network boundary.
 Suppressed transitions must not accumulate a queue of old messages. Record a
 bounded per-incident suppression marker with the relevant event/observation time.
 If a firing job already exists when maintenance starts, cancel or suppress it with
-an explicit maintenance reason. If it was already attempted, preserve ambiguity
-in attempt history rather than claiming it was never sent.
+an explicit maintenance reason. If it was already attempted, preserve its known
+result, or ambiguity if confirmation is unavailable, rather than claiming it was
+never sent. A late provider result updates attempt history only.
 
 After all overlapping windows end, reevaluate current evidence. A still-firing
 incident with fresh evidence generates one current firing notification, then

@@ -121,6 +121,9 @@ The notification-center UI supports preview, frozen membership, history/status,
 cancel and uncertain-result retry across reload. Incident details expose queried
 current scope and actual historical window decisions, and canceled jobs expose
 their recorded window links (migration 027), without historical cause backfill.
+An already-started send may finish after job cancellation. Its latest attempt
+retains the actual provider result while the job stays canceled, without retries
+or repeat-clock changes. The delivery view explains a confirmed late success.
 Real browser tests cover both
 themes/three widths, and real local-channel workers validate suppression and a
 continuing-fault summary. Released-version integration and additional release
