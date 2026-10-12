@@ -39,6 +39,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Incident silence intervals, revisioned cancellation, atomic optional
+  acknowledgement and replay history (migration 029). Existing observation/outbox
+  paths combine maintenance and silence, wait for fresh evidence after the final
+  suppression and close event silence on recovery. Protected management API/UI
+  expose deadline, actor/reason/history and exact delivery causes. Original create
+  and cancel requests recover across reload/incident selection; real receiver
+  and browser acceptance covers both themes/three widths. This is unreleased.
+
 - Internal incident acknowledgement record and protected management API (migration
   028), with first-actor history, private notes, atomic audit and identical-request
   replay. Acknowledgement does not silence, resolve or alter notification jobs.

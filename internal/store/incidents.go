@@ -142,6 +142,9 @@ func endIncident(ctx context.Context, tx *sql.Tx, i *Incident, reason string, no
 	if err := saveIncident(ctx, tx, i); err != nil {
 		return err
 	}
+	if err := closeIncidentSilences(ctx, tx, i.ID, reason, now); err != nil {
+		return err
+	}
 	return cancelIncidentDeliveries(ctx, tx, i.ID, reason, now)
 }
 
@@ -294,15 +297,30 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 		if err != nil {
 			return nil, err
 		}
-		if len(windows) > 0 {
+		silences, err := matchingSilenceIDs(ctx, tx, i.ID, *i.ObservedAt, o.At, true)
+		if err != nil {
+			return nil, err
+		}
+		if len(windows)+len(silences) > 0 {
 			i.LastEnqueuedAt = nil
-			if err := recordMaintenanceDecision(ctx, tx, i.ID, windows, "observation_gap", o.At, ""); err != nil {
+			cause, err := recordNotificationSuppression(ctx, tx, i.ID, windows, silences, "observation_gap", o.At, "")
+			if err != nil {
 				return nil, err
 			}
-			if err := cancelIncidentDeliveries(ctx, tx, i.ID, "maintenance", o.At); err != nil {
+			if err := cancelIncidentDeliveries(ctx, tx, i.ID, cause, o.At); err != nil {
 				return nil, err
 			}
 		}
+	}
+	// Capture scope before recovery closes event-level silences. A recovery
+	// observed while muted remains recorded, without a catch-up recovery message.
+	activeWindows, err := matchingMaintenanceIDs(ctx, tx, i.NodeID, time.Time{}, o.At, false)
+	if err != nil {
+		return nil, err
+	}
+	activeSilences, err := matchingSilenceIDs(ctx, tx, i.ID, time.Time{}, o.At, false)
+	if err != nil {
+		return nil, err
 	}
 	i.ObservedAt = &o.At
 	i.LastMessage = o.Message
@@ -346,26 +364,21 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 		}
 		notify = attempted > 0 || (i.Origin == "legacy" && i.NotificationSequence > 0)
 	}
-	{
-		windows, err := matchingMaintenanceIDs(ctx, tx, i.NodeID, time.Time{}, o.At, false)
+	if len(activeWindows)+len(activeSilences) > 0 {
+		// Preserve fault transitions while suppressing this notification intent.
+		// Reset the repeat clock so a continuing fresh fault can notify at end.
+		i.LastEnqueuedAt = nil
+		cause, err := recordNotificationSuppression(ctx, tx, i.ID, activeWindows, activeSilences, "observation", o.At, "")
 		if err != nil {
 			return nil, err
 		}
-		if len(windows) > 0 {
-			// Preserve fault transitions while suppressing this notification intent.
-			// Reset the repeat clock so a continuing fresh fault can notify at end.
-			i.LastEnqueuedAt = nil
-			if err := recordMaintenanceDecision(ctx, tx, i.ID, windows, "observation", o.At, ""); err != nil {
-				return nil, err
-			}
-			if err := cancelIncidentDeliveries(ctx, tx, i.ID, "maintenance", o.At); err != nil {
-				return nil, err
-			}
-			if err := saveIncident(ctx, tx, &i); err != nil {
-				return nil, err
-			}
-			return &i, tx.Commit()
+		if err := cancelIncidentDeliveries(ctx, tx, i.ID, cause, o.At); err != nil {
+			return nil, err
 		}
+		if err := saveIncident(ctx, tx, &i); err != nil {
+			return nil, err
+		}
+		return &i, tx.Commit()
 	}
 	if notify {
 		if err := queueIncidentNotification(ctx, tx, &i, rule.ChannelID, o); err != nil {

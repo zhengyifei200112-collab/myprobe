@@ -170,7 +170,7 @@ func (s *Store) ClaimDelivery(ctx context.Context, now time.Time, lease time.Dur
 			}
 			continue
 		}
-		if suppressed, err := suppressMaintenanceDelivery(ctx, tx, *d, now); err != nil {
+		if suppressed, err := suppressNotificationDelivery(ctx, tx, *d, now); err != nil {
 			return nil, err
 		} else if suppressed {
 			continue
@@ -227,6 +227,17 @@ func (s *Store) CheckDeliveryLease(ctx context.Context, id, token string, now ti
 	if err != nil {
 		return err
 	}
+	if d.Status == "canceled" && (d.ErrorClass == "silence" || d.ErrorClass == "maintenance" || d.ErrorClass == "maintenance_and_silence") {
+		var ownsAttempt bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM delivery_attempts WHERE delivery_id=? AND lease_token=? AND attempt_number=?)`, d.ID, token, d.AttemptCount).Scan(&ownsAttempt); err != nil {
+			return err
+		}
+		if ownsAttempt {
+			// An action may cancel the claimed job before this final check. Its
+			// owner should skip sending normally, without reviving the lease.
+			return ErrDeliveryCanceled
+		}
+	}
 	if d.Status != "inflight" || d.LeaseToken != token || d.LeaseUntil == nil || !now.Before(*d.LeaseUntil) {
 		return ErrDeliveryLeaseLost
 	}
@@ -243,7 +254,7 @@ func (s *Store) CheckDeliveryLease(ctx context.Context, id, token string, now ti
 		}
 		return ErrDeliveryCanceled
 	}
-	if suppressed, err := suppressMaintenanceDelivery(ctx, tx, d, now); err != nil {
+	if suppressed, err := suppressNotificationDelivery(ctx, tx, d, now); err != nil {
 		return err
 	} else if suppressed {
 		if err := tx.Commit(); err != nil {

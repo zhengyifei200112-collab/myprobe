@@ -56,7 +56,7 @@ const path = require('node:path');
     assert.equal(await page.evaluate(() => sessionStorage.getItem('myprobe-maintenance-pending-v1')), null);
     await page.getByRole('tab', { name: '故障事件', exact: true }).click();
     await page.getByRole('button', { name: '查看 Maintenance node 的投递记录', exact: true }).click();
-    await page.getByText('维护窗口已取消此投递任务，故障事件继续记录。已发出的请求无法撤回；维护结束后依据新鲜观测恢复提醒。', { exact: true }).waitFor();
+    await page.getByText('维护窗口已取消此投递任务，故障事件继续记录。已发出的请求无法撤回；全部抑制结束后依据新鲜观测恢复提醒。', { exact: true }).waitFor();
     await page.getByRole('button', { name: '查看每次尝试', exact: true }).click();
     if (process.env.MAINTENANCE_BROWSER_SENT === '1') {
       await page.getByText('任务已取消，但已开始的一次发送获得渠道成功确认。取消不会撤回已发送的通知。', {exact:true}).waitFor();
