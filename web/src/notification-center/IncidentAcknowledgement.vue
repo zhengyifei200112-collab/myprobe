@@ -4,7 +4,7 @@ import { acknowledgeIncident, AdminAPIError, loadIncidentAcknowledgement, type I
 import { DsButton, DsTextarea } from '../design-system'
 import { acknowledgementNoteBytes, acknowledgementRecoveryKey, normalizedAcknowledgementNote, readAcknowledgementRecovery, validAcknowledgementNote, type PendingAcknowledgement } from './acknowledgement-recovery'
 
-const props = defineProps<{ incidentId: string; nodeName: string }>()
+const props = defineProps<{ incidentId: string; nodeName: string; refreshVersion?: number }>()
 const emit = defineEmits<{ changed: [] }>()
 const view = ref<IncidentAcknowledgementView | null>(null), note = ref('')
 const pending = ref<PendingAcknowledgement | null>(null), recoveryRaw = ref<string | null>(null)
@@ -119,6 +119,7 @@ watch(() => props.incidentId, () => {
   restoreRecovery(); void refresh()
 }, { immediate: true })
 onUnmounted(() => { generation++ })
+watch(() => props.refreshVersion, () => { void refresh() })
 </script>
 
 <template>

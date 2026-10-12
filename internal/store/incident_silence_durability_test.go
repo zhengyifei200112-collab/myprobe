@@ -200,3 +200,46 @@ func TestAdministrativeClosureEndsSilence(t *testing.T) {
 		t.Fatalf("closure: %+v", ended)
 	}
 }
+
+func TestSilenceCancellationFailureRollsBackAndActorCannotReuseIdentity(t *testing.T) {
+	s, _, _, actor, at, i := silenceFixture(t)
+	ctx := context.Background()
+	p := CreateIncidentSilenceParams{DurationSeconds: 60}
+	w, err := s.CreateIncidentSilence(ctx, i.ID, "create", actor.ID, p, at.Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := s.Incident(ctx, i.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"incident_silence_requests", "audit_log"} {
+		if _, err := s.db.Exec(`CREATE TRIGGER fail_cancel BEFORE INSERT ON ` + table + ` BEGIN SELECT RAISE(ABORT,'fixture'); END`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.CancelIncidentSilence(ctx, i.ID, w.SilenceID, "cancel", actor.ID, 1, at.Add(2*time.Second)); err == nil {
+			t.Fatal("cancellation failure ignored")
+		}
+		after, err := s.Incident(ctx, i.ID)
+		interval := readSilence(t, s, w.SilenceID)
+		if err != nil || !reflect.DeepEqual(before, after) || interval.Revision != 1 || interval.CanceledAt != nil || rowCount(t, s, "incident_silence_requests") != 1 || rowCount(t, s, "audit_log") != 1 {
+			t.Fatal("partial cancellation")
+		}
+		if _, err := s.db.Exec(`DROP TRIGGER fail_cancel`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.CancelIncidentSilence(ctx, i.ID, w.SilenceID, "cancel", actor.ID, 1, at.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.CreateUser(ctx, "other identity fixture", "synthetic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateIncidentSilence(ctx, i.ID, "create", other.ID, p, at.Add(time.Hour)); !errors.Is(err, ErrSilenceRequestConflict) {
+		t.Fatalf("actor replayed create: %v", err)
+	}
+	if _, err := s.CancelIncidentSilence(ctx, i.ID, w.SilenceID, "cancel", other.ID, 1, at.Add(time.Hour)); !errors.Is(err, ErrSilenceRequestConflict) {
+		t.Fatalf("actor replayed cancel: %v", err)
+	}
+}

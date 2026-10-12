@@ -155,5 +155,8 @@ then sends one continuing-fault summary. Recovery closes active silence without
 catch-up and future episodes are independent. Combined acknowledgement preserves
 an existing first record or atomically creates it with silence. Immutable mutation
 results support original-request replay after expiry, recovery, restart and full
-restore. Private management API/UI are in development; no public fields change.
+restore. Protected management API/UI expose deadline, cancel, combined ACK,
+history and exact delivery causes, with original-operation recovery across reload
+and incident selection. Real receiver/browser acceptance covers both themes and
+360/768/1440 px. Release integration and full capacity remain pending; no public fields change.
 See [INCIDENT_SILENCE.md](INCIDENT_SILENCE.md) for semantics and acceptance gates.

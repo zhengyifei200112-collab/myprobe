@@ -8,7 +8,7 @@ const emit = defineEmits<{ maintenance: [] }>()
 type Window = MaintenanceWindowRef & { active?: boolean; decisions?: IncidentMaintenancePage['windows'][number]['decisions']; recorded_at?: string }
 const windows = ref<Window[]>([]), current = ref<IncidentMaintenancePage | null>(null), cursor = ref('')
 const busy = ref(false), loaded = ref(false), error = ref('')
-const labels = { observation: '维护期间评估事件', observation_gap: '观测间隔涉及维护', delivery: '领取或发送前抑制通知' }
+const labels = { observation: '维护期间评估事件', observation_gap: '观测间隔涉及维护', delivery: '队列通知抑制' }
 const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 function date(value: string, timezone = browserZone) {
   try { return new Date(value).toLocaleString('zh-CN', { hour12: false, timeZone: timezone }) }

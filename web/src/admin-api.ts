@@ -400,3 +400,22 @@ export const loadIncidentDeliveries = (id: string, before = 0) => request<{ deli
 
 export interface DeliveryAttempt { number: number; started_at: string; completed_at?: string; outcome: string; error_class?: string }
 export const loadDeliveryAttempts = (id: string) => request<{ attempts: DeliveryAttempt[] }>(`/api/v1/admin/notification-deliveries/${encodeURIComponent(id)}/attempts`)
+
+export interface IncidentSilence {
+  id: string; incident_id: string; revision: number; starts_at: string; ends_at: string
+  reason: string; created_by: string; creator_name: string; acknowledge_requested: boolean
+  canceled_at?: string; canceled_by?: string; canceler_name?: string; closed_at?: string; closure_reason?: string
+}
+export interface SilenceRecord extends IncidentSilence {
+  active: boolean; recorded_at?: string; decisions: { kind: string; first_at: string; last_at: string }[]
+}
+export interface SilencePage {
+  incident_state?: Incident['state']; checked_at: string; active_silence: IncidentSilence | null
+  silences: SilenceRecord[]; next_cursor: string
+}
+export interface SilenceCreateParams { duration_seconds: number; reason: string; acknowledge: boolean }
+export interface SilenceMutationResult { silence_id: string; revision: number; starts_at: string; ends_at: string; canceled_at?: string; acknowledgement_created: boolean; replayed: boolean }
+export const loadIncidentSilences = (id: string, after = '') => request<SilencePage>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/silences?limit=25&after=${encodeURIComponent(after)}`)
+export const loadDeliverySilences = (id: string, after = '') => request<SilencePage>(`/api/v1/admin/notification-deliveries/${encodeURIComponent(id)}/silences?limit=25&after=${encodeURIComponent(after)}`)
+export const createIncidentSilence = (id: string, requestID: string, params: SilenceCreateParams) => request<SilenceMutationResult>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/silences`, { method: 'POST', body: JSON.stringify({ request_id: requestID, ...params }) })
+export const cancelIncidentSilence = (id: string, silenceID: string, requestID: string, revision: number) => request<SilenceMutationResult>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/silences/${encodeURIComponent(silenceID)}/cancel`, { method: 'POST', body: JSON.stringify({ request_id: requestID, revision }) })
