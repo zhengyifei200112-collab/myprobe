@@ -170,6 +170,11 @@ func (s *Store) ClaimDelivery(ctx context.Context, now time.Time, lease time.Dur
 			}
 			continue
 		}
+		if suppressed, err := suppressMaintenanceDelivery(ctx, tx, *d, now); err != nil {
+			return nil, err
+		} else if suppressed {
+			continue
+		}
 		var stale bool
 		if err := tx.QueryRowContext(ctx, "SELECT observation_stale FROM alert_incidents WHERE id=?", d.IncidentID).Scan(&stale); err != nil {
 			return nil, err
@@ -238,6 +243,14 @@ func (s *Store) CheckDeliveryLease(ctx context.Context, id, token string, now ti
 		}
 		return ErrDeliveryCanceled
 	}
+	if suppressed, err := suppressMaintenanceDelivery(ctx, tx, d, now); err != nil {
+		return err
+	} else if suppressed {
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		return ErrDeliveryCanceled
+	}
 	var stale bool
 	if err := tx.QueryRowContext(ctx, "SELECT observation_stale FROM alert_incidents WHERE id=?", d.IncidentID).Scan(&stale); err != nil {
 		return err
@@ -287,6 +300,9 @@ func (s *Store) CompleteDelivery(ctx context.Context, id, token string, now time
 	if err != nil {
 		return err
 	}
+	if d.Status == "canceled" {
+		return completeCanceledAttempt(ctx, tx, d, token, now, outcome)
+	}
 	if d.Status != "inflight" || d.LeaseToken != token || d.LeaseUntil == nil || !now.Before(*d.LeaseUntil) {
 		return ErrDeliveryLeaseLost
 	}
@@ -331,20 +347,72 @@ func (s *Store) CompleteDelivery(ctx context.Context, id, token string, now time
 	}
 	// Preserve the legacy delivery-history endpoint without making alert_states
 	// an evaluation authority again. Deleted rules simply have no legacy entry.
+	if err := recordDeliveryHistory(ctx, tx, d, now, outcome.Delivered, errorClass); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// A cancellation revokes retry authority, but a still-running sender can obtain
+// a real provider result. Only the canceled latest attempt's token may refine
+// its history; it never changes the logical job or incident repeat clock.
+func completeCanceledAttempt(ctx context.Context, tx *sql.Tx, d NotificationDelivery, token string, now time.Time, outcome DeliveryOutcome) error {
+	var number int
+	var previous, previousError, started string
+	err := tx.QueryRowContext(ctx, `SELECT attempt_number,outcome,error_class,started_at FROM delivery_attempts WHERE delivery_id=? AND lease_token=?`, d.ID, token).Scan(&number, &previous, &previousError, &started)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrDeliveryLeaseLost
+	}
+	if err != nil {
+		return err
+	}
+	if number != d.AttemptCount {
+		return ErrDeliveryLeaseLost
+	}
+	startedAt, err := parseTime(started)
+	if err != nil {
+		return err
+	}
+	if now.Before(startedAt) {
+		return ErrDeliveryLeaseLost
+	}
+	status, errorClass := "failed", outcome.ErrorClass
+	if outcome.Delivered {
+		status, errorClass = "delivered", ""
+	} else if outcome.Ambiguous {
+		status = "unknown"
+	}
+	// Terminal/identical refinements may be retried after a lost database result.
+	if previous == status && previousError == errorClass {
+		return tx.Commit()
+	}
+	if previous != "unknown" || previousError != d.ErrorClass {
+		return ErrDeliveryLeaseLost
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE delivery_attempts SET outcome=?,completed_at=?,error_class=? WHERE delivery_id=? AND lease_token=?`, status, formatTime(now), errorClass, d.ID, token); err != nil {
+		return err
+	}
+	if err := recordDeliveryHistory(ctx, tx, d, now, outcome.Delivered, errorClass); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func recordDeliveryHistory(ctx context.Context, tx *sql.Tx, d NotificationDelivery, now time.Time, delivered bool, errorClass string) error {
 	var payload DeliveryNotification
 	if err := json.Unmarshal(d.Payload, &payload); err != nil {
 		return err
 	}
 	legacyState := "failed"
 	var deliveredAt any
-	if outcome.Delivered {
+	if delivered {
 		legacyState = d.NotificationType
 		deliveredAt = formatTime(now)
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO alert_events(id,rule_id,node_id,state,fingerprint,message,delivery_error,created_at,delivered_at) SELECT ?,r.id,r.node_id,?,?,?, ?,?,? FROM alert_rules r WHERE r.id=?`, randomID(), legacyState, payload.Kind+":"+payload.RuleID+":"+payload.NodeID, payload.Message, errorClass, formatTime(now), deliveredAt, payload.RuleID); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return nil
 }
 
 func (s *Store) Delivery(ctx context.Context, id string) (NotificationDelivery, error) {

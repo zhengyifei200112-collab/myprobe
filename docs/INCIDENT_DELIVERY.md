@@ -51,8 +51,11 @@ across restarts. Network calls take place outside transactions with bounded time
 At most five attempts use 30s/2m/10m/30m backoff with jitter; HTTP Retry-After is
 honored, and permanent authentication errors fail without retry. Lease expiry can
 mean a remote receiver already accepted the message: delivery is at least once,
-not exactly once. Only a matching unexpired lease can complete an attempt. A stale
-worker cannot overwrite a newer attempt. Provider errors are stored as bounded,
+not exactly once. Normal completion requires a matching unexpired lease. A canceled
+job's latest attempt can record a late provider result using its original token,
+without reviving the job, scheduling retries or changing the incident repeat clock.
+Identical late results replay harmlessly; conflicting or superseded tokens cannot
+overwrite history. A stale worker cannot overwrite a newer attempt. Provider errors are stored as bounded,
 safe classifications without credentials, full URLs or response bodies.
 
 Before sending, recheck incident, rule, channel and cancellation state. Cancel old

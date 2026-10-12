@@ -9,6 +9,15 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Maintenance decision and delivery-link writes now use bounded batches within
+  the original transaction, reducing repeated SQL work under overlapping windows.
+  Later-batch failures roll back earlier records and preserve queued-task state.
+
+- A provider response arriving after maintenance cancels an in-flight notification
+  now updates that attempt instead of losing the result to lease revocation. The
+  task stays canceled, with no retry or repeat-clock change. Delivery details
+  explain that a canceled task may already have reached its channel.
+
 - Policy-import confirmation generates random request IDs without requiring the
   secure-context-only randomUUID API, supporting direct HTTP browser deployments.
 
@@ -29,6 +38,36 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   evaluator, preventing the management UI from remaining pending after application.
 
 ### Added
+
+- Recorded maintenance context for incidents and individual canceled deliveries
+  (migration 027). Protected paginated APIs and incident details distinguish
+  current frozen-member scope from actual evaluation/gap/worker decisions, retaining
+  links through restart and backup restoration without inferring older causes.
+
+- Internal maintenance-window storage (migration 024), frozen node membership,
+  revisioned cancellation and historical half-open interval queries. Event enqueue,
+  delivery claim and pre-send checks suppress maintenance notifications, including
+  observation gaps spanning a window. An authenticated, uncached management list
+  API provides bounded ID-cursor pagination. This is not yet a released feature.
+
+- Maintenance member preview API resolves explicit nodes or all/any tag selections
+  to named members, with session/CSRF protection and a 100-member limit. Preview
+  does not create a window or reserve members for a subsequent operation.
+
+- Full maintenance preview returns normalized window fields, named membership and
+  a confirmation digest, sharing validation with internal window creation.
+
+- Internal confirmed maintenance creation atomically checks current membership and
+  saves the window, selector provenance, audit and retry identity (migration 025).
+  Protected creation/cancellation APIs bind actors to authenticated sessions,
+  preserve cancellation history (migration 026), and replay confirmed requests.
+  Ended windows cannot be newly created/canceled; committed retries still replay.
+
+- Notification-center maintenance UI with local-time input, explicit/tag selection,
+  preview confirmation, frozen-member history, statuses and cancellation. Uncertain
+  create/cancel requests survive tab reload for identical retry; unavailable or
+  corrupt browser storage blocks new mutations until resolved. Maintenance-canceled
+  deliveries explain suppression and link to the maintenance page.
 
 - Policy-import confirmation displays readable scope, destination names, threshold
   units and timing fields instead of requiring users to inspect raw JSON.

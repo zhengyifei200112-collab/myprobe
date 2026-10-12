@@ -108,3 +108,25 @@ This work remains in development, not released. Evidence and remaining gates are
 in [INCIDENT_DELIVERY.md](INCIDENT_DELIVERY.md). Scoped policy inheritance,
 maintenance/acknowledgement/silence and aggregation remain later M2 tasks; this
 foundation must not be presented as completion of the full roadmap.
+
+## Maintenance development
+
+The maintenance branch adds one-time windows, explicit/tag selections frozen on
+creation, preview confirmation and authenticated create/cancel/list APIs. Metrics
+and incidents continue during maintenance; enqueue, claim and pre-send checks
+suppress notifications. Historical membership and cancellation remain readable
+after node deletion. Store tests cover current-schema backup/restore, concurrent
+requests and retries; API tests cover permission and strict input contracts.
+The notification-center UI supports preview, frozen membership, history/status,
+cancel and uncertain-result retry across reload. Incident details expose queried
+current scope and actual historical window decisions, and canceled jobs expose
+their recorded window links (migration 027), without historical cause backfill.
+An already-started send may finish after job cancellation. Its latest attempt
+retains the actual provider result while the job stays canceled, without retries
+or repeat-clock changes. The delivery view explains a confirmed late success.
+Real browser tests cover both
+themes/three widths, and real local-channel workers validate suppression and a
+continuing-fault summary. Released-version integration and additional release
+evidence remain pending. This work is unreleased and does not complete
+acknowledgement, silence, aggregation or HTTP
+maintenance statistics. See [ALERT_MAINTENANCE.md](ALERT_MAINTENANCE.md).
