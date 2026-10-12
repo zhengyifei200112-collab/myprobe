@@ -78,17 +78,54 @@ Authorization/CSRF errors use existing 401/403 contracts. A reused committed ID 
 checked before current incident state; no promise is made for a request rejected
 before commit. No plaintext note, SQL or database path appears in generic errors.
 
-## Delivery requirements still being implemented
+## Management workflow
 
-The incident detail UI must provide a private note form, display the original
-author/time/note, and explain that acknowledgement does not silence or recover.
-Persist the original uncertain request before sending, support identical retry
-across reload, prevent a new operation while its result is unknown and expose
-corrupt/unavailable browser storage without accidentally posting a new request.
-Refresh private list summaries after successful creation or conflicts.
+The incident card shows author/time summaries and opens the processing record or
+delivery view into the same event detail. The acknowledgement section provides a
+private note form, displays the original author/time/note, and explains that the
+action does not silence or recover. Resolved history retains its original record.
+Notes use plain escaped text with preserved line breaks, never HTML rendering.
+
+Before POST, the tab saves the incident, display name, original request ID and note
+to sessionStorage. Unknown network/server/auth results keep this operation locked
+for identical retry, including after reload or selecting another incident. Retry
+continues to target the original incident; success explains when it did not change
+the current selection. Another operator's first record is shown after a definitive
+conflict, with an explicit notice that the user's new note was not separately saved.
+Identity conflicts keep recovery history. Unavailable storage sends nothing;
+corrupt records retain uncertainty and block new mutations until reviewed/cleared.
+An older response can clear only its own recovery record. Closing the tab can lose
+history, and database restore can rewind server actions/replay identities. Manual
+clearing changes only local recovery state, not the server record.
 
 Store tests cover replay, different-actor concurrency, validation, no state/job
-mutation, atomic audit, reopen and staged full restore. API tests cover auth/CSRF,
+mutation, atomic audit, historical names after account rename/removal, reopen and
+staged full restore. API tests cover auth/CSRF,
 bounded strict input, first/replay/conflict, list-note separation and public-node
-privacy. Real local receiver tests, browser lifecycle (both themes and
-360/768/1440 px), released upgrade integration and final CI remain delivery gates.
+privacy. `TestAcknowledgementDoesNotSilenceRealNotifications` combines authenticated
+POST, the real evaluator/worker and local HTTP sender. It verifies initial firing,
+repeat and recovery receipts with distinct logical keys, no note/actor in messages,
+durable resolved acknowledgement and no extra delivery after restart.
+
+`TestLiveIncidentAcknowledgementBrowser` exercises the embedded UI, actual API,
+SQLite and a real local receiver. It covers UTF-8 byte limits, lost committed
+responses across reload with another event selected, three malformed storage
+records, storage write failure, first-winner conflict, identity conflict, read
+failure/retry, escaped multiline note text, preserved history after recovery and
+actual firing/recovery receipts. Form/record screenshots and no-overflow checks
+cover light/dark at 360/768/1440 px; screenshots were visually inspected. The
+maintenance browser lifecycle was re-run with the added acknowledgement section.
+
+Run the browser acceptance after building embedded assets:
+
+```powershell
+$env:MYPROBE_TEST_ACK_BROWSER='1'
+$env:PLAYWRIGHT_MODULE='<absolute path to installed playwright module>'
+go test ./internal/httpapi -run '^TestLiveIncidentAcknowledgementBrowser$' -count=1 -v
+Remove-Item Env:MYPROBE_TEST_ACK_BROWSER
+```
+
+Playwright/Edge are required locally; standard tests skip the browser opt-in. CI
+runs Store/API and real notification tests. Full release integration across
+dependency branches, migration reconciliation, system capacity and final head CI
+remain separate gates; this branch does not finish silence or aggregation.

@@ -116,8 +116,11 @@ authenticated read/write APIs (migration 028). Identical committed requests repl
 their original result; conflicting requests cannot overwrite the first actor.
 Acknowledgement leaves condition state, notification jobs and repeat clocks
 unchanged. Private incident lists return only author/time summaries. The management
-UI and remaining runtime/browser acceptance are in progress; the feature is
-unreleased. Silence and aggregation remain separate work packages. See
+UI provides private note/history and uncertain-result retry across reload or event
+selection. Real receiver tests verify continued initial/repeat/recovery sends;
+real browser tests cover both themes/three widths, conflicts and storage failures.
+The feature is unreleased; dependency release integration remains pending. Silence
+and aggregation remain separate work packages. See
 [INCIDENT_ACKNOWLEDGEMENT.md](INCIDENT_ACKNOWLEDGEMENT.md).
 
 ## Maintenance development

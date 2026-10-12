@@ -80,6 +80,17 @@ func TestAcknowledgementRetainsFirstActorAndDoesNotChangeDeliveryAuthority(t *te
 	if err := s.db.QueryRowContext(ctx, `SELECT details_json FROM audit_log WHERE action='acknowledge'`).Scan(&details); err != nil || details != `{"has_note":true}` {
 		t.Fatalf("audit leaked note: %s %v", details, err)
 	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id=?`, actor.ID); err != nil {
+		t.Fatal(err)
+	}
+	view, err = s.IncidentAcknowledgement(ctx, i.ID)
+	if err != nil || view.Acknowledgement == nil || !reflect.DeepEqual(*view.Acknowledgement, result.Acknowledgement) {
+		t.Fatalf("account removal erased history: %+v %v", view, err)
+	}
+	audits, err := s.ListAudit(ctx, 10, 0)
+	if err != nil || len(audits) != 1 || audits[0].UserID != nil {
+		t.Fatalf("removed-account audit: %+v %v", audits, err)
+	}
 }
 
 func TestAcknowledgementValidationAndAtomicAudit(t *testing.T) {
