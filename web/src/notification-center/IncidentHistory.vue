@@ -4,6 +4,7 @@ import { loadIncidents, loadIncidentDeliveries, loadDeliveryAttempts, type Deliv
 import type { NodeMetadata } from '../types'
 import { DsButton, DsSelect, DsEmptyState } from '../design-system'
 import MaintenanceContext from './MaintenanceContext.vue'
+import IncidentAcknowledgement from './IncidentAcknowledgement.vue'
 
 defineProps<{ nodes: NodeMetadata[] }>()
 const emit = defineEmits<{ maintenance: [] }>()
@@ -35,6 +36,7 @@ async function refresh(more = false) {
     const result = await loadIncidents(state.value, more ? next.value : 0, nodeID.value)
     items.value = more ? [...items.value, ...result.incidents] : result.incidents
     next.value = result.next_before
+    if (!more && selected.value) selected.value = items.value.find(item => item.id === selected.value?.id) || selected.value
   } catch (e) { error.value = e instanceof Error ? e.message : '事件加载失败，请重试' }
   finally { busy.value = false }
 }
@@ -58,14 +60,15 @@ onMounted(() => refresh())
   <section class="incident-history" aria-label="故障事件">
     <header><div><h2>故障事件</h2><p>故障状态与通知是否送达分别记录。刷新可查看最新状态。</p></div><DsSelect v-model="state" label="事件状态" :disabled="busy" @update:model-value="refresh()"><option value="">全部状态</option><option value="pending">等待触发</option><option value="firing">故障持续</option><option value="resolved">已恢复或结束</option></DsSelect><DsSelect v-model="nodeID" label="事件节点" :disabled="busy" @update:model-value="refresh()"><option value="">全部节点（含已删除节点历史）</option><option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option></DsSelect><DsButton :disabled="busy" @click="refresh()">刷新</DsButton></header>
     <p v-if="error" role="alert">{{ error }}</p><p v-if="busy" role="status">正在加载事件…</p>
-    <article v-for="item in items" :key="item.id"><h3>{{ item.node_name }} · {{ labels[item.state] }}</h3><p>{{ item.message }}</p><p v-if="item.observation_stale">数据已过期，等待新观测；当前状态不表示已经恢复。</p><p>开始：{{ date(item.started_at) }}{{ item.approximate_start ? '（旧记录迁移，时间近似）' : '' }}</p><p v-if="item.resolution_reason">结束原因：{{ reasons[item.resolution_reason] || item.resolution_reason }}</p><p v-if="item.resolved_at">结束：{{ date(item.resolved_at) }}</p><DsButton size="small" @click="inspect(item)">查看 {{ item.node_name }} 的投递记录</DsButton></article>
+    <article v-for="item in items" :key="item.id"><h3>{{ item.node_name }} · {{ labels[item.state] }}</h3><p>{{ item.message }}</p><p v-if="item.observation_stale">数据已过期，等待新观测；当前状态不表示已经恢复。</p><p>开始：{{ date(item.started_at) }}{{ item.approximate_start ? '（旧记录迁移，时间近似）' : '' }}</p><p v-if="item.resolution_reason">结束原因：{{ reasons[item.resolution_reason] || item.resolution_reason }}</p><p v-if="item.resolved_at">结束：{{ date(item.resolved_at) }}</p><p v-if="item.acknowledgement">已知悉：{{ item.acknowledgement.actor_name }} · {{ date(item.acknowledgement.acknowledged_at) }}</p><p v-else>未记录知悉。</p><DsButton v-if="item.state==='firing' || item.acknowledgement" size="small" @click="inspect(item)">查看 {{ item.node_name }} 的处理记录</DsButton> <DsButton size="small" @click="inspect(item)">查看 {{ item.node_name }} 的投递记录</DsButton></article>
     <DsEmptyState v-if="!busy && !error && !items.length" title="暂无匹配事件" description="告警满足触发条件后会记录在这里。" />
     <DsButton v-if="next" :disabled="busy" @click="refresh(true)">加载更多事件</DsButton>
     <section v-if="selected" class="delivery-detail" aria-label="事件投递记录" aria-live="polite">
-      <h3 ref="detailHeading" tabindex="-1">{{ selected.node_name }} · 投递记录</h3>
+      <h3 ref="detailHeading" tabindex="-1">{{ selected.node_name }} · 事件详情</h3>
       <p v-if="detailError" role="alert">{{ detailError }}</p>
       <DsButton :disabled="detailBusy" @click="inspect(selected)">刷新投递记录</DsButton>
       <p v-if="detailBusy" role="status">正在加载投递记录…</p>
+      <IncidentAcknowledgement :incident-id="selected.id" :node-name="selected.node_name" @changed="refresh()" />
       <MaintenanceContext subject="incident" :id="selected.id" @maintenance="emit('maintenance')" />
       <article v-for="job in deliveries" :key="job.id">
         <strong>{{ job.channel_name }} · {{ job.status === 'pending' ? '等待发送' : labels[job.status] || job.status }}</strong>

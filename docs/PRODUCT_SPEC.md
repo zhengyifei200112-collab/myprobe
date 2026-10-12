@@ -109,6 +109,20 @@ in [INCIDENT_DELIVERY.md](INCIDENT_DELIVERY.md). Scoped policy inheritance,
 maintenance/acknowledgement/silence and aggregation remain later M2 tasks; this
 foundation must not be presented as completion of the full roadmap.
 
+## Incident acknowledgement development
+
+The acknowledgement branch adds private first-actor/time/note records and
+authenticated read/write APIs (migration 028). Identical committed requests replay
+their original result; conflicting requests cannot overwrite the first actor.
+Acknowledgement leaves condition state, notification jobs and repeat clocks
+unchanged. Private incident lists return only author/time summaries. The management
+UI provides private note/history and uncertain-result retry across reload or event
+selection. Real receiver tests verify continued initial/repeat/recovery sends;
+real browser tests cover both themes/three widths, conflicts and storage failures.
+The feature is unreleased; dependency release integration remains pending. Silence
+and aggregation remain separate work packages. See
+[INCIDENT_ACKNOWLEDGEMENT.md](INCIDENT_ACKNOWLEDGEMENT.md).
+
 ## Maintenance development
 
 The maintenance branch adds one-time windows, explicit/tag selections frozen on
