@@ -39,6 +39,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Internal incident acknowledgement record and protected management API (migration
+  028), with first-actor history, private notes, atomic audit and identical-request
+  replay. Acknowledgement does not silence, resolve or alter notification jobs.
+  Private event lists expose author/time summaries only. The UI workflow remains
+  in development; this is not yet a released feature.
+
 - Recorded maintenance context for incidents and individual canceled deliveries
   (migration 027). Protected paginated APIs and incident details distinguish
   current frozen-member scope from actual evaluation/gap/worker decisions, retaining
