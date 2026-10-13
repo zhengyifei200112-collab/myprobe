@@ -41,6 +41,15 @@ type HTTPStatistics struct {
 // snapshot, clipped to retained and reconstructable schedule history. Omitting
 // excludeMaintenance keeps the original raw result for existing callers.
 func (s *Store) HTTPServiceStatistics(ctx context.Context, serviceID, nodeID string, start, end, now time.Time, excludeMaintenance ...bool) (HTTPStatistics, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return HTTPStatistics{}, err
+	}
+	defer tx.Rollback()
+	return readHTTPServiceStatistics(ctx, tx, serviceID, nodeID, start, end, now, excludeMaintenance...)
+}
+
+func readHTTPServiceStatistics(ctx context.Context, tx *sql.Tx, serviceID, nodeID string, start, end, now time.Time, excludeMaintenance ...bool) (HTTPStatistics, error) {
 	result := HTTPStatistics{Start: start.UTC(), End: end.UTC(), RequestedStart: start.UTC(), RequestedEnd: end.UTC(), MaintenancePolicy: "planned_slot_effective_window_v1"}
 	if len(excludeMaintenance) > 1 || now.IsZero() || now.Year() < 1970 || now.Year() > 2100 || !end.After(start) || end.Sub(start) > 31*24*time.Hour || start.Year() < 1970 || end.Year() > 2100 {
 		return result, errors.New("invalid HTTP statistics range")
@@ -53,11 +62,7 @@ func (s *Store) HTTPServiceStatistics(ctx context.Context, serviceID, nodeID str
 	if result.End.Before(result.Start) {
 		result.End = result.Start
 	}
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
-	if err != nil {
-		return result, err
-	}
-	defer tx.Rollback()
+	var err error
 	var nodeExists int
 	if err = tx.QueryRowContext(ctx, `SELECT 1 FROM nodes WHERE id=?`, nodeID).Scan(&nodeExists); errors.Is(err, sql.ErrNoRows) {
 		return result, ErrNotFound

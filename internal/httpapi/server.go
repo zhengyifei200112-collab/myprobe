@@ -139,6 +139,7 @@ func (s *Server) routes() {
 	services.GET("/:serviceID/results", s.recentHTTPResults)
 	services.GET("/:serviceID/statistics", s.httpServiceStatistics)
 	services.GET("/:serviceID/health", s.httpServiceHealth)
+	services.GET("/:serviceID/diagnostics", s.httpServiceDiagnostics)
 	services.GET("/:serviceID/alerting", s.getServiceAlerting)
 	services.GET("/:serviceID/incidents", s.serviceIncidents)
 	services.GET("/:serviceID/certificate-reminders", s.serviceCertificateReminders)

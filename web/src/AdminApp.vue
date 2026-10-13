@@ -28,7 +28,7 @@ const tab = ref<Tab>('nodes')
 const initialNotification = parseNotificationTarget(location.search)
 const notificationTarget = ref<NotificationTarget | null>(initialNotification.target)
 function restoreNotificationNavigation() {
-  if (notificationTarget.value) { tab.value = 'alerts'; history.replaceState(null, '', notificationPath(notificationTarget.value)) }
+  if (notificationTarget.value) { tab.value = notificationTarget.value.kind === 'service' ? 'services' : 'alerts'; history.replaceState(null, '', notificationPath(notificationTarget.value)) }
   rememberNotificationTarget(null)
 }
 const username = ref('admin')
@@ -588,7 +588,7 @@ onMounted(async () => {
         <NotificationCenter :nodes="nodes" :initial-target="notificationTarget" @notice="value => { notice = value; error = '' }" @error="showError" />
       </template>
 
-      <ServiceMonitoring v-else-if="tab === 'services'" :nodes="nodes" />
+      <ServiceMonitoring v-else-if="tab === 'services'" :nodes="nodes" :initial-diagnostic="notificationTarget?.kind === 'service' ? notificationTarget : undefined" @diagnostic="notificationTarget = $event" />
       <template v-else-if="tab === 'shares'">
         <section class="admin-heading"><div><span class="eyebrow">SECURE SHARING</span><h1>图表分享</h1><p>为选定节点生成密码保护的只读历史图表链接。</p></div><span class="count-pill">{{ shares.length }} 个分享</span></section>
         <form class="admin-panel compact-form" @submit.prevent="saveShare"><h2>{{ shareForm.id ? '编辑分享' : '创建分享' }}</h2><div class="form-grid two"><label>名称<input v-model="shareForm.name" required placeholder="客户监控视图"></label><label>{{ shareForm.id ? '新密码（留空保持不变）' : '分享密码' }}<input v-model="shareForm.password" type="password" minlength="8" :required="!shareForm.id" autocomplete="new-password"></label></div><div class="assignment-box share-node-picker"><b>允许查看的节点</b><label v-for="item in nodes" :key="item.id" class="check-chip"><input v-model="shareForm.node_ids" type="checkbox" :value="item.id">{{ item.name }}</label><span v-if="!nodes.length" class="empty-inline">暂无节点</span></div><div v-if="shareForm.id" class="switch-row"><label><input v-model="shareForm.enabled" type="checkbox"> 启用此分享</label></div><div class="form-actions"><button class="primary-button" :disabled="busy || !shareForm.node_ids.length">{{ shareForm.id ? '保存分享' : '创建分享' }}</button><button v-if="shareForm.id" type="button" @click="editShare()">取消</button></div></form>

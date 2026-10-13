@@ -54,7 +54,14 @@ clips the future interval. API default remains raw, while the browser explicitly
 requests exclusion and exposes both counts. All-excluded denominators stay null;
 this does not change current health or claim continuous-time SLA. See
 [maintenance statistics](HTTP_MAINTENANCE_STATISTICS.md).
-Service/observer/time-range links and capacity/release acceptance remain incomplete.
+Protected service/observer/time-range diagnostics now restore context through
+password/session login, reload and the existing OAuth navigation storage. New
+service notices durably capture a diagnostic link; bounded pages distinguish
+failures, unexecuted checks and absent results using existing admitted evidence
+and mature raw statistics from one read snapshot. No target/body/credentials or
+unmeasured phase timings are returned. See [service diagnostics](SERVICE_DIAGNOSTICS.md)
+for migration 036, cursor/privacy and navigation contracts. Capacity, real OAuth
+and public-provider/client release acceptance remain incomplete.
 Configuration enablement alone does not start execution; v1 Agents remain supported
 for their existing capabilities and never receive HTTP tasks.
 

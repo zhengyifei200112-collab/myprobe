@@ -316,6 +316,18 @@ export interface HTTPObservation {
   }
 }
 export const loadHTTPObservations = (id: string) => request<{ observations: HTTPObservation[]; execution_enabled: boolean; server_time: string }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/results?limit=50`)
+export interface HTTPDiagnosticObservation {
+  task_id: string; revision: number; scheduled_at: string; expires_at: string
+  status: 'success' | 'failure' | 'unobserved' | 'pending' | 'missing'
+  error_class?: string; completed_at?: string; status_code?: number; duration_ms?: number
+}
+export interface HTTPDiagnosticsResponse {
+  service: HTTPServiceSummary
+  observer: { id: string; name: string; currently_assigned: boolean }
+  statistics: HTTPStatisticsResponse['statistics']
+  observations: HTTPDiagnosticObservation[]; next_cursor: string; server_time: string; execution_enabled: boolean
+}
+export const loadHTTPDiagnostics = (id: string, nodeID: string, start: string, end: string, after = '') => request<HTTPDiagnosticsResponse>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/diagnostics?${new URLSearchParams({ node_id: nodeID, start, end, after, limit: '50' })}`)
 export interface HTTPStatisticsCounts {
   expected: number; success: number; failure: number; unobserved: number; missing: number; success_rate: number | null; coverage: number | null
 }
@@ -485,7 +497,7 @@ export interface Incident {
 	service_id?: string
 	service_name?: string
   seq: number; id: string; node_id: string; node_name: string; kind: string
-  state: 'pending' | 'firing' | 'resolved'; started_at: string; resolved_at?: string
+  state: 'pending' | 'firing' | 'resolved'; started_at: string; resolved_at?: string; updated_at?: string
   observation_stale: boolean; message: string; origin: string; approximate_start: boolean; resolution_reason?: string
   acknowledgement?: { actor_name: string; acknowledged_at: string }
 }

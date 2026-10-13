@@ -57,18 +57,19 @@ type AlertObservation struct {
 
 // DeliveryNotification is a durable rendered payload, never channel credentials.
 type DeliveryNotification struct {
-	ServiceID    string    `json:"service_id,omitempty"`
-	ServiceName  string    `json:"service_name,omitempty"`
-	IncidentPath string    `json:"incident_path,omitempty"`
-	Title        string    `json:"title"`
-	Message      string    `json:"message"`
-	State        string    `json:"state"`
-	Kind         string    `json:"kind"`
-	NodeID       string    `json:"node_id"`
-	NodeName     string    `json:"node_name"`
-	RuleID       string    `json:"rule_id"`
-	IncidentID   string    `json:"incident_id"`
-	Timestamp    time.Time `json:"timestamp"`
+	ServiceDiagnosticPath string    `json:"service_diagnostic_path,omitempty"`
+	ServiceID             string    `json:"service_id,omitempty"`
+	ServiceName           string    `json:"service_name,omitempty"`
+	IncidentPath          string    `json:"incident_path,omitempty"`
+	Title                 string    `json:"title"`
+	Message               string    `json:"message"`
+	State                 string    `json:"state"`
+	Kind                  string    `json:"kind"`
+	NodeID                string    `json:"node_id"`
+	NodeName              string    `json:"node_name"`
+	RuleID                string    `json:"rule_id"`
+	IncidentID            string    `json:"incident_id"`
+	Timestamp             time.Time `json:"timestamp"`
 }
 
 type incidentRuleSnapshot struct {
@@ -502,7 +503,7 @@ func queueIncidentNotification(ctx context.Context, tx *sql.Tx, i *Incident, cha
 	if err != nil {
 		return err
 	}
-	payload, err := json.Marshal(DeliveryNotification{ServiceID: i.ServiceID, ServiceName: i.ServiceName, Title: title, Message: message, State: i.State, Kind: i.Kind, NodeID: i.NodeID, NodeName: i.NodeName, RuleID: i.RuleID, IncidentID: i.ID, Timestamp: o.At, IncidentPath: notificationlink.Incident(origin, i.ID)})
+	payload, err := json.Marshal(DeliveryNotification{ServiceDiagnosticPath: notificationlink.ServiceDiagnosticAt(origin, i.ServiceID, i.NodeID, o.At), ServiceID: i.ServiceID, ServiceName: i.ServiceName, Title: title, Message: message, State: i.State, Kind: i.Kind, NodeID: i.NodeID, NodeName: i.NodeName, RuleID: i.RuleID, IncidentID: i.ID, Timestamp: o.At, IncidentPath: notificationlink.Incident(origin, i.ID)})
 	if err != nil {
 		return err
 	}

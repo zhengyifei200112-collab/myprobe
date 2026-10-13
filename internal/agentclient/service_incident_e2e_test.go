@@ -22,6 +22,7 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/collector"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
 	"github.com/zhengyifei200112-collab/myprobe/internal/httpapi"
+	"github.com/zhengyifei200112-collab/myprobe/internal/notificationlink"
 	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/httpcheck"
 	"github.com/zhengyifei200112-collab/myprobe/internal/scheduler"
 	"github.com/zhengyifei200112-collab/myprobe/internal/servicehealth"
@@ -224,6 +225,9 @@ func TestServiceIncidentThroughRealAgent(t *testing.T) {
 	if fault.State != "firing" || fault.Kind != "service_http" || fault.ServiceID != service.ID || fault.IncidentID == "" || fault.IncidentPath != origin+"/admin?incident="+fault.IncidentID {
 		t.Fatal("fault notice identity")
 	}
+	if fault.ServiceDiagnosticPath != notificationlink.ServiceDiagnosticAt(origin, service.ID, node.ID, fault.Timestamp) {
+		t.Fatal("fault diagnostic context")
+	}
 	nodes, err := db.ListNodes(ctx)
 	if err != nil || len(nodes) != 2 || !gateway.SupportsHTTP(node.ID) || !gateway.SupportsHTTP(secondNode.ID) {
 		t.Fatal("host was not online during service fault")
@@ -263,6 +267,15 @@ func TestServiceIncidentThroughRealAgent(t *testing.T) {
 		case <-ctx.Done():
 			t.Fatal("existing outbox lifecycle incomplete")
 		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	if os.Getenv("MYPROBE_TEST_HTTP_BROWSER") == "1" {
+		cmd := exec.CommandContext(ctx, "node", "../../scripts/service-diagnostics-ui.cjs")
+		cmd.Env = append(os.Environ(), "DIAGNOSTIC_URL="+fault.ServiceDiagnosticPath, "DIAGNOSTIC_USERNAME=service-admin", "DIAGNOSTIC_PASSWORD="+password)
+		output, err := cmd.CombinedOutput()
+		t.Log(string(output))
+		if err != nil {
+			t.Fatal(err)
 		}
 	}
 	if os.Getenv("MYPROBE_TEST_HTTP_BROWSER") == "1" {

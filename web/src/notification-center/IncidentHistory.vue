@@ -8,6 +8,7 @@ import IncidentAcknowledgement from './IncidentAcknowledgement.vue'
 import IncidentSilence from './IncidentSilence.vue'
 import DeliverySilence from './DeliverySilence.vue'
 import { certificateEndReasons } from '../service-monitoring/certificate-display'
+import { serviceDiagnosticAt } from '../notification-links'
 
 const props = defineProps<{ nodes: NodeMetadata[]; initialIncidentId?: string }>()
 const emit = defineEmits<{ maintenance: []; aggregate: [id: string] }>()
@@ -86,6 +87,7 @@ onMounted(() => { void refresh(); void openEntrance() })
     <DsButton v-if="next" :disabled="busy" @click="refresh(true)">加载更多事件</DsButton>
     <section v-if="selected" class="delivery-detail" aria-label="事件投递记录" aria-live="polite">
       <h3 ref="detailHeading" tabindex="-1">{{ selected.node_name }} · 事件详情</h3>
+      <a v-if="!detailBusy && !detailError && selected.service_id && serviceDiagnosticAt(selected.service_id, selected.node_id, selected.updated_at || selected.resolved_at || selected.started_at)" :href="serviceDiagnosticAt(selected.service_id, selected.node_id, selected.updated_at || selected.resolved_at || selected.started_at)">查看服务诊断</a>
       <template v-if="!detailBusy && !detailError"><p>当前事件状态：{{ eventStatus(selected) }} · {{ selected.message }}</p>
       <p>开始：{{ date(selected.started_at) }}{{ selected.approximate_start ? '（旧记录迁移，时间近似）' : '' }}<span v-if="selected.resolved_at"> · 结束：{{ date(selected.resolved_at) }}</span></p>
       <p v-if="selected.observation_stale">数据已过期，等待新观测；当前状态不表示已经恢复。</p>

@@ -7,9 +7,16 @@ import { DsConfirmDialog } from '../design-system'
 import HTTPStatisticsPanel from './HTTPStatisticsPanel.vue'
 import ServiceAlerting from './ServiceAlerting.vue'
 import ServiceHealthPanel from './ServiceHealthPanel.vue'
+import ServiceDiagnosticsPanel from './ServiceDiagnosticsPanel.vue'
+import type { ServiceDiagnosticTarget } from '../notification-links'
 import { healthIsFresh, healthLabel } from './health-display'
 
-const props = defineProps<{ nodes: NodeMetadata[] }>()
+const props = defineProps<{ nodes: NodeMetadata[]; initialDiagnostic?: ServiceDiagnosticTarget }>()
+const emit = defineEmits<{ diagnostic: [target: ServiceDiagnosticTarget | null] }>()
+const diagnosticService = ref<{ id: string; name?: string; target?: ServiceDiagnosticTarget } | null>(props.initialDiagnostic ? { id: props.initialDiagnostic.id, target: props.initialDiagnostic } : null)
+function closeDiagnostic() {
+  diagnosticService.value = null; emit('diagnostic', null); history.replaceState(null, '', '/admin')
+}
 const observations = ref<HTTPObservation[]>([])
 const observedService = ref<HTTPServiceSummary | null>(null)
 const statisticsService = ref<HTTPServiceSummary | null>(null)
@@ -108,6 +115,7 @@ async function remove() {
     if (statisticsService.value?.id === item.id) statisticsService.value = null
     if (alertingService.value?.id === item.id) alertingService.value = null
     if (healthService.value?.id === item.id) healthService.value = null
+    if (diagnosticService.value?.id === item.id) closeDiagnostic()
     if (observedService.value?.id === item.id) { observedService.value = null; observations.value = [] }
     notice.value = '服务及其历史数据已删除。'; await refresh()
   })
@@ -146,8 +154,9 @@ onMounted(() => { run(() => refresh()); healthTimer = setInterval(() => { health
     </form>
     <div class="form-actions"><button :disabled="busy" @click="run(() => refresh())">刷新服务列表</button><span v-if="busy" role="status">正在处理…</span></div>
     <p>服务状态按任一必选观测点失败即降级汇总；全部点成功才正常，缺测保持未知。列表是读取时的快照，过期后请刷新。</p>
+    <ServiceDiagnosticsPanel v-if="diagnosticService" :key="diagnosticService.id" :service-i-d="diagnosticService.id" :service-name="diagnosticService.name" :nodes="nodes" :initial-target="diagnosticService.target" @close="closeDiagnostic" @context="emit('diagnostic', $event)" />
     <p v-if="loaded && !items.length" class="admin-panel">暂无 HTTP 服务。新建服务后可选择观测节点与检查条件。</p>
-    <div class="admin-list"><article v-for="item in items" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><strong>{{ item.name }}</strong><span>{{ item.enabled ? '配置已启用' : '配置已停用' }}</span></div><div class="entity-meta"><span>{{ item.node_count }} 个观测节点</span><span>每 {{ item.interval_seconds }} 秒</span><span>配置版本 {{ item.revision }}</span></div><p class="service-state" :data-state="healthFresh(item) ? item.health?.state : 'unknown'">{{ healthLabel(item.health, healthFresh(item)) }}</p><p v-if="item.health && healthFresh(item)">当前有效观测 {{ item.health.success + item.health.failure }} / {{ item.health.required_observers }} · 成功 {{ item.health.success }} · 失败 {{ item.health.failure }} · 未知 {{ item.health.unknown }}</p><p v-if="item.health">快照截至 {{ timeLabel(item.health.as_of) }}</p><p v-if="!item.node_count">未分配节点，无法执行检查。</p><div class="entity-actions"><button :disabled="busy" @click="healthService = item">服务状态</button><button :disabled="busy" @click="showObservations(item)">最近结果</button><button :disabled="busy" @click="statisticsService = item">检测统计</button><button :disabled="busy" @click="alertingService = item">服务告警与事件</button><button :disabled="busy" @click="edit(item.id)">编辑服务</button><button class="danger-link" :disabled="busy" @click="deleting = item">删除服务</button></div></article></div>
+    <div class="admin-list"><article v-for="item in items" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><strong>{{ item.name }}</strong><span>{{ item.enabled ? '配置已启用' : '配置已停用' }}</span></div><div class="entity-meta"><span>{{ item.node_count }} 个观测节点</span><span>每 {{ item.interval_seconds }} 秒</span><span>配置版本 {{ item.revision }}</span></div><p class="service-state" :data-state="healthFresh(item) ? item.health?.state : 'unknown'">{{ healthLabel(item.health, healthFresh(item)) }}</p><p v-if="item.health && healthFresh(item)">当前有效观测 {{ item.health.success + item.health.failure }} / {{ item.health.required_observers }} · 成功 {{ item.health.success }} · 失败 {{ item.health.failure }} · 未知 {{ item.health.unknown }}</p><p v-if="item.health">快照截至 {{ timeLabel(item.health.as_of) }}</p><p v-if="!item.node_count">未分配节点，无法执行检查。</p><div class="entity-actions"><button :disabled="busy" @click="healthService = item">服务状态</button><button :disabled="busy" @click="showObservations(item)">最近结果</button><button :disabled="busy" @click="statisticsService = item">检测统计</button><button :disabled="busy" @click="diagnosticService = { id: item.id, name: item.name }">服务诊断</button><button :disabled="busy" @click="alertingService = item">服务告警与事件</button><button :disabled="busy" @click="edit(item.id)">编辑服务</button><button class="danger-link" :disabled="busy" @click="deleting = item">删除服务</button></div></article></div>
     <ServiceHealthPanel v-if="healthService" :key="healthService.id" :service="healthService" @close="healthService = null" @events="alertingService = healthService; healthService = null" />
     <ServiceAlerting v-if="alertingService" :key="alertingService.id" :service="alertingService" @close="alertingService = null" />
     <button v-if="cursor" :disabled="busy" @click="run(() => refresh(true))">加载更多服务</button>

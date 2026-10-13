@@ -24,6 +24,11 @@ health and a declared any-required-observer-failure summary, sharing the inciden
 evaluation contract. Partial/missing results cannot produce overall health;
 current observer coverage differs from historical statistics. See
 [current service health](SERVICE_HEALTH.md) for snapshots, privacy and validation.
+Protected historical diagnostics now restore service/observer/time-range context
+through notification and event links; see [service diagnostics](SERVICE_DIAGNOSTICS.md).
+They expose existing failure categories and total duration only, with no target
+URL, response body, raw errors or invented phase timings. Reading never executes
+a new network check. Migration 036 adds a bounded pagination index.
 Syntax acceptance
 does not allow a network request or waive the Agent address policy below.
 

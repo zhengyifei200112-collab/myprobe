@@ -9,6 +9,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Protected HTTP service diagnostics restore the service, observer and time range
+  after login or reload. Bounded history pages separate real failures from
+  unexecuted, pending and missing checks, with mature raw-slot counts in the same
+  read snapshot. New service notifications capture a separate diagnostic link
+  through retries and full restore; Webhook templates and Telegram/Discord/SMTP
+  render it. Migration 036 adds a pagination index. No private targets, bodies,
+  credentials, unmeasured phase timings, public fields or Agent changes are added.
+
 - Private HTTP statistics optionally exclude effective maintenance-window unions
   by planned slot and frozen observer membership. Raw and removed counts share
   one read snapshot; overlapping windows cannot double-count, cancellation clips

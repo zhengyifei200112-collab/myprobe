@@ -12,6 +12,15 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
   await page.getByLabel('密码',{exact:true}).fill(process.env.SERVICE_INCIDENT_PASSWORD);
   await page.getByRole('button',{name:'使用密码登录',exact:true}).click();
   await page.getByRole('heading',{name:'Service observer · 事件详情',exact:true}).waitFor();
+  await page.getByRole('link',{name:'查看服务诊断',exact:true}).click();
+  const diagnostic=page.getByRole('region',{name:'服务诊断',exact:true});
+  await diagnostic.getByText('检查成功',{exact:true}).first().waitFor();
+  assert.equal(new URL(page.url()).searchParams.get('service'),process.env.SERVICE_INCIDENT_ID);
+  assert.ok(new URL(page.url()).searchParams.get('observer'));
+  assert.ok(new URL(page.url()).searchParams.get('start'));
+  assert.ok(new URL(page.url()).searchParams.get('end'));
+  await page.goto(process.env.SERVICE_INCIDENT_URL);
+  await page.getByRole('heading',{name:'Service observer · 事件详情',exact:true}).waitFor();
   await page.getByRole('region',{name:'事件投递记录',exact:true}).getByText(/^当前事件状态：已恢复或结束/).waitFor();
   await page.getByRole('button',{name:'HTTP 服务',exact:true}).click();
   await page.getByRole('button',{name:'服务告警与事件',exact:true}).click();
