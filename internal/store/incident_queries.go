@@ -88,7 +88,7 @@ func (s *Store) ListIncidents(ctx context.Context, f IncidentFilter) ([]Incident
 	query := "SELECT " + incidentColumns + " FROM alert_incidents WHERE 1=1"
 	args := []any{}
 	if f.ServiceID != "" {
-		query += " AND kind='service_http' AND json_extract(rule_snapshot_json,'$.config.service_id')=?"
+		query += " AND kind IN ('service_http','service_certificate') AND json_extract(rule_snapshot_json,'$.config.service_id')=?"
 		args = append(args, f.ServiceID)
 	}
 	if f.Before > 0 {

@@ -2,6 +2,7 @@ package agentclient
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
 	"log"
 	"log/slog"
@@ -61,6 +62,10 @@ func startPrivateHTTPTarget(t *testing.T) (Config, string) {
 }
 
 func startPrivateTarget(t *testing.T, useTLS bool, override ...http.Handler) (Config, string) {
+	return startPrivateTargetTLS(t, useTLS, nil, override...)
+}
+
+func startPrivateTargetTLS(t *testing.T, useTLS bool, configuration func(netip.Addr) *tls.Config, override ...http.Handler) (Config, string) {
 	t.Helper()
 	if os.Getenv("MYPROBE_TEST_PRIVATE_HTTP") != "1" {
 		t.Skip("set MYPROBE_TEST_PRIVATE_HTTP=1 in an isolated environment")
@@ -111,6 +116,9 @@ func startPrivateTarget(t *testing.T, useTLS bool, override ...http.Handler) (Co
 	target.Config.ErrorLog = log.New(io.Discard, "", 0)
 	scheme := "http://"
 	if useTLS {
+		if configuration != nil {
+			target.TLS = configuration(address)
+		}
 		target.StartTLS()
 		scheme = "https://"
 	} else {

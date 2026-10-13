@@ -12,7 +12,10 @@ Agent execution, Server ingestion, durable scheduling, configuration transfer,
 management UI and per-observer statistics are connected. Production execution is
 opt-in. Per-observer service incidents and delivery now reuse the durable alert
 platform; see [service incidents](SERVICE_INCIDENTS.md). Maintenance-adjusted
-statistics, certificate reminders and release acceptance remain open.
+statistics and release acceptance remain open. Independent certificate reminders
+now persist 14/7/1-day identity and use verified current evidence and the existing
+outbox; see [certificate reminders](CERTIFICATE_REMINDERS.md). Warnings do not
+change service health or add a TLS-verification bypass.
 
 The private service list and current-state endpoint now include per-observer
 health and a declared any-required-observer-failure summary, sharing the incident
@@ -217,7 +220,8 @@ result persistence and statistics for policy denial without opening a target
 socket. Opt-in private-target tests additionally exercise real successful GET/HEAD,
 status/content mismatch, redirect limits, oversized bodies and timeout using the unchanged production executor and
 address policy. Service fault/recovery delivery also has real Agent and browser
-acceptance on the combined development branch. Maintenance exclusion, certificate notifications,
+acceptance on the combined development branch. Certificate warnings also have
+trusted live TLS Agent/rotation/receiver/browser evidence. Maintenance exclusion,
 historical binary compatibility and capacity acceptance remain release work.
 
 ### Reproducible live HTTP acceptance
@@ -365,7 +369,9 @@ Agent-local address policy is explained without suggesting the form can override
 and delete with intercepted APIs at 360/768/1440 px in both themes. Live-backend UI
 acceptance and result/certificate views have since gained live tests; service alert
 settings and incidents are described in [service incidents](SERVICE_INCIDENTS.md).
-Maintenance-adjusted statistics and certificate reminders remain open.
+Independent certificate reminder settings/history now also have live acceptance;
+see [certificate reminders](CERTIFICATE_REMINDERS.md). Maintenance-adjusted
+statistics remain open.
 
 ### Configuration transfer v2
 

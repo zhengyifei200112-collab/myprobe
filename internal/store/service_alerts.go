@@ -11,15 +11,16 @@ import (
 )
 
 type ServiceAlertSettings struct {
-	ServiceRevision int64  `json:"service_revision"`
-	ServiceID       string `json:"service_id"`
-	Revision        int64  `json:"revision"`
-	ChannelID       string `json:"channel_id"`
-	Enabled         bool   `json:"enabled"`
-	DurationSeconds int    `json:"duration_seconds"`
-	RecoverySeconds int    `json:"recovery_seconds"`
-	RepeatSeconds   int    `json:"repeat_seconds"`
-	CooldownSeconds int    `json:"cooldown_seconds"`
+	CertificateRemindersEnabled bool   `json:"certificate_reminders_enabled"`
+	ServiceRevision             int64  `json:"service_revision"`
+	ServiceID                   string `json:"service_id"`
+	Revision                    int64  `json:"revision"`
+	ChannelID                   string `json:"channel_id"`
+	Enabled                     bool   `json:"enabled"`
+	DurationSeconds             int    `json:"duration_seconds"`
+	RecoverySeconds             int    `json:"recovery_seconds"`
+	RepeatSeconds               int    `json:"repeat_seconds"`
+	CooldownSeconds             int    `json:"cooldown_seconds"`
 }
 type ServiceRuleConfig struct {
 	ServiceID       string `json:"service_id"`
@@ -34,7 +35,7 @@ type ServiceRuleConfig struct {
 func (s *Store) ServiceAlertSettings(ctx context.Context, id string) (ServiceAlertSettings, error) {
 	v := ServiceAlertSettings{ServiceID: id, CooldownSeconds: 300}
 	// Read both revisions from one snapshot, including the disabled default.
-	err := s.db.QueryRowContext(ctx, `SELECT s.revision,COALESCE(a.revision,0),COALESCE(a.channel_id,''),COALESCE(a.enabled,0),COALESCE(a.duration_seconds,0),COALESCE(a.recovery_seconds,0),COALESCE(a.repeat_seconds,0),COALESCE(a.cooldown_seconds,300) FROM http_services s LEFT JOIN http_service_alerts a ON a.service_id=s.id WHERE s.id=?`, id).Scan(&v.ServiceRevision, &v.Revision, &v.ChannelID, &v.Enabled, &v.DurationSeconds, &v.RecoverySeconds, &v.RepeatSeconds, &v.CooldownSeconds)
+	err := s.db.QueryRowContext(ctx, `SELECT s.revision,COALESCE(a.revision,0),COALESCE(a.channel_id,''),COALESCE(a.enabled,0),COALESCE(a.duration_seconds,0),COALESCE(a.recovery_seconds,0),COALESCE(a.repeat_seconds,0),COALESCE(a.cooldown_seconds,300),COALESCE(a.certificate_reminders_enabled,0) FROM http_services s LEFT JOIN http_service_alerts a ON a.service_id=s.id WHERE s.id=?`, id).Scan(&v.ServiceRevision, &v.Revision, &v.ChannelID, &v.Enabled, &v.DurationSeconds, &v.RecoverySeconds, &v.RepeatSeconds, &v.CooldownSeconds, &v.CertificateRemindersEnabled)
 	if errors.Is(err, sql.ErrNoRows) {
 		return v, ErrNotFound
 	}
@@ -68,7 +69,7 @@ func (s *Store) SaveServiceAlertSettings(ctx context.Context, v ServiceAlertSett
 	if !valid {
 		return v, ErrInvalidHTTPService
 	}
-	result, err := tx.ExecContext(ctx, `INSERT INTO http_service_alerts(service_id,revision,channel_id,enabled,duration_seconds,recovery_seconds,repeat_seconds,cooldown_seconds,updated_at) VALUES(?,1,?,?,?,?,?,?,?) ON CONFLICT(service_id) DO UPDATE SET revision=revision+1,channel_id=excluded.channel_id,enabled=excluded.enabled,duration_seconds=excluded.duration_seconds,recovery_seconds=excluded.recovery_seconds,repeat_seconds=excluded.repeat_seconds,cooldown_seconds=excluded.cooldown_seconds,updated_at=excluded.updated_at WHERE http_service_alerts.revision=?`, v.ServiceID, v.ChannelID, v.Enabled, v.DurationSeconds, v.RecoverySeconds, v.RepeatSeconds, v.CooldownSeconds, nowText(), v.Revision)
+	result, err := tx.ExecContext(ctx, `INSERT INTO http_service_alerts(service_id,revision,channel_id,enabled,duration_seconds,recovery_seconds,repeat_seconds,cooldown_seconds,updated_at,certificate_reminders_enabled) VALUES(?,1,?,?,?,?,?,?,?,?) ON CONFLICT(service_id) DO UPDATE SET revision=revision+1,channel_id=excluded.channel_id,enabled=excluded.enabled,duration_seconds=excluded.duration_seconds,recovery_seconds=excluded.recovery_seconds,repeat_seconds=excluded.repeat_seconds,cooldown_seconds=excluded.cooldown_seconds,certificate_reminders_enabled=excluded.certificate_reminders_enabled,updated_at=excluded.updated_at WHERE http_service_alerts.revision=?`, v.ServiceID, v.ChannelID, v.Enabled, v.DurationSeconds, v.RecoverySeconds, v.RepeatSeconds, v.CooldownSeconds, nowText(), v.CertificateRemindersEnabled, v.Revision)
 	if err != nil {
 		return v, err
 	}

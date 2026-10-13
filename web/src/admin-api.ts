@@ -478,6 +478,7 @@ export async function uploadDatabaseRestore(file: File, passphrase: string): Pro
 }
 
 export interface Incident {
+	severity?: 'warning'
 	service_id?: string
 	service_name?: string
   seq: number; id: string; node_id: string; node_name: string; kind: string
@@ -549,6 +550,7 @@ export const createIncidentSilence = (id: string, requestID: string, params: Sil
 export const cancelIncidentSilence = (id: string, silenceID: string, requestID: string, revision: number) => request<SilenceMutationResult>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/silences/${encodeURIComponent(silenceID)}/cancel`, { method: 'POST', body: JSON.stringify({ request_id: requestID, revision }) })
 
 export interface ServiceAlertSettings {
+  certificate_reminders_enabled: boolean
   service_id: string
   service_revision: number
   revision: number
@@ -560,5 +562,11 @@ export interface ServiceAlertSettings {
   cooldown_seconds: number
 }
 export const loadServiceAlerting = (id: string) => request<{ alerting: ServiceAlertSettings; execution_enabled: boolean }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/alerting`)
-export const saveServiceAlerting = (id: string, v: ServiceAlertSettings) => request<{ alerting: ServiceAlertSettings; execution_enabled: boolean }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/alerting`, { method: 'PUT', body: JSON.stringify({ service_revision: v.service_revision, revision: v.revision, channel_id: v.channel_id, enabled: v.enabled, duration_seconds: v.duration_seconds, recovery_seconds: v.recovery_seconds, repeat_seconds: v.repeat_seconds, cooldown_seconds: v.cooldown_seconds }) })
+export const saveServiceAlerting = (id: string, v: ServiceAlertSettings) => request<{ alerting: ServiceAlertSettings; execution_enabled: boolean }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/alerting`, { method: 'PUT', body: JSON.stringify({ service_revision: v.service_revision, revision: v.revision, channel_id: v.channel_id, enabled: v.enabled, certificate_reminders_enabled: v.certificate_reminders_enabled, duration_seconds: v.duration_seconds, recovery_seconds: v.recovery_seconds, repeat_seconds: v.repeat_seconds, cooldown_seconds: v.cooldown_seconds }) })
 export const loadServiceIncidents = (id: string, before = 0) => request<{ incidents: Incident[]; next_before: number }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/incidents?limit=25&before=${before}`)
+export interface CertificateReminder {
+  seq: number; certificate_sha256: string; days_before: number; not_before: string; not_after: string
+  queued_once: boolean; authorized_once: boolean; skipped: boolean; incident_id?: string
+  delivery_status: string; observation_stale: boolean; resolution_reason?: string; created_at: string
+}
+export const loadCertificateReminders = (id: string, before = 0) => request<{ reminders: CertificateReminder[]; next_before: number }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/certificate-reminders?limit=25&before=${before}`)

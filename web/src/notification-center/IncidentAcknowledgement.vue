@@ -4,7 +4,7 @@ import { acknowledgeIncident, AdminAPIError, loadIncidentAcknowledgement, type I
 import { DsButton, DsTextarea } from '../design-system'
 import { acknowledgementNoteBytes, acknowledgementRecoveryKey, normalizedAcknowledgementNote, readAcknowledgementRecovery, validAcknowledgementNote, type PendingAcknowledgement } from './acknowledgement-recovery'
 
-const props = defineProps<{ incidentId: string; nodeName: string; refreshVersion?: number }>()
+const props = defineProps<{ incidentId: string; nodeName: string; refreshVersion?: number; warning?: boolean }>()
 const emit = defineEmits<{ changed: [] }>()
 const view = ref<IncidentAcknowledgementView | null>(null), note = ref('')
 const pending = ref<PendingAcknowledgement | null>(null), recoveryRaw = ref<string | null>(null)
@@ -20,7 +20,7 @@ function describe(e: unknown) {
     const messages: Record<string, string> = {
       invalid_acknowledgement: '请检查备注和请求内容。备注最多 1000 个 UTF-8 字节。',
       incident_already_acknowledged: '事件已被知悉；您的新备注未另行保存，请查看原记录。',
-      incident_not_firing: '事件当前不是持续故障，不能新建知悉记录。',
+      incident_not_firing: props.warning ? '此提醒已结束，不能新建知悉记录。' : '事件当前不是持续故障，不能新建知悉记录。',
       incident_not_found: '事件已不存在，请刷新事件列表。',
       acknowledgement_request_conflict: '原请求身份存在冲突，请核对知悉记录和审计；不要建立新的请求。',
     }
@@ -94,7 +94,7 @@ async function submit() {
     if (current === generation) {
       notice.value = operation.incidentID !== props.incidentId
         ? `已确认 ${operation.nodeName} 的知悉结果；本次操作未修改当前事件。`
-        : result.replayed ? '已确认此前知悉结果，故障通知继续按规则发送。' : '已记录知悉，故障通知继续按规则发送。'
+        : props.warning ? '已记录或确认知悉；已有通知任务继续按规则处理，证书档位去重仍生效。' : result.replayed ? '已确认此前知悉结果，故障通知继续按规则发送。' : '已记录知悉，故障通知继续按规则发送。'
       note.value = ''
       await refresh()
     }
@@ -125,7 +125,7 @@ watch(() => props.refreshVersion, () => { void refresh() })
 <template>
   <section class="incident-ack" aria-label="事件知悉">
     <header><h4>知悉与处理记录</h4><DsButton size="small" :disabled="loading || busy" @click="refresh">刷新知悉记录</DsButton></header>
-    <p>知悉表示有人处理，不会暂停通知，也不表示故障已经恢复。</p>
+    <p>{{ warning ? '知悉表示有人处理此证书预警；不会暂停已有通知任务，也不证明证书已续期。' : '知悉表示有人处理，不会暂停通知，也不表示故障已经恢复。' }}</p>
     <p v-if="loading" role="status">正在加载知悉记录…</p><p v-if="error" role="alert">{{ error }}</p><p v-if="recoveryError" role="alert">{{ recoveryError }}</p><p v-if="notice" role="status">{{ notice }}</p>
     <section v-if="pending || recoveryInvalid" class="ack-recovery" aria-label="待确认知悉操作">
       <h5>上次知悉结果待确认</h5>
@@ -144,9 +144,9 @@ watch(() => props.refreshVersion, () => { void refresh() })
     <form v-else-if="view?.incident_state === 'firing'" @submit.prevent="submit">
       <DsTextarea v-model="note" label="知悉备注（仅管理端可见，可留空）" :disabled="locked" :rows="3" help="最多 1000 个 UTF-8 字节；中文通常每字 3 字节。" />
       <p>{{ bytes }} / 1000 字节</p>
-      <DsButton type="submit" variant="primary" :disabled="locked || !validAcknowledgementNote(note)">知悉此故障（继续通知）</DsButton>
+      <DsButton type="submit" variant="primary" :disabled="locked || !validAcknowledgementNote(note)">{{ warning ? '知悉此证书提醒' : '知悉此故障（继续通知）' }}</DsButton>
     </form>
-    <p v-else-if="view">未记录知悉；只有持续故障可以新建知悉记录。</p>
+    <p v-else-if="view">{{ warning ? '未记录知悉；此提醒已结束，不能新建知悉记录。' : '未记录知悉；只有持续故障可以新建知悉记录。' }}</p>
   </section>
 </template>
 

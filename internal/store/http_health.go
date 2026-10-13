@@ -29,6 +29,14 @@ type HTTPHealthSnapshot struct {
 // the latest planned observation in one SQLite statement/snapshot. It never reads
 // target specifications or network addresses.
 func (s *Store) HTTPHealthSnapshots(ctx context.Context, ids []string, now time.Time) ([]HTTPHealthSnapshot, error) {
+	return readHTTPHealthSnapshots(ctx, s.db, ids, now)
+}
+
+type healthQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+func readHTTPHealthSnapshots(ctx context.Context, queryer healthQueryer, ids []string, now time.Time) ([]HTTPHealthSnapshot, error) {
 	if len(ids) > 100 || now.IsZero() {
 		return nil, ErrInvalidHTTPService
 	}
@@ -45,7 +53,7 @@ func (s *Store) HTTPHealthSnapshots(ctx context.Context, ids []string, now time.
 		unique[id] = true
 		args = append(args, id)
 	}
-	rows, err := s.db.QueryContext(ctx, httpHealthQuery(len(ids)), args...)
+	rows, err := queryer.QueryContext(ctx, httpHealthQuery(len(ids)), args...)
 	if err != nil {
 		return nil, err
 	}

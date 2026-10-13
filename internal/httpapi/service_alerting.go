@@ -43,14 +43,15 @@ func (s *Server) putServiceAlerting(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 8<<10)
 	defer c.Request.Body.Close()
 	var request struct {
-		ServiceRevision int64  `json:"service_revision"`
-		Revision        int64  `json:"revision"`
-		ChannelID       string `json:"channel_id"`
-		Enabled         *bool  `json:"enabled"`
-		DurationSeconds int    `json:"duration_seconds"`
-		RecoverySeconds int    `json:"recovery_seconds"`
-		RepeatSeconds   int    `json:"repeat_seconds"`
-		CooldownSeconds int    `json:"cooldown_seconds"`
+		CertificateRemindersEnabled *bool  `json:"certificate_reminders_enabled"`
+		ServiceRevision             int64  `json:"service_revision"`
+		Revision                    int64  `json:"revision"`
+		ChannelID                   string `json:"channel_id"`
+		Enabled                     *bool  `json:"enabled"`
+		DurationSeconds             int    `json:"duration_seconds"`
+		RecoverySeconds             int    `json:"recovery_seconds"`
+		RepeatSeconds               int    `json:"repeat_seconds"`
+		CooldownSeconds             int    `json:"cooldown_seconds"`
 	}
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields()
@@ -59,11 +60,44 @@ func (s *Server) putServiceAlerting(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid service alert configuration"})
 		return
 	}
-	settings, err := s.store.SaveServiceAlertSettings(c.Request.Context(), store.ServiceAlertSettings{ServiceID: c.Param("serviceID"), ServiceRevision: request.ServiceRevision, Revision: request.Revision, ChannelID: request.ChannelID, Enabled: *request.Enabled, DurationSeconds: request.DurationSeconds, RecoverySeconds: request.RecoverySeconds, RepeatSeconds: request.RepeatSeconds, CooldownSeconds: request.CooldownSeconds})
+	certificateEnabled := false
+	if request.CertificateRemindersEnabled != nil {
+		certificateEnabled = *request.CertificateRemindersEnabled
+	} else {
+		current, err := s.store.ServiceAlertSettings(c.Request.Context(), c.Param("serviceID"))
+		if err != nil {
+			writeHTTPServiceError(c, err)
+			return
+		}
+		certificateEnabled = current.CertificateRemindersEnabled
+	}
+	settings, err := s.store.SaveServiceAlertSettings(c.Request.Context(), store.ServiceAlertSettings{ServiceID: c.Param("serviceID"), ServiceRevision: request.ServiceRevision, Revision: request.Revision, ChannelID: request.ChannelID, Enabled: *request.Enabled, DurationSeconds: request.DurationSeconds, RecoverySeconds: request.RecoverySeconds, RepeatSeconds: request.RepeatSeconds, CooldownSeconds: request.CooldownSeconds, CertificateRemindersEnabled: certificateEnabled})
 	if err != nil {
 		writeHTTPServiceError(c, err)
 		return
 	}
-	s.audit(c, "update", "service_alerting", settings.ServiceID, gin.H{"revision": settings.Revision, "enabled": settings.Enabled})
+	s.audit(c, "update", "service_alerting", settings.ServiceID, gin.H{"revision": settings.Revision, "enabled": settings.Enabled, "certificate_reminders_enabled": settings.CertificateRemindersEnabled})
 	c.JSON(http.StatusOK, gin.H{"alerting": settings, "execution_enabled": s.config.HTTPProbesEnabled})
+}
+
+func (s *Server) serviceCertificateReminders(c *gin.Context) {
+	before, limit, err := aggregatePageQuery(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid certificate reminder pagination"})
+		return
+	}
+	if _, err := s.store.HTTPService(c.Request.Context(), c.Param("serviceID")); err != nil {
+		writeHTTPServiceError(c, err)
+		return
+	}
+	items, err := s.store.ListCertificateReminders(c.Request.Context(), c.Param("serviceID"), before, limit)
+	if err != nil {
+		writeHTTPServiceError(c, err)
+		return
+	}
+	var next int64
+	if len(items) == limit {
+		next = items[len(items)-1].Seq
+	}
+	c.JSON(http.StatusOK, gin.H{"reminders": items, "next_before": next})
 }

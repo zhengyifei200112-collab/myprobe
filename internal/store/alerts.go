@@ -273,7 +273,7 @@ func (s *Store) UpdateAlertRule(ctx context.Context, id, nodeID, channelID, kind
 	}
 	result, err := s.db.ExecContext(ctx, `UPDATE alert_rules SET node_id=?,channel_id=?,kind=?,config_json=?,enabled=?,cooldown_seconds=?,updated_at=?
 		WHERE id=? AND EXISTS(SELECT 1 FROM nodes WHERE id=?) AND EXISTS(SELECT 1 FROM notification_channels WHERE id=?)
-		AND NOT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id) AND NOT EXISTS(SELECT 1 FROM http_service_rule_bindings WHERE rule_id=alert_rules.id)`, nodeID, channelID, kind, string(config), enabled, cooldown, nowText(), id, nodeID, channelID)
+   AND NOT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id) AND NOT EXISTS(SELECT 1 FROM http_service_rule_bindings WHERE rule_id=alert_rules.id) AND NOT EXISTS(SELECT 1 FROM http_certificate_reminders WHERE rule_id=alert_rules.id)`, nodeID, channelID, kind, string(config), enabled, cooldown, nowText(), id, nodeID, channelID)
 	if err != nil {
 		return AlertRule{}, err
 	}
@@ -325,7 +325,7 @@ func (s *Store) ListAlertRules(ctx context.Context) ([]AlertRule, error) {
 }
 
 func (s *Store) DeleteAlertRule(ctx context.Context, id string) error {
-	result, err := s.db.ExecContext(ctx, `DELETE FROM alert_rules WHERE id=? AND NOT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id) AND NOT EXISTS(SELECT 1 FROM http_service_rule_bindings WHERE rule_id=alert_rules.id)`, id)
+	result, err := s.db.ExecContext(ctx, `DELETE FROM alert_rules WHERE id=? AND NOT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id) AND NOT EXISTS(SELECT 1 FROM http_service_rule_bindings WHERE rule_id=alert_rules.id) AND NOT EXISTS(SELECT 1 FROM http_certificate_reminders WHERE rule_id=alert_rules.id)`, id)
 	if err != nil {
 		return err
 	}
@@ -346,7 +346,7 @@ var ErrServiceAlertRuleManaged = errors.New("rule is managed by service alert co
 // only classifies rejection; a concurrent removal cannot authorize a stale write.
 func (s *Store) alertRuleWriteConflict(ctx context.Context, id string) error {
 	var exists, serviceManaged bool
-	if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=?),EXISTS(SELECT 1 FROM http_service_rule_bindings WHERE rule_id=?)`, id, id).Scan(&exists, &serviceManaged); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=?),(EXISTS(SELECT 1 FROM http_service_rule_bindings WHERE rule_id=?) OR EXISTS(SELECT 1 FROM http_certificate_reminders WHERE rule_id=?))`, id, id, id).Scan(&exists, &serviceManaged); err != nil {
 		return err
 	}
 	if exists {

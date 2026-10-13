@@ -9,6 +9,16 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Opt-in certificate expiry warnings independently enable 14/7/1-day reminders
+  per HTTP service. Migration 035 persists service/fingerprint/threshold identity,
+  queue and final-send authorization across observers and full database restore.
+  Only the most urgent currently due tier is notified; missed tiers are skipped.
+  Verified fresh evidence drives warnings, complete fresh success confirms
+  certificate replacement, and expiry/rotation never sends technical recovery.
+  Private settings/history show warning severity, expiry, dedup state and the
+  original event link without changing service health or public/Agent contracts.
+  Existing outbox retries and provider receipt limitations remain in effect.
+
 - Private HTTP service lists and current-state detail now declare the
   any-required-observer-failure policy and separate success, failure, unknown and
   current observer coverage. Partial success or an empty observer set never

@@ -49,6 +49,9 @@ func (s *Store) PrepareAlertPolicyRules(ctx context.Context, now time.Time) (int
 	if err = syncServiceAlertRules(ctx, tx, now); err != nil {
 		return 0, err
 	}
+	if err = synchronizeCertificateDefinitions(ctx, tx, now); err != nil {
+		return 0, err
+	}
 	if err = tx.Commit(); err != nil {
 		return 0, err
 	}

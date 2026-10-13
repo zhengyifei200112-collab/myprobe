@@ -40,7 +40,14 @@ any-required-observer-failure: one failure degrades, partial success remains
 unknown, and only all fresh successes are healthy. Current observer coverage is
 separate from historical slot coverage/success rate. Snapshot expiry and read
 failure revoke old healthy presentation; see [current service health](SERVICE_HEALTH.md).
-Maintenance-adjusted statistics, certificate reminders,
+Certificate reminders now independently enable verified 14/7/1-day warnings,
+persistently deduplicated per service/fingerprint/tier across observers and full
+restore. Only the most urgent reached tier is sent; missed tiers are skipped.
+Complete fresh success confirms replacement, and expiry/rotation never sends
+technical recovery. Warning state does not change current health. Private history
+distinguishes queueing, final authorization and real receipts; see
+[certificate reminders](CERTIFICATE_REMINDERS.md) for migration 035 and live TLS evidence.
+Maintenance-adjusted statistics,
 service/observer/time-range links and capacity/release acceptance remain incomplete.
 Configuration enablement alone does not start execution; v1 Agents remain supported
 for their existing capabilities and never receive HTTP tasks.

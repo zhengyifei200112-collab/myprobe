@@ -1,7 +1,7 @@
 # HTTP 服务故障事件：实施与后续开发
 
 需求基线：工作区 MyProbe后续开发文档.md 第 6、17.3、18.5 节。
-当前状态：feature/service-incidents 已实现服务告警、单观测点事件及多观测点当前摘要，待评审；不表示已合并、发布或完成 M3。
+当前状态：feature/service-incidents 已实现服务告警、单观测点事件、多观测点当前摘要与独立证书提醒，待评审；不表示已合并、发布或完成 M3。
 依赖：HTTP PR #53（d711950）与告警 PR #58（7bee226），集成基础 f384620。草稿 PR #59 保留完整依赖，源 PR 未合并。
 
 ## 用户流程
@@ -45,6 +45,7 @@
 | GET /alerting | 告警配置、当前服务版本及服务端执行开关 |
 | PUT /alerting | 保存配置，要求登录、CSRF、服务版本和告警版本 |
 | GET /incidents | 本服务历史，倒序游标分页，默认 25、上限 100 |
+| GET /certificate-reminders | 指纹/档位提醒账本、投递状态及原事件入口；详见 CERTIFICATE_REMINDERS.md |
 
 GET 使用 no-store；PUT 最多 8 KiB，拒绝未知字段、尾随 JSON、数值溢出和无 enabled。单个 JSON 对象中的重复键沿用 Go 标准解码行为，不宣称严格拒绝。分页重复参数和非法游标拒绝。
 
@@ -74,7 +75,7 @@ GET 使用 no-store；PUT 最多 8 KiB，拒绝未知字段、尾随 JSON、数�
 
 ## 迁移与可复现验证
 
-新增且仅新增前向迁移 034_service_alerts.sql。原 016–020 与 015、021–033 保持原编号和内容。034 在迁移事务内暂存并恢复 legacy alert_events/alert_states 后重建规则约束，新增 service_http，同时补齐已存在 API 支持的 memory/disk/latency。迁移不清空旧事件、状态、错误、投递或回执；故意失败验证 DDL 与数据整体回滚，重复迁移与 foreign_key_check 通过。
+服务故障使用前向迁移 034_service_alerts.sql；证书提醒另用 035_certificate_reminders.sql，原编号与内容不改写。034 在迁移事务内暂存并恢复 legacy alert_events/alert_states 后重建规则约束，新增 service_http，同时补齐已存在 API 支持的 memory/disk/latency。035 同样保留旧历史并新增 service_certificate、默认关闭的提醒开关和持久去重账本。迁移不清空旧事件、状态、错误、投递或回执；故意失败验证 DDL 与数据整体回滚，重复迁移与 foreign_key_check 通过。
 
 两方向集成升级夹具分别从 HTTP 原分支和告警原分支 schema 出发，保留待结果接纳、原事件、聚合冻结正文/键/成员和租约/共享等待。服务告警额外验证完整备份恢复、管理变更期间真实回执保留、维护/静默叠加、新计划待结果遮住旧结果、能力/离线/执行开关和新鲜度边界。夹具不能代替每个历史 release 二进制验收。
 
@@ -91,7 +92,7 @@ TestServiceIncidentThroughRealAgent 运行实际 Agent、调度器、Gateway、�
 | 顺序 | 工作 | 完成标准 |
 | --- | --- | --- |
 | 1 | 当前服务/观测点健康摘要（已实现，待发布及完整容量验收） | 任一必选观测点失败降级；空观测和部分成功不能变健康，详见 SERVICE_HEALTH.md |
-| 2 | 证书 14/7/1 天提醒 | 持久按服务、证书指纹、档位去重；替换证书、重复报告、精确边界、重启/恢复均验证，不只显示证书 |
+| 2 | 证书 14/7/1 天提醒（已实现，待发布及完整容量验收） | 持久按服务、证书指纹、档位去重；替换证书、重复报告、精确边界、重启/恢复均验证，详见 [证书提醒契约](CERTIFICATE_REMINDERS.md) |
 | 3 | 维护排除统计 | 按节点和计划槽排除维护并集，保留原始结果与排除数量；重叠不双扣，取消/改窗有明确历史口径 |
 | 4 | 服务诊断与深链 | 受保护的服务/观测点/时间范围入口；DNS/TCP/TLS/状态/断言/缺执行分别说明，避免公开原始 URL/正文 |
 | 5 | 告警可迁移配置 | 设计通道身份映射及版本契约，dry-run、冲突和未知通道严格验证；保持 v1/v2 向后兼容 |

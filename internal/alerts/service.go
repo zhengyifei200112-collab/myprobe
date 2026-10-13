@@ -266,6 +266,10 @@ func (s *Service) Tick(ctx context.Context, now time.Time) error {
 		return fmt.Errorf("prepare alert policies: %w", err)
 	}
 	s.setPolicyEvaluationStatus("ready", &now)
+	certificates, err := s.prepareCertificates(ctx, now)
+	if err != nil {
+		return err
+	}
 	if err := s.store.ReconcileIncidents(ctx, now); err != nil {
 		return err
 	}
@@ -288,6 +292,10 @@ func (s *Service) Tick(ctx context.Context, now time.Time) error {
 			continue
 		}
 		active, message, known, err := s.evaluate(ctx, rule, node, now)
+		endReason := ""
+		if rule.Kind == "service_certificate" {
+			active, message, known, endReason, err = evaluateCertificate(rule, certificates, now)
+		}
 		if err != nil {
 			failures = append(failures, err)
 			continue
@@ -295,6 +303,9 @@ func (s *Service) Tick(ctx context.Context, now time.Time) error {
 		state, title := "resolved", "MyProbe 告警恢复"
 		if active {
 			state, title = "firing", "MyProbe 告警"
+		}
+		if rule.Kind == "service_certificate" {
+			title = "MyProbe 证书到期提醒"
 		}
 		notification := Notification{Title: title, Message: message, State: state, Kind: rule.Kind, NodeID: node.ID, NodeName: node.Name, RuleID: rule.ID, Timestamp: now}
 		var config RuleConfig
@@ -308,7 +319,7 @@ func (s *Service) Tick(ctx context.Context, now time.Time) error {
 				notification.Message = renderTemplate(template.BodyTemplate, notification)
 			}
 		}
-		_, err = s.store.ObserveAlert(ctx, rule, node, store.AlertObservation{At: now, Known: known, Active: active, Message: message, NotificationTitle: notification.Title, NotificationMessage: notification.Message, NotificationOrigin: s.notificationOrigin})
+		_, err = s.store.ObserveAlert(ctx, rule, node, store.AlertObservation{At: now, Known: known, Active: active, Message: message, NotificationTitle: notification.Title, NotificationMessage: notification.Message, NotificationOrigin: s.notificationOrigin, EndReason: endReason})
 		if err != nil && !errors.Is(err, store.ErrObservationObsolete) {
 			failures = append(failures, err)
 		}
@@ -322,6 +333,8 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 		return false, "", false, err
 	}
 	switch rule.Kind {
+	case "service_certificate":
+		return false, "", false, nil // Tick evaluates the service-wide certificate pool.
 	case "service_http":
 		return s.evaluateHTTPService(ctx, rule, node, now)
 	case "offline":

@@ -141,6 +141,7 @@ func (s *Server) routes() {
 	services.GET("/:serviceID/health", s.httpServiceHealth)
 	services.GET("/:serviceID/alerting", s.getServiceAlerting)
 	services.GET("/:serviceID/incidents", s.serviceIncidents)
+	services.GET("/:serviceID/certificate-reminders", s.serviceCertificateReminders)
 	services.PUT("/:serviceID/alerting", s.putServiceAlerting)
 	services.PUT("/:serviceID", s.replaceHTTPService)
 	admin.GET("/nodes", s.adminNodes)
@@ -913,7 +914,7 @@ func (s *Server) listAlertRules(c *gin.Context) {
 	}
 	visible := make([]store.AlertRule, 0, len(items))
 	for _, item := range items {
-		if item.Kind != "service_http" {
+		if item.Kind != "service_http" && item.Kind != "service_certificate" {
 			visible = append(visible, item)
 		}
 	}
