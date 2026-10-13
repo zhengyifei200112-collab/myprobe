@@ -164,6 +164,7 @@ onMounted(() => {
             <div><dt>触发持续时间</dt><dd>{{ p.config.duration_seconds ?? 0 }} 秒</dd></div>
             <div><dt>恢复持续时间</dt><dd>{{ p.config.recovery_seconds ?? p.config.duration_seconds ?? 0 }} 秒</dd></div>
             <div><dt>重复提醒间隔</dt><dd>{{ p.config.repeat_seconds || p.cooldown_seconds }} 秒</dd></div>
+            <div><dt>通知聚合</dt><dd>{{ p.config.aggregation_seconds ? `额外等待 ${p.config.aggregation_seconds} 秒` : '立即逐事件发送' }}</dd></div>
             <div><dt>冷却时间</dt><dd>{{ p.cooldown_seconds }} 秒</dd></div>
           </dl>
         </details>

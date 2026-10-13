@@ -7,7 +7,43 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- New individual incident notifications capture an authenticated event URL when
+  queued. Webhook JSON includes `incident_path`, custom Webhooks support
+  `{{incident.url}}`, and Telegram/Discord/SMTP append a formatted event entry.
+  Retry and full restore retain the captured URL; old queued payloads keep their
+  original bytes. Configure `MYPROBE_NOTIFICATION_ORIGIN` for absolute links.
+
 ### Fixed
+
+- Delivery completion now rechecks current policy, rule, node and channel state
+  before applying a receipt. Management changes during an actual request cancel
+  obsolete individual/aggregate jobs without waiting for evaluation, preserving
+  real attempt results while revoking retry and repeat-clock authority. A wholly
+  revoked aggregate cannot extend channel waits; valid remaining members proceed.
+
+- Provider retry waits now persist per notification channel and gate aggregate,
+  individual and manual test sends. Concurrent results cannot shorten a wait;
+  replacing provider/configuration isolates old results. Known-unsent reservations
+  refund their retry budget while preserving paginated history. Admin views show
+  the last channel deadline and distinguish history entries from send budget.
+  Forward-only migration 033 preserves attempt IDs and aggregate membership while
+  allowing history to exceed five entries; public and Agent contracts are unchanged.
+- Telegram delivery requires a valid Bot API message confirmation; Discord requests
+  and validates saved-message confirmation. Malformed/empty successful responses
+  remain unknown, and provider body/header retry delays are honored without leaking
+  response details. Aggregate names/excerpts are escaped for rich formatting,
+  Discord keeps its content link while bounding text, and SMTP now sends encoded
+  UTF-8 subjects and quoted-printable MIME over verified TLS/STARTTLS.
+- Aggregate JSON can avoid optional HTML-escaping overhead while retaining all
+  references. Invalid/oversized logical rendering now records an atomic known-unsent
+  failure and lets other groups progress. History explains logical content versus
+  provider formatting and local failure versus unknown reception.
+- Migration 032 captures new groups' private custom-Webhook template time so
+  timezone changes across restart/restore do not alter an unchanged retry body.
+  Old groups preserve legacy rendering/key identity; keep their timezone until
+  pending work drains. No public/API/Agent fields are added.
 
 - Maintenance decision and delivery-link writes now use bounded batches within
   the original transaction, reducing repeated SQL work under overlapping windows.
@@ -38,6 +74,25 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   evaluator, preventing the management UI from remaining pending after application.
 
 ### Added
+
+- Notification aggregation foundation (migration 030): explicit policy windows,
+  bounded per-policy/channel/type shards, durable transport attempts and exact
+  per-event attempt links. The worker revalidates each member before sending;
+  unchanged retries preserve content/key and stale members wait independently.
+  Real loopback receiver measurements cover 5/50/100-node storms. Protected
+  management configuration/history distinguish current event results from actual
+  attempt content, including unknown outcomes. New policy forms show a 30-second
+  wait, while old settings are preserved. Migration 031 keeps old payload/key
+  identity and freezes optional `MYPROBE_NOTIFICATION_ORIGIN` for new notification
+  content/event links. Login returns to the original content; real receiver and
+  browser checks cover identical ambiguous-send retries and both themes/three
+  widths. Local provider protocol acceptance passes; live account/client rendering,
+  shared-channel rate backpressure, release/capacity acceptance remain pending;
+  this is unreleased.
+  Restart/full restore retain windows and keys. Actual late results after a parent
+  takeover refine history without changing successor jobs or clocks. Destination
+  configuration is read from the final send snapshot and its version participates
+  in the key. Older policy editors preserve the existing aggregation setting.
 
 - Incident silence intervals, revisioned cancellation, atomic optional
   acknowledgement and replay history (migration 029). Existing observation/outbox

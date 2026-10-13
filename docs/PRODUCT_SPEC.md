@@ -160,3 +160,52 @@ history and exact delivery causes, with original-operation recovery across reloa
 and incident selection. Real receiver/browser acceptance covers both themes and
 360/768/1440 px. Release integration and full capacity remain pending; no public fields change.
 See [INCIDENT_SILENCE.md](INCIDENT_SILENCE.md) for semantics and acceptance gates.
+
+## Notification aggregation foundation (AGG-01/ALT-05, in development)
+
+Migration 030 retains logical event deliveries and adds bounded transport groups,
+immutable send attempts and exact per-event links. Explicit policy
+`aggregation_seconds` (5–300; zero/omission preserves immediate behavior) groups
+by policy ID/revision, channel/provider and notification type, at most 10 events
+per fixed window. Final checks remove recovered/muted members and defer stale
+members independently; completion/history stays atomic. Text and JSON transport
+bounds are enforced and unchanged retries keep their content/key. Transport-only
+edits do not recreate technical incidents. Protected configuration/history and
+context UI distinguish current outcomes from exact historical contents. New
+policy forms show an added 30-second wait; zero disables it. Migration 031 freezes
+the configured notification origin and content-link renderer while preserving
+old payload/key identity. Password and GitHub return navigation open aggregate
+content or individual events after authentication. Real receiver/browser checks
+cover ambiguous acceptance, identical retry and both themes/three widths;
+GitHub return navigation is locally simulated. Local provider protocol checks cover
+Webhook, Telegram's three parse modes, Discord and verified TLS/STARTTLS SMTP.
+Frozen logical history differs from escaped/clipped HTTP or encoded MIME envelopes;
+local rendering failures are known unsent and complete atomically without receipts.
+Telegram/Discord require valid message confirmation and honor body/header delays.
+Migration 032 captures new groups' private template time across timezone-changing
+restore; old groups keep their legacy behavior and require a stable timezone while
+draining. Live account/client acceptance, shared-channel rate backpressure,
+broader administrative races, release integration and retention/capacity remain
+pending. See [NOTIFICATION_AGGREGATION.md](NOTIFICATION_AGGREGATION.md).
+
+Restart/full restore preserve window and transport identity. Actual late results
+after takeover refine historical attempts without altering current jobs or clocks.
+Final destination snapshots are private; their configuration version separates
+changed retries. Older editors omit the field without disabling an existing
+setting; an explicit zero disables it. These queue/receiver checks do not replace
+release integration or complete AGG-01/ALT-05. Non-aggregate/service links and
+M3–M5 remain in the original roadmap.
+
+### 通知渠道共享等待补充（开发分支，迁移 033）
+
+渠道维度持久保存 Provider 等待期限，覆盖聚合、单事件与手工测试；自身任务期限与渠道期限同时满足才允许发送。等待中的任务不占领取批次和发送预算；领取后发现等待则原子返还预算，保留唯一历史序号与分页诊断。配置版本隔离旧响应，并发结果只延长等待。更换配置清除等待，改名和启用状态保留等待。授权后正在发送的请求仍可能完成，不承诺 Provider 全局限速或恰好一次。
+
+仅管理员接口新增渠道期限与尝试序号，历史默认每页 25 条、最多 100 条；渠道版本和发送授权不公开。管理界面区分五次发送预算与不限于五条的历史，并提示到期仍需满足其他发送条件。迁移、重启/恢复、真实本地 HTTP 并发及明暗主题三宽度浏览器均需验收。该功能属于 AGG-01/ALT-05 的持续开发，不代表整条路线已发布。
+
+### 单事件通知返回原事件（开发分支）
+
+新单事件任务将事件地址固定到入库正文，故障、重复提醒和恢复共享原事件身份。Webhook 默认 JSON 增加 `incident_path`，自定义 Body 支持 `{{incident.url}}`；Telegram/Discord/SMTP 提供格式化入口。地址来自已验证的通知 origin，没有 origin 则提供相对路径；入口要求管理员登录并显示事件当前状态。旧任务保持原正文，新任务的重试、重启和完整恢复保持地址。无数据库迁移、公开节点或 Agent 协议变更。实际本地 Webhook 与浏览器登录、各渠道本地报文、完整恢复和生命周期已验收；M3 服务通知、公网账号/客户端展示及发布集成继续待实施。
+
+### 管理变更后的回执权限（开发分支）
+
+单事件与聚合的当前租约在结果写回事务内重查当前事件、规则、策略范围与渠道。管理变更使任务失效时，逻辑任务取消，实际尝试历史保留；不恢复重试或推进失效事件的提醒时钟，不依赖下一次评估先运行。部分有效成员继续正常完成，全部失效的组不再延长共享等待。维护/静默动作与技术事件状态仍沿用既有语义。真实本地接收端覆盖八类操作、四类响应及配置替换，事务故障与单事件租约/replay另行验证；没有迁移或 API/Agent 变更，完整容量、更多竞争及发布集成继续保留。

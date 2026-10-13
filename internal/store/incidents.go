@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"reflect"
 	"time"
+
+	"github.com/zhengyifei200112-collab/myprobe/internal/notificationlink"
 )
 
 var ErrObservationObsolete = errors.New("alert rule changed during evaluation")
@@ -40,6 +42,7 @@ type Incident struct {
 }
 
 type AlertObservation struct {
+	NotificationOrigin  string
 	At                  time.Time
 	Known               bool
 	Active              bool
@@ -50,15 +53,16 @@ type AlertObservation struct {
 
 // DeliveryNotification is a durable rendered payload, never channel credentials.
 type DeliveryNotification struct {
-	Title      string    `json:"title"`
-	Message    string    `json:"message"`
-	State      string    `json:"state"`
-	Kind       string    `json:"kind"`
-	NodeID     string    `json:"node_id"`
-	NodeName   string    `json:"node_name"`
-	RuleID     string    `json:"rule_id"`
-	IncidentID string    `json:"incident_id"`
-	Timestamp  time.Time `json:"timestamp"`
+	IncidentPath string    `json:"incident_path,omitempty"`
+	Title        string    `json:"title"`
+	Message      string    `json:"message"`
+	State        string    `json:"state"`
+	Kind         string    `json:"kind"`
+	NodeID       string    `json:"node_id"`
+	NodeName     string    `json:"node_name"`
+	RuleID       string    `json:"rule_id"`
+	IncidentID   string    `json:"incident_id"`
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 type incidentRuleSnapshot struct {
@@ -70,7 +74,14 @@ type incidentRuleSnapshot struct {
 }
 
 func snapshotRule(rule AlertRule) json.RawMessage {
-	raw, _ := json.Marshal(incidentRuleSnapshot{rule.NodeID, rule.ChannelID, rule.Kind, rule.Config, rule.CooldownSeconds})
+	// Transport settings do not close/recreate the technical incident.
+	config := rule.Config
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(config, &fields) == nil && fields != nil {
+		delete(fields, "aggregation_seconds")
+		config, _ = json.Marshal(fields)
+	}
+	raw, _ := json.Marshal(incidentRuleSnapshot{rule.NodeID, rule.ChannelID, rule.Kind, config, rule.CooldownSeconds})
 	return raw
 }
 func sameSnapshot(a, b json.RawMessage) bool {
@@ -359,7 +370,7 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 	notify := i.State == "firing" && o.Active && (i.LastEnqueuedAt == nil || o.At.Sub(*i.LastEnqueuedAt) >= time.Duration(repeat)*time.Second)
 	if justResolved {
 		var attempted int
-		if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM notification_deliveries WHERE incident_id=? AND notification_type='firing' AND attempt_count>0", i.ID).Scan(&attempted); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM notification_deliveries d WHERE d.incident_id=? AND d.notification_type='firing' AND d.attempt_count>0 AND (d.aggregate_id IS NULL OR EXISTS(SELECT 1 FROM notification_aggregate_attempt_members m WHERE m.delivery_id=d.id AND m.included=1))`, i.ID).Scan(&attempted); err != nil {
 			return nil, err
 		}
 		notify = attempted > 0 || (i.Origin == "legacy" && i.NotificationSequence > 0)
@@ -421,13 +432,25 @@ func queueIncidentNotification(ctx context.Context, tx *sql.Tx, i *Incident, cha
 	if message == "" {
 		message = o.Message
 	}
-	payload, err := json.Marshal(DeliveryNotification{title, message, i.State, i.Kind, i.NodeID, i.NodeName, i.RuleID, i.ID, o.At})
+	origin, err := notificationlink.NormalizeOrigin(o.NotificationOrigin)
+	if err != nil {
+		return err
+	}
+	payload, err := json.Marshal(DeliveryNotification{Title: title, Message: message, State: i.State, Kind: i.Kind, NodeID: i.NodeID, NodeName: i.NodeName, RuleID: i.RuleID, IncidentID: i.ID, Timestamp: o.At, IncidentPath: notificationlink.Incident(origin, i.ID)})
 	if err != nil {
 		return err
 	}
 	i.NotificationSequence++
 	key := fmt.Sprintf("%s:%s:%d:%s", i.ID, i.State, i.NotificationSequence, channelID)
-	_, err = tx.ExecContext(ctx, `INSERT INTO notification_deliveries(id,incident_id,channel_id,channel_name,provider,notification_type,idempotency_key,payload_json,status,available_at_ms,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'pending',?,?,?)`, randomID(), i.ID, channelID, name, provider, i.State, key, string(payload), o.At.UnixMilli(), formatTime(o.At), formatTime(o.At))
+	aggregateID, available, err := aggregateForNotification(ctx, tx, i.RuleID, channelID, provider, i.State, o.At, o.NotificationOrigin)
+	if err != nil {
+		return err
+	}
+	var aggregate any
+	if aggregateID != "" {
+		aggregate = aggregateID
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO notification_deliveries(id,incident_id,channel_id,channel_name,provider,notification_type,idempotency_key,payload_json,status,available_at_ms,created_at,updated_at,aggregate_id) VALUES(?,?,?,?,?,?,?,?,'pending',?,?,?,?)`, randomID(), i.ID, channelID, name, provider, i.State, key, string(payload), available.UnixMilli(), formatTime(o.At), formatTime(o.At), aggregate)
 	if err == nil {
 		i.LastEnqueuedAt = &o.At
 	}

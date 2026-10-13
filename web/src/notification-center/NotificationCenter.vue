@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import IncidentHistory from './IncidentHistory.vue'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import AggregateManager from './AggregateManager.vue'
+import type { NotificationTarget } from '../notification-links'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import type { NodeMetadata } from '../types'
 import type { AlertEvent, AlertKind, AlertRule, NotificationChannel, NotificationTemplate } from '../admin-api'
 import { createAlertRule, createChannel, createNotificationTemplate, deleteAlertRule, deleteChannel, deleteNotificationTemplate, loadAlertEvents, loadAlertRules, loadChannels, loadNotificationTemplates, testChannel, testNotificationTemplate, updateAlertRule, updateChannel, updateNotificationTemplate } from '../admin-api'
@@ -8,10 +10,24 @@ import { DsBadge, DsButton, DsEmptyState, DsStatusIndicator, DsTabs } from '../d
 import PolicyManager from './PolicyManager.vue'
 import MaintenanceManager from './MaintenanceManager.vue'
 
-const props = defineProps<{ nodes: NodeMetadata[] }>()
+const props = defineProps<{ nodes: NodeMetadata[]; initialTarget?: NotificationTarget | null }>()
 const emit = defineEmits<{ notice: [value: string]; error: [value: unknown] }>()
-type View = 'overview' | 'channels' | 'rules' | 'templates' | 'history' | 'policies' | 'incidents' | 'maintenance'
-const view = ref<View>('overview')
+type View = 'overview' | 'channels' | 'rules' | 'templates' | 'history' | 'policies' | 'incidents' | 'maintenance' | 'aggregates'
+const view = ref<View>(props.initialTarget?.kind === 'incident' ? 'incidents' : props.initialTarget?.kind === 'aggregate' ? 'aggregates' : 'overview')
+const center = ref<HTMLElement | null>(null)
+async function revealActiveTab() {
+  await nextTick()
+  const list = center.value?.querySelector<HTMLElement>('[role="tablist"]')
+  const selected = list?.querySelector<HTMLElement>('[aria-selected="true"]')
+  if (!list || !selected) return
+  const bounds = list.getBoundingClientRect(), item = selected.getBoundingClientRect()
+  if (item.left < bounds.left) list.scrollLeft += item.left - bounds.left
+  else if (item.right > bounds.right) list.scrollLeft += item.right - bounds.right
+}
+watch(view, () => { void revealActiveTab() })
+const aggregateToOpen = ref(props.initialTarget?.kind === 'aggregate' ? props.initialTarget.id : '')
+const snapshotToOpen = ref(props.initialTarget?.kind === 'aggregate' ? props.initialTarget.snapshot : '')
+function openAggregate(id: string) { aggregateToOpen.value = id; snapshotToOpen.value = ''; view.value = 'aggregates' }
 const policyToEdit = ref('')
 watch(view, next => { if (next !== 'policies') policyToEdit.value = '' })
 function openPolicy(id: string) { policyToEdit.value = id; view.value = 'policies' }
@@ -26,7 +42,7 @@ const historyProvider = ref('all')
 const channelForm = reactive({ id:'', name:'', kind:'webhook' as NotificationChannel['kind'], enabled:true, url:'', method:'POST', headers:'', body_template:'', bot_token:'', chat_id:'', thread_id:'', parse_mode:'', smtp_host:'', smtp_port:587, smtp_username:'', smtp_password:'', smtp_from:'', smtp_to:'', smtp_encryption:'starttls' })
 const ruleForm = reactive({ id:'', node_id:'', channel_id:'', kind:'offline' as AlertKind, threshold:60, duration_seconds:0,recovery_seconds:0,recovery_matches_trigger:true, cooldown_seconds:900, repeat_seconds:900, template_id:'', enabled:true })
 const templateForm = reactive({ id:'', name:'', event_kind:'firing', title_template:'MyProbe 告警 · {{node.name}}', body_template:'{{message}}' })
-const tabs = [{value:'incidents',label:'故障事件'},{value:'overview',label:'概览'},{value:'channels',label:'通知通道'},{value:'rules',label:'告警规则'},{value:'policies',label:'范围策略'},{value:'maintenance',label:'维护窗口'},{value:'templates',label:'消息模板'},{value:'history',label:'发送历史'}]
+const tabs = [{value:'incidents',label:'故障事件'},{value:'overview',label:'概览'},{value:'channels',label:'通知通道'},{value:'rules',label:'告警规则'},{value:'policies',label:'范围策略'},{value:'maintenance',label:'维护窗口'},{value:'aggregates',label:'通知聚合'},{value:'templates',label:'消息模板'},{value:'history',label:'发送历史'}]
 const templateVariables = ['{{node.name}}','{{message}}','{{state}}','{{event}}']
 const healthyChannels = computed(() => channels.value.filter(x=>x.enabled && x.last_test_status==='success').length)
 const firingEvents = computed(() => events.value.filter(x=>x.state==='firing').length)
@@ -40,7 +56,7 @@ function editChannel(item?:NotificationChannel){resetChannel();if(item)Object.as
 function channelConfig(){let headers:Record<string,string>={};if(channelForm.headers.trim()){for(const line of channelForm.headers.split('\n')){const at=line.indexOf(':');if(at>0)headers[line.slice(0,at).trim()]=line.slice(at+1).trim()}}return {url:channelForm.url,method:channelForm.method,headers,body_template:channelForm.body_template,bot_token:channelForm.bot_token,chat_id:channelForm.chat_id,thread_id:channelForm.thread_id,parse_mode:channelForm.parse_mode,smtp_host:channelForm.smtp_host,smtp_port:channelForm.smtp_port,smtp_username:channelForm.smtp_username,smtp_password:channelForm.smtp_password,smtp_from:channelForm.smtp_from,smtp_to:channelForm.smtp_to,smtp_encryption:channelForm.smtp_port===465?'tls':channelForm.smtp_encryption}}
 async function saveChannel(){await run(async()=>{const config=channelConfig();if(channelForm.id){const hasCredentials=Object.values(config).some(v=>typeof v==='string'&&v.trim()!==''&&v!=='POST'&&v!=='starttls')||channelForm.smtp_port!==587;await updateChannel(channelForm.id,{name:channelForm.name,kind:channelForm.kind,enabled:channelForm.enabled,...(hasCredentials?{config}:{})})}else await createChannel({name:channelForm.name,kind:channelForm.kind,config});resetChannel();await refresh()},'通知通道已保存。')}
 async function removeChannel(item:NotificationChannel){if(!confirm(`删除通知通道“${item.name}”？关联规则也会被删除。`))return;await run(async()=>{await deleteChannel(item.id);await refresh()},'通知通道已删除。')}
-async function sendTest(item:NotificationChannel){await run(async()=>{await testChannel(item.id);await refresh()},'测试消息已发送。')}
+async function sendTest(item:NotificationChannel){await run(async()=>{try{await testChannel(item.id)}finally{await refresh()}},'测试消息已发送。')}
 function resetRule(){Object.assign(ruleForm,{id:'',node_id:'',channel_id:'',kind:'offline',threshold:60,duration_seconds:0,recovery_seconds:0,recovery_matches_trigger:true,cooldown_seconds:900,repeat_seconds:900,template_id:'',enabled:true})}
 function editRule(item?:AlertRule){resetRule();if(!item)return;const value=item.config.offline_seconds??item.config.threshold_percent??item.config.threshold_milliseconds??item.config.threshold_bytes_per_second??item.config.threshold_bytes??item.config.days_before??0;Object.assign(ruleForm,{id:item.id,node_id:item.node_id,channel_id:item.channel_id,kind:item.kind,threshold:value,duration_seconds:item.config.duration_seconds??0,recovery_seconds:item.config.recovery_seconds??item.config.duration_seconds??0,recovery_matches_trigger:item.config.recovery_seconds===undefined,repeat_seconds:item.config.repeat_seconds??item.cooldown_seconds,template_id:item.config.template_id??'',cooldown_seconds:item.cooldown_seconds,enabled:item.enabled})}
 function ruleConfig(){const config:Record<string,unknown>={duration_seconds:ruleForm.duration_seconds,recovery_seconds:ruleForm.recovery_matches_trigger?ruleForm.duration_seconds:ruleForm.recovery_seconds,repeat_seconds:ruleForm.repeat_seconds,template_id:ruleForm.template_id};config[ruleForm.kind==='offline'?'offline_seconds':['cpu','memory','disk'].includes(ruleForm.kind)?'threshold_percent':ruleForm.kind==='latency'?'threshold_milliseconds':ruleForm.kind==='bandwidth'?'threshold_bytes_per_second':ruleForm.kind==='cycle_traffic'?'threshold_bytes':'days_before']=ruleForm.threshold;return config}
@@ -58,15 +74,16 @@ const thresholdLabel=(kind:AlertKind)=>kind==='offline'?'离线判定（秒）':
 const providerName=(kind:string)=>({webhook:'Webhook',telegram:'Telegram',discord:'Discord',smtp:'Email / SMTP'}[kind]||kind)
 const previewTitle=(value:string)=>value.replaceAll('{{node.name}}','HostDZire-SFO')
 const previewBody=(value:string)=>value.replaceAll('{{message}}','CPU 使用率达到 92%，已超过阈值。')
-onMounted(()=>run(refresh))
+onMounted(()=>{ void run(refresh); void revealActiveTab() })
 </script>
 
 <template>
-  <section class="notification-center">
+  <section ref="center" class="notification-center">
     <header class="notification-hero"><div><span class="eyebrow">NOTIFICATION SYSTEM</span><h1>通知中心</h1><p>统一管理告警触发、发送通道、消息模板与交付记录。</p></div><div class="notification-health"><span class="health-dot"></span><div><strong>通知引擎运行中</strong><small>状态去重与恢复通知已启用</small></div></div></header>
     <DsTabs v-model="view" :items="tabs" label="通知中心导航" />
 
-    <IncidentHistory v-if="view==='incidents'" :nodes="nodes" @maintenance="view='maintenance'" />
+    <IncidentHistory v-if="view==='incidents'" :nodes="nodes" :initial-incident-id="initialTarget?.kind === 'incident' ? initialTarget.id : undefined" @maintenance="view='maintenance'" @aggregate="openAggregate" />
+    <AggregateManager v-else-if="view==='aggregates'" :initial-aggregate-id="aggregateToOpen" :initial-snapshot="snapshotToOpen" />
     <template v-else-if="view==='overview'">
       <section class="notification-stats"><article><span>已启用通道</span><strong>{{ channels.filter(x=>x.enabled).length }}</strong><small>{{ healthyChannels }} 个测试正常</small></article><article><span>监控规则</span><strong>{{ rules.filter(x=>x.enabled).length }}</strong><small>持久化去重与冷却</small></article><article><span>近期告警发送</span><strong>{{ firingEvents }}</strong><small>最近 100 条投递记录中的告警通知</small></article><article :class="{warn:failedEvents}"><span>发送失败</span><strong>{{ failedEvents }}</strong><small>{{ failedEvents?'请检查历史记录':'近期记录中未发现失败' }}</small></article></section>
       <div class="notification-overview-grid"><section class="notification-card"><header><div><span class="eyebrow">CHANNEL HEALTH</span><h2>通道状态</h2></div><DsButton size="small" @click="view='channels'">管理</DsButton></header><div v-for="item in channels.slice(0,4)" :key="item.id" class="health-row"><span class="provider-icon">{{ item.kind==='telegram'?'TG':item.kind==='discord'?'DC':item.kind==='smtp'?'@':'WH' }}</span><div><strong>{{ item.name }}</strong><small>{{ providerName(item.kind) }} · {{ item.last_test_at?new Date(item.last_test_at).toLocaleString('zh-CN',{hour12:false}):'尚未测试' }}</small></div><DsStatusIndicator :status="!item.enabled?'neutral':item.last_test_status==='failed'?'offline':item.last_test_status==='success'?'online':'warning'" :label="!item.enabled?'停用':item.last_test_status==='failed'?'失败':item.last_test_status==='success'?'正常':'待测试'" /></div><DsEmptyState v-if="!channels.length" title="尚未添加通道" description="先连接一个 Webhook、Telegram、Discord 或 SMTP 通道。" /></section>
@@ -75,7 +92,7 @@ onMounted(()=>run(refresh))
 
     <template v-else-if="view==='channels'">
       <div class="notification-workspace"><form class="notification-card editor" @submit.prevent="saveChannel"><span class="eyebrow">PROVIDER</span><h2>{{ channelForm.id?'编辑通知通道':'添加通知通道' }}</h2><p>凭据使用服务端 AES-GCM 加密，API 不会返回明文。</p><div class="form-grid two"><label>通道名称<input v-model="channelForm.name" required placeholder="生产告警"></label><label>Provider<select v-model="channelForm.kind"><option value="webhook">Webhook</option><option value="telegram">Telegram</option><option value="discord">Discord</option><option value="smtp">Email / SMTP</option></select></label></div><template v-if="channelForm.kind==='webhook'"><label>Endpoint URL<input v-model="channelForm.url" type="url" :required="!channelForm.id" placeholder="https://example.com/hooks/myprobe"></label><div class="form-grid two"><label>Method<select v-model="channelForm.method"><option>POST</option><option>PUT</option><option>PATCH</option></select></label><label>自定义 Headers<textarea v-model="channelForm.headers" rows="2" placeholder="Authorization: Bearer …"></textarea></label></div><label>Body 模板（可选）<textarea v-model="channelForm.body_template" rows="3" placeholder='{"title":"{{title}}","message":"{{message}}"}'></textarea></label></template><template v-else-if="channelForm.kind==='telegram'"><label>Bot Token<input v-model="channelForm.bot_token" type="password" :required="!channelForm.id" autocomplete="new-password"></label><div class="form-grid two"><label>Chat ID<input v-model="channelForm.chat_id" :required="!channelForm.id"></label><label>Thread ID<input v-model="channelForm.thread_id"></label><label>Parse Mode<select v-model="channelForm.parse_mode"><option value="">纯文本</option><option>HTML</option><option>MarkdownV2</option></select></label></div></template><template v-else-if="channelForm.kind==='discord'"><label>Discord Webhook URL<input v-model="channelForm.url" type="password" :required="!channelForm.id" autocomplete="new-password"></label></template><template v-else><div class="form-grid two"><label>SMTP Host<input v-model="channelForm.smtp_host" :required="!channelForm.id"></label><label>端口<input v-model.number="channelForm.smtp_port" type="number" min="1" max="65535"></label><label>用户名<input v-model="channelForm.smtp_username" autocomplete="off"></label><label>密码<input v-model="channelForm.smtp_password" type="password" :required="!channelForm.id" autocomplete="new-password"></label><label>发件人<input v-model="channelForm.smtp_from" type="email" :required="!channelForm.id"></label><label>收件人<input v-model="channelForm.smtp_to" type="email" :required="!channelForm.id"></label></div><p class="security-note">当前仅允许 STARTTLS，避免明文 SMTP 凭据传输。</p></template><label v-if="channelForm.id" class="toggle-row"><input v-model="channelForm.enabled" type="checkbox">启用此通道</label><footer><DsButton type="submit" variant="primary" :disabled="busy">{{ channelForm.id?'保存修改':'创建通道' }}</DsButton><DsButton v-if="channelForm.id" type="button" @click="editChannel()">取消</DsButton></footer></form>
-      <section class="channel-list"><article v-for="item in channels" :key="item.id" class="notification-card channel-item"><header><span class="provider-icon large">{{ item.kind==='telegram'?'TG':item.kind==='discord'?'DC':item.kind==='smtp'?'@':'WH' }}</span><div><h3>{{ item.name }}</h3><p>{{ providerName(item.kind) }}</p></div><DsStatusIndicator :status="item.enabled?'online':'neutral'" :label="item.enabled?'已启用':'已停用'" /></header><div class="channel-test"><span>最近测试</span><strong :class="item.last_test_status">{{ item.last_test_status==='success'?'发送成功':item.last_test_status==='failed'?'发送失败':'尚未测试' }}</strong><small>{{ item.last_test_error|| (item.last_test_at?new Date(item.last_test_at).toLocaleString('zh-CN',{hour12:false}):'—') }}</small></div><footer><DsButton size="small" @click="sendTest(item)">发送测试</DsButton><DsButton size="small" @click="editChannel(item)">编辑</DsButton><DsButton size="small" variant="danger" @click="removeChannel(item)">删除</DsButton></footer></article><DsEmptyState v-if="!channels.length" title="还没有通知通道" description="添加一个 Provider，开始接收 MyProbe 告警。" /></section></div>
+      <section class="channel-list"><DsButton :disabled="busy" @click="run(refresh)">刷新通道状态</DsButton><article v-for="item in channels" :key="item.id" class="notification-card channel-item"><header><span class="provider-icon large">{{ item.kind==='telegram'?'TG':item.kind==='discord'?'DC':item.kind==='smtp'?'@':'WH' }}</span><div><h3>{{ item.name }}</h3><p>{{ providerName(item.kind) }}</p></div><DsStatusIndicator :status="item.enabled?'online':'neutral'" :label="item.enabled?'已启用':'已停用'" /></header><p v-if="item.delivery_paused_until" role="status">最近一次渠道等待期限：{{ new Date(item.delivery_paused_until).toLocaleString('zh-CN',{hour12:false}) }}。同一通道的通知与测试共同等待；到期后仍需满足各任务条件。</p><div class="channel-test"><span>最近测试</span><strong :class="item.last_test_status">{{ item.last_test_status==='success'?'发送成功':item.last_test_status==='failed'?'发送失败':'尚未测试' }}</strong><small>{{ item.last_test_error|| (item.last_test_at?new Date(item.last_test_at).toLocaleString('zh-CN',{hour12:false}):'—') }}</small></div><footer><DsButton size="small" @click="sendTest(item)">发送测试</DsButton><DsButton size="small" @click="editChannel(item)">编辑</DsButton><DsButton size="small" variant="danger" @click="removeChannel(item)">删除</DsButton></footer></article><DsEmptyState v-if="!channels.length" title="还没有通知通道" description="添加一个 Provider，开始接收 MyProbe 告警。" /></section></div>
     </template>
 
     <template v-else-if="view==='rules'">

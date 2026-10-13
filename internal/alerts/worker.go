@@ -32,6 +32,9 @@ func (s *Service) runDeliveryWorker(ctx context.Context) {
 // DeliverOne performs network I/O outside database transactions. An ambiguous
 // completion remains leased until recovery; delivery is at least once.
 func (s *Service) DeliverOne(ctx context.Context, now time.Time) (bool, error) {
+	if worked, err := s.deliverAggregate(ctx, now); worked || err != nil {
+		return worked, err
+	}
 	started := time.Now()
 	job, err := s.store.ClaimDelivery(ctx, now, time.Minute)
 	if err != nil || job == nil {
@@ -49,7 +52,7 @@ func (s *Service) DeliverOne(ctx context.Context, now time.Time) (bool, error) {
 	} else if err = json.Unmarshal(job.Payload, &notification); err != nil {
 		deliveryErr = &DeliveryError{Class: "invalid_payload", Permanent: true}
 	}
-	if err := s.store.CheckDeliveryLease(ctx, job.ID, job.LeaseToken, now.Add(time.Since(started))); err != nil {
+	if err := s.store.CheckDeliveryLease(ctx, job.ID, job.LeaseToken, now.Add(time.Since(started)), channel.DeliveryRevision); err != nil {
 		if errors.Is(err, store.ErrDeliveryCanceled) || errors.Is(err, store.ErrDeliveryDeferred) {
 			return true, nil
 		}
@@ -62,10 +65,16 @@ func (s *Service) DeliverOne(ctx context.Context, now time.Time) (bool, error) {
 		cancel()
 	}
 	finished := now.Add(time.Since(started))
+	outcome := deliveryOutcome(deliveryErr, job.AttemptCount, finished)
+	outcome.ChannelRevision = channel.DeliveryRevision
+	return true, s.store.CompleteDelivery(ctx, job.ID, job.LeaseToken, finished, outcome)
+}
+
+func deliveryOutcome(deliveryErr error, attempt int, finished time.Time) store.DeliveryOutcome {
 	outcome := store.DeliveryOutcome{Delivered: deliveryErr == nil}
 	if deliveryErr != nil {
 		outcome.ErrorClass = "delivery_failed"
-		delay := retryDelay(job.AttemptCount)
+		delay := retryDelay(attempt)
 		var classified *DeliveryError
 		if errors.As(deliveryErr, &classified) {
 			outcome.ErrorClass, outcome.Permanent = classified.Class, classified.Permanent
@@ -73,10 +82,17 @@ func (s *Service) DeliverOne(ctx context.Context, now time.Time) (bool, error) {
 			if classified.RetryAfter > delay {
 				delay = classified.RetryAfter
 			}
+			if !classified.Permanent && !classified.Ambiguous {
+				if classified.RetryAfter > 0 {
+					outcome.ChannelRetryAt = finished.Add(classified.RetryAfter)
+				} else if classified.Class == "http_rate_limited" {
+					outcome.ChannelRetryAt = finished.Add(delay)
+				}
+			}
 		}
 		outcome.RetryAt = finished.Add(delay)
 	}
-	return true, s.store.CompleteDelivery(ctx, job.ID, job.LeaseToken, finished, outcome)
+	return outcome
 }
 
 func retryDelay(attempt int) time.Duration {
