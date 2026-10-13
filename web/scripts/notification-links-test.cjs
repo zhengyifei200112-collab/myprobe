@@ -1,7 +1,7 @@
 // Pure navigation contract checks: no browser, server, network or generated file.
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
-const ts = require('../web/node_modules/typescript');
-const source = fs.readFileSync(path.join(__dirname, '../web/src/notification-links.ts'), 'utf8');
+const ts = require('../node_modules/typescript');
+const source = fs.readFileSync(path.join(__dirname, '../src/notification-links.ts'), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const moduleBox = { exports: {} };
 new Function('module', 'exports', compiled)(moduleBox, moduleBox.exports);
