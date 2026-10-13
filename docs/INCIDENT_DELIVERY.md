@@ -348,3 +348,44 @@ follows the actual received URL through password login, verifies no private even
 read before login, original ID, reload and six theme/width views. Use the aggregation
 browser flag. Public provider accounts, single-message client markup rendering and
 live GitHub OAuth remain separate acceptance items.
+
+## Management changes during provider I/O
+
+Current-owner completion rechecks the persisted incident/rule/policy selection and
+channel state in the same writer transaction. The check does not wait for Tick to
+materialize a changed policy. Policy disable/delete/technical change, scope removal,
+node deletion and channel disable/provider change revoke obsolete job authority.
+The job becomes canceled (`configuration_changed`) while its exact attempt records
+the actual delivered, failed or unknown response. These actual requests retain
+consumed budget; no pre-send refund is claimed. Completion does not close/recover
+an incident or advance its repeat clock. Normal evaluation remains responsible for
+technical/administrative incident transitions.
+
+Only the current lease can perform this cancellation. Wrong or superseded owners
+retain existing fencing/history rules. An identical canceled-attempt result can be
+replayed without duplicating legacy receipts. A parent can have a delivered transport
+attempt and canceled members: provider confirmation does not make obsolete logical
+jobs active again. Partially revoked groups still apply results to valid members.
+A wholly revoked group cannot extend a channel wait; partially active groups may
+still report a valid wait. Original frozen content/key/member associations remain.
+
+Replacing encrypted destination configuration with the same provider does not by
+itself revoke the logical job. The actual send retains its captured configuration;
+its response cannot pause the replacement revision. Pending leaf backoff still
+applies, and the next attempt freezes new configuration under a different transport
+key while retaining its logical body. Current-state checking does not reconstruct
+every transient disable/re-enable between authorization and completion.
+
+Maintenance/silence retain their existing action/evaluation semantics. Starting
+maintenance after an already-authorized request does not invent a pre-send suppression
+record at completion; actual cancellation already recorded by an action/evaluator
+still limits late responses to history. External requests cannot be recalled.
+
+Real HTTP tests pause a receiver response across eight management actions and four
+outcomes (success, rejection, connection loss, rate limit), without Tick/Reconcile.
+They verify canceled versus valid members, exact receipts, unchanged obsolete clocks,
+no revoked retry and no wait resurrection. A real old/new receiver test verifies
+configuration replacement and body/key behavior. Store tests cover single completion,
+wrong-owner rejection, replay and a later-member failure rolling back all cancellation,
+history and parent updates. These are targeted races, not an exhaustive concurrency
+or full-capacity guarantee. No migration/API/Agent change is introduced.

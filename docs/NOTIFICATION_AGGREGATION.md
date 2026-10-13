@@ -343,3 +343,16 @@ clocks test deadlines; no production-account rate-limit evidence is claimed.
 UI/Store/HTTP fixture to verify waiting views, blocked test I/O, 26 history entries,
 pagination, budget and 18 combinations of view/theme/width. Existing policy, ACK,
 silence, maintenance and aggregation browser flows remain regression gates.
+
+## Completion after management changes
+
+Aggregate completion now shares the individual-job current-state check described in
+[INCIDENT_DELIVERY.md](INCIDENT_DELIVERY.md#management-changes-during-provider-io).
+It revokes obsolete members before recording actual receipt evidence, even before
+policy synchronization/evaluation. Valid members retain normal completion semantics;
+all-revoked groups finish without retries or channel-wait authority. Transport success
+and canceled logical jobs can coexist. Frozen content/key and exact associations are
+retained, with cancellation/receipt/scheduling atomic. The real management-response
+matrix covers eight actions and four outcomes, and a two-receiver configuration
+replacement confirms new transport identity with unchanged logical content. Broader
+management interleavings, release integration and capacity remain separate gates.

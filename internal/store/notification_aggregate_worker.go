@@ -424,8 +424,14 @@ func (s *Store) CompleteAggregate(ctx context.Context, id, token string, at time
 		return err
 	}
 	if parentFenced {
-		if err := recordChannelPause(ctx, tx, g.ChannelID, outcome, at); err != nil {
+		var currentMember bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM notification_aggregate_attempt_members m JOIN notification_deliveries d ON d.id=m.delivery_id WHERE m.aggregate_id=? AND m.aggregate_attempt=? AND m.included=1 AND d.status<>'canceled')`, id, number).Scan(&currentMember); err != nil {
 			return err
+		}
+		if currentMember {
+			if err := recordChannelPause(ctx, tx, g.ChannelID, outcome, at); err != nil {
+				return err
+			}
 		}
 		if err := scheduleAggregate(ctx, tx, id, at); err != nil {
 			return err

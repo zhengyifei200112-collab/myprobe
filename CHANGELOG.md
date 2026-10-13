@@ -17,6 +17,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Delivery completion now rechecks current policy, rule, node and channel state
+  before applying a receipt. Management changes during an actual request cancel
+  obsolete individual/aggregate jobs without waiting for evaluation, preserving
+  real attempt results while revoking retry and repeat-clock authority. A wholly
+  revoked aggregate cannot extend channel waits; valid remaining members proceed.
+
 - Provider retry waits now persist per notification channel and gate aggregate,
   individual and manual test sends. Concurrent results cannot shorten a wait;
   replacing provider/configuration isolates old results. Known-unsent reservations

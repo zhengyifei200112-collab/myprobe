@@ -358,8 +358,14 @@ func (s *Store) CompleteDelivery(ctx context.Context, id, token string, now time
 		return err
 	}
 	if d.Status == "inflight" {
-		if err := recordChannelPause(ctx, tx, d.ChannelID, outcome, now); err != nil {
+		var canceled bool
+		if err := tx.QueryRowContext(ctx, `SELECT status='canceled' FROM notification_deliveries WHERE id=?`, d.ID).Scan(&canceled); err != nil {
 			return err
+		}
+		if !canceled {
+			if err := recordChannelPause(ctx, tx, d.ChannelID, outcome, now); err != nil {
+				return err
+			}
 		}
 	}
 	return tx.Commit()
@@ -378,6 +384,20 @@ func completeDeliveryWithFence(ctx context.Context, tx *sql.Tx, d NotificationDe
 	}
 	if d.Status != "inflight" || d.LeaseToken != token || d.LeaseUntil == nil || (!parentFenced && !now.Before(*d.LeaseUntil)) {
 		return ErrDeliveryLeaseLost
+	}
+	// A management write may have revoked this job since final authorization,
+	// before the evaluator next materializes it. Preserve the real receipt but
+	// revoke retry and repeat-clock authority under this same writer snapshot.
+	valid, err := validDeliveryState(ctx, tx, d)
+	if err != nil {
+		return err
+	}
+	if !valid {
+		if err := cancelDelivery(ctx, tx, id, "configuration_changed", now); err != nil {
+			return err
+		}
+		d.Status, d.ErrorClass = "canceled", "configuration_changed"
+		return completeCanceledAttempt(ctx, tx, d, token, now, outcome)
 	}
 	status, attemptStatus := "pending", "failed"
 	if outcome.Ambiguous {
