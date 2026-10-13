@@ -42,8 +42,8 @@ func (s *Store) ServiceAlertSettings(ctx context.Context, id string) (ServiceAle
 	return v, err
 }
 func (s *Store) SaveServiceAlertSettings(ctx context.Context, v ServiceAlertSettings) (ServiceAlertSettings, error) {
-	if v.ServiceID == "" || len(v.ServiceID) > 128 || v.ServiceRevision < 1 || v.ChannelID == "" || len(v.ChannelID) > 128 || v.Revision < 0 || v.Revision >= 1<<63-1 || v.DurationSeconds < 0 || v.DurationSeconds > 2592000 || v.RecoverySeconds < 0 || v.RecoverySeconds > 2592000 || v.RepeatSeconds < 0 || (v.RepeatSeconds > 0 && v.RepeatSeconds < 30) || v.RepeatSeconds > 2592000 || v.CooldownSeconds < 30 || v.CooldownSeconds > 2592000 {
-		return v, ErrInvalidHTTPService
+	if err := validateServiceAlertSettings(v); err != nil {
+		return v, err
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -53,6 +53,25 @@ func (s *Store) SaveServiceAlertSettings(ctx context.Context, v ServiceAlertSett
 	if _, err = tx.ExecContext(ctx, `UPDATE alert_policy_writer SET version=version WHERE id=1`); err != nil {
 		return v, err
 	}
+	v, err = saveServiceAlertSettings(ctx, tx, v, nowText())
+	if err != nil {
+		return v, err
+	}
+	return v, tx.Commit()
+}
+
+func validateServiceAlertSettings(v ServiceAlertSettings) error {
+	if v.ServiceID == "" || len(v.ServiceID) > 128 || v.ServiceRevision < 1 || v.ChannelID == "" || len(v.ChannelID) > 128 || v.Revision < 0 || v.Revision >= 1<<63-1 || v.DurationSeconds < 0 || v.DurationSeconds > 2592000 || v.RecoverySeconds < 0 || v.RecoverySeconds > 2592000 || v.RepeatSeconds < 0 || (v.RepeatSeconds > 0 && v.RepeatSeconds < 30) || v.RepeatSeconds > 2592000 || v.CooldownSeconds < 30 || v.CooldownSeconds > 2592000 {
+		return ErrInvalidHTTPService
+	}
+	return nil
+}
+
+func saveServiceAlertSettings(ctx context.Context, tx *sql.Tx, v ServiceAlertSettings, now string) (ServiceAlertSettings, error) {
+	if err := validateServiceAlertSettings(v); err != nil {
+		return v, err
+	}
+	var err error
 	var valid bool
 	var currentRevision int64
 	if err = tx.QueryRowContext(ctx, `SELECT revision FROM http_services WHERE id=?`, v.ServiceID).Scan(&currentRevision); errors.Is(err, sql.ErrNoRows) {
@@ -69,7 +88,7 @@ func (s *Store) SaveServiceAlertSettings(ctx context.Context, v ServiceAlertSett
 	if !valid {
 		return v, ErrInvalidHTTPService
 	}
-	result, err := tx.ExecContext(ctx, `INSERT INTO http_service_alerts(service_id,revision,channel_id,enabled,duration_seconds,recovery_seconds,repeat_seconds,cooldown_seconds,updated_at,certificate_reminders_enabled) VALUES(?,1,?,?,?,?,?,?,?,?) ON CONFLICT(service_id) DO UPDATE SET revision=revision+1,channel_id=excluded.channel_id,enabled=excluded.enabled,duration_seconds=excluded.duration_seconds,recovery_seconds=excluded.recovery_seconds,repeat_seconds=excluded.repeat_seconds,cooldown_seconds=excluded.cooldown_seconds,certificate_reminders_enabled=excluded.certificate_reminders_enabled,updated_at=excluded.updated_at WHERE http_service_alerts.revision=?`, v.ServiceID, v.ChannelID, v.Enabled, v.DurationSeconds, v.RecoverySeconds, v.RepeatSeconds, v.CooldownSeconds, nowText(), v.CertificateRemindersEnabled, v.Revision)
+	result, err := tx.ExecContext(ctx, `INSERT INTO http_service_alerts(service_id,revision,channel_id,enabled,duration_seconds,recovery_seconds,repeat_seconds,cooldown_seconds,updated_at,certificate_reminders_enabled) VALUES(?,1,?,?,?,?,?,?,?,?) ON CONFLICT(service_id) DO UPDATE SET revision=revision+1,channel_id=excluded.channel_id,enabled=excluded.enabled,duration_seconds=excluded.duration_seconds,recovery_seconds=excluded.recovery_seconds,repeat_seconds=excluded.repeat_seconds,cooldown_seconds=excluded.cooldown_seconds,certificate_reminders_enabled=excluded.certificate_reminders_enabled,updated_at=excluded.updated_at WHERE http_service_alerts.revision=?`, v.ServiceID, v.ChannelID, v.Enabled, v.DurationSeconds, v.RecoverySeconds, v.RepeatSeconds, v.CooldownSeconds, now, v.CertificateRemindersEnabled, v.Revision)
 	if err != nil {
 		return v, err
 	}
@@ -87,9 +106,6 @@ func (s *Store) SaveServiceAlertSettings(ctx context.Context, v ServiceAlertSett
 		if revision != v.Revision+1 {
 			return v, ErrServiceConflict
 		}
-	}
-	if err = tx.Commit(); err != nil {
-		return v, err
 	}
 	v.Revision++
 	return v, nil

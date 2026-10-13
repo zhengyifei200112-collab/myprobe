@@ -576,6 +576,27 @@ export interface ServiceAlertSettings {
   repeat_seconds: number
   cooldown_seconds: number
 }
+export interface ServiceAlertParameters {
+  enabled: boolean; certificate_reminders_enabled: boolean; duration_seconds: number; recovery_seconds: number; repeat_seconds: number; cooldown_seconds: number
+}
+export interface ServiceAlertBundle {
+  format: 'myprobe-service-alerts'; version: 1
+  alerts: Array<{ source_id: string; name: string; channel_id: string; settings: ServiceAlertParameters }>
+  channels: Array<{ id: string; name: string; provider: string }>
+}
+export interface ServiceAlertImportMapping { services: Record<string, string>; channels: Record<string, string> }
+export interface ServiceAlertImportItem {
+  source_id: string; service_id: string; service_name: string; service_enabled: boolean; service_revision: number; service_updated_at: string
+  alert_revision: number; alert_updated_at: string; channel_id: string; channel_name: string; channel_provider: string; channel_enabled: boolean; channel_delivery_revision: number
+  before: ServiceAlertParameters | null; before_channel_id?: string; before_channel_name?: string; before_channel_provider?: string; after: ServiceAlertParameters
+}
+export interface ServiceAlertImportPreview { items: ServiceAlertImportItem[]; created: number; updated: number; preview_digest: string }
+export interface ServiceAlertImportResult { service_ids: string[]; created: number; updated: number; replayed: boolean }
+export interface ServiceAlertDestination { id: string; name: string; enabled: boolean; provider?: string }
+export const exportServiceAlertBundle = () => request<ServiceAlertBundle>('/api/v1/admin/service-alert-transfers/export')
+export const loadServiceAlertDestinations = () => request<{ services: ServiceAlertDestination[]; channels: ServiceAlertDestination[]; execution_enabled: boolean }>('/api/v1/admin/service-alert-transfers/destinations')
+export const previewServiceAlertImport = (bundle: ServiceAlertBundle, mapping: ServiceAlertImportMapping) => request<{ preview: ServiceAlertImportPreview; execution_enabled: boolean }>('/api/v1/admin/service-alert-transfers/preview', { method: 'POST', body: JSON.stringify({ bundle, mapping }) })
+export const applyServiceAlertImport = (bundle: ServiceAlertBundle, mapping: ServiceAlertImportMapping, requestID: string, previewDigest: string) => request<ServiceAlertImportResult>('/api/v1/admin/service-alert-transfers/apply', { method: 'POST', body: JSON.stringify({ bundle, mapping, request_id: requestID, preview_digest: previewDigest }) })
 export const loadServiceAlerting = (id: string) => request<{ alerting: ServiceAlertSettings; execution_enabled: boolean }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/alerting`)
 export const saveServiceAlerting = (id: string, v: ServiceAlertSettings) => request<{ alerting: ServiceAlertSettings; execution_enabled: boolean }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/alerting`, { method: 'PUT', body: JSON.stringify({ service_revision: v.service_revision, revision: v.revision, channel_id: v.channel_id, enabled: v.enabled, certificate_reminders_enabled: v.certificate_reminders_enabled, duration_seconds: v.duration_seconds, recovery_seconds: v.recovery_seconds, repeat_seconds: v.repeat_seconds, cooldown_seconds: v.cooldown_seconds }) })
 export const loadServiceIncidents = (id: string, before = 0) => request<{ incidents: Incident[]; next_before: number }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/incidents?limit=25&before=${before}`)

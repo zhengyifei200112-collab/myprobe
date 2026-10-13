@@ -130,8 +130,44 @@ func TestServiceIncidentThroughRealAgent(t *testing.T) {
 	}
 	startSecond(false)
 	defer stopSecond()
-	if _, err := db.SaveServiceAlertSettings(ctx, store.ServiceAlertSettings{ServiceID: service.ID, ServiceRevision: service.Revision, Enabled: true, ChannelID: channel.ID, CooldownSeconds: 300}); err != nil {
+	// Configure the live destination through a cross-database portable import.
+	// The source has no runtime and contributes only safe aliases/parameters.
+	source, err := store.Open(ctx, filepath.Join(t.TempDir(), "portable-source.db"))
+	if err != nil {
 		t.Fatal(err)
+	}
+	defer source.Close()
+	sourceNode, _, err := source.CreateNode(ctx, store.CreateNodeParams{Name: "source observer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceService, err := source.SaveHTTPService(ctx, store.HTTPService{Name: "portable source website", Enabled: true, IntervalSeconds: 30, NodeIDs: []string{sourceNode.ID}, Spec: httpcheck.Spec{URL: "http://example.test/source-only", Method: "GET", StatusCodes: []int{200}, TimeoutMS: 1000, MaxBodyBytes: 1024}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceChannel, err := source.CreateNotificationChannel(ctx, "portable source channel", "webhook", "synthetic source configuration")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := source.SaveServiceAlertSettings(ctx, store.ServiceAlertSettings{ServiceID: sourceService.ID, ServiceRevision: sourceService.Revision, Enabled: true, ChannelID: sourceChannel.ID, CooldownSeconds: 300}); err != nil {
+		t.Fatal(err)
+	}
+	bundle, err := source.ExportServiceAlerts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mapping := store.ServiceAlertImportMapping{Services: map[string]string{sourceService.ID: service.ID}, Channels: map[string]string{sourceChannel.ID: channel.ID}}
+	preview, err := db.PreviewServiceAlertImport(ctx, bundle, mapping)
+	if err != nil {
+		t.Fatal(err)
+	}
+	imported, err := db.ApplyServiceAlertImport(ctx, "live-service-import", bundle, mapping, preview.Digest)
+	if err != nil || imported.Created != 1 || imported.Updated != 0 {
+		t.Fatal("live service alert import failed")
+	}
+	replayed, err := db.ApplyServiceAlertImport(ctx, "live-service-import", bundle, mapping, preview.Digest)
+	if err != nil || !replayed.Replayed {
+		t.Fatal("live service alert import replay failed")
 	}
 	agentConfig.ServerURL, agentConfig.Token = server.URL, token
 	agentConfig.CollectionPeriod, agentConfig.ReportPeriod = time.Second, time.Second

@@ -69,6 +69,13 @@ Portable configuration v2 includes service definitions and observer assignments,
 but excludes service alert settings, scope policies, incidents and delivery history.
 Use a complete encrypted database backup to transfer those records; importing a
 service definition changes its revision and administratively ends old incidents.
+Service alert parameters now have a separate private `myprobe-service-alerts` v1
+bundle with explicit service/channel mapping, read-only before/after preview,
+destination revision fences and atomic persistent request replay. It covers fault
+and certificate-reminder settings, including disabled and cross-provider choices,
+without credentials or historical records. Migration 037 preserves replay identity
+through full backups; browser recovery confirms the original request after lost
+responses or refresh. See [service alert transfer](SERVICE_ALERT_TRANSFER.md).
 
 | Area | Requirement | Acceptance evidence | Status |
 | --- | --- | --- | --- |

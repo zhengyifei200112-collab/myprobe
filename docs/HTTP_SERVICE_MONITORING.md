@@ -29,6 +29,10 @@ through notification and event links; see [service diagnostics](SERVICE_DIAGNOST
 They expose existing failure categories and total duration only, with no target
 URL, response body, raw errors or invented phase timings. Reading never executes
 a new network check. Migration 036 adds a bounded pagination index.
+Service fault/certificate parameters can separately migrate through a private v1
+alert bundle with explicit existing-service/channel mapping, before/after preview,
+atomic revision checks and durable replay. Existing configuration v1/v2 remains
+unchanged; see [service alert transfer](SERVICE_ALERT_TRANSFER.md) for migration 037.
 Syntax acceptance
 does not allow a network request or waive the Agent address policy below.
 

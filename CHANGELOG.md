@@ -9,6 +9,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Private versioned HTTP service alert export/import explicitly maps existing
+  destination services and channels, previews all overwritten reminder parameters,
+  rejects stale destination revisions, and commits the whole batch with durable
+  request replay. Certificate-only and cross-provider configurations are supported.
+  Migration 037 retains original import results across full backups; browser refresh
+  and lost responses reuse the original request. Credentials and runtime history
+  are excluded, and existing configuration v1/v2 and host policy bundles are unchanged.
+
 - Protected HTTP service diagnostics restore the service, observer and time range
   after login or reload. Bounded history pages separate real failures from
   unexecuted, pending and missing checks, with mature raw-slot counts in the same
