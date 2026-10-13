@@ -16,7 +16,7 @@ func (s *Service) deliverAggregate(ctx context.Context, now time.Time) (bool, er
 		return false, err
 	}
 	send, err := s.store.PrepareAggregateSend(ctx, g.ID, g.LeaseToken, now.Add(time.Since(started)))
-	if errors.Is(err, store.ErrDeliveryCanceled) || errors.Is(err, store.ErrAggregatePreparationFailed) {
+	if errors.Is(err, store.ErrDeliveryCanceled) || errors.Is(err, store.ErrDeliveryDeferred) || errors.Is(err, store.ErrAggregatePreparationFailed) {
 		return true, nil
 	}
 	if err != nil {
@@ -39,5 +39,7 @@ func (s *Service) deliverAggregate(ctx context.Context, now time.Time) (bool, er
 		cancel()
 	}
 	finished := now.Add(time.Since(started))
-	return true, s.store.CompleteAggregate(ctx, g.ID, g.LeaseToken, finished, deliveryOutcome(deliveryErr, send.MaxMemberAttempt, finished))
+	outcome := deliveryOutcome(deliveryErr, send.MaxMemberAttempt, finished)
+	outcome.ChannelRevision = channel.DeliveryRevision
+	return true, s.store.CompleteAggregate(ctx, g.ID, g.LeaseToken, finished, outcome)
 }

@@ -104,7 +104,7 @@ func (s *Store) ClaimAggregate(ctx context.Context, at time.Time, lease time.Dur
 	if err := recoverAggregateLeases(ctx, tx, at); err != nil {
 		return nil, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT `+aggregateColumns+` FROM notification_aggregates WHERE status='pending' AND available_at_ms<=? ORDER BY available_at_ms,seq LIMIT 100`, at.UnixMilli())
+	rows, err := tx.QueryContext(ctx, `SELECT `+aggregateColumns+` FROM notification_aggregates WHERE status='pending' AND available_at_ms<=? AND NOT EXISTS(SELECT 1 FROM notification_channels c WHERE c.id=notification_aggregates.channel_id AND c.delivery_paused_until_ms>?) ORDER BY available_at_ms,seq LIMIT 100`, at.UnixMilli(), at.UnixMilli())
 	if err != nil {
 		return nil, err
 	}
@@ -172,13 +172,13 @@ func (s *Store) ClaimAggregate(ctx context.Context, at time.Time, lease time.Dur
 			return nil, err
 		}
 		for _, d := range candidates {
-			if _, err := tx.ExecContext(ctx, `UPDATE notification_deliveries SET status='inflight',attempt_count=attempt_count+1,lease_token=?,lease_until_ms=?,updated_at=? WHERE id=?`, g.LeaseToken, until.UnixMilli(), formatTime(at), d.ID); err != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE notification_deliveries SET status='inflight',send_authorized=0,attempt_count=attempt_count+1,attempt_sequence=attempt_sequence+1,lease_token=?,lease_until_ms=?,updated_at=? WHERE id=?`, g.LeaseToken, until.UnixMilli(), formatTime(at), d.ID); err != nil {
 				return nil, err
 			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO delivery_attempts(delivery_id,attempt_number,lease_token,started_at,outcome) VALUES(?,?,?,?,'started')`, d.ID, d.AttemptCount+1, g.LeaseToken, formatTime(at)); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO delivery_attempts(delivery_id,attempt_number,lease_token,started_at,outcome) VALUES(?,?,?,?,'started')`, d.ID, d.AttemptSequence+1, g.LeaseToken, formatTime(at)); err != nil {
 				return nil, err
 			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO notification_aggregate_attempt_members(aggregate_id,aggregate_attempt,delivery_id,delivery_attempt) VALUES(?,?,?,?)`, g.ID, g.AttemptCount, d.ID, d.AttemptCount+1); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO notification_aggregate_attempt_members(aggregate_id,aggregate_attempt,delivery_id,delivery_attempt) VALUES(?,?,?,?)`, g.ID, g.AttemptCount, d.ID, d.AttemptSequence+1); err != nil {
 				return nil, err
 			}
 		}
@@ -238,7 +238,7 @@ func (s *Store) PrepareAggregateSend(ctx context.Context, id, token string, at t
 		if !owned {
 			continue
 		}
-		valid := d.Status == "inflight" && d.LeaseToken == token && d.AttemptCount == number
+		valid := d.Status == "inflight" && d.LeaseToken == token && d.AttemptSequence == number
 		if valid {
 			valid, err = aggregateApplicable(ctx, tx, d, at)
 			if err != nil {
@@ -270,6 +270,27 @@ func (s *Store) PrepareAggregateSend(ctx context.Context, id, token string, at t
 		}
 		return result, ErrDeliveryCanceled
 	}
+	paused, err := channelPaused(ctx, tx, g.ChannelID, at)
+	if err != nil {
+		return result, err
+	}
+	if paused {
+		for _, d := range included {
+			if err := deferUnsentReservation(ctx, tx, d, at, "channel_rate_limited"); err != nil {
+				return result, err
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE notification_aggregate_attempts SET outcome='canceled',error_class='channel_rate_limited',completed_at=? WHERE aggregate_id=? AND attempt_number=? AND outcome='prepared'`, formatTime(at), id, g.AttemptCount); err != nil {
+			return result, err
+		}
+		if err := scheduleAggregate(ctx, tx, id, at); err != nil {
+			return result, err
+		}
+		if err := tx.Commit(); err != nil {
+			return result, err
+		}
+		return result, ErrDeliveryDeferred
+	}
 	result.Payload, result.IdempotencyKey, err = renderAggregate(g, included)
 	if err != nil {
 		class := "aggregate_payload_invalid"
@@ -288,12 +309,15 @@ func (s *Store) PrepareAggregateSend(ctx context.Context, id, token string, at t
 	// later envelope/credential changes must not reuse the previous send key.
 	result.TemplateEventTime = g.TemplateEventTime
 	result.Channel.ID = g.ChannelID
-	if err := tx.QueryRowContext(ctx, `SELECT name,COALESCE(NULLIF(provider,''),kind),config_encrypted,enabled FROM notification_channels WHERE id=?`, g.ChannelID).Scan(&result.Channel.Name, &result.Channel.Kind, &result.Channel.ConfigEncrypted, &result.Channel.Enabled); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT name,COALESCE(NULLIF(provider,''),kind),config_encrypted,enabled,delivery_revision FROM notification_channels WHERE id=?`, g.ChannelID).Scan(&result.Channel.Name, &result.Channel.Kind, &result.Channel.ConfigEncrypted, &result.Channel.Enabled, &result.Channel.DeliveryRevision); err != nil {
 		return result, err
 	}
 	sum := sha256.Sum256([]byte(result.IdempotencyKey + ":" + result.Channel.ConfigEncrypted))
 	result.IdempotencyKey = "aggregate:" + g.ID + ":" + hex.EncodeToString(sum[:])
 	for _, d := range included {
+		if _, err := tx.ExecContext(ctx, `UPDATE notification_deliveries SET send_authorized=1 WHERE id=? AND lease_token=?`, d.ID, token); err != nil {
+			return result, err
+		}
 		if _, err := tx.ExecContext(ctx, `UPDATE notification_aggregate_attempt_members SET included=1 WHERE aggregate_id=? AND aggregate_attempt=? AND delivery_id=?`, id, g.AttemptCount, d.ID); err != nil {
 			return result, err
 		}
@@ -317,7 +341,7 @@ func rejectAggregatePreparation(ctx context.Context, tx *sql.Tx, g NotificationA
 		} else if n != 1 {
 			return ErrDeliveryLeaseLost
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE delivery_attempts SET outcome='failed',error_class=?,completed_at=? WHERE delivery_id=? AND attempt_number=? AND lease_token=? AND outcome='started'`, class, formatTime(at), d.ID, d.AttemptCount, g.LeaseToken); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE delivery_attempts SET outcome='failed',error_class=?,completed_at=? WHERE delivery_id=? AND attempt_number=? AND lease_token=? AND outcome='started'`, class, formatTime(at), d.ID, d.AttemptSequence, g.LeaseToken); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE alert_incidents SET last_enqueued_at=? WHERE id=?`, formatTime(at), d.IncidentID); err != nil {
@@ -386,7 +410,7 @@ func (s *Store) CompleteAggregate(ctx context.Context, id, token string, at time
 			continue
 		}
 		if parentFenced {
-			if number != d.AttemptCount {
+			if number != d.AttemptSequence {
 				return ErrDeliveryLeaseLost
 			}
 			if err := completeDeliveryWithFence(ctx, tx, d, token, at, outcome, true); err != nil {
@@ -400,6 +424,9 @@ func (s *Store) CompleteAggregate(ctx context.Context, id, token string, at time
 		return err
 	}
 	if parentFenced {
+		if err := recordChannelPause(ctx, tx, g.ChannelID, outcome, at); err != nil {
+			return err
+		}
 		if err := scheduleAggregate(ctx, tx, id, at); err != nil {
 			return err
 		}
@@ -423,7 +450,7 @@ func recordAggregateLateMember(ctx context.Context, tx *sql.Tx, d NotificationDe
 	if previous == status && class == errorClass {
 		return nil
 	}
-	if previous != "started" && !(previous == "unknown" && (class == "lease_expired" || (d.Status == "canceled" && d.AttemptCount == number && class == d.ErrorClass))) {
+	if previous != "started" && !(previous == "unknown" && (class == "lease_expired" || (d.Status == "canceled" && d.AttemptSequence == number && class == d.ErrorClass))) {
 		return ErrDeliveryLeaseLost
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE delivery_attempts SET outcome=?,error_class=?,completed_at=? WHERE delivery_id=? AND attempt_number=? AND lease_token=?`, status, errorClass, formatTime(at), d.ID, number, token); err != nil {

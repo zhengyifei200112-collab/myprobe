@@ -35,7 +35,7 @@ func (s *Store) CreateNotificationChannel(ctx context.Context, name, kind, encry
 		return NotificationChannel{}, errors.New("invalid notification channel")
 	}
 	now := time.Now().UTC()
-	item := NotificationChannel{ID: randomID(), Name: name, Kind: kind, ConfigEncrypted: encrypted, Enabled: true, CreatedAt: now, UpdatedAt: now}
+	item := NotificationChannel{ID: randomID(), Name: name, Kind: kind, ConfigEncrypted: encrypted, Enabled: true, CreatedAt: now, UpdatedAt: now, DeliveryRevision: 1}
 	_, err := s.db.ExecContext(ctx, `INSERT INTO notification_channels(id,name,kind,provider,config_encrypted,enabled,created_at,updated_at) VALUES(?,?,?,?,?,1,?,?)`, item.ID, item.Name, storageChannelKind(kind), kind, item.ConfigEncrypted, formatTime(now), formatTime(now))
 	return item, err
 }
@@ -48,9 +48,9 @@ func (s *Store) UpdateNotificationChannel(ctx context.Context, id, name, kind st
 	var result sql.Result
 	var err error
 	if encrypted == nil {
-		result, err = s.db.ExecContext(ctx, `UPDATE notification_channels SET name=?,kind=?,provider=?,enabled=?,updated_at=? WHERE id=?`, name, storageChannelKind(kind), kind, enabled, nowText(), id)
+		result, err = s.db.ExecContext(ctx, `UPDATE notification_channels SET delivery_revision=delivery_revision+CASE WHEN COALESCE(NULLIF(provider,''),kind)<>? THEN 1 ELSE 0 END,delivery_paused_until_ms=CASE WHEN COALESCE(NULLIF(provider,''),kind)<>? THEN NULL ELSE delivery_paused_until_ms END,name=?,kind=?,provider=?,enabled=?,updated_at=? WHERE id=?`, kind, kind, name, storageChannelKind(kind), kind, enabled, nowText(), id)
 	} else {
-		result, err = s.db.ExecContext(ctx, `UPDATE notification_channels SET name=?,kind=?,provider=?,config_encrypted=?,enabled=?,updated_at=? WHERE id=?`, name, storageChannelKind(kind), kind, *encrypted, enabled, nowText(), id)
+		result, err = s.db.ExecContext(ctx, `UPDATE notification_channels SET delivery_revision=delivery_revision+CASE WHEN COALESCE(NULLIF(provider,''),kind)<>? OR config_encrypted<>? THEN 1 ELSE 0 END,delivery_paused_until_ms=CASE WHEN COALESCE(NULLIF(provider,''),kind)<>? OR config_encrypted<>? THEN NULL ELSE delivery_paused_until_ms END,name=?,kind=?,provider=?,config_encrypted=?,enabled=?,updated_at=? WHERE id=?`, kind, *encrypted, kind, *encrypted, name, storageChannelKind(kind), kind, *encrypted, enabled, nowText(), id)
 	}
 	if err != nil {
 		return NotificationChannel{}, err
@@ -66,7 +66,8 @@ func (s *Store) NotificationChannel(ctx context.Context, id string) (Notificatio
 	var enabled int
 	var created, updated string
 	var tested sql.NullString
-	err := s.db.QueryRowContext(ctx, `SELECT id,name,COALESCE(NULLIF(provider,''),kind),config_encrypted,enabled,last_test_status,last_test_error,last_test_at,created_at,updated_at FROM notification_channels WHERE id=?`, id).Scan(&item.ID, &item.Name, &item.Kind, &item.ConfigEncrypted, &enabled, &item.LastTestStatus, &item.LastTestError, &tested, &created, &updated)
+	var paused sql.NullInt64
+	err := s.db.QueryRowContext(ctx, `SELECT id,name,COALESCE(NULLIF(provider,''),kind),config_encrypted,enabled,last_test_status,last_test_error,last_test_at,created_at,updated_at,delivery_revision,delivery_paused_until_ms FROM notification_channels WHERE id=?`, id).Scan(&item.ID, &item.Name, &item.Kind, &item.ConfigEncrypted, &enabled, &item.LastTestStatus, &item.LastTestError, &tested, &created, &updated, &item.DeliveryRevision, &paused)
 	if errors.Is(err, sql.ErrNoRows) {
 		return NotificationChannel{}, ErrNotFound
 	}
@@ -74,6 +75,7 @@ func (s *Store) NotificationChannel(ctx context.Context, id string) (Notificatio
 		return NotificationChannel{}, err
 	}
 	item.Enabled = enabled != 0
+	item.DeliveryPausedUntil = channelPauseTime(paused)
 	item.CreatedAt, _ = parseTime(created)
 	item.UpdatedAt, _ = parseTime(updated)
 	if tested.Valid {
@@ -84,7 +86,7 @@ func (s *Store) NotificationChannel(ctx context.Context, id string) (Notificatio
 }
 
 func (s *Store) ListNotificationChannels(ctx context.Context) ([]NotificationChannel, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,name,COALESCE(NULLIF(provider,''),kind),config_encrypted,enabled,last_test_status,last_test_error,last_test_at,created_at,updated_at FROM notification_channels ORDER BY name`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,name,COALESCE(NULLIF(provider,''),kind),config_encrypted,enabled,last_test_status,last_test_error,last_test_at,created_at,updated_at,delivery_revision,delivery_paused_until_ms FROM notification_channels ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -95,10 +97,12 @@ func (s *Store) ListNotificationChannels(ctx context.Context) ([]NotificationCha
 		var enabled int
 		var created, updated string
 		var tested sql.NullString
-		if err := rows.Scan(&item.ID, &item.Name, &item.Kind, &item.ConfigEncrypted, &enabled, &item.LastTestStatus, &item.LastTestError, &tested, &created, &updated); err != nil {
+		var paused sql.NullInt64
+		if err := rows.Scan(&item.ID, &item.Name, &item.Kind, &item.ConfigEncrypted, &enabled, &item.LastTestStatus, &item.LastTestError, &tested, &created, &updated, &item.DeliveryRevision, &paused); err != nil {
 			return nil, err
 		}
 		item.Enabled = enabled != 0
+		item.DeliveryPausedUntil = channelPauseTime(paused)
 		item.CreatedAt, _ = parseTime(created)
 		item.UpdatedAt, _ = parseTime(updated)
 		if tested.Valid {

@@ -207,14 +207,18 @@ compatibility history. These tests exercise sender, worker and database together
 ## Per-attempt diagnostics
 
 `GET /api/v1/admin/notification-deliveries/:deliveryID/attempts` requires an
-administrator session and returns at most five attempts in ascending attempt
-order. Each contains number, start/completion timestamps, outcome and safe error
+administrator session. It returns the latest 25 attempts by default (limit 1–100),
+in ascending order within each page. `next_before` is the exclusive attempt-number
+cursor for older history; zero means no older page. The five-send retry budget is
+separate from the monotonic history sequence: known-unsent channel deferrals refund
+budget without deleting or reusing history. Each contains number, start/completion timestamps, outcome and safe error
 classification. Missing deliveries return 404. Lease tokens and provider response
 bodies are excluded. API regression tests cover anonymous rejection, missing jobs,
 an active attempt and omitted private fields; provider integration tests cover
 failed-then-delivered history. The UI supports loading, retry errors and empty
 history, and explicitly explains that unknown outcomes may already have delivered.
-This newly added detail expansion still needs browser acceptance.
+The shared-channel browser fixture verifies 26 retained attempts, loading older
+history, zero consumed send budget and both themes at 360/768/1440 px.
 
 Recovery-form browser verification found that existing notification center save
 buttons inherited the design system's default button type and did not submit.

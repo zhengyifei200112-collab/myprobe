@@ -28,16 +28,17 @@ const selected = ref<Incident | null>(null), deliveries = ref<IncidentDelivery[]
 const busy = ref(false), detailBusy = ref(false), error = ref(''), detailError = ref('')
 const detailHeading = ref<HTMLElement | null>(null)
 const attempts = ref<Record<string, DeliveryAttempt[]>>({})
+const attemptNext = ref<Record<string, number>>({})
 const openDeliveryMaintenance = ref<Record<string, boolean>>({})
 const openDeliverySilence = ref<Record<string, boolean>>({}), ackVersion = ref(0)
 function toggleSilence(event: Event, id: string) { openDeliverySilence.value[id] = (event.target as HTMLDetailsElement).open }
 function silenceChanged() { ackVersion.value++; void refresh(); if (selected.value) void inspect(selected.value) }
 function toggleMaintenance(event: Event, id: string) { openDeliveryMaintenance.value[id] = (event.target as HTMLDetailsElement).open }
 const attemptErrors = ref<Record<string, string>>({}), attemptBusy = ref<Record<string, boolean>>({})
-async function showAttempts(id: string) {
+async function showAttempts(id: string, more = false) {
   if (attemptBusy.value[id]) return
   attemptBusy.value[id] = true; attemptErrors.value[id] = ''
-  try { attempts.value[id] = (await loadDeliveryAttempts(id)).attempts }
+  try { const page = await loadDeliveryAttempts(id, more ? attemptNext.value[id] || 0 : 0); attempts.value[id] = more ? [...page.attempts, ...(attempts.value[id] || [])] : page.attempts; attemptNext.value[id] = page.next_before }
   catch (e) { attemptErrors.value[id] = e instanceof Error ? e.message : '尝试记录加载失败' }
   finally { attemptBusy.value[id] = false }
 }
@@ -95,13 +96,16 @@ onMounted(() => { void refresh(); void openEntrance() })
       <MaintenanceContext subject="incident" :id="selected.id" @maintenance="emit('maintenance')" />
       <article v-for="job in deliveries" :key="job.id">
         <strong>{{ job.channel_name }} · {{ job.status === 'pending' ? '等待发送' : labels[job.status] || job.status }}</strong>
-        <p>{{ job.notification_type === 'firing' ? '故障通知' : '恢复通知' }} · 已尝试 {{ job.attempt_count }} 次</p><p>{{ date(job.created_at) }}</p>
+        <p>{{ job.notification_type === 'firing' ? '故障通知' : '恢复通知' }} · 发送预算已使用 {{ job.attempt_count }} / 5 · 已记录 {{ job.attempt_sequence ?? job.attempt_count }} 次领取</p><p>{{ date(job.created_at) }}</p>
+        <p v-if="job.status==='pending' && job.delivery_paused_until">渠道等待期限：{{ date(job.delivery_paused_until) }}。到期后仍需满足任务退避与当前事件条件；刷新可核对最新状态。</p>
         <DsButton v-if="job.aggregate_id" size="small" @click="emit('aggregate', job.aggregate_id)">查看此投递的聚合内容</DsButton>
         <template v-if="['maintenance','silence','maintenance_and_silence'].includes(job.error_class || '')"><p>{{ job.error_class==='maintenance_and_silence' ? '维护与静默' : job.error_class==='silence' ? '事件静默' : '维护窗口' }}已取消此投递任务，故障事件继续记录。已发出的请求无法撤回；全部抑制结束后依据新鲜观测恢复提醒。</p><DsButton v-if="job.error_class!=='silence'" size="small" @click="emit('maintenance')">查看维护窗口</DsButton></template>
         <p v-else-if="job.error_class">错误分类：{{ job.error_class }}</p>
         <details v-if="['maintenance','maintenance_and_silence'].includes(job.error_class || '')" @toggle="toggleMaintenance($event,job.id)"><summary>此通知关联的维护窗口</summary><MaintenanceContext v-if="openDeliveryMaintenance[job.id]" subject="delivery" :id="job.id" @maintenance="emit('maintenance')" /></details>
         <details v-if="['silence','maintenance_and_silence'].includes(job.error_class || '')" @toggle="toggleSilence($event,job.id)"><summary>此通知关联的事件静默</summary><DeliverySilence v-if="openDeliverySilence[job.id]" :id="job.id" /></details>
         <DsButton size="small" :disabled="attemptBusy[job.id]" @click="showAttempts(job.id)">查看每次尝试</DsButton>
+        <DsButton v-if="attemptNext[job.id]" size="small" :disabled="attemptBusy[job.id]" @click="showAttempts(job.id, true)">加载较早尝试</DsButton>
+        <p v-if="['channel_rate_limited','channel_configuration_changed'].includes(job.error_class || '')">本次领取在发送前延期，未消耗发送预算；历史序号保留。</p>
         <p v-if="attemptBusy[job.id]" role="status">正在加载尝试记录…</p><p v-if="attempts[job.id]?.length === 0 && !attemptBusy[job.id]">尚未开始投递尝试。</p><p v-if="attemptErrors[job.id]" role="alert">{{ attemptErrors[job.id] }}</p>
         <p v-if="job.status==='canceled' && attempts[job.id]?.some(attempt => attempt.outcome==='delivered')" role="status">任务已取消，但已开始的一次发送获得渠道成功确认。取消不会撤回已发送的通知。</p>
         <ol v-if="attempts[job.id]"><li v-for="attempt in attempts[job.id]" :key="attempt.number">第 {{ attempt.number }} 次：{{ outcomeLabels[attempt.outcome] || attempt.outcome }} · {{ date(attempt.started_at) }}<span v-if="attempt.completed_at"> → {{ date(attempt.completed_at) }}</span><span v-if="attempt.error_class"> · {{ attempt.error_class }}</span></li></ol>

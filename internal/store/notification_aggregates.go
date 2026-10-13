@@ -25,34 +25,37 @@ const AggregatePayloadByteLimit = 16 << 10
 var ErrAggregatePreparationFailed = errors.New("aggregate payload rejected before sending")
 
 type NotificationAggregate struct {
-	RenderVersion      int        `json:"-"`
-	NotificationOrigin string     `json:"-"`
-	TemplateEventTime  string     `json:"-"`
-	Seq                int64      `json:"seq"`
-	ID                 string     `json:"id"`
-	PolicyID           string     `json:"policy_id"`
-	PolicyRevision     int64      `json:"policy_revision"`
-	ChannelID          string     `json:"channel_id"`
-	Provider           string     `json:"provider"`
-	NotificationType   string     `json:"notification_type"`
-	StartsAt           time.Time  `json:"starts_at"`
-	EndsAt             time.Time  `json:"ends_at"`
-	Status             string     `json:"status"`
-	Sealed             bool       `json:"sealed"`
-	AttemptCount       int        `json:"attempt_count"`
-	AvailableAt        time.Time  `json:"available_at"`
-	LeaseToken         string     `json:"-"`
-	LeaseUntil         *time.Time `json:"-"`
+	DeliveryPausedUntil *time.Time `json:"delivery_paused_until,omitempty"`
+	RenderVersion       int        `json:"-"`
+	NotificationOrigin  string     `json:"-"`
+	TemplateEventTime   string     `json:"-"`
+	Seq                 int64      `json:"seq"`
+	ID                  string     `json:"id"`
+	PolicyID            string     `json:"policy_id"`
+	PolicyRevision      int64      `json:"policy_revision"`
+	ChannelID           string     `json:"channel_id"`
+	Provider            string     `json:"provider"`
+	NotificationType    string     `json:"notification_type"`
+	StartsAt            time.Time  `json:"starts_at"`
+	EndsAt              time.Time  `json:"ends_at"`
+	Status              string     `json:"status"`
+	Sealed              bool       `json:"sealed"`
+	AttemptCount        int        `json:"attempt_count"`
+	AvailableAt         time.Time  `json:"available_at"`
+	LeaseToken          string     `json:"-"`
+	LeaseUntil          *time.Time `json:"-"`
 }
 
-const aggregateColumns = `seq,id,policy_id,policy_revision,channel_id,provider,notification_type,starts_at_ms,ends_at_ms,status,sealed,attempt_count,available_at_ms,lease_token,lease_until_ms,render_version,notification_origin,template_event_time`
+const aggregateColumns = `seq,id,policy_id,policy_revision,channel_id,provider,notification_type,starts_at_ms,ends_at_ms,status,sealed,attempt_count,available_at_ms,lease_token,lease_until_ms,render_version,notification_origin,template_event_time,(SELECT delivery_paused_until_ms FROM notification_channels WHERE id=notification_aggregates.channel_id)`
 
 func scanAggregate(row rowScanner) (NotificationAggregate, error) {
 	var g NotificationAggregate
 	var start, end, available int64
 	var token sql.NullString
 	var until sql.NullInt64
-	err := row.Scan(&g.Seq, &g.ID, &g.PolicyID, &g.PolicyRevision, &g.ChannelID, &g.Provider, &g.NotificationType, &start, &end, &g.Status, &g.Sealed, &g.AttemptCount, &available, &token, &until, &g.RenderVersion, &g.NotificationOrigin, &g.TemplateEventTime)
+	var paused sql.NullInt64
+	err := row.Scan(&g.Seq, &g.ID, &g.PolicyID, &g.PolicyRevision, &g.ChannelID, &g.Provider, &g.NotificationType, &start, &end, &g.Status, &g.Sealed, &g.AttemptCount, &available, &token, &until, &g.RenderVersion, &g.NotificationOrigin, &g.TemplateEventTime, &paused)
+	g.DeliveryPausedUntil = channelPauseTime(paused)
 	g.StartsAt, g.EndsAt, g.AvailableAt = time.UnixMilli(start).UTC(), time.UnixMilli(end).UTC(), time.UnixMilli(available).UTC()
 	g.LeaseToken = token.String
 	if until.Valid {

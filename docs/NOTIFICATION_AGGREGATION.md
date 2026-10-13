@@ -287,7 +287,59 @@ requests, null content, two non-included members, private-error isolation and bo
 themes at 360/768/1440 px. It runs with the same aggregation browser flag above.
 Local Go tests run with CGO disabled; no local race-detector result is claimed.
 
-Live provider/client rendering, persisted shared-channel rate backpressure, broader administrative races,
+Live provider/client rendering, broader administrative races,
 non-aggregate/service notification link coverage, published-version integration,
 retention/capacity and owner approval remain release gates. M3–M5 remain in the
 original roadmap; this batch does not complete AGG-01/ALT-05 or that full scope.
+
+## Shared channel backpressure (migration 033)
+
+A positive provider retry delay persists a channel deadline; HTTP 429 without a
+usable delay uses the normal retry backoff. Both the channel deadline and the
+individual job/window deadline must expire before sending. Aggregates, individual
+jobs, channel tests and template tests share the gate. Other channel IDs continue,
+even when configured with the same remote destination; this is not a provider-wide
+bucket or a guarantee against requests already authorized before a response arrives.
+
+Claim queries filter paused channels before their bounded batch limit. A pause
+reported between claim and final authorization cancels the unsent reservation and
+refunds its budget atomically. Its history sequence remains unique and monotonic.
+Actual/uncertain sends retain the five-attempt budget and existing delivery semantics.
+Final authorization is one-shot. Old leases migrated from previous versions remain
+conservatively authorized. Aggregate attempts canceled before rendering have no
+payload or included members, and are not evidence of provider receipt.
+
+Concurrent current results only extend the deadline. Success does not clear it.
+Provider or encrypted configuration replacement increments a private revision and
+clears that configuration's wait; rename/enable changes preserve it. Old-revision
+responses cannot pause the replacement. Historical results after lease takeover or
+cancellation retain their existing history-only authority and cannot regain channel
+scheduling authority. No exactly-once guarantee is added.
+
+Channel wait and valid worker completion commit together. Full backup/restore and
+restart preserve the wait; restoring an older snapshot retains the existing risk
+of replaying deliveries. Migration 033 copies/rebuilds attempt history inside the
+migration transaction, preserving IDs, AUTOINCREMENT high-water mark, exact aggregate
+associations and old content/key identity. Failure rolls back schema and data.
+Budget (`attempt_count`) and history (`attempt_sequence`) are separate thereafter.
+
+Protected admin reads add `delivery_paused_until`; delivery reads also add
+`attempt_sequence`. Revision and send authorization remain private. Attempts accept
+exclusive `before` and `limit` (default 25, maximum 100), with `next_before` and an
+ascending page. Public/Agent payloads do not change. Waiting manual tests return a
+safe 429 with `channel_rate_limited`, do no I/O, and are not queued or auto-replayed.
+The response which first discovers a provider failure retains the existing test
+error contract; subsequent requests encounter the persisted gate. Admin views show
+the stored last deadline, not a live countdown; refresh to inspect current state.
+Expiration alone does not bypass backoff, aggregate windows or event eligibility.
+
+Tests cover real HTTP receivers, concurrent 120/240-second responses, mixed queues,
+manual tests, 27 refunded reservations followed by all five actual attempts,
+transaction rollback, migration rollback/foreign keys/high-water mark, restart and
+full restore, revision fencing and filtering before a 100-row scan limit. The scan
+fixture includes synthetic empty aggregates and is not a capacity benchmark. Injected
+clocks test deadlines; no production-account rate-limit evidence is claimed.
+`TestLiveChannelPauseBrowser` uses the aggregation browser flag and actual protected
+UI/Store/HTTP fixture to verify waiting views, blocked test I/O, 26 history entries,
+pagination, budget and 18 combinations of view/theme/width. Existing policy, ACK,
+silence, maintenance and aggregation browser flows remain regression gates.

@@ -166,13 +166,7 @@ func (s *Service) TestChannel(ctx context.Context, id string, now time.Time) err
 	if err != nil {
 		return err
 	}
-	err = s.sender.Deliver(ctx, channel.Kind, config, Notification{Title: "MyProbe 通知测试", Message: "通知通道配置有效。", State: "test", Kind: "test", Timestamp: now.UTC()})
-	message := ""
-	if err != nil {
-		message = err.Error()
-	}
-	_ = s.store.RecordChannelTest(ctx, id, err == nil, message, now.UTC())
-	return err
+	return s.sendChannelTest(ctx, channel, config, Notification{Title: "MyProbe 通知测试", Message: "通知通道配置有效。", State: "test", Kind: "test", Timestamp: now.UTC()}, now)
 }
 
 func (s *Service) TestTemplate(ctx context.Context, templateID, channelID string, now time.Time) error {
@@ -191,13 +185,27 @@ func (s *Service) TestTemplate(ctx context.Context, templateID, channelID string
 	n := Notification{Title: "MyProbe 模板测试", Message: "这是一条模板预览消息。", State: "test", Kind: "test", NodeID: "example-node", NodeName: "Example Node", RuleID: "example-rule", Timestamp: now.UTC()}
 	n.Title = renderTemplate(template.TitleTemplate, n)
 	n.Message = renderTemplate(template.BodyTemplate, n)
-	err = s.sender.Deliver(ctx, channel.Kind, config, n)
-	message := ""
-	if err != nil {
-		message = err.Error()
+	return s.sendChannelTest(ctx, channel, config, n, now)
+}
+
+func (s *Service) sendChannelTest(ctx context.Context, channel store.NotificationChannel, config ChannelConfig, n Notification, now time.Time) error {
+	started := time.Now()
+	if err := s.store.CheckNotificationChannelSend(ctx, channel.ID, channel.DeliveryRevision, now); err != nil {
+		return err
 	}
-	_ = s.store.RecordChannelTest(ctx, channelID, err == nil, message, now.UTC())
-	return err
+	sendCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	err := s.sender.Deliver(sendCtx, channel.Kind, config, n)
+	cancel()
+	finished := now.Add(time.Since(started))
+	outcome := deliveryOutcome(err, 1, finished)
+	outcome.ChannelRevision = channel.DeliveryRevision
+	if err := s.store.CompleteNotificationChannelTest(ctx, channel.ID, outcome, finished); err != nil {
+		return errors.New("failed to persist notification test result")
+	}
+	if err != nil {
+		return &DeliveryError{Class: outcome.ErrorClass, Permanent: outcome.Permanent, Ambiguous: outcome.Ambiguous}
+	}
+	return nil
 }
 
 func (s *Service) CreateRule(ctx context.Context, nodeID, channelID, kind string, config RuleConfig, cooldown int) (store.AlertRule, error) {

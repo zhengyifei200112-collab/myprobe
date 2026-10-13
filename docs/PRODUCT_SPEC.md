@@ -195,3 +195,9 @@ changed retries. Older editors omit the field without disabling an existing
 setting; an explicit zero disables it. These queue/receiver checks do not replace
 release integration or complete AGG-01/ALT-05. Non-aggregate/service links and
 M3–M5 remain in the original roadmap.
+
+### 通知渠道共享等待补充（开发分支，迁移 033）
+
+渠道维度持久保存 Provider 等待期限，覆盖聚合、单事件与手工测试；自身任务期限与渠道期限同时满足才允许发送。等待中的任务不占领取批次和发送预算；领取后发现等待则原子返还预算，保留唯一历史序号与分页诊断。配置版本隔离旧响应，并发结果只延长等待。更换配置清除等待，改名和启用状态保留等待。授权后正在发送的请求仍可能完成，不承诺 Provider 全局限速或恰好一次。
+
+仅管理员接口新增渠道期限与尝试序号，历史默认每页 25 条、最多 100 条；渠道版本和发送授权不公开。管理界面区分五次发送预算与不限于五条的历史，并提示到期仍需满足其他发送条件。迁移、重启/恢复、真实本地 HTTP 并发及明暗主题三宽度浏览器均需验收。该功能属于 AGG-01/ALT-05 的持续开发，不代表整条路线已发布。

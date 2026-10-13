@@ -52,7 +52,7 @@ func (s *Service) DeliverOne(ctx context.Context, now time.Time) (bool, error) {
 	} else if err = json.Unmarshal(job.Payload, &notification); err != nil {
 		deliveryErr = &DeliveryError{Class: "invalid_payload", Permanent: true}
 	}
-	if err := s.store.CheckDeliveryLease(ctx, job.ID, job.LeaseToken, now.Add(time.Since(started))); err != nil {
+	if err := s.store.CheckDeliveryLease(ctx, job.ID, job.LeaseToken, now.Add(time.Since(started)), channel.DeliveryRevision); err != nil {
 		if errors.Is(err, store.ErrDeliveryCanceled) || errors.Is(err, store.ErrDeliveryDeferred) {
 			return true, nil
 		}
@@ -66,6 +66,7 @@ func (s *Service) DeliverOne(ctx context.Context, now time.Time) (bool, error) {
 	}
 	finished := now.Add(time.Since(started))
 	outcome := deliveryOutcome(deliveryErr, job.AttemptCount, finished)
+	outcome.ChannelRevision = channel.DeliveryRevision
 	return true, s.store.CompleteDelivery(ctx, job.ID, job.LeaseToken, finished, outcome)
 }
 
@@ -80,6 +81,13 @@ func deliveryOutcome(deliveryErr error, attempt int, finished time.Time) store.D
 			outcome.Ambiguous = classified.Ambiguous
 			if classified.RetryAfter > delay {
 				delay = classified.RetryAfter
+			}
+			if !classified.Permanent && !classified.Ambiguous {
+				if classified.RetryAfter > 0 {
+					outcome.ChannelRetryAt = finished.Add(classified.RetryAfter)
+				} else if classified.Class == "http_rate_limited" {
+					outcome.ChannelRetryAt = finished.Add(delay)
+				}
 			}
 		}
 		outcome.RetryAt = finished.Add(delay)

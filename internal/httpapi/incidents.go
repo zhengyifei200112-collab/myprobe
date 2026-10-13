@@ -15,7 +15,12 @@ func (s *Server) deliveryAttempts(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid delivery ID"})
 		return
 	}
-	items, err := s.store.ListDeliveryAttempts(c.Request.Context(), id)
+	before, limit, err := aggregatePageQuery(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid attempt pagination"})
+		return
+	}
+	page, err := s.store.ListDeliveryAttemptPage(c.Request.Context(), id, before, limit)
 	if errors.Is(err, store.ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "delivery not found"})
 		return
@@ -24,7 +29,7 @@ func (s *Server) deliveryAttempts(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list attempts"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"attempts": items})
+	c.JSON(http.StatusOK, page)
 }
 
 func incidentPage(c *gin.Context) (int64, int, bool) {

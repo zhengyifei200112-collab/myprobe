@@ -148,7 +148,7 @@ func (s *Server) routes() {
 	admin.DELETE("/nodes/:nodeID/target-groups/:groupID", s.unassignTargetGroup)
 	admin.PUT("/nodes/:nodeID/targets/:targetID", s.assignTarget)
 	admin.DELETE("/nodes/:nodeID/targets/:targetID", s.unassignTarget)
-	admin.GET("/notification-channels", s.listNotificationChannels)
+	s.router.GET("/api/v1/admin/notification-channels", privateNoStore(), s.requireSession(true), s.listNotificationChannels)
 	admin.POST("/notification-channels", s.createNotificationChannel)
 	admin.PATCH("/notification-channels/:channelID", s.updateNotificationChannel)
 	admin.DELETE("/notification-channels/:channelID", s.deleteNotificationChannel)
@@ -168,7 +168,7 @@ func (s *Server) routes() {
 	s.router.POST("/api/v1/admin/incidents/:incidentID/silences", privateNoStore(), s.requireSession(true), s.createIncidentSilence)
 	s.router.POST("/api/v1/admin/incidents/:incidentID/silences/:silenceID/cancel", privateNoStore(), s.requireSession(true), s.cancelIncidentSilence)
 	s.router.GET("/api/v1/admin/notification-deliveries/:deliveryID/silences", privateNoStore(), s.requireSession(true), s.deliverySilences)
-	admin.GET("/notification-deliveries/:deliveryID/attempts", s.deliveryAttempts)
+	s.router.GET("/api/v1/admin/notification-deliveries/:deliveryID/attempts", privateNoStore(), s.requireSession(true), s.deliveryAttempts)
 	admin.GET("/incidents/:incidentID/deliveries", s.incidentDeliveries)
 	s.router.GET("/api/v1/admin/incidents/:incidentID/maintenance", privateNoStore(), s.requireSession(true), s.incidentMaintenance)
 	s.router.GET("/api/v1/admin/notification-deliveries/:deliveryID/maintenance", privateNoStore(), s.requireSession(true), s.deliveryMaintenance)
@@ -1204,7 +1204,14 @@ func writeSharingError(c *gin.Context, err error) {
 
 func writeAlertError(c *gin.Context, err error) {
 	status := http.StatusBadRequest
-	if errors.Is(err, store.ErrNotFound) {
+	if errors.Is(err, store.ErrChannelRateLimited) {
+		c.Header("Cache-Control", "no-store")
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "该通知通道正在等待重试，请刷新通道状态后查看等待期限。", "code": "channel_rate_limited"})
+		return
+	} else if errors.Is(err, store.ErrChannelConfigurationChanged) {
+		c.JSON(http.StatusConflict, gin.H{"error": "通知通道配置已改变，请刷新后重试。", "code": "channel_configuration_changed"})
+		return
+	} else if errors.Is(err, store.ErrNotFound) {
 		status = http.StatusNotFound
 	} else if errors.Is(err, store.ErrNotificationChannelInUse) || errors.Is(err, store.ErrAlertRuleManaged) {
 		status = http.StatusConflict

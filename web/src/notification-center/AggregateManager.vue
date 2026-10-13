@@ -59,6 +59,7 @@ onMounted(() => { void refresh(); if (selectedID.value) void inspect(selectedID.
     <article v-for="g in items" :key="g.id">
       <h3>{{ g.channel_name || '原通知通道' }} · {{ g.notification_type === 'firing' ? '故障汇总' : '恢复汇总' }}</h3>
       <p>{{ labels[g.status] || g.status }} · 窗口 {{ date(g.starts_at) }} → {{ date(g.ends_at) }}</p>
+      <p v-if="g.status==='pending' && g.delivery_paused_until">渠道等待期限：{{ date(g.delivery_paused_until) }}。到期后仍需满足聚合窗口、任务退避与事件条件；刷新可核对最新状态。</p>
       <p>等待 {{ g.totals.pending }} · 发送中 {{ g.totals.inflight }} · 成功 {{ g.totals.delivered }} · 失败 {{ g.totals.failed }} · 取消 {{ g.totals.canceled }}</p>
       <DsButton size="small" @click="inspect(g.id, false, true)">查看聚合详情</DsButton>
     </article>
@@ -86,6 +87,7 @@ onMounted(() => { void refresh(); if (selectedID.value) void inspect(selectedID.
           <p v-if="a.outcome === 'unknown'">外部渠道可能已收到这次通知。重试可能重复通知；该记录不能作为确定未发送的证据。</p>
           <p v-if="a.outcome === 'failed' && ['aggregate_payload_invalid','aggregate_payload_too_large'].includes(a.error_class || '')">未发起外部发送：聚合正文无效或超限。请检查配置和数据；本次任务不会自动重试。</p>
           <p v-if="a.outcome === 'canceled'">本次未获发送授权，关联成员没有继承外部发送结果。</p>
+          <p v-if="a.error_class === 'channel_rate_limited'">渠道正在等待重试。本次领取在发送前延期，未消耗发送预算；历史序号保留。</p>
           <template v-if="a.content"><h6>{{ a.content.title }}</h6><pre>{{ a.content.message }}</pre><p>下列成员及观测时间来自这次冻结的发送内容：</p><ul><li v-for="m in a.content.members" :key="m.incident_id"><a :href="eventPath(m.incident_id)">{{ m.node_name }} · 查看事件</a> · 观测 {{ date(m.observed_at) }}</li></ul></template>
           <p v-else>{{ a.outcome === 'prepared' ? '尚未冻结发送内容；准备记录不表示已发送。' : '本次未生成可发送正文。' }}</p>
           <details><summary>本次成员关联</summary><ul><li v-for="m in a.members" :key="m.delivery_id">{{ m.node_name }} · 逐事件第 {{ m.delivery_attempt }} 次 · {{ m.included ? '已纳入冻结的发送内容' : '未纳入本次发送内容' }}</li></ul></details>

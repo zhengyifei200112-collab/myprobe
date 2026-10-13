@@ -9,6 +9,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Provider retry waits now persist per notification channel and gate aggregate,
+  individual and manual test sends. Concurrent results cannot shorten a wait;
+  replacing provider/configuration isolates old results. Known-unsent reservations
+  refund their retry budget while preserving paginated history. Admin views show
+  the last channel deadline and distinguish history entries from send budget.
+  Forward-only migration 033 preserves attempt IDs and aggregate membership while
+  allowing history to exceed five entries; public and Agent contracts are unchanged.
 - Telegram delivery requires a valid Bot API message confirmation; Discord requests
   and validates saved-message confirmation. Malformed/empty successful responses
   remain unknown, and provider body/header retry delays are honored without leaking

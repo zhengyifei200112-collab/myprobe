@@ -28,6 +28,7 @@ export interface LatencyConfig {
 }
 
 export interface NotificationChannel {
+	 delivery_paused_until?: string
   id: string
   name: string
   kind: 'webhook' | 'telegram' | 'discord' | 'smtp'
@@ -400,6 +401,7 @@ export interface IncidentAcknowledgementView {
 export const loadIncidentAcknowledgement = (id: string) => request<IncidentAcknowledgementView>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/acknowledgement`)
 export const acknowledgeIncident = (id: string, requestID: string, note: string) => request<{ acknowledgement: IncidentAcknowledgement; replayed: boolean }>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/acknowledgement`, { method: 'POST', body: JSON.stringify({ request_id: requestID, note }) })
 export interface IncidentDelivery {
+	 attempt_sequence?: number; delivery_paused_until?: string
   seq: number; id: string; channel_name: string; provider: string
   notification_type: string; status: string; attempt_count: number
   created_at: string; available_at: string; error_class?: string
@@ -409,6 +411,7 @@ export const loadIncident = (id: string) => request<{ incident: Incident }>(`/ap
 
 export interface AggregateTotals { pending: number; inflight: number; delivered: number; failed: number; canceled: number }
 export interface NotificationAggregate {
+	 delivery_paused_until?: string
   seq: number; id: string; policy_id: string; policy_revision: number; channel_id: string; provider: string
   notification_type: string; starts_at: string; ends_at: string; status: string; sealed: boolean; attempt_count: number; available_at: string
 }
@@ -431,7 +434,7 @@ export const loadIncidents = (state = '', before = 0, nodeID = '') => request<{ 
 export const loadIncidentDeliveries = (id: string, before = 0) => request<{ deliveries: IncidentDelivery[]; next_before: number }>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/deliveries?limit=25&before=${before}`)
 
 export interface DeliveryAttempt { number: number; started_at: string; completed_at?: string; outcome: string; error_class?: string }
-export const loadDeliveryAttempts = (id: string) => request<{ attempts: DeliveryAttempt[] }>(`/api/v1/admin/notification-deliveries/${encodeURIComponent(id)}/attempts`)
+export const loadDeliveryAttempts = (id: string, before = 0) => request<{ attempts: DeliveryAttempt[]; next_before: number }>(`/api/v1/admin/notification-deliveries/${encodeURIComponent(id)}/attempts?limit=25&before=${before}`)
 
 export interface IncidentSilence {
   id: string; incident_id: string; revision: number; starts_at: string; ends_at: string
