@@ -43,8 +43,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   bounded per-policy/channel/type shards, durable transport attempts and exact
   per-event attempt links. The worker revalidates each member before sending;
   unchanged retries preserve content/key and stale members wait independently.
-  Real loopback receiver measurements cover 5/50/100-node storms. Management UI,
-  deep links and remaining acceptance are in development; this is unreleased.
+  Real loopback receiver measurements cover 5/50/100-node storms. Protected
+  management configuration/history distinguish current event results from actual
+  attempt content, including unknown outcomes. New policy forms show a 30-second
+  wait, while old settings are preserved. Migration 031 keeps old payload/key
+  identity and freezes optional `MYPROBE_NOTIFICATION_ORIGIN` for new notification
+  content/event links. Login returns to the original content; real receiver and
+  browser checks cover identical ambiguous-send retries and both themes/three
+  widths. Provider/release/capacity acceptance remains pending; this is unreleased.
   Restart/full restore retain windows and keys. Actual late results after a parent
   takeover refine history without changing successor jobs or clocks. Destination
   configuration is read from the final send snapshot and its version participates

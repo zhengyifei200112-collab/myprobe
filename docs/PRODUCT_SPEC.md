@@ -170,13 +170,21 @@ by policy ID/revision, channel/provider and notification type, at most 10 events
 per fixed window. Final checks remove recovered/muted members and defer stale
 members independently; completion/history stays atomic. Text and JSON transport
 bounds are enforced and unchanged retries keep their content/key. Transport-only
-edits do not recreate technical incidents. Management configuration/history,
-authenticated deep links, broader runtime/browser evidence and release/capacity
-remain pending. See [NOTIFICATION_AGGREGATION.md](NOTIFICATION_AGGREGATION.md).
+edits do not recreate technical incidents. Protected configuration/history and
+context UI distinguish current outcomes from exact historical contents. New
+policy forms show an added 30-second wait; zero disables it. Migration 031 freezes
+the configured notification origin and content-link renderer while preserving
+old payload/key identity. Password and GitHub return navigation open aggregate
+content or individual events after authentication. Real receiver/browser checks
+cover ambiguous acceptance, identical retry and both themes/three widths;
+GitHub return navigation is locally simulated. Provider-specific acceptance,
+broader administrative races, release integration and retention/capacity remain
+pending. See [NOTIFICATION_AGGREGATION.md](NOTIFICATION_AGGREGATION.md).
 
 Restart/full restore preserve window and transport identity. Actual late results
 after takeover refine historical attempts without altering current jobs or clocks.
 Final destination snapshots are private; their configuration version separates
 changed retries. Older editors omit the field without disabling an existing
 setting; an explicit zero disables it. These queue/receiver checks do not replace
-management/browser acceptance or complete AGG-01/ALT-05.
+release integration or complete AGG-01/ALT-05. Non-aggregate/service links and
+M3–M5 remain in the original roadmap.

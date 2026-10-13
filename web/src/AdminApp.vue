@@ -5,6 +5,7 @@ import { DsButton, DsConfirmDialog, DsDialog, DsDropdown, DsEmptyState, DsSheet,
 import SettingsCenter from './settings-center/SettingsCenter.vue'
 import AuthSettingsPanel from './settings-center/AuthSettingsPanel.vue'
 import NotificationCenter from './notification-center/NotificationCenter.vue'
+import { notificationPath, parseNotificationTarget, pendingNotificationTarget, rememberNotificationTarget, type NotificationTarget } from './notification-links'
 import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
 import { fetchSiteSettings } from './api'
 import { defaultSiteSettings, normalizeSiteSettings } from './types'
@@ -23,6 +24,12 @@ const busy = ref(false)
 const error = ref('')
 const notice = ref('')
 const tab = ref<Tab>('nodes')
+const initialNotification = parseNotificationTarget(location.search)
+const notificationTarget = ref<NotificationTarget | null>(initialNotification.target)
+function restoreNotificationNavigation() {
+  if (notificationTarget.value) { tab.value = 'alerts'; history.replaceState(null, '', notificationPath(notificationTarget.value)) }
+  rememberNotificationTarget(null)
+}
 const username = ref('admin')
 const password = ref('')
 const captchaID = ref('')
@@ -122,6 +129,7 @@ async function submitLogin() {
     password.value = ''
     captchaID.value = ''; captchaPrompt.value = ''; captchaAnswer.value = ''
     authenticated.value = true
+    restoreNotificationNavigation()
     await refresh()
   })
 }
@@ -464,6 +472,8 @@ async function stageRestore() {
 }
 
 onMounted(async () => {
+  const oauth = new URLSearchParams(location.search)
+  if (!initialNotification.explicit && (oauth.has('oauth') || oauth.has('oauth_error'))) notificationTarget.value = pendingNotificationTarget()
   try {
     const publicSettings = await fetchSiteSettings()
     Object.assign(siteSettings, normalizeSiteSettings(publicSettings))
@@ -473,13 +483,14 @@ onMounted(async () => {
   try { githubEnabled.value = (await loadGitHubStatus()).enabled } catch { githubEnabled.value = false }
   authenticated.value = await restoreSession()
   if (authenticated.value) {
+    restoreNotificationNavigation()
     try { await refresh() } catch (value) { showError(value) }
   }
-  const oauth = new URLSearchParams(location.search)
   if (oauth.get('oauth') === 'github') notice.value = 'GitHub 登录验证成功。'
   const oauthError = oauth.get('oauth_error')
   if (oauthError) error.value = oauthError === 'not_allowed' ? '当前 GitHub 账号不在管理员白名单中。' : oauthError === 'unavailable' ? 'GitHub 登录尚未正确配置。' : 'GitHub 登录失败或授权已取消。'
-  if (oauth.has('oauth') || oauth.has('oauth_error')) history.replaceState(null, '', '/admin')
+  if (oauth.has('oauth') || oauth.has('oauth_error')) history.replaceState(null, '', notificationTarget.value ? notificationPath(notificationTarget.value) : '/admin')
+  if (initialNotification.error) error.value = initialNotification.error
   booting.value = false
 })
 </script>
@@ -504,7 +515,7 @@ onMounted(async () => {
       <section class="admin-panel login-card">
         <header><span class="eyebrow">SECURE CONSOLE</span><h1>登录管理中心</h1><p>使用管理员密码，或通过已授权的 GitHub 账号继续。</p></header>
         <form @submit.prevent="submitLogin"><label>用户名<input v-model="username" autocomplete="username" required></label><label>密码<input v-model="password" type="password" autocomplete="current-password" required></label><label v-if="captchaPrompt">安全验证：{{ captchaPrompt }}<input v-model="captchaAnswer" inputmode="numeric" autocomplete="off" required></label><p v-if="notice" class="form-message success" role="status">{{ notice }}</p><p v-if="error" class="form-message error" role="alert">{{ error }}</p><button class="primary-button" :disabled="busy">{{ busy ? '登录中…' : '使用密码登录' }}</button></form>
-        <div v-if="githubEnabled" class="login-divider"><span>或</span></div><a v-if="githubEnabled" class="github-login-button" href="/api/v1/auth/github/start"><span aria-hidden="true">GH</span>使用 GitHub 登录</a><p class="login-security-note">受 HttpOnly 会话、CSRF 防护与登录限速保护</p>
+        <div v-if="githubEnabled" class="login-divider"><span>或</span></div><a v-if="githubEnabled" class="github-login-button" href="/api/v1/auth/github/start" @click="rememberNotificationTarget(notificationTarget)"><span aria-hidden="true">GH</span>使用 GitHub 登录</a><p class="login-security-note">受 HttpOnly 会话、CSRF 防护与登录限速保护</p>
       </section>
     </main>
 
@@ -572,7 +583,7 @@ onMounted(async () => {
       </template>
 
       <template v-else-if="tab === 'alerts'">
-        <NotificationCenter :nodes="nodes" @notice="value => { notice = value; error = '' }" @error="showError" />
+        <NotificationCenter :nodes="nodes" :initial-target="notificationTarget" @notice="value => { notice = value; error = '' }" @error="showError" />
       </template>
 
       <template v-else-if="tab === 'shares'">

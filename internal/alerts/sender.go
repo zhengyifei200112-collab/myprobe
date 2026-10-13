@@ -37,6 +37,8 @@ type ChannelConfig struct {
 }
 
 type Notification struct {
+	SnapshotID     string                              `json:"snapshot_id,omitempty"`
+	GroupPath      string                              `json:"group_path,omitempty"`
 	AggregateID    string                              `json:"aggregate_id,omitempty"`
 	Members        []store.AggregateNotificationMember `json:"members,omitempty"`
 	IncidentID     string                              `json:"incident_id,omitempty"`

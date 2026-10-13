@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import IncidentHistory from './IncidentHistory.vue'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import AggregateManager from './AggregateManager.vue'
+import type { NotificationTarget } from '../notification-links'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import type { NodeMetadata } from '../types'
 import type { AlertEvent, AlertKind, AlertRule, NotificationChannel, NotificationTemplate } from '../admin-api'
 import { createAlertRule, createChannel, createNotificationTemplate, deleteAlertRule, deleteChannel, deleteNotificationTemplate, loadAlertEvents, loadAlertRules, loadChannels, loadNotificationTemplates, testChannel, testNotificationTemplate, updateAlertRule, updateChannel, updateNotificationTemplate } from '../admin-api'
@@ -8,10 +10,24 @@ import { DsBadge, DsButton, DsEmptyState, DsStatusIndicator, DsTabs } from '../d
 import PolicyManager from './PolicyManager.vue'
 import MaintenanceManager from './MaintenanceManager.vue'
 
-const props = defineProps<{ nodes: NodeMetadata[] }>()
+const props = defineProps<{ nodes: NodeMetadata[]; initialTarget?: NotificationTarget | null }>()
 const emit = defineEmits<{ notice: [value: string]; error: [value: unknown] }>()
-type View = 'overview' | 'channels' | 'rules' | 'templates' | 'history' | 'policies' | 'incidents' | 'maintenance'
-const view = ref<View>('overview')
+type View = 'overview' | 'channels' | 'rules' | 'templates' | 'history' | 'policies' | 'incidents' | 'maintenance' | 'aggregates'
+const view = ref<View>(props.initialTarget?.kind === 'incident' ? 'incidents' : props.initialTarget?.kind === 'aggregate' ? 'aggregates' : 'overview')
+const center = ref<HTMLElement | null>(null)
+async function revealActiveTab() {
+  await nextTick()
+  const list = center.value?.querySelector<HTMLElement>('[role="tablist"]')
+  const selected = list?.querySelector<HTMLElement>('[aria-selected="true"]')
+  if (!list || !selected) return
+  const bounds = list.getBoundingClientRect(), item = selected.getBoundingClientRect()
+  if (item.left < bounds.left) list.scrollLeft += item.left - bounds.left
+  else if (item.right > bounds.right) list.scrollLeft += item.right - bounds.right
+}
+watch(view, () => { void revealActiveTab() })
+const aggregateToOpen = ref(props.initialTarget?.kind === 'aggregate' ? props.initialTarget.id : '')
+const snapshotToOpen = ref(props.initialTarget?.kind === 'aggregate' ? props.initialTarget.snapshot : '')
+function openAggregate(id: string) { aggregateToOpen.value = id; snapshotToOpen.value = ''; view.value = 'aggregates' }
 const policyToEdit = ref('')
 watch(view, next => { if (next !== 'policies') policyToEdit.value = '' })
 function openPolicy(id: string) { policyToEdit.value = id; view.value = 'policies' }
@@ -26,7 +42,7 @@ const historyProvider = ref('all')
 const channelForm = reactive({ id:'', name:'', kind:'webhook' as NotificationChannel['kind'], enabled:true, url:'', method:'POST', headers:'', body_template:'', bot_token:'', chat_id:'', thread_id:'', parse_mode:'', smtp_host:'', smtp_port:587, smtp_username:'', smtp_password:'', smtp_from:'', smtp_to:'', smtp_encryption:'starttls' })
 const ruleForm = reactive({ id:'', node_id:'', channel_id:'', kind:'offline' as AlertKind, threshold:60, duration_seconds:0,recovery_seconds:0,recovery_matches_trigger:true, cooldown_seconds:900, repeat_seconds:900, template_id:'', enabled:true })
 const templateForm = reactive({ id:'', name:'', event_kind:'firing', title_template:'MyProbe 告警 · {{node.name}}', body_template:'{{message}}' })
-const tabs = [{value:'incidents',label:'故障事件'},{value:'overview',label:'概览'},{value:'channels',label:'通知通道'},{value:'rules',label:'告警规则'},{value:'policies',label:'范围策略'},{value:'maintenance',label:'维护窗口'},{value:'templates',label:'消息模板'},{value:'history',label:'发送历史'}]
+const tabs = [{value:'incidents',label:'故障事件'},{value:'overview',label:'概览'},{value:'channels',label:'通知通道'},{value:'rules',label:'告警规则'},{value:'policies',label:'范围策略'},{value:'maintenance',label:'维护窗口'},{value:'aggregates',label:'通知聚合'},{value:'templates',label:'消息模板'},{value:'history',label:'发送历史'}]
 const templateVariables = ['{{node.name}}','{{message}}','{{state}}','{{event}}']
 const healthyChannels = computed(() => channels.value.filter(x=>x.enabled && x.last_test_status==='success').length)
 const firingEvents = computed(() => events.value.filter(x=>x.state==='firing').length)
@@ -58,15 +74,16 @@ const thresholdLabel=(kind:AlertKind)=>kind==='offline'?'离线判定（秒）':
 const providerName=(kind:string)=>({webhook:'Webhook',telegram:'Telegram',discord:'Discord',smtp:'Email / SMTP'}[kind]||kind)
 const previewTitle=(value:string)=>value.replaceAll('{{node.name}}','HostDZire-SFO')
 const previewBody=(value:string)=>value.replaceAll('{{message}}','CPU 使用率达到 92%，已超过阈值。')
-onMounted(()=>run(refresh))
+onMounted(()=>{ void run(refresh); void revealActiveTab() })
 </script>
 
 <template>
-  <section class="notification-center">
+  <section ref="center" class="notification-center">
     <header class="notification-hero"><div><span class="eyebrow">NOTIFICATION SYSTEM</span><h1>通知中心</h1><p>统一管理告警触发、发送通道、消息模板与交付记录。</p></div><div class="notification-health"><span class="health-dot"></span><div><strong>通知引擎运行中</strong><small>状态去重与恢复通知已启用</small></div></div></header>
     <DsTabs v-model="view" :items="tabs" label="通知中心导航" />
 
-    <IncidentHistory v-if="view==='incidents'" :nodes="nodes" @maintenance="view='maintenance'" />
+    <IncidentHistory v-if="view==='incidents'" :nodes="nodes" :initial-incident-id="initialTarget?.kind === 'incident' ? initialTarget.id : undefined" @maintenance="view='maintenance'" @aggregate="openAggregate" />
+    <AggregateManager v-else-if="view==='aggregates'" :initial-aggregate-id="aggregateToOpen" :initial-snapshot="snapshotToOpen" />
     <template v-else-if="view==='overview'">
       <section class="notification-stats"><article><span>已启用通道</span><strong>{{ channels.filter(x=>x.enabled).length }}</strong><small>{{ healthyChannels }} 个测试正常</small></article><article><span>监控规则</span><strong>{{ rules.filter(x=>x.enabled).length }}</strong><small>持久化去重与冷却</small></article><article><span>近期告警发送</span><strong>{{ firingEvents }}</strong><small>最近 100 条投递记录中的告警通知</small></article><article :class="{warn:failedEvents}"><span>发送失败</span><strong>{{ failedEvents }}</strong><small>{{ failedEvents?'请检查历史记录':'近期记录中未发现失败' }}</small></article></section>
       <div class="notification-overview-grid"><section class="notification-card"><header><div><span class="eyebrow">CHANNEL HEALTH</span><h2>通道状态</h2></div><DsButton size="small" @click="view='channels'">管理</DsButton></header><div v-for="item in channels.slice(0,4)" :key="item.id" class="health-row"><span class="provider-icon">{{ item.kind==='telegram'?'TG':item.kind==='discord'?'DC':item.kind==='smtp'?'@':'WH' }}</span><div><strong>{{ item.name }}</strong><small>{{ providerName(item.kind) }} · {{ item.last_test_at?new Date(item.last_test_at).toLocaleString('zh-CN',{hour12:false}):'尚未测试' }}</small></div><DsStatusIndicator :status="!item.enabled?'neutral':item.last_test_status==='failed'?'offline':item.last_test_status==='success'?'online':'warning'" :label="!item.enabled?'停用':item.last_test_status==='failed'?'失败':item.last_test_status==='success'?'正常':'待测试'" /></div><DsEmptyState v-if="!channels.length" title="尚未添加通道" description="先连接一个 Webhook、Telegram、Discord 或 SMTP 通道。" /></section>

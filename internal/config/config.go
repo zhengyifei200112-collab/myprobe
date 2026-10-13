@@ -8,19 +8,22 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/zhengyifei200112-collab/myprobe/internal/notificationlink"
 )
 
 type Config struct {
-	ListenAddress  string
-	DatabasePath   string
-	AdminUsername  string
-	AdminPassword  string
-	EncryptionKey  string
-	SessionTTL     time.Duration
-	CookieSecure   bool
-	TrustedProxies []string
-	Retention      Retention
-	PublicHTTPAck  bool
+	NotificationOrigin string
+	ListenAddress      string
+	DatabasePath       string
+	AdminUsername      string
+	AdminPassword      string
+	EncryptionKey      string
+	SessionTTL         time.Duration
+	CookieSecure       bool
+	TrustedProxies     []string
+	Retention          Retention
+	PublicHTTPAck      bool
 }
 
 type Retention struct {
@@ -46,6 +49,11 @@ func Load() (Config, error) {
 			FiveMinute: 365 * 24 * time.Hour,
 			Interval:   time.Hour,
 		},
+	}
+	var originErr error
+	cfg.NotificationOrigin, originErr = notificationlink.NormalizeOrigin(os.Getenv("MYPROBE_NOTIFICATION_ORIGIN"))
+	if originErr != nil {
+		return Config{}, errors.New("invalid MYPROBE_NOTIFICATION_ORIGIN; expected an HTTP(S) origin without credentials, path, query or fragment")
 	}
 	if raw := strings.TrimSpace(os.Getenv("MYPROBE_TRUSTED_PROXIES")); raw != "" {
 		for _, item := range strings.Split(raw, ",") {

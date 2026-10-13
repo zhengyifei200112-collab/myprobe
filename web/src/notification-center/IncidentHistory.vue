@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
-import { loadIncidents, loadIncidentDeliveries, loadDeliveryAttempts, type DeliveryAttempt, type Incident, type IncidentDelivery } from '../admin-api'
+import { nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { loadIncident, loadIncidents, loadIncidentDeliveries, loadDeliveryAttempts, notificationReadError, type DeliveryAttempt, type Incident, type IncidentDelivery } from '../admin-api'
 import type { NodeMetadata } from '../types'
 import { DsButton, DsSelect, DsEmptyState } from '../design-system'
 import MaintenanceContext from './MaintenanceContext.vue'
@@ -8,8 +8,19 @@ import IncidentAcknowledgement from './IncidentAcknowledgement.vue'
 import IncidentSilence from './IncidentSilence.vue'
 import DeliverySilence from './DeliverySilence.vue'
 
-defineProps<{ nodes: NodeMetadata[] }>()
-const emit = defineEmits<{ maintenance: [] }>()
+const props = defineProps<{ nodes: NodeMetadata[]; initialIncidentId?: string }>()
+const emit = defineEmits<{ maintenance: []; aggregate: [id: string] }>()
+const entranceError = ref(''), entranceBusy = ref(false)
+let active = true
+onUnmounted(() => { active = false; detailGeneration++ })
+async function openEntrance() {
+  if (!props.initialIncidentId) return
+  const generation = ++detailGeneration
+  entranceBusy.value = true; entranceError.value = ''
+  try { const { incident } = await loadIncident(props.initialIncidentId); if (active && generation === detailGeneration) await inspect(incident) }
+  catch (e) { if (active && generation === detailGeneration) entranceError.value = notificationReadError(e, '通知事件') }
+  finally { if (active) entranceBusy.value = false }
+}
 const nodeID = ref('')
 const reasons: Record<string,string> = { recovered: '观测已恢复正常', condition_cleared: '触发前异常已消失', rule_disabled: '规则已停用', rule_deleted: '规则或节点已删除', rule_changed: '规则配置已变更', legacy_recovery: '旧版本记录的恢复' }
 const state = ref(''), items = ref<Incident[]>([]), next = ref(0)
@@ -51,25 +62,31 @@ async function inspect(item: Incident, more = false) {
   if (!more) { deliveries.value = []; deliveryNext.value = 0 }
   if (!more) { await nextTick(); detailHeading.value?.focus() }
   try {
-    const result = await loadIncidentDeliveries(item.id, more ? deliveryNext.value : 0)
+    const [current, result] = await Promise.all([loadIncident(item.id), loadIncidentDeliveries(item.id, more ? deliveryNext.value : 0)])
     if (generation !== detailGeneration) return
+    selected.value = current.incident
     deliveries.value = more ? [...deliveries.value, ...result.deliveries] : result.deliveries
     deliveryNext.value = result.next_before
   } catch (e) { if (generation === detailGeneration) detailError.value = e instanceof Error ? e.message : '投递记录加载失败' }
   finally { if (generation === detailGeneration) detailBusy.value = false }
 }
-onMounted(() => refresh())
+onMounted(() => { void refresh(); void openEntrance() })
 </script>
 
 <template>
   <section class="incident-history" aria-label="故障事件">
     <header><div><h2>故障事件</h2><p>故障状态与通知是否送达分别记录。刷新可查看最新状态。</p></div><DsSelect v-model="state" label="事件状态" :disabled="busy" @update:model-value="refresh()"><option value="">全部状态</option><option value="pending">等待触发</option><option value="firing">故障持续</option><option value="resolved">已恢复或结束</option></DsSelect><DsSelect v-model="nodeID" label="事件节点" :disabled="busy" @update:model-value="refresh()"><option value="">全部节点（含已删除节点历史）</option><option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option></DsSelect><DsButton :disabled="busy" @click="refresh()">刷新</DsButton></header>
     <p v-if="error" role="alert">{{ error }}</p><p v-if="busy" role="status">正在加载事件…</p>
+    <p v-if="entranceBusy" role="status">正在打开通知事件…</p><div v-if="entranceError" role="alert"><p>{{ entranceError }}</p><DsButton :disabled="entranceBusy" @click="openEntrance">重试打开通知事件</DsButton></div>
     <article v-for="item in items" :key="item.id"><h3>{{ item.node_name }} · {{ labels[item.state] }}</h3><p>{{ item.message }}</p><p v-if="item.observation_stale">数据已过期，等待新观测；当前状态不表示已经恢复。</p><p>开始：{{ date(item.started_at) }}{{ item.approximate_start ? '（旧记录迁移，时间近似）' : '' }}</p><p v-if="item.resolution_reason">结束原因：{{ reasons[item.resolution_reason] || item.resolution_reason }}</p><p v-if="item.resolved_at">结束：{{ date(item.resolved_at) }}</p><p v-if="item.acknowledgement">已知悉：{{ item.acknowledgement.actor_name }} · {{ date(item.acknowledgement.acknowledged_at) }}</p><p v-else>未记录知悉。</p><DsButton v-if="item.state==='firing' || item.acknowledgement" size="small" @click="inspect(item)">查看 {{ item.node_name }} 的处理记录</DsButton> <DsButton size="small" @click="inspect(item)">查看 {{ item.node_name }} 的投递记录</DsButton></article>
     <DsEmptyState v-if="!busy && !error && !items.length" title="暂无匹配事件" description="告警满足触发条件后会记录在这里。" />
     <DsButton v-if="next" :disabled="busy" @click="refresh(true)">加载更多事件</DsButton>
     <section v-if="selected" class="delivery-detail" aria-label="事件投递记录" aria-live="polite">
       <h3 ref="detailHeading" tabindex="-1">{{ selected.node_name }} · 事件详情</h3>
+      <template v-if="!detailBusy && !detailError"><p>当前事件状态：{{ labels[selected.state] }} · {{ selected.message }}</p>
+      <p>开始：{{ date(selected.started_at) }}{{ selected.approximate_start ? '（旧记录迁移，时间近似）' : '' }}<span v-if="selected.resolved_at"> · 结束：{{ date(selected.resolved_at) }}</span></p>
+      <p v-if="selected.observation_stale">数据已过期，等待新观测；当前状态不表示已经恢复。</p>
+      <p v-if="selected.resolution_reason">结束原因：{{ reasons[selected.resolution_reason] || selected.resolution_reason }}</p></template>
       <p v-if="detailError" role="alert">{{ detailError }}</p>
       <DsButton :disabled="detailBusy" @click="inspect(selected)">刷新投递记录</DsButton>
       <p v-if="detailBusy" role="status">正在加载投递记录…</p>
@@ -79,6 +96,7 @@ onMounted(() => refresh())
       <article v-for="job in deliveries" :key="job.id">
         <strong>{{ job.channel_name }} · {{ job.status === 'pending' ? '等待发送' : labels[job.status] || job.status }}</strong>
         <p>{{ job.notification_type === 'firing' ? '故障通知' : '恢复通知' }} · 已尝试 {{ job.attempt_count }} 次</p><p>{{ date(job.created_at) }}</p>
+        <DsButton v-if="job.aggregate_id" size="small" @click="emit('aggregate', job.aggregate_id)">查看此投递的聚合内容</DsButton>
         <template v-if="['maintenance','silence','maintenance_and_silence'].includes(job.error_class || '')"><p>{{ job.error_class==='maintenance_and_silence' ? '维护与静默' : job.error_class==='silence' ? '事件静默' : '维护窗口' }}已取消此投递任务，故障事件继续记录。已发出的请求无法撤回；全部抑制结束后依据新鲜观测恢复提醒。</p><DsButton v-if="job.error_class!=='silence'" size="small" @click="emit('maintenance')">查看维护窗口</DsButton></template>
         <p v-else-if="job.error_class">错误分类：{{ job.error_class }}</p>
         <details v-if="['maintenance','maintenance_and_silence'].includes(job.error_class || '')" @toggle="toggleMaintenance($event,job.id)"><summary>此通知关联的维护窗口</summary><MaintenanceContext v-if="openDeliveryMaintenance[job.id]" subject="delivery" :id="job.id" @maintenance="emit('maintenance')" /></details>

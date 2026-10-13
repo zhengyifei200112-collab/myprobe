@@ -57,6 +57,7 @@ export interface AlertRule {
     duration_seconds?: number
     recovery_seconds?: number
     repeat_seconds?: number
+    aggregation_seconds?: number
     template_id?: string
   }
   enabled: boolean
@@ -248,6 +249,14 @@ export const cancelMaintenanceWindow = (id: string, revision: number) => request
 export class AdminAPIError extends Error {
   constructor(message: string, public status: number, public code?: string) { super(message) }
 }
+export function notificationReadError(value: unknown, subject: string): string {
+  if (value instanceof AdminAPIError) {
+    if (value.status === 404) return `该${subject}不存在或已被清理，请从列表重新选择。`
+    if (value.status === 401) return '登录已过期，请重新登录后打开原通知入口。'
+    if (value.status === 400) return '通知入口或分页参数无效，请从列表重新选择。'
+  }
+  return `${subject}暂时无法读取，请重试。`
+}
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method || 'GET').toUpperCase()
@@ -394,7 +403,30 @@ export interface IncidentDelivery {
   seq: number; id: string; channel_name: string; provider: string
   notification_type: string; status: string; attempt_count: number
   created_at: string; available_at: string; error_class?: string
+  incident_id: string; aggregate_id?: string
 }
+export const loadIncident = (id: string) => request<{ incident: Incident }>(`/api/v1/admin/incidents/${encodeURIComponent(id)}`)
+
+export interface AggregateTotals { pending: number; inflight: number; delivered: number; failed: number; canceled: number }
+export interface NotificationAggregate {
+  seq: number; id: string; policy_id: string; policy_revision: number; channel_id: string; provider: string
+  notification_type: string; starts_at: string; ends_at: string; status: string; sealed: boolean; attempt_count: number; available_at: string
+}
+export interface AggregateContent {
+  title: string; message: string; state: string; timestamp: string; snapshot_id?: string; group_path?: string
+  members: { incident_id: string; node_id: string; node_name: string; event_path: string; observed_at: string }[]
+}
+export interface AggregateAttempt {
+  number: number; started_at: string; completed_at?: string; outcome: string; error_class?: string; content: AggregateContent | null
+  members: { delivery_id: string; incident_id: string; node_name: string; delivery_attempt: number; included: boolean }[]
+}
+export interface AggregateContext {
+  aggregate: NotificationAggregate; checked_at: string; totals: AggregateTotals; next_before: number
+  members: (IncidentDelivery & { node_name: string; incident_state: string; observation_stale: boolean })[]
+  attempts: AggregateAttempt[]
+}
+export const loadNotificationAggregates = (before = 0) => request<{ aggregates: (NotificationAggregate & { channel_name: string; totals: AggregateTotals })[]; checked_at: string; next_before: number }>(`/api/v1/admin/notification-aggregates?limit=25&before=${before}`)
+export const loadNotificationAggregate = (id: string, before = 0) => request<AggregateContext>(`/api/v1/admin/notification-aggregates/${encodeURIComponent(id)}?limit=25&before=${before}`)
 export const loadIncidents = (state = '', before = 0, nodeID = '') => request<{ incidents: Incident[]; next_before: number }>(`/api/v1/admin/incidents?limit=25&state=${encodeURIComponent(state)}&before=${before}&node_id=${encodeURIComponent(nodeID)}`)
 export const loadIncidentDeliveries = (id: string, before = 0) => request<{ deliveries: IncidentDelivery[]; next_before: number }>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/deliveries?limit=25&before=${before}`)
 

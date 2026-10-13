@@ -8,14 +8,15 @@ keeps its logical delivery, repeat clock, cancellation causes and attempt histor
 
 - A policy configuration can explicitly set `aggregation_seconds` to 5–300.
   Zero or omission retains immediate single delivery. Existing definitions and
-  unbound legacy rules are not silently delayed. The planned new-policy UI starts
-  at the roadmap's suggested 30 seconds and must show the added wait.
+  unbound legacy rules are not silently delayed. The new-policy UI starts
+  at the roadmap's suggested 30 seconds and shows the added wait.
   On an existing policy update, omission preserves its current setting so an
   older editor cannot accidentally disable it; explicit zero disables it.
 - Forward migration 030 creates transport aggregates, immutable attempt payloads
   and exact attempt/member links; logical deliveries point to their aggregate.
   Queue creation and assignment are in the observation writer transaction.
-- Group by policy ID/revision, channel, provider and notification type. A first
+- Group by policy ID/revision, channel, provider, notification type and the
+  captured link origin/render version. A first
   member starts a bounded half-open window; later arrivals do not extend it.
   Deadline storage rounds upward to prevent early sends. Each shard holds at most
   10 events; larger storms create additional bounded shards. Firing and recovery
@@ -55,6 +56,81 @@ keeps its logical delivery, repeat clock, cancellation causes and attempt histor
 - Changing aggregation alone does not close/recreate a technical incident. New
   queue assignments use the new policy revision; existing bounded tasks retain
   their original window and causal history.
+
+## Management and authenticated links
+
+The policy editor starts new policies at 30 seconds, accepts integer zero or
+5–300, and shows that this adds a wait. Editing an existing policy uses its stored
+value, including zero for old definitions. Policy cards and import previews show
+the transport setting. Changing it does not rewrite an existing group's window.
+
+In **Alerts → Notification aggregates**, each row shows its bounded window and
+current counts of pending/inflight/delivered/failed/canceled logical jobs. Detail
+shows current incident state separately from each historical attempt's exact
+content and member associations. `included=false` is a prepared association,
+not proof the event entered the send. Prepared attempts have null content.
+An `unknown` result means a channel may have received the message; retries can
+duplicate it. `finished` does not imply every member succeeded, and channel
+acceptance is not proof of a person reading the notification. Refresh rereads
+current data; loading another page reads a new snapshot, not a historical
+transaction held across requests.
+
+Protected read endpoints (all require an administrator session and set no-store,
+including unauthorized/error responses):
+
+| Endpoint | Response / cursor |
+| --- | --- |
+| `GET /api/v1/admin/notification-aggregates?before=0&limit=25` | `aggregates[]`, `checked_at`, `next_before`; descending group sequence |
+| `GET /api/v1/admin/notification-aggregates/:id?before=0&limit=25` | `aggregate`, current `totals`/`members[]`, exact `attempts[]`, `checked_at`, `next_before`; descending attempt number |
+| `GET /api/v1/admin/incidents/:id` | `incident`; allows opening an older event outside the current list page |
+
+Limits are 1–100 (default 25). Before is a nonnegative integer; zero starts at the
+latest record. Pass the returned nonzero cursor to exclude its boundary on the
+next page; zero next cursor means exhausted. Duplicate cursor/limit parameters,
+overflow and invalid values return 400. IDs use the existing portable 1–128
+character grammar. Missing records return 404; storage failures return a generic
+500 without database details. Empty collections are arrays. Leases, idempotency
+keys, encrypted channel credentials and raw storage payloads are not exposed.
+Group member count remains at most 10; attempt pages are bounded independently.
+
+Set optional `MYPROBE_NOTIFICATION_ORIGIN=https://probe.example.com` before
+startup to make new aggregate/event links absolute. It accepts only an HTTP(S)
+origin with host and optional valid port, at most 512 UTF-8 bytes; credentials,
+paths except a root slash, queries, fragments and internal whitespace are
+rejected. Errors never echo the input. Compose passes the setting from `.env`.
+Host/Forwarded headers never determine notification URLs. With no setting,
+links are relative `/admin?...` paths; some external clients cannot open those
+directly. The operator must configure an externally reachable origin for them.
+
+Forward migration **031** adds a captured origin and renderer version. Existing
+030 groups default to renderer 1, preserving their exact old payload and retry
+key; new assignments use renderer 2. Renderer 2 sends an additive `snapshot_id`
+and `group_path`, with an absolute/relative `event_path` on each member. One
+content version retains its 64-hex digest across identical retries; membership
+or link content changes produce a different digest. The group URL identifies
+content across attempts, not one attempt or proof of delivery. Configuration
+changes never rewrite old groups. These fields are notification data, not public
+node API or Agent protocol changes. Existing API/worker clients can ignore them.
+
+`/admin?aggregate=<id>&snapshot=<digest>` opens that version's attempts after
+login. `/admin?incident=<id>` opens event detail. No secrets or sessions travel
+in the URL. Unauthenticated pages fetch no private incident/group context.
+Password login retains the target. GitHub navigation saves only a validated
+canonical local target in the current tab for one hour, restores it on return
+and clears it after authentication. Malformed/expired records are discarded;
+arbitrary return URLs are never accepted. Storage restrictions do not prevent
+login, but can lose the GitHub return target; reopening the original link works.
+
+The viewer searches at most four 25-attempt pages automatically for a linked
+content version, then offers loading older history. If the version is absent it
+explains that condition without substituting another payload. Invalid, missing
+and temporarily unavailable records have separate errors/retry actions. Member
+navigation builds local routes from event IDs rather than following stored URLs.
+Event detail includes its condition/message, start/end and stale observation
+state even when it is outside the current list page. A late initial link read
+cannot replace a different event explicitly selected while loading. Names and
+messages render as text, including markup-like names. Authentication,
+forward-only upgrades and backup rollback requirements remain unchanged.
 
 ## Measured receiver baseline
 
@@ -103,15 +179,42 @@ the same body/key and respect the stored deadline. Existing Store, alert worker 
 API suites pass. Provider-specific envelope limits, broad administrative races and
 management-facing explanations still require acceptance before delivery. Existing
 policy, ACK, silence and both maintenance browser flows pass on the aggregate-capable
-worker at both themes and three widths. No frontend changes are included yet.
+worker at both themes and three widths.
 
 The full local suite still has only the known Windows collector path failure,
 isolated in PR #47. Vet, command build and diff checks pass; final CI evidence is
 recorded in the PR and external roadmap rather than treated as a release claim.
 
-Management configuration/history/context APIs and UI, authenticated event deep
-links, unknown-outcome explanations and both-theme/three-width browser acceptance
-remain part of AGG-01/ALT-05. Event paths currently record the intended route;
-they must not be advertised as completed clickable deep links yet. Published-version
-integration, retention/capacity and owner approval remain release gates. M3–M5
-remain in the original roadmap; this foundation does not complete that scope.
+Management/context tests additionally cover mixed current outcomes, exact actual
+versus prepared membership, unchanged content across unknown retries, bounded
+pagination/empty arrays, credential/key redaction, origin grouping and rollback,
+maximum-length links, and migration 031 preserving old renderer payload/key.
+API tests check session protection before input validation, no-store, invalid/
+duplicate/overflow queries, missing records and no public notification leakage.
+
+The opt-in real browser fixture creates a policy at 30 seconds, rejects 4, edits
+to 5, and queues two expiry events. It waits the real five-second window. A real
+HTTP receiver accepts the first request but closes before replying; after the
+real 30–36 second retry backoff, it acknowledges an identical body/key. The UI
+opens the original content after password login, navigates to both events,
+retains unknown and successful attempts, handles read retry and invalid/missing
+targets/content versions, and escapes markup-like names. It checks detail and
+policy forms in light/dark themes at 360/768/1440 px. It also guards a late
+initial read against replacing another selected event, and refreshes current
+event closure after policy disable without changing the old send content.
+GitHub **return navigation**
+is simulated locally with an authenticated fixture session; this is not live
+GitHub provider authorization. The auth suite covers provider/state contracts.
+
+```sh
+MYPROBE_TEST_AGGREGATION_BROWSER=1 go test ./internal/httpapi -run '^TestLiveNotificationAggregationBrowser$' -count=1 -v
+```
+
+Set `PLAYWRIGHT_MODULE` to the installed Playwright module if it is outside the
+Node search path; the script uses headless Edge. Screenshots are disposable local
+test outputs, not committed evidence or production data.
+
+Provider-specific envelope/parse-mode acceptance, broader administrative races,
+non-aggregate/service notification link coverage, published-version integration,
+retention/capacity and owner approval remain release gates. M3–M5 remain in the
+original roadmap; this batch does not complete AGG-01/ALT-05 or that full scope.

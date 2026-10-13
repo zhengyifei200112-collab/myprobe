@@ -152,6 +152,12 @@ notifications. Back up that key separately from the SQLite database.
 Forwarded client IP headers are ignored unless the reverse proxy address or CIDR is
 explicitly listed in `MYPROBE_TRUSTED_PROXIES`.
 
+For absolute aggregate notification links, set optional
+`MYPROBE_NOTIFICATION_ORIGIN=https://probe.example.com` to the externally
+reachable HTTP(S) origin (no credentials, path, query or fragment). Without it,
+new links remain relative. This development feature is not released; see
+[aggregation contracts and remaining gates](docs/NOTIFICATION_AGGREGATION.md).
+
 History retention is configurable with `MYPROBE_RAW_RETENTION_DAYS`,
 `MYPROBE_MINUTE_RETENTION_DAYS`, `MYPROBE_FIVE_MINUTE_RETENTION_DAYS`, and
 `MYPROBE_RETENTION_INTERVAL_HOURS`. Durations must remain ordered from raw to
@@ -174,4 +180,7 @@ should also read [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) and
 The incident-outbox branch adds independent fault incidents, durable delivery jobs
 and per-attempt diagnostics. See the [Chinese operations guide](docs/ALERT_OPERATIONS.zh-CN.md)
 and [implementation evidence](docs/INCIDENT_DELIVERY.md). This work is not released;
-scoped policies, maintenance, silence and aggregation remain subsequent work.
+scoped policies, maintenance, silence and aggregation have dependent development
+branches with separate integration/release gates. Aggregate management and
+authenticated links are documented in
+[NOTIFICATION_AGGREGATION.md](docs/NOTIFICATION_AGGREGATION.md).

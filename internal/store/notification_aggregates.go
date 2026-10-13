@@ -13,6 +13,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/zhengyifei200112-collab/myprobe/internal/notificationlink"
 )
 
 const AggregateMemberLimit = 10
@@ -20,31 +22,33 @@ const AggregateMessageByteLimit = 1600
 const AggregatePayloadByteLimit = 16 << 10
 
 type NotificationAggregate struct {
-	Seq              int64      `json:"seq"`
-	ID               string     `json:"id"`
-	PolicyID         string     `json:"policy_id"`
-	PolicyRevision   int64      `json:"policy_revision"`
-	ChannelID        string     `json:"channel_id"`
-	Provider         string     `json:"provider"`
-	NotificationType string     `json:"notification_type"`
-	StartsAt         time.Time  `json:"starts_at"`
-	EndsAt           time.Time  `json:"ends_at"`
-	Status           string     `json:"status"`
-	Sealed           bool       `json:"sealed"`
-	AttemptCount     int        `json:"attempt_count"`
-	AvailableAt      time.Time  `json:"available_at"`
-	LeaseToken       string     `json:"-"`
-	LeaseUntil       *time.Time `json:"-"`
+	RenderVersion      int        `json:"-"`
+	NotificationOrigin string     `json:"-"`
+	Seq                int64      `json:"seq"`
+	ID                 string     `json:"id"`
+	PolicyID           string     `json:"policy_id"`
+	PolicyRevision     int64      `json:"policy_revision"`
+	ChannelID          string     `json:"channel_id"`
+	Provider           string     `json:"provider"`
+	NotificationType   string     `json:"notification_type"`
+	StartsAt           time.Time  `json:"starts_at"`
+	EndsAt             time.Time  `json:"ends_at"`
+	Status             string     `json:"status"`
+	Sealed             bool       `json:"sealed"`
+	AttemptCount       int        `json:"attempt_count"`
+	AvailableAt        time.Time  `json:"available_at"`
+	LeaseToken         string     `json:"-"`
+	LeaseUntil         *time.Time `json:"-"`
 }
 
-const aggregateColumns = `seq,id,policy_id,policy_revision,channel_id,provider,notification_type,starts_at_ms,ends_at_ms,status,sealed,attempt_count,available_at_ms,lease_token,lease_until_ms`
+const aggregateColumns = `seq,id,policy_id,policy_revision,channel_id,provider,notification_type,starts_at_ms,ends_at_ms,status,sealed,attempt_count,available_at_ms,lease_token,lease_until_ms,render_version,notification_origin`
 
 func scanAggregate(row rowScanner) (NotificationAggregate, error) {
 	var g NotificationAggregate
 	var start, end, available int64
 	var token sql.NullString
 	var until sql.NullInt64
-	err := row.Scan(&g.Seq, &g.ID, &g.PolicyID, &g.PolicyRevision, &g.ChannelID, &g.Provider, &g.NotificationType, &start, &end, &g.Status, &g.Sealed, &g.AttemptCount, &available, &token, &until)
+	err := row.Scan(&g.Seq, &g.ID, &g.PolicyID, &g.PolicyRevision, &g.ChannelID, &g.Provider, &g.NotificationType, &start, &end, &g.Status, &g.Sealed, &g.AttemptCount, &available, &token, &until, &g.RenderVersion, &g.NotificationOrigin)
 	g.StartsAt, g.EndsAt, g.AvailableAt = time.UnixMilli(start).UTC(), time.UnixMilli(end).UTC(), time.UnixMilli(available).UTC()
 	g.LeaseToken = token.String
 	if until.Valid {
@@ -63,7 +67,7 @@ func ceilMilliseconds(at time.Time) time.Time {
 
 // Explicit zero/omission preserves existing policy timing. Only policy-bound
 // deliveries aggregate; a direct legacy rule never groups with an unrelated rule.
-func aggregateForNotification(ctx context.Context, tx *sql.Tx, ruleID, channelID, provider, kind string, at time.Time) (string, time.Time, error) {
+func aggregateForNotification(ctx context.Context, tx *sql.Tx, ruleID, channelID, provider, kind string, at time.Time, origins ...string) (string, time.Time, error) {
 	var raw string
 	err := tx.QueryRowContext(ctx, `SELECT p.definition_json FROM alert_policies p JOIN alert_policy_rule_bindings b ON b.policy_id=p.id WHERE b.rule_id=?`, ruleID).Scan(&raw)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -88,9 +92,20 @@ func aggregateForNotification(ctx context.Context, tx *sql.Tx, ruleID, channelID
 	if *config.Seconds < 5 || *config.Seconds > 300 {
 		return "", at, ErrInvalidAlertPolicy
 	}
+	origin := ""
+	if len(origins) > 1 {
+		return "", at, ErrInvalidAlertPolicy
+	}
+	if len(origins) == 1 {
+		var err error
+		origin, err = notificationlink.NormalizeOrigin(origins[0])
+		if err != nil {
+			return "", at, err
+		}
+	}
 	var id string
 	var end int64
-	err = tx.QueryRowContext(ctx, `SELECT g.id,g.ends_at_ms FROM notification_aggregates g WHERE g.policy_id=? AND g.policy_revision=? AND g.channel_id=? AND g.provider=? AND g.notification_type=? AND g.status='pending' AND g.sealed=0 AND g.starts_at_ms<=? AND g.ends_at_ms>? AND (SELECT count(*) FROM notification_deliveries d WHERE d.aggregate_id=g.id)<? ORDER BY g.seq DESC LIMIT 1`, p.ID, p.Revision, channelID, provider, kind, at.UnixMilli(), at.UnixMilli(), AggregateMemberLimit).Scan(&id, &end)
+	err = tx.QueryRowContext(ctx, `SELECT g.id,g.ends_at_ms FROM notification_aggregates g WHERE g.policy_id=? AND g.policy_revision=? AND g.channel_id=? AND g.provider=? AND g.notification_type=? AND g.render_version=2 AND g.notification_origin=? AND g.status='pending' AND g.sealed=0 AND g.starts_at_ms<=? AND g.ends_at_ms>? AND (SELECT count(*) FROM notification_deliveries d WHERE d.aggregate_id=g.id)<? ORDER BY g.seq DESC LIMIT 1`, p.ID, p.Revision, channelID, provider, kind, origin, at.UnixMilli(), at.UnixMilli(), AggregateMemberLimit).Scan(&id, &end)
 	if err == nil {
 		return id, time.UnixMilli(end).UTC(), nil
 	}
@@ -99,7 +114,7 @@ func aggregateForNotification(ctx context.Context, tx *sql.Tx, ruleID, channelID
 	}
 	id = randomID()
 	until := ceilMilliseconds(at.Add(time.Duration(*config.Seconds) * time.Second))
-	_, err = tx.ExecContext(ctx, `INSERT INTO notification_aggregates(id,policy_id,policy_revision,channel_id,provider,notification_type,starts_at_ms,ends_at_ms,available_at_ms,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, id, p.ID, p.Revision, channelID, provider, kind, at.UnixMilli(), until.UnixMilli(), until.UnixMilli(), formatTime(at), formatTime(at))
+	_, err = tx.ExecContext(ctx, `INSERT INTO notification_aggregates(id,policy_id,policy_revision,channel_id,provider,notification_type,starts_at_ms,ends_at_ms,available_at_ms,created_at,updated_at,render_version,notification_origin) VALUES(?,?,?,?,?,?,?,?,?,?,?,2,?)`, id, p.ID, p.Revision, channelID, provider, kind, at.UnixMilli(), until.UnixMilli(), until.UnixMilli(), formatTime(at), formatTime(at), origin)
 	return id, until, err
 }
 func aggregateDeliveries(ctx context.Context, tx *sql.Tx, id string) ([]NotificationDelivery, error) {
@@ -173,6 +188,8 @@ type AggregateNotification struct {
 	AggregateID string                        `json:"aggregate_id"`
 	Timestamp   time.Time                     `json:"timestamp"`
 	Members     []AggregateNotificationMember `json:"members"`
+	SnapshotID  string                        `json:"snapshot_id,omitempty"`
+	GroupPath   string                        `json:"group_path,omitempty"`
 }
 
 func briefAggregateText(s string, limit int) string {
@@ -207,10 +224,27 @@ func renderAggregate(g NotificationAggregate, members []NotificationDelivery) (j
 			n.Kind = p.Kind
 		}
 		path := "/admin?incident=" + url.QueryEscape(d.IncidentID)
+		if g.RenderVersion >= 2 {
+			path = notificationlink.Incident(g.NotificationOrigin, d.IncidentID)
+		}
 		n.Members = append(n.Members, AggregateNotificationMember{d.IncidentID, p.NodeID, briefAggregateText(p.NodeName, 80), path, p.Timestamp})
-		lines = append(lines, briefAggregateText(p.NodeName, 28)+" · "+briefAggregateText(p.Message, 38)+" · "+path)
+		line := briefAggregateText(p.NodeName, 28) + " · " + briefAggregateText(p.Message, 38)
+		if g.RenderVersion < 2 {
+			line += " · " + path
+		}
+		lines = append(lines, line)
 	}
 	n.Message = strings.Join(lines, "\n") + "\n摘要已截短，详情及观测时间见事件入口。"
+	if g.RenderVersion >= 2 {
+		raw, err := json.Marshal(n)
+		if err != nil {
+			return nil, "", err
+		}
+		sum := sha256.Sum256(raw)
+		n.SnapshotID = hex.EncodeToString(sum[:])
+		n.GroupPath = notificationlink.Aggregate(g.NotificationOrigin, g.ID, n.SnapshotID)
+		n.Message += "\n查看本次内容：" + n.GroupPath
+	}
 	if len(n.Message) > AggregateMessageByteLimit {
 		return nil, "", errors.New("aggregate message limit exceeded")
 	}

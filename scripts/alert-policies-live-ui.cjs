@@ -28,6 +28,7 @@ const path = require('node:path');
     await page.getByRole('combobox',{name:/^通知通道/}).selectOption(process.env.POLICY_BROWSER_CHANNEL);
     await page.getByRole('combobox',{name:'告警类型',exact:true}).selectOption('expiry');
     await page.getByLabel('提前提醒（天）',{exact:true}).fill('1');
+    await page.getByRole('spinbutton',{name:/^聚合等待/}).fill('0');
     await page.getByRole('button',{name:'保存范围策略',exact:true}).click();
     await page.getByRole('button',{name:'编辑策略',exact:true}).waitFor();
     const incident = await until(async()=> (await read('/api/v1/admin/incidents?state=firing')).incidents[0]);

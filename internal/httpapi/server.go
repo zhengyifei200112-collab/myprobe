@@ -40,7 +40,7 @@ type Server struct {
 }
 
 func New(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub) *Server {
-	return NewWithAlertService(cfg, database, authService, gateway, hub, alerts.New(database, cfg.EncryptionKey, nil, nil))
+	return NewWithAlertService(cfg, database, authService, gateway, hub, alerts.New(database, cfg.EncryptionKey, nil, nil, cfg.NotificationOrigin))
 }
 
 // NewWithAlertService shares the evaluator used by the application runtime so
@@ -159,6 +159,9 @@ func (s *Server) routes() {
 	admin.DELETE("/alert-rules/:ruleID", s.deleteAlertRule)
 	admin.GET("/alert-events", s.listAlertEvents)
 	s.router.GET("/api/v1/admin/incidents", privateNoStore(), s.requireSession(true), s.listIncidents)
+	s.router.GET("/api/v1/admin/incidents/:incidentID", privateNoStore(), s.requireSession(true), s.getIncident)
+	s.router.GET("/api/v1/admin/notification-aggregates/:aggregateID", privateNoStore(), s.requireSession(true), s.notificationAggregate)
+	s.router.GET("/api/v1/admin/notification-aggregates", privateNoStore(), s.requireSession(true), s.notificationAggregates)
 	s.router.GET("/api/v1/admin/incidents/:incidentID/acknowledgement", privateNoStore(), s.requireSession(true), s.incidentAcknowledgement)
 	s.router.POST("/api/v1/admin/incidents/:incidentID/acknowledgement", privateNoStore(), s.requireSession(true), s.acknowledgeIncident)
 	s.router.GET("/api/v1/admin/incidents/:incidentID/silences", privateNoStore(), s.requireSession(true), s.incidentSilences)

@@ -40,6 +40,7 @@ type Incident struct {
 }
 
 type AlertObservation struct {
+	NotificationOrigin  string
 	At                  time.Time
 	Known               bool
 	Active              bool
@@ -434,7 +435,7 @@ func queueIncidentNotification(ctx context.Context, tx *sql.Tx, i *Incident, cha
 	}
 	i.NotificationSequence++
 	key := fmt.Sprintf("%s:%s:%d:%s", i.ID, i.State, i.NotificationSequence, channelID)
-	aggregateID, available, err := aggregateForNotification(ctx, tx, i.RuleID, channelID, provider, i.State, o.At)
+	aggregateID, available, err := aggregateForNotification(ctx, tx, i.RuleID, channelID, provider, i.State, o.At, o.NotificationOrigin)
 	if err != nil {
 		return err
 	}

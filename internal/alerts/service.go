@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zhengyifei200112-collab/myprobe/internal/notificationlink"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
@@ -29,18 +30,20 @@ type RuleConfig struct {
 }
 
 type Service struct {
-	store        *store.Store
-	crypto       *cryptoBox
-	cryptoErr    error
-	sender       Sender
-	logger       *slog.Logger
-	interval     time.Duration
-	tickMu       sync.Mutex
-	policyMu     sync.RWMutex
-	policyStatus PolicyEvaluationStatus
+	notificationOrigin string
+	linkErr            error
+	store              *store.Store
+	crypto             *cryptoBox
+	cryptoErr          error
+	sender             Sender
+	logger             *slog.Logger
+	interval           time.Duration
+	tickMu             sync.Mutex
+	policyMu           sync.RWMutex
+	policyStatus       PolicyEvaluationStatus
 }
 
-func New(database *store.Store, encryptionKey string, sender Sender, logger *slog.Logger) *Service {
+func New(database *store.Store, encryptionKey string, sender Sender, logger *slog.Logger, origins ...string) *Service {
 	box, err := newCryptoBox(encryptionKey)
 	if sender == nil {
 		sender = NewHTTPSender(nil)
@@ -48,7 +51,14 @@ func New(database *store.Store, encryptionKey string, sender Sender, logger *slo
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Service{store: database, crypto: box, cryptoErr: err, sender: sender, logger: logger, interval: 15 * time.Second}
+	origin := ""
+	var linkErr error
+	if len(origins) > 1 {
+		linkErr = errors.New("only one notification origin is supported")
+	} else if len(origins) == 1 {
+		origin, linkErr = notificationlink.NormalizeOrigin(origins[0])
+	}
+	return &Service{store: database, crypto: box, cryptoErr: err, sender: sender, logger: logger, interval: 15 * time.Second, notificationOrigin: origin, linkErr: linkErr}
 }
 
 func (s *Service) CreateChannel(ctx context.Context, name, kind string, config ChannelConfig) (store.NotificationChannel, error) {
@@ -235,6 +245,9 @@ func (s *Service) Run(ctx context.Context) {
 }
 
 func (s *Service) Tick(ctx context.Context, now time.Time) error {
+	if s.linkErr != nil {
+		return s.linkErr
+	}
 	s.tickMu.Lock()
 	defer s.tickMu.Unlock()
 	if _, err := s.store.PrepareAlertPolicyRules(ctx, now); err != nil {
@@ -284,7 +297,7 @@ func (s *Service) Tick(ctx context.Context, now time.Time) error {
 				notification.Message = renderTemplate(template.BodyTemplate, notification)
 			}
 		}
-		_, err = s.store.ObserveAlert(ctx, rule, node, store.AlertObservation{At: now, Known: known, Active: active, Message: message, NotificationTitle: notification.Title, NotificationMessage: notification.Message})
+		_, err = s.store.ObserveAlert(ctx, rule, node, store.AlertObservation{At: now, Known: known, Active: active, Message: message, NotificationTitle: notification.Title, NotificationMessage: notification.Message, NotificationOrigin: s.notificationOrigin})
 		if err != nil && !errors.Is(err, store.ErrObservationObsolete) {
 			failures = append(failures, err)
 		}
