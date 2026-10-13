@@ -288,7 +288,7 @@ themes at 360/768/1440 px. It runs with the same aggregation browser flag above.
 Local Go tests run with CGO disabled; no local race-detector result is claimed.
 
 Live provider/client rendering, broader administrative races,
-non-aggregate/service notification link coverage, published-version integration,
+service notification link coverage, published-version integration,
 retention/capacity and owner approval remain release gates. M3–M5 remain in the
 original roadmap; this batch does not complete AGG-01/ALT-05 or that full scope.
 

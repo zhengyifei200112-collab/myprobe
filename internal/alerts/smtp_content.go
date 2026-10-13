@@ -19,7 +19,7 @@ func smtpMessage(config ChannelConfig, n Notification) ([]byte, error) {
 	var message bytes.Buffer
 	message.WriteString("To: " + config.SMTPTo + "\r\nFrom: " + config.SMTPFrom + "\r\nSubject: " + subject + "\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n")
 	writer := quotedprintable.NewWriter(&message)
-	if _, err := writer.Write([]byte(n.Message)); err != nil {
+	if _, err := writer.Write([]byte(n.Message + incidentContentSuffix(n.IncidentPath, ""))); err != nil {
 		return nil, &DeliveryError{Class: "smtp_encoding", Permanent: true}
 	}
 	if err := writer.Close(); err != nil {

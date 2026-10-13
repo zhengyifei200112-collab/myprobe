@@ -45,7 +45,7 @@ func aggregateContentParts(n Notification) (string, string) {
 func telegramContent(n Notification, mode string) string {
 	text := n.Title + "\n" + n.Message
 	if n.AggregateID == "" {
-		return text
+		return text + incidentContentSuffix(n.IncidentPath, mode)
 	} // Preserve the existing single-template contract.
 	text, link := aggregateContentParts(n)
 	switch mode {
@@ -69,7 +69,7 @@ func telegramContent(n Notification, mode string) string {
 }
 func discordContent(n Notification) string {
 	if n.AggregateID == "" {
-		return "**" + n.Title + "**\n" + n.Message
+		return "**" + n.Title + "**\n" + n.Message + incidentContentSuffix(n.IncidentPath, "discord")
 	}
 	text, link := aggregateContentParts(n)
 	suffix := ""
@@ -77,6 +77,41 @@ func discordContent(n Notification) string {
 		suffix = "\n[查看本次内容](<" + link + ">)"
 	}
 	return escapeMarkdownLimited(text, "\\_*[]()~`>#+-=|{}.!", 2000-textUnits(suffix)) + suffix
+}
+
+// Existing single-message template markup is retained; only the generated URL
+// is formatted. Relative paths remain copyable when no public origin is set.
+func incidentContentSuffix(path, mode string) string {
+	if path == "" {
+		return ""
+	}
+	u, err := url.Parse(path)
+	if err != nil || u.User != nil || strings.ContainsAny(path, "<>\"\r\n") || strings.IndexFunc(path, unicode.IsSpace) >= 0 {
+		return ""
+	}
+	absolute := (u.Scheme == "https" || u.Scheme == "http") && u.Host != ""
+	if !absolute && !(u.Scheme == "" && u.Host == "" && strings.HasPrefix(path, "/admin?incident=")) {
+		return ""
+	}
+	switch mode {
+	case "HTML":
+		if absolute {
+			return "\n<a href=\"" + html.EscapeString(path) + "\">查看事件</a>"
+		}
+		return "\n查看事件：" + html.EscapeString(path)
+	case "MarkdownV2":
+		if absolute {
+			return "\n[查看事件](" + strings.NewReplacer("\\", "\\\\", ")", "\\)").Replace(path) + ")"
+		}
+		return "\n查看事件：" + escapeMarkdownText(path, "\\_*[]()~`>#+-=|{}.!")
+	case "discord":
+		if absolute {
+			return "\n[查看事件](<" + path + ">)"
+		}
+		return "\n查看事件：" + escapeMarkdownText(path, "\\_*[]()~`>#+-=|{}.!")
+	default:
+		return "\n查看事件：" + path
+	}
 }
 
 func escapeMarkdownLimited(raw, special string, limit int) string {

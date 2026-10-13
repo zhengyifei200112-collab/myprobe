@@ -309,3 +309,42 @@ fault injection.
 The screenshot option `PROBE_SCREENSHOT_DIR` writes six deterministic detail
 screenshots with CSS animations disabled. The 2026-10-03 pass visually inspected
 all six, with readable controls, wrapping diagnostics and no horizontal overflow.
+
+## Individual event notification links
+
+New individual jobs capture `incident_path` in their durable logical JSON when
+queued, using the validated operator `MYPROBE_NOTIFICATION_ORIGIN` plus the original
+incident ID. Without an origin the value is `/admin?incident=...`, a copyable local
+path. No request Host/Forwarded value or login credential is used. Each firing,
+repeat or recovery job captures its own current origin; an existing job retains its
+payload/path/key across retry, restart and full restore. Old queued payloads are not
+rewritten. This is an additive notification JSON field, with no schema migration,
+public-node API or Agent protocol change.
+
+Default Webhook JSON includes the path. Custom Webhook bodies can substitute
+`{{incident.url}}`; replacement remains literal and non-recursive, without automatic
+JSON escaping. Telegram appends a separately formatted entry for plain/HTML/
+MarkdownV2; Discord appends a markdown link; SMTP appends a plain entry to its encoded
+MIME body. Existing single-message title/body markup is retained. Relative paths are
+escaped text in rich modes, not forced into clickable external links. The final
+linked Telegram/Discord content is checked conservatively in UTF-16 units, including
+formatting overhead; oversize messages fail locally before I/O. No message clipping
+or repair of user-supplied single-message markup is introduced.
+
+The target requires administrator authentication and opens the original event,
+including records outside the first list page. Event details show current state,
+not an immutable single-message snapshot. Already-existing aggregation content links
+retain their version semantics. Template test/manual channel test messages have no
+real incident and no event URL. This batch covers individual incident queue jobs;
+service-availability notifications from M3 still require their own integration.
+
+Store tests exercise invalid-origin atomic rollback, relative fallback, unchanged
+legacy payload, a changed origin while an old job waits, full backup/restore and
+repeat/recovery jobs referencing the same event. Local HTTP protocol fixtures cover
+Webhook/custom Webhook, Telegram modes and Discord; SMTP MIME is decoded locally.
+Length fixtures verify no receiver request on oversized linked messages. The opt-in
+`TestLiveSingleIncidentLinkBrowser` uses a real evaluator/worker/Webhook receiver,
+follows the actual received URL through password login, verifies no private event
+read before login, original ID, reload and six theme/width views. Use the aggregation
+browser flag. Public provider accounts, single-message client markup rendering and
+live GitHub OAuth remain separate acceptance items.

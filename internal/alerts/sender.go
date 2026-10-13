@@ -40,6 +40,7 @@ type ChannelConfig struct {
 }
 
 type Notification struct {
+	IncidentPath      string `json:"incident_path,omitempty"`
 	templateEventTime string
 	SnapshotID        string                              `json:"snapshot_id,omitempty"`
 	GroupPath         string                              `json:"group_path,omitempty"`
@@ -172,7 +173,7 @@ func (s *HTTPSender) discord(ctx context.Context, config ChannelConfig, notifica
 	}
 	content := discordContent(notification)
 	length := utf8.RuneCountInString(content)
-	if notification.AggregateID != "" {
+	if notification.AggregateID != "" || notification.IncidentPath != "" {
 		length = textUnits(content)
 	}
 	if length > 2000 {
@@ -197,12 +198,16 @@ func (s *HTTPSender) telegram(ctx context.Context, config ChannelConfig, notific
 		return err
 	}
 	endpoint := strings.TrimRight(s.telegramBaseURL, "/") + "/bot" + url.PathEscape(config.BotToken) + "/sendMessage"
+	content := telegramContent(notification, config.ParseMode)
+	if notification.IncidentPath != "" && textUnits(content) > 4096 {
+		return &DeliveryError{Class: "telegram_message_too_large", Permanent: true}
+	}
 	if (notification.AggregateID != "" && textUnits(notification.Title+"\n"+notification.Message) > 4096) || (config.ParseMode == "" && utf8.RuneCountInString(notification.Title+"\n"+notification.Message) > 4096) {
 		return &DeliveryError{Class: "telegram_message_too_large", Permanent: true}
 	}
 	payload := map[string]any{
 		"chat_id": config.ChatID,
-		"text":    telegramContent(notification, config.ParseMode),
+		"text":    content,
 	}
 	if config.ThreadID != "" {
 		threadID, err := strconv.Atoi(config.ThreadID)
@@ -369,6 +374,6 @@ func renderTemplate(value string, n Notification) string {
 	if n.AggregateID == "" || eventTime == "" {
 		eventTime = n.Timestamp.Local().Format("2006-01-02 15:04:05")
 	}
-	replacer := strings.NewReplacer("{{title}}", n.Title, "{{message}}", n.Message, "{{state}}", n.State, "{{event}}", n.Kind, "{{event.type}}", n.Kind, "{{event.status}}", n.State, "{{event.time}}", eventTime, "{{node.id}}", n.NodeID, "{{node.name}}", n.NodeName, "{{rule.id}}", n.RuleID)
+	replacer := strings.NewReplacer("{{incident.url}}", n.IncidentPath, "{{title}}", n.Title, "{{message}}", n.Message, "{{state}}", n.State, "{{event}}", n.Kind, "{{event.type}}", n.Kind, "{{event.status}}", n.State, "{{event.time}}", eventTime, "{{node.id}}", n.NodeID, "{{node.name}}", n.NodeName, "{{rule.id}}", n.RuleID)
 	return replacer.Replace(value)
 }

@@ -7,6 +7,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- New individual incident notifications capture an authenticated event URL when
+  queued. Webhook JSON includes `incident_path`, custom Webhooks support
+  `{{incident.url}}`, and Telegram/Discord/SMTP append a formatted event entry.
+  Retry and full restore retain the captured URL; old queued payloads keep their
+  original bytes. Configure `MYPROBE_NOTIFICATION_ORIGIN` for absolute links.
+
 ### Fixed
 
 - Provider retry waits now persist per notification channel and gate aggregate,

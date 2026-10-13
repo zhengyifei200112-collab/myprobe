@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"reflect"
 	"time"
+
+	"github.com/zhengyifei200112-collab/myprobe/internal/notificationlink"
 )
 
 var ErrObservationObsolete = errors.New("alert rule changed during evaluation")
@@ -51,15 +53,16 @@ type AlertObservation struct {
 
 // DeliveryNotification is a durable rendered payload, never channel credentials.
 type DeliveryNotification struct {
-	Title      string    `json:"title"`
-	Message    string    `json:"message"`
-	State      string    `json:"state"`
-	Kind       string    `json:"kind"`
-	NodeID     string    `json:"node_id"`
-	NodeName   string    `json:"node_name"`
-	RuleID     string    `json:"rule_id"`
-	IncidentID string    `json:"incident_id"`
-	Timestamp  time.Time `json:"timestamp"`
+	IncidentPath string    `json:"incident_path,omitempty"`
+	Title        string    `json:"title"`
+	Message      string    `json:"message"`
+	State        string    `json:"state"`
+	Kind         string    `json:"kind"`
+	NodeID       string    `json:"node_id"`
+	NodeName     string    `json:"node_name"`
+	RuleID       string    `json:"rule_id"`
+	IncidentID   string    `json:"incident_id"`
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 type incidentRuleSnapshot struct {
@@ -429,7 +432,11 @@ func queueIncidentNotification(ctx context.Context, tx *sql.Tx, i *Incident, cha
 	if message == "" {
 		message = o.Message
 	}
-	payload, err := json.Marshal(DeliveryNotification{title, message, i.State, i.Kind, i.NodeID, i.NodeName, i.RuleID, i.ID, o.At})
+	origin, err := notificationlink.NormalizeOrigin(o.NotificationOrigin)
+	if err != nil {
+		return err
+	}
+	payload, err := json.Marshal(DeliveryNotification{Title: title, Message: message, State: i.State, Kind: i.Kind, NodeID: i.NodeID, NodeName: i.NodeName, RuleID: i.RuleID, IncidentID: i.ID, Timestamp: o.At, IncidentPath: notificationlink.Incident(origin, i.ID)})
 	if err != nil {
 		return err
 	}
