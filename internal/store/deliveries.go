@@ -326,11 +326,17 @@ func (s *Store) CompleteDelivery(ctx context.Context, id, token string, now time
 }
 
 func completeDeliveryInTransaction(ctx context.Context, tx *sql.Tx, d NotificationDelivery, token string, now time.Time, outcome DeliveryOutcome) error {
+	return completeDeliveryWithFence(ctx, tx, d, token, now, outcome, false)
+}
+
+// Aggregate callers validate the parent epoch under this same writer. They may
+// complete its still-current child after wall-clock expiry, before any takeover.
+func completeDeliveryWithFence(ctx context.Context, tx *sql.Tx, d NotificationDelivery, token string, now time.Time, outcome DeliveryOutcome, parentFenced bool) error {
 	id := d.ID
 	if d.Status == "canceled" {
 		return completeCanceledAttempt(ctx, tx, d, token, now, outcome)
 	}
-	if d.Status != "inflight" || d.LeaseToken != token || d.LeaseUntil == nil || !now.Before(*d.LeaseUntil) {
+	if d.Status != "inflight" || d.LeaseToken != token || d.LeaseUntil == nil || (!parentFenced && !now.Before(*d.LeaseUntil)) {
 		return ErrDeliveryLeaseLost
 	}
 	status, attemptStatus := "pending", "failed"

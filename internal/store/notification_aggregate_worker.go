@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"time"
@@ -190,6 +192,7 @@ type AggregateSend struct {
 	Payload          json.RawMessage
 	IdempotencyKey   string
 	MaxMemberAttempt int
+	Channel          NotificationChannel `json:"-"`
 }
 
 // PrepareAggregateSend is a one-shot final check. It freezes the exact body/key
@@ -268,6 +271,14 @@ func (s *Store) PrepareAggregateSend(ctx context.Context, id, token string, at t
 	if err != nil {
 		return result, err
 	}
+	// Freeze the destination configuration from this same writer snapshot;
+	// later envelope/credential changes must not reuse the previous send key.
+	result.Channel.ID = g.ChannelID
+	if err := tx.QueryRowContext(ctx, `SELECT name,COALESCE(NULLIF(provider,''),kind),config_encrypted,enabled FROM notification_channels WHERE id=?`, g.ChannelID).Scan(&result.Channel.Name, &result.Channel.Kind, &result.Channel.ConfigEncrypted, &result.Channel.Enabled); err != nil {
+		return result, err
+	}
+	sum := sha256.Sum256([]byte(result.IdempotencyKey + ":" + result.Channel.ConfigEncrypted))
+	result.IdempotencyKey = "aggregate:" + g.ID + ":" + hex.EncodeToString(sum[:])
 	for _, d := range included {
 		if _, err := tx.ExecContext(ctx, `UPDATE notification_aggregate_attempt_members SET included=1 WHERE aggregate_id=? AND aggregate_attempt=? AND delivery_id=?`, id, g.AttemptCount, d.ID); err != nil {
 			return result, err
@@ -296,8 +307,8 @@ func (s *Store) CompleteAggregate(ctx context.Context, id, token string, at time
 		return err
 	}
 	var number int
-	var previous, previousError string
-	if err := tx.QueryRowContext(ctx, `SELECT attempt_number,outcome,error_class FROM notification_aggregate_attempts WHERE aggregate_id=? AND lease_token=?`, id, token).Scan(&number, &previous, &previousError); errors.Is(err, sql.ErrNoRows) {
+	var previous, previousError, started string
+	if err := tx.QueryRowContext(ctx, `SELECT attempt_number,outcome,error_class,started_at FROM notification_aggregate_attempts WHERE aggregate_id=? AND lease_token=?`, id, token).Scan(&number, &previous, &previousError, &started); errors.Is(err, sql.ErrNoRows) {
 		return ErrDeliveryLeaseLost
 	} else if err != nil {
 		return err
@@ -311,10 +322,17 @@ func (s *Store) CompleteAggregate(ctx context.Context, id, token string, at time
 	if previous == status && previousError == errorClass {
 		return tx.Commit()
 	}
-	if number != g.AttemptCount || previous != "started" || g.Status != "inflight" || g.LeaseToken != token || g.LeaseUntil == nil || !at.Before(*g.LeaseUntil) {
+	startedAt, err := parseTime(started)
+	if err != nil {
+		return err
+	}
+	if at.Before(startedAt) || (previous != "started" && !(previous == "unknown" && previousError == "lease_expired")) {
 		return ErrDeliveryLeaseLost
 	}
-	source, err := aggregateAttemptMembers(ctx, tx, g, true)
+	parentFenced := number == g.AttemptCount && g.Status == "inflight" && g.LeaseToken == token
+	attemptGroup := g
+	attemptGroup.AttemptCount = number
+	source, err := aggregateAttemptMembers(ctx, tx, attemptGroup, true)
 	if err != nil {
 		return err
 	}
@@ -327,18 +345,49 @@ func (s *Store) CompleteAggregate(ctx context.Context, id, token string, at time
 		if !exists {
 			continue
 		}
-		if number != d.AttemptCount {
-			return ErrDeliveryLeaseLost
-		}
-		if err := completeDeliveryInTransaction(ctx, tx, d, token, at, outcome); err != nil {
+		if parentFenced {
+			if number != d.AttemptCount {
+				return ErrDeliveryLeaseLost
+			}
+			if err := completeDeliveryWithFence(ctx, tx, d, token, at, outcome, true); err != nil {
+				return err
+			}
+		} else if err := recordAggregateLateMember(ctx, tx, d, number, token, at, outcome); err != nil {
 			return err
 		}
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE notification_aggregate_attempts SET outcome=?,error_class=?,completed_at=? WHERE aggregate_id=? AND attempt_number=?`, status, errorClass, formatTime(at), id, g.AttemptCount); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE notification_aggregate_attempts SET outcome=?,error_class=?,completed_at=? WHERE aggregate_id=? AND attempt_number=?`, status, errorClass, formatTime(at), id, number); err != nil {
 		return err
 	}
-	if err := scheduleAggregate(ctx, tx, id, at); err != nil {
-		return err
+	if parentFenced {
+		if err := scheduleAggregate(ctx, tx, id, at); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
+}
+
+// A real response can arrive after another parent epoch starts. Refine only the
+// exact historical attempt; never its successor's job, clock or retry authority.
+func recordAggregateLateMember(ctx context.Context, tx *sql.Tx, d NotificationDelivery, number int, token string, at time.Time, outcome DeliveryOutcome) error {
+	var previous, class string
+	if err := tx.QueryRowContext(ctx, `SELECT outcome,error_class FROM delivery_attempts WHERE delivery_id=? AND attempt_number=? AND lease_token=?`, d.ID, number, token).Scan(&previous, &class); err != nil {
+		return err
+	}
+	status, errorClass := "failed", outcome.ErrorClass
+	if outcome.Delivered {
+		status, errorClass = "delivered", ""
+	} else if outcome.Ambiguous {
+		status = "unknown"
+	}
+	if previous == status && class == errorClass {
+		return nil
+	}
+	if previous != "started" && !(previous == "unknown" && (class == "lease_expired" || (d.Status == "canceled" && d.AttemptCount == number && class == d.ErrorClass))) {
+		return ErrDeliveryLeaseLost
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE delivery_attempts SET outcome=?,error_class=?,completed_at=? WHERE delivery_id=? AND attempt_number=? AND lease_token=?`, status, errorClass, formatTime(at), d.ID, number, token); err != nil {
+		return err
+	}
+	return recordDeliveryHistory(ctx, tx, d, at, outcome.Delivered, errorClass)
 }

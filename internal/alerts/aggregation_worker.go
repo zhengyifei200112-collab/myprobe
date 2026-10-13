@@ -15,11 +15,6 @@ func (s *Service) deliverAggregate(ctx context.Context, now time.Time) (bool, er
 	if err != nil || g == nil {
 		return false, err
 	}
-	channel, err := s.store.NotificationChannel(ctx, g.ChannelID)
-	if err != nil {
-		return true, err
-	}
-	config, configErr := s.decryptConfig(channel)
 	send, err := s.store.PrepareAggregateSend(ctx, g.ID, g.LeaseToken, now.Add(time.Since(started)))
 	if errors.Is(err, store.ErrDeliveryCanceled) {
 		return true, nil
@@ -27,6 +22,8 @@ func (s *Service) deliverAggregate(ctx context.Context, now time.Time) (bool, er
 	if err != nil {
 		return true, err
 	}
+	channel := send.Channel
+	config, configErr := s.decryptConfig(channel)
 	var notification Notification
 	var deliveryErr error
 	if configErr != nil {

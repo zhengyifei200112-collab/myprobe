@@ -10,6 +10,8 @@ keeps its logical delivery, repeat clock, cancellation causes and attempt histor
   Zero or omission retains immediate single delivery. Existing definitions and
   unbound legacy rules are not silently delayed. The planned new-policy UI starts
   at the roadmap's suggested 30 seconds and must show the added wait.
+  On an existing policy update, omission preserves its current setting so an
+  older editor cannot accidentally disable it; explicit zero disables it.
 - Forward migration 030 creates transport aggregates, immutable attempt payloads
   and exact attempt/member links; logical deliveries point to their aggregate.
   Queue creation and assignment are in the observation writer transaction.
@@ -24,12 +26,16 @@ keeps its logical delivery, repeat clock, cancellation causes and attempt histor
   members are canceled; stale members wait independently. Other ready groups and
   single deliveries can proceed. A pre-send recovery of only prepared aggregate
   work does not manufacture a standalone recovery message.
-- Final preparation freezes the exact body, included members and transport key
-  before I/O. Summary text is at most 1600 UTF-8 bytes; structured JSON is at most
+- Final preparation freezes the canonical logical payload, included members and
+  transport key before I/O. The destination's encrypted configuration is read from
+  that same snapshot and returned privately to the sender, never copied into send
+  history or serialized send metadata. Provider envelopes/custom templates render
+  with this snapshot. Summary text is at most 1600 UTF-8 bytes; structured JSON is at most
   16 KiB. Names/message excerpts are clipped at UTF-8 boundaries. Members retain
   event/node IDs, original observation time and an event path. Custom webhook
   expansion exceeding the JSON transport limit fails permanently without sending.
-- A retry with unchanged content keeps its key; changed membership gets a new
+- A retry with unchanged content and destination configuration version keeps its
+  key; changed membership or a re-encrypted destination configuration gets a new
   key. A provider may have received an ambiguous earlier attempt, so changed
   retries can still duplicate previously included members. No exactly-once claim.
   Provider results update all included leaf jobs/history in one transaction.
@@ -39,6 +45,13 @@ keeps its logical delivery, repeat clock, cancellation causes and attempt histor
   unknown. Leaf retry bounds/backoff/Retry-After remain authoritative; a transport
   count can exceed five when deferred subsets become eligible at different times.
   A group is called `finished`, not `delivered`, because member outcomes can differ.
+- Parent epochs fence completion under the same writer. A response to its still
+  current token can finish before a replacement claims it, even past wall-clock
+  expiry. After takeover, the old real result can refine exact authorized attempt
+  history and legacy receipt evidence only; current jobs, leases and clocks stay
+  unchanged. Identical committed results replay; conflicting known outcomes and
+  wrong tokens are rejected. A restored backup can rewind local send evidence and
+  replay already received content; only a provider honoring its key can deduplicate.
 - Changing aggregation alone does not close/recreate a technical incident. New
   queue assignments use the new policy revision; existing bounded tasks retain
   their original window and causal history.
@@ -75,13 +88,26 @@ go test ./internal/alerts -run '^TestNotificationStormMeasurement$' -count=1 -v
 
 ## Validation and remaining delivery work
 
-Store tests currently cover bounds, deadline/sharding, one owner, atomic member
-completion/history, unchanged retry keys, changed subset keys, per-event retries,
-final recovery/silence/unknown filtering, prepared vs authorized lease recovery and
-fair progress of another shard. Existing Store, alert worker and API suites pass.
-The actual loopback receiver measurement confirms grouping is connected to the
-real worker. More restart/full restore, queue rollback, real in-flight mutation,
-policy/channel/type separation and transport-boundary evidence is still required.
+Store tests cover bounds, deadline/sharding, one owner, atomic queue/claim/member
+completion and history, unchanged retry keys, changed subset keys, per-event retry
+caps independent of transport count, final recovery/silence/unknown filtering,
+prepared vs authorized lease recovery, fair progress of another shard, restart,
+full restore and exact historical refinement after takeover. Policy/channel/
+provider/type/window/revision grouping boundaries and transport-only edits are
+tested. Configuration bounds and older-editor preservation are verified.
+
+The real loopback receiver/worker tests cover partial silence and recovery while
+an actual aggregate request is held, recording late results independently for each
+included leaf without clock resurrection. An actual failed request and retry keep
+the same body/key and respect the stored deadline. Existing Store, alert worker and
+API suites pass. Provider-specific envelope limits, broad administrative races and
+management-facing explanations still require acceptance before delivery. Existing
+policy, ACK, silence and both maintenance browser flows pass on the aggregate-capable
+worker at both themes and three widths. No frontend changes are included yet.
+
+The full local suite still has only the known Windows collector path failure,
+isolated in PR #47. Vet, command build and diff checks pass; final CI evidence is
+recorded in the PR and external roadmap rather than treated as a release claim.
 
 Management configuration/history/context APIs and UI, authenticated event deep
 links, unknown-outcome explanations and both-theme/three-width browser acceptance

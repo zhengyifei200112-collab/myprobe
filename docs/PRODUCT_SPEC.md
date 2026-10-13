@@ -173,3 +173,10 @@ bounds are enforced and unchanged retries keep their content/key. Transport-only
 edits do not recreate technical incidents. Management configuration/history,
 authenticated deep links, broader runtime/browser evidence and release/capacity
 remain pending. See [NOTIFICATION_AGGREGATION.md](NOTIFICATION_AGGREGATION.md).
+
+Restart/full restore preserve window and transport identity. Actual late results
+after takeover refine historical attempts without altering current jobs or clocks.
+Final destination snapshots are private; their configuration version separates
+changed retries. Older editors omit the field without disabling an existing
+setting; an explicit zero disables it. These queue/receiver checks do not replace
+management/browser acceptance or complete AGG-01/ALT-05.

@@ -45,6 +45,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   unchanged retries preserve content/key and stale members wait independently.
   Real loopback receiver measurements cover 5/50/100-node storms. Management UI,
   deep links and remaining acceptance are in development; this is unreleased.
+  Restart/full restore retain windows and keys. Actual late results after a parent
+  takeover refine history without changing successor jobs or clocks. Destination
+  configuration is read from the final send snapshot and its version participates
+  in the key. Older policy editors preserve the existing aggregation setting.
 
 - Incident silence intervals, revisioned cancellation, atomic optional
   acknowledgement and replay history (migration 029). Existing observation/outbox
