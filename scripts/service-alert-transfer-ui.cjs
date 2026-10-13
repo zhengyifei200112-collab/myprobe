@@ -30,8 +30,14 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
       const panel = page.getByRole('region', { name: '服务告警迁移', exact: true });
       async function selectBundle() {
         await panel.getByLabel('服务告警文件', { exact: true }).setInputFiles({ name: 'service-alerts.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(bundle)) });
-        await panel.getByRole('combobox', { name: `映射服务 ${bundle.alerts[0].name}`, exact: true }).selectOption(bundle.alerts[0].source_id);
-        await panel.getByRole('combobox', { name: `映射通道 ${bundle.channels[0].name}`, exact: true }).selectOption(selectedChannel);
+        await panel.getByRole('button', { name: `映射服务 ${bundle.alerts[0].name}`, exact: true }).click();
+        let picker = page.getByRole('dialog', { name: '选择目标服务', exact: true });
+        await picker.getByLabel('搜索目标名称或 ID', { exact: true }).fill(bundle.alerts[0].source_id);
+        await picker.getByRole('button', { name: `选择 ${bundle.alerts[0].name}（${bundle.alerts[0].source_id}）`, exact: true }).click();
+        await panel.getByRole('button', { name: `映射通道 ${bundle.channels[0].name}`, exact: true }).click();
+        picker = page.getByRole('dialog', { name: '选择目标通道', exact: true });
+        await picker.getByLabel('搜索目标名称或 ID', { exact: true }).fill(selectedChannel);
+        await picker.getByRole('button', { name: `选择 ${destinations.channels.find(v => v.id === selectedChannel).name}（${selectedChannel}）`, exact: true }).click();
         await panel.getByRole('button', { name: '预览服务告警导入', exact: true }).click();
         await panel.getByRole('heading', { name: '新建 0 个 · 覆盖 1 个', exact: true }).waitFor();
       }
@@ -61,9 +67,10 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
           await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"fixture_lost_response"}' });
         });
         await panel.getByRole('button', { name: '确认覆盖服务告警', exact: true }).click();
+        await panel.getByRole('alert').getByText('fixture_lost_response', { exact: false }).waitFor();
         await panel.getByText('上次请求的结果尚待确认', { exact: false }).waitFor();
         assert.equal(attempts, 1);
-        assert.equal(await panel.getByRole('combobox', { name: /^映射服务/ }).isDisabled(), true);
+        assert.equal(await panel.getByRole('button', { name: /^映射服务/ }).isDisabled(), true);
         await page.unroute('**/api/v1/admin/service-alert-transfers/apply');
         await page.reload(); await page.getByRole('button', { name: 'HTTP 服务', exact: true }).click(); await page.getByRole('button', { name: '服务告警迁移', exact: true }).click();
         const applied = page.waitForRequest(r => r.url().endsWith('/service-alert-transfers/apply'));
@@ -82,6 +89,19 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
           assert.equal(await panel.getByRole('button', { name: '确认覆盖服务告警', exact: true }).count(), 0);
           await panel.getByRole('button', { name: '清除损坏的导入记录', exact: true }).click();
         }
+        // A pending full-preview cache written by the previous UI remains usable.
+        const legacyMapping = { services: { [bundle.alerts[0].source_id]: bundle.alerts[0].source_id }, channels: { [bundle.channels[0].id]: selectedChannel } };
+        const legacyResponse = await context.request.post(`${base}/api/v1/admin/service-alert-transfers/preview`, { headers: { 'X-CSRF-Token': auth.csrf_token }, data: { bundle, mapping: legacyMapping } });
+        assert.equal(legacyResponse.status(), 200);
+        const legacy = { bundle, mapping: legacyMapping, preview: (await legacyResponse.json()).preview, requestID: require('node:crypto').randomBytes(16).toString('hex') };
+        await page.evaluate(value => sessionStorage.setItem('myprobe-service-alert-import-pending-v1', JSON.stringify(value)), legacy);
+        await panel.getByRole('button', { name: '关闭迁移', exact: true }).click(); await page.getByRole('button', { name: '服务告警迁移', exact: true }).click();
+        await panel.getByText('原配置：', { exact: false }).waitFor();
+        const legacyRequest = page.waitForRequest(r => r.url().endsWith('/service-alert-transfers/apply'));
+        await panel.getByRole('button', { name: '确认上次服务告警导入结果', exact: true }).click();
+        const restoredRequest = (await legacyRequest).postDataJSON();
+        assert.equal(restoredRequest.request_id, legacy.requestID); assert.equal(restoredRequest.preview_digest, legacy.preview.preview_digest);
+        await panel.getByText('服务告警导入成功', { exact: false }).waitFor();
         await selectBundle();
         let sent = 0;
         page.on('request', r => { if (r.url().endsWith('/service-alert-transfers/apply')) sent++; });

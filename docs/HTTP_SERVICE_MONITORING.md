@@ -33,6 +33,9 @@ Service fault/certificate parameters can separately migrate through a private v1
 alert bundle with explicit existing-service/channel mapping, before/after preview,
 atomic revision checks and durable replay. Existing configuration v1/v2 remains
 unchanged; see [service alert transfer](SERVICE_ALERT_TRANSFER.md) for migration 037.
+Mapping and preview rows are paged without truncating the batch; explicit mapping
+files and compact original-request recovery support the 1000-item transfer limit.
+See [transfer capacity evidence](SERVICE_ALERT_CAPACITY.md) for measurement scope.
 Syntax acceptance
 does not allow a network request or waive the Agent address policy below.
 

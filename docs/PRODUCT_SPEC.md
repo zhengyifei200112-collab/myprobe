@@ -76,6 +76,13 @@ and certificate-reminder settings, including disabled and cross-provider choices
 without credentials or historical records. Migration 037 preserves replay identity
 through full backups; browser recovery confirms the original request after lost
 responses or refresh. See [service alert transfer](SERVICE_ALERT_TRANSFER.md).
+Source mapping and previews now render 25 items per page, with one searchable
+destination picker and an explicitly filled mapping-file template. Paging never
+limits the complete atomic batch. Compact recovery retains the original request
+and digest and accepts legacy full-preview caches. A 1000-service/channel local
+transfer check verifies every stored row and lost-response replay; see
+[capacity evidence](SERVICE_ALERT_CAPACITY.md). This is not Agent throughput or
+the full-system 24-hour acceptance.
 
 | Area | Requirement | Acceptance evidence | Status |
 | --- | --- | --- | --- |

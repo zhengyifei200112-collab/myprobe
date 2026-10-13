@@ -9,6 +9,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Service alert mapping and overwrite previews use bounded 25-item pages and a
+  shared searchable destination picker. Explicit mapping templates support large
+  batches without automatic matching; compact pending-request recovery retains
+  the original identity and remains compatible with old full-preview caches.
+  An opt-in 1000-service/channel browser fixture verifies the full batch and replay.
+
 - Private versioned HTTP service alert export/import explicitly maps existing
   destination services and channels, previews all overwritten reminder parameters,
   rejects stale destination revisions, and commits the whole batch with durable
