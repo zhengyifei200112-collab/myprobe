@@ -43,30 +43,30 @@
       "sourceChannels": 10,
       "destinationServices": 1000,
       "destinationChannels": 1000,
-      "renderMS": 50.3,
+      "renderMS": 52,
       "elements": 144,
       "options": 6,
-      "heapBytes": 18293209
+      "heapBytes": 18251764
     },
     {
       "sourceServices": 50,
       "sourceChannels": 50,
       "destinationServices": 1000,
       "destinationChannels": 1000,
-      "renderMS": 30.5,
+      "renderMS": 28.8,
       "elements": 294,
       "options": 6,
-      "heapBytes": 20897598
+      "heapBytes": 20912061
     },
     {
       "sourceServices": 1000,
       "sourceChannels": 1000,
       "destinationServices": 1000,
       "destinationChannels": 1000,
-      "renderMS": 71.1,
+      "renderMS": 71.3,
       "elements": 294,
       "options": 6,
-      "heapBytes": 23849409
+      "heapBytes": 23831452
     },
     {
       "pendingRequestBytes": 480302
@@ -75,31 +75,31 @@
   "api": [
     {
       "operation": "preview-1000",
-      "milliseconds": 77.3
+      "milliseconds": 72.7
     },
     {
       "operation": "preview-1000",
-      "milliseconds": 68.4
+      "milliseconds": 63.7
     },
     {
       "operation": "preview-1000",
-      "milliseconds": 67.3
+      "milliseconds": 68.5
     },
     {
       "operation": "preview-1000",
-      "milliseconds": 67.8
+      "milliseconds": 69.7
     },
     {
       "operation": "preview-1000",
-      "milliseconds": 67.6
+      "milliseconds": 60.2
     },
     {
       "operation": "apply-1000",
-      "milliseconds": 127.8
+      "milliseconds": 134.2
     }
   ],
   "assets": {
-    "index-B_b9AD76.js": "761425b71ca990fcbf94eebcc85362673a9f0640e3ccb74c306b04d655ea907d",
-    "index-Cd0ThSHy.css": "fba1536e92377838f7d3af1fac498513583005eae5f850d4d06402cc5680479c"
+    "index-b4b3-ms0.js": "1009ecde056b5a46dfde56e4716eb17c0675068055bc61810850dca68e4b18d0",
+    "index-BdeqydRx.css": "eec1dcb068a5cf06f710a1b5e67f0f53c5bc4f946f9ac8c72c3f884b399ea6fe"
   }
 }
