@@ -9,6 +9,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Private HTTP service lists and current-state detail now declare the
+  any-required-observer-failure policy and separate success, failure, unknown and
+  current observer coverage. Partial success or an empty observer set never
+  becomes healthy. Summaries share service-alert freshness/capability evaluation,
+  use bounded current-revision database/session snapshots, and omit target specs.
+  Browser expiry/read failure removes old healthy presentation and allows refresh.
+  Existing Agent, public-node, schema and notification contracts are unchanged.
+
 - Integrated opt-in HTTP checks and the durable incident platform on the service
   development branch, preserving execution/origin configuration, private service
   management and notification navigation. Separate HTTP/incident development

@@ -283,7 +283,31 @@ export interface HTTPServiceConfig {
 }
 export interface HTTPServiceSummary {
   id: string; revision: number; name: string; enabled: boolean; interval_seconds: number; node_count: number; updated_at: string
+  health?: HTTPCurrentHealth
 }
+export interface HTTPCurrentHealth {
+  state: 'healthy' | 'degraded' | 'unknown'
+  policy: 'any_required_observer_failure'
+  required_observers: number
+  success: number
+  failure: number
+  unknown: number
+  current_coverage: number | null
+  as_of: string
+  valid_until?: string
+}
+export interface HTTPObserverHealth {
+  node_id: string; node_name: string; status: 'success' | 'failure' | 'unknown'
+  reason?: string; error_class?: string; valid_until?: string
+  task_id?: string; scheduled_at?: string; completed_at?: string; status_code?: number; duration_ms?: number
+}
+export interface HTTPServiceHealthResponse {
+  service: HTTPServiceSummary
+  health: HTTPCurrentHealth
+  observers: HTTPObserverHealth[]
+  execution_enabled: boolean
+}
+export const loadHTTPServiceHealth = (id: string) => request<HTTPServiceHealthResponse>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/health`)
 export interface HTTPObservation {
   task_id: string; node_id: string; revision: number; scheduled_at: string; expires_at: string
   result: null | {

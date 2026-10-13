@@ -25,6 +25,20 @@ func (g *Gateway) SupportsHTTP(nodeID string) bool {
 	return g.httpEnabled.Load() && session != nil && session.httpAllowed
 }
 
+// HTTPAvailability captures the execution gate and selected current sessions
+// under one lock for a bounded administrator health page.
+func (g *Gateway) HTTPAvailability(nodeIDs []string) (bool, map[string]bool) {
+	g.sessionsMu.RLock()
+	defer g.sessionsMu.RUnlock()
+	enabled := g.httpEnabled.Load()
+	available := make(map[string]bool, len(nodeIDs))
+	for _, id := range nodeIDs {
+		session := g.sessions[id]
+		available[id] = enabled && session != nil && session.httpAllowed
+	}
+	return enabled, available
+}
+
 func (g *Gateway) DispatchHTTP(ctx context.Context, nodeID, serviceID string, scheduledAt time.Time) error {
 	g.sessionsMu.RLock()
 	session := g.sessions[nodeID]

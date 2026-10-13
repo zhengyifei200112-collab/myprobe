@@ -138,6 +138,7 @@ func (s *Server) routes() {
 	services.GET("/:serviceID", s.getHTTPService)
 	services.GET("/:serviceID/results", s.recentHTTPResults)
 	services.GET("/:serviceID/statistics", s.httpServiceStatistics)
+	services.GET("/:serviceID/health", s.httpServiceHealth)
 	services.GET("/:serviceID/alerting", s.getServiceAlerting)
 	services.GET("/:serviceID/incidents", s.serviceIncidents)
 	services.PUT("/:serviceID/alerting", s.putServiceAlerting)

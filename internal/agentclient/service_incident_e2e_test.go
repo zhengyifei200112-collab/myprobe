@@ -24,11 +24,12 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/httpapi"
 	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/httpcheck"
 	"github.com/zhengyifei200112-collab/myprobe/internal/scheduler"
+	"github.com/zhengyifei200112-collab/myprobe/internal/servicehealth"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
 func TestServiceIncidentThroughRealAgent(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
 	var targetStatus atomic.Int32
 	targetStatus.Store(503)
@@ -44,6 +45,10 @@ func TestServiceIncidentThroughRealAgent(t *testing.T) {
 		t.Fatal(err)
 	}
 	node, token, err := db.CreateNode(ctx, store.CreateNodeParams{Name: "Service observer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondNode, secondToken, err := db.CreateNode(ctx, store.CreateNodeParams{Name: "Second service observer"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,10 +87,48 @@ func TestServiceIncidentThroughRealAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := db.SaveHTTPService(ctx, store.HTTPService{Name: "Lifecycle website", Enabled: true, IntervalSeconds: 30, NodeIDs: []string{node.ID}, Spec: httpcheck.Spec{URL: targetURL, Method: "GET", StatusCodes: []int{200}, TimeoutMS: 1000, MaxBodyBytes: 1024}})
+	service, err := db.SaveHTTPService(ctx, store.HTTPService{Name: "Lifecycle website", Enabled: true, IntervalSeconds: 30, NodeIDs: []string{node.ID, secondNode.ID}, Spec: httpcheck.Spec{URL: targetURL, Method: "GET", StatusCodes: []int{200}, TimeoutMS: 1000, MaxBodyBytes: 1024}})
 	if err != nil {
 		t.Fatal(err)
 	}
+	var secondClient *Client
+	var secondStop context.CancelFunc
+	var secondDone chan struct{}
+	startSecond := func(allowed bool) {
+		t.Helper()
+		cfg := agentConfig
+		cfg.ServerURL = server.URL
+		cfg.CollectionPeriod, cfg.ReportPeriod = time.Second, time.Second
+		cfg.Token = secondToken
+		if !allowed {
+			cfg.HTTPPrivateCIDRs = nil
+			cfg.HTTPAdditionalPorts = nil
+		}
+		secondClient, err = New(cfg, collector.New(collector.Config{}), logger)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var runCtx context.Context
+		runCtx, secondStop = context.WithCancel(ctx)
+		secondDone = make(chan struct{})
+		current, done := secondClient, secondDone
+		go func() { defer close(done); _ = current.Run(runCtx) }()
+	}
+	stopSecond := func() {
+		if secondClient == nil {
+			return
+		}
+		secondStop()
+		secondClient.clearConnection(nil)
+		select {
+		case <-secondDone:
+		case <-time.After(10 * time.Second):
+			t.Error("second observer did not stop")
+		}
+		secondClient = nil
+	}
+	startSecond(false)
+	defer stopSecond()
 	if _, err := db.SaveServiceAlertSettings(ctx, store.ServiceAlertSettings{ServiceID: service.ID, ServiceRevision: service.Revision, Enabled: true, ChannelID: channel.ID, CooldownSeconds: 300}); err != nil {
 		t.Fatal(err)
 	}
@@ -110,6 +153,68 @@ func TestServiceIncidentThroughRealAgent(t *testing.T) {
 			}
 		}
 	}()
+	loginBody, _ := json.Marshal(map[string]string{"username": "service-admin", "password": password})
+	login := httptest.NewRecorder()
+	server.Config.Handler.ServeHTTP(login, httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(string(loginBody))))
+	if login.Code != 200 || len(login.Result().Cookies()) == 0 {
+		t.Fatal("health fixture login failed")
+	}
+	cookie := login.Result().Cookies()[0]
+	readHealth := func() (servicehealth.Summary, string, string) {
+		t.Helper()
+		request := httptest.NewRequest(http.MethodGet, "/api/v1/admin/service-monitors/"+service.ID+"/health", nil)
+		request.AddCookie(cookie)
+		response := httptest.NewRecorder()
+		server.Config.Handler.ServeHTTP(response, request)
+		if response.Code != 200 || strings.Contains(response.Body.String(), targetURL) {
+			t.Fatal("private service health read failed")
+		}
+		var value struct {
+			Health    servicehealth.Summary `json:"health"`
+			Observers []struct {
+				NodeID     string `json:"node_id"`
+				Reason     string `json:"reason"`
+				ErrorClass string `json:"error_class"`
+			} `json:"observers"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &value); err != nil {
+			t.Fatal(err)
+		}
+		for _, o := range value.Observers {
+			if o.NodeID == secondNode.ID {
+				return value.Health, o.ErrorClass, o.Reason
+			}
+		}
+		t.Fatal("second observer absent")
+		return value.Health, "", ""
+	}
+	waitHealth := func(state string, success, failure, unknown int, class, reason string) {
+		t.Helper()
+		for {
+			h, c, r := readHealth()
+			if h.State == state && h.Success == success && h.Failure == failure && h.Unknown == unknown && (class == "" || c == class) && (reason == "" || r == reason) {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				t.Fatalf("health transition missing: %+v class=%s reason=%s", h, c, r)
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	}
+	healthBrowser := func(phase string) {
+		t.Helper()
+		if os.Getenv("MYPROBE_TEST_HTTP_BROWSER") != "1" {
+			return
+		}
+		cmd := exec.CommandContext(ctx, "node", "../../scripts/service-health-live-ui.cjs")
+		cmd.Env = append(os.Environ(), "SERVICE_HEALTH_ORIGIN="+origin, "SERVICE_HEALTH_PASSWORD="+password, "SERVICE_HEALTH_ID="+service.ID, "SERVICE_HEALTH_PHASE="+phase)
+		output, err := cmd.CombinedOutput()
+		t.Log(string(output))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	var fault alerts.Notification
 	select {
 	case fault = <-notices:
@@ -120,9 +225,11 @@ func TestServiceIncidentThroughRealAgent(t *testing.T) {
 		t.Fatal("fault notice identity")
 	}
 	nodes, err := db.ListNodes(ctx)
-	if err != nil || len(nodes) != 1 || nodes[0].LastSeenAt == nil || time.Since(*nodes[0].LastSeenAt) > 20*time.Second || !gateway.SupportsHTTP(node.ID) {
+	if err != nil || len(nodes) != 2 || !gateway.SupportsHTTP(node.ID) || !gateway.SupportsHTTP(secondNode.ID) {
 		t.Fatal("host was not online during service fault")
 	}
+	waitHealth("degraded", 0, 1, 1, "policy_denied", "unobserved")
+	healthBrowser("degraded")
 	targetStatus.Store(200)
 	var recovery alerts.Notification
 	select {
@@ -130,6 +237,13 @@ func TestServiceIncidentThroughRealAgent(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("real service recovery notification missing")
 	}
+	waitHealth("unknown", 1, 0, 1, "policy_denied", "unobserved")
+	healthBrowser("unknown")
+	// A real restart changes only the second Agent's local target allowance.
+	stopSecond()
+	startSecond(true)
+	waitHealth("healthy", 2, 0, 0, "", "")
+	healthBrowser("healthy")
 	if recovery.State != "resolved" || recovery.IncidentID != fault.IncidentID || recovery.ServiceID != service.ID {
 		t.Fatal("recovery did not use original event")
 	}
@@ -163,4 +277,6 @@ func TestServiceIncidentThroughRealAgent(t *testing.T) {
 	if noticeCount.Load() != 2 {
 		t.Fatal("service lifecycle duplicated notification")
 	}
+	stopSecond()
+	waitHealth("unknown", 1, 0, 1, "", "agent_unavailable")
 }

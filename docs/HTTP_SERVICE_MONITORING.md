@@ -13,6 +13,12 @@ management UI and per-observer statistics are connected. Production execution is
 opt-in. Per-observer service incidents and delivery now reuse the durable alert
 platform; see [service incidents](SERVICE_INCIDENTS.md). Maintenance-adjusted
 statistics, certificate reminders and release acceptance remain open.
+
+The private service list and current-state endpoint now include per-observer
+health and a declared any-required-observer-failure summary, sharing the incident
+evaluation contract. Partial/missing results cannot produce overall health;
+current observer coverage differs from historical statistics. See
+[current service health](SERVICE_HEALTH.md) for snapshots, privacy and validation.
 Syntax acceptance
 does not allow a network request or waive the Agent address policy below.
 

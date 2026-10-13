@@ -35,7 +35,12 @@ Full database restore retains service settings, event identity and pending deliv
 evidence. Missing, pending, stale or unsupported observations remain unknown,
 including when the current Gateway cannot execute HTTP. See
 [service incidents](SERVICE_INCIDENTS.md) for revision, privacy and timing contracts.
-Maintenance-adjusted statistics, certificate reminders, overall service summary,
+The private service list/detail now summarize current observers using
+any-required-observer-failure: one failure degrades, partial success remains
+unknown, and only all fresh successes are healthy. Current observer coverage is
+separate from historical slot coverage/success rate. Snapshot expiry and read
+failure revoke old healthy presentation; see [current service health](SERVICE_HEALTH.md).
+Maintenance-adjusted statistics, certificate reminders,
 service/observer/time-range links and capacity/release acceptance remain incomplete.
 Configuration enablement alone does not start execution; v1 Agents remain supported
 for their existing capabilities and never receive HTTP tasks.

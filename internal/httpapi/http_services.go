@@ -62,12 +62,30 @@ func (s *Server) listHTTPServices(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pagination"})
 		return
 	}
-	items, next, err := s.store.ListHTTPServices(c.Request.Context(), c.Query("after"), limit)
+	now := time.Now().UTC()
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+	items, next, err := s.store.ListHTTPServices(ctx, c.Query("after"), limit)
 	if err != nil {
 		writeHTTPServiceError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"services": items, "next_cursor": next, "execution_enabled": s.gateway.HTTPProbesEnabled()})
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	snapshots, err := s.store.HTTPHealthSnapshots(ctx, ids, now)
+	if err != nil {
+		writeHTTPServiceError(c, err)
+		return
+	}
+	enabled, available := s.gateway.HTTPAvailability(healthNodeIDs(snapshots))
+	visible := make([]serviceHealthListItem, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		summary, _ := assessServiceSnapshot(snapshot, enabled, available, now)
+		visible = append(visible, serviceHealthListItem{HTTPServiceSummary: snapshot.Service, Health: summary})
+	}
+	c.JSON(http.StatusOK, gin.H{"services": visible, "next_cursor": next, "execution_enabled": enabled})
 }
 
 func (s *Server) deleteHTTPService(c *gin.Context) {
