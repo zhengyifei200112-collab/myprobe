@@ -15,6 +15,8 @@ import (
 var ErrObservationObsolete = errors.New("alert rule changed during evaluation")
 
 type Incident struct {
+	ServiceID            string                          `json:"service_id,omitempty"`
+	ServiceName          string                          `json:"service_name,omitempty"`
 	Seq                  int64                           `json:"seq"`
 	ID                   string                          `json:"id"`
 	Fingerprint          string                          `json:"-"`
@@ -53,6 +55,8 @@ type AlertObservation struct {
 
 // DeliveryNotification is a durable rendered payload, never channel credentials.
 type DeliveryNotification struct {
+	ServiceID    string    `json:"service_id,omitempty"`
+	ServiceName  string    `json:"service_name,omitempty"`
 	IncidentPath string    `json:"incident_path,omitempty"`
 	Title        string    `json:"title"`
 	Message      string    `json:"message"`
@@ -102,6 +106,7 @@ func scanIncident(row rowScanner) (Incident, error) {
 		return i, err
 	}
 	i.RuleSnapshot = json.RawMessage(snapshot)
+	i.loadServiceSubject()
 	if i.StartedAt, err = parseTime(started); err != nil {
 		return i, err
 	}
@@ -121,6 +126,17 @@ func scanIncident(row rowScanner) (Incident, error) {
 		}
 	}
 	return i, nil
+}
+
+func (i *Incident) loadServiceSubject() {
+	if i.Kind != "service_http" {
+		return
+	}
+	var snapshot incidentRuleSnapshot
+	var config ServiceRuleConfig
+	if json.Unmarshal(i.RuleSnapshot, &snapshot) == nil && json.Unmarshal(snapshot.Config, &config) == nil {
+		i.ServiceID, i.ServiceName = config.ServiceID, config.ServiceName
+	}
 }
 func ruleInTransaction(ctx context.Context, tx *sql.Tx, id string) (AlertRule, error) {
 	var rule AlertRule
@@ -283,6 +299,7 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 			return nil, tx.Commit()
 		}
 		i = Incident{ID: randomID(), Fingerprint: fingerprint, RuleID: rule.ID, NodeID: node.ID, NodeName: node.Name, Kind: rule.Kind, RuleSnapshot: snapshotRule(rule), State: "pending", StartedAt: o.At, UpdatedAt: o.At, TriggerSince: &o.At, Origin: "live"}
+		i.loadServiceSubject()
 		result, err := tx.ExecContext(ctx, `INSERT INTO alert_incidents(id,fingerprint,rule_id,node_id,node_name,kind,rule_snapshot_json,state,started_at,updated_at,trigger_since) VALUES(?,?,?,?,?,?,?,'pending',?,?,?)`, i.ID, i.Fingerprint, i.RuleID, i.NodeID, i.NodeName, i.Kind, string(i.RuleSnapshot), formatTime(o.At), formatTime(o.At), formatTime(o.At))
 		if err != nil {
 			return nil, err
@@ -436,7 +453,7 @@ func queueIncidentNotification(ctx context.Context, tx *sql.Tx, i *Incident, cha
 	if err != nil {
 		return err
 	}
-	payload, err := json.Marshal(DeliveryNotification{Title: title, Message: message, State: i.State, Kind: i.Kind, NodeID: i.NodeID, NodeName: i.NodeName, RuleID: i.RuleID, IncidentID: i.ID, Timestamp: o.At, IncidentPath: notificationlink.Incident(origin, i.ID)})
+	payload, err := json.Marshal(DeliveryNotification{ServiceID: i.ServiceID, ServiceName: i.ServiceName, Title: title, Message: message, State: i.State, Kind: i.Kind, NodeID: i.NodeID, NodeName: i.NodeName, RuleID: i.RuleID, IncidentID: i.ID, Timestamp: o.At, IncidentPath: notificationlink.Incident(origin, i.ID)})
 	if err != nil {
 		return err
 	}

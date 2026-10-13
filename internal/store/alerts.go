@@ -212,6 +212,7 @@ func (s *Store) DeleteNotificationTemplate(ctx context.Context, id string) error
 }
 
 var ErrNotificationChannelInUse = errors.New("notification channel is referenced by an alert policy; update or delete the policy first")
+var ErrServiceNotificationChannelInUse = errors.New("notification channel is referenced by service alerts; update service alerting first")
 
 func (s *Store) DeleteNotificationChannel(ctx context.Context, id string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -220,7 +221,7 @@ func (s *Store) DeleteNotificationChannel(ctx context.Context, id string) error 
 	}
 	defer tx.Rollback()
 	// The write reservation also serializes this check with policy creation.
-	result, err := tx.ExecContext(ctx, `DELETE FROM notification_channels WHERE id=? AND NOT EXISTS(SELECT 1 FROM alert_policies WHERE channel_id=?)`, id, id)
+	result, err := tx.ExecContext(ctx, `DELETE FROM notification_channels WHERE id=? AND NOT EXISTS(SELECT 1 FROM alert_policies WHERE channel_id=?) AND NOT EXISTS(SELECT 1 FROM http_service_alerts WHERE channel_id=?)`, id, id, id)
 	if err != nil {
 		return err
 	}
@@ -236,6 +237,13 @@ func (s *Store) DeleteNotificationChannel(ctx context.Context, id string) error 
 		}
 		if err != nil {
 			return err
+		}
+		var serviceUsed bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM http_service_alerts WHERE channel_id=?)`, id).Scan(&serviceUsed); err != nil {
+			return err
+		}
+		if serviceUsed {
+			return ErrServiceNotificationChannelInUse
 		}
 		return ErrNotificationChannelInUse
 	}
@@ -265,7 +273,7 @@ func (s *Store) UpdateAlertRule(ctx context.Context, id, nodeID, channelID, kind
 	}
 	result, err := s.db.ExecContext(ctx, `UPDATE alert_rules SET node_id=?,channel_id=?,kind=?,config_json=?,enabled=?,cooldown_seconds=?,updated_at=?
 		WHERE id=? AND EXISTS(SELECT 1 FROM nodes WHERE id=?) AND EXISTS(SELECT 1 FROM notification_channels WHERE id=?)
-		AND NOT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id)`, nodeID, channelID, kind, string(config), enabled, cooldown, nowText(), id, nodeID, channelID)
+		AND NOT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id) AND NOT EXISTS(SELECT 1 FROM http_service_rule_bindings WHERE rule_id=alert_rules.id)`, nodeID, channelID, kind, string(config), enabled, cooldown, nowText(), id, nodeID, channelID)
 	if err != nil {
 		return AlertRule{}, err
 	}
@@ -317,7 +325,7 @@ func (s *Store) ListAlertRules(ctx context.Context) ([]AlertRule, error) {
 }
 
 func (s *Store) DeleteAlertRule(ctx context.Context, id string) error {
-	result, err := s.db.ExecContext(ctx, `DELETE FROM alert_rules WHERE id=? AND NOT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id)`, id)
+	result, err := s.db.ExecContext(ctx, `DELETE FROM alert_rules WHERE id=? AND NOT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id) AND NOT EXISTS(SELECT 1 FROM http_service_rule_bindings WHERE rule_id=alert_rules.id)`, id)
 	if err != nil {
 		return err
 	}
@@ -332,16 +340,20 @@ func (s *Store) DeleteAlertRule(ctx context.Context, id string) error {
 }
 
 var ErrAlertRuleManaged = errors.New("rule is managed by a scoped policy; edit or delete the policy instead")
+var ErrServiceAlertRuleManaged = errors.New("rule is managed by service alert configuration; edit service alerting instead")
 
 // The mutation itself checks binding ownership atomically. This follow-up read
 // only classifies rejection; a concurrent removal cannot authorize a stale write.
 func (s *Store) alertRuleWriteConflict(ctx context.Context, id string) error {
-	var exists bool
-	if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=?)`, id).Scan(&exists); err != nil {
+	var exists, serviceManaged bool
+	if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM alert_policy_rule_bindings WHERE rule_id=?),EXISTS(SELECT 1 FROM http_service_rule_bindings WHERE rule_id=?)`, id, id).Scan(&exists, &serviceManaged); err != nil {
 		return err
 	}
 	if exists {
 		return ErrAlertRuleManaged
+	}
+	if serviceManaged {
+		return ErrServiceAlertRuleManaged
 	}
 	return ErrNotFound
 }

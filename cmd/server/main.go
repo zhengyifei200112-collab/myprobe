@@ -72,6 +72,8 @@ func main() {
 		logger.Info("HTTP service probing enabled", "maintenance_excluded", false)
 	}
 	alertService := alerts.New(database, cfg.EncryptionKey, nil, logger, cfg.NotificationOrigin)
+	alertService.EnableHTTPServiceAlerts(cfg.HTTPProbesEnabled)
+	alertService.SetHTTPAgentAvailability(gateway.SupportsHTTP)
 	go alertService.Run(runCtx)
 	go runRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger)
 	api := httpapi.NewWithAlertService(cfg, database, authService, gateway, hub, alertService)

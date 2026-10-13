@@ -599,7 +599,7 @@ onMounted(async () => {
         <section class="admin-heading"><div><span class="eyebrow">PORTABILITY &amp; RECOVERY</span><h1>迁移与备份</h1><p>迁移可审阅配置，或创建包含全部数据的口令加密数据库备份。</p></div><span class="count-pill">配置版本 2</span></section>
         <div class="maintenance-grid">
           <section class="admin-panel maintenance-card">
-            <span class="eyebrow">CONFIGURATION</span><h2>版本化配置</h2><p>JSON 配置包含 HTTP 服务目标 URL、断言和节点关联，请妥善保存。不包含管理员密码、Agent Token、通知密文、分享密码和历史指标。支持导入 v1 / v2 配置，使用合并模式。</p>
+            <span class="eyebrow">CONFIGURATION</span><h2>版本化配置</h2><p>JSON 配置包含 HTTP 服务目标 URL、断言和节点关联，请妥善保存。不包含服务告警配置、范围告警策略、故障及投递历史、管理员密码、Agent Token、通知密文、分享密码和历史指标；这些数据需使用完整数据库备份迁移。支持导入 v1 / v2 配置，使用合并模式。</p>
             <div class="maintenance-actions"><button class="primary-button" :disabled="busy" @click="exportConfigFile">导出配置 JSON</button></div>
             <div class="maintenance-divider"></div>
             <label class="file-field">选择配置文件<input type="file" accept="application/json,.json" @change="selectConfigFile"></label>

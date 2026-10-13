@@ -27,10 +27,23 @@ administrator configuration/results, certificate evidence and per-observer
 statistics. Policy rejection counts as unobserved, not a target failure. See
 [HTTP service monitoring](HTTP_SERVICE_MONITORING.md) for contracts and evidence.
 Live HTTP GET/HEAD and six theme/viewport browser CRUD/result flows have opt-in
-integration evidence. Maintenance-adjusted statistics, HTTP incidents, certificate
-reminders, live HTTPS/browser acceptance and capacity validation remain incomplete.
+integration evidence, including live HTTPS verification failures. Service settings
+and per-observer fault/recovery now reuse the incident state machine, suppression,
+Outbox and original-event links. A real online Agent checking a failing site then
+a recovered site verifies both persisted receipts and protected browser navigation.
+Full database restore retains service settings, event identity and pending delivery
+evidence. Missing, pending, stale or unsupported observations remain unknown,
+including when the current Gateway cannot execute HTTP. See
+[service incidents](SERVICE_INCIDENTS.md) for revision, privacy and timing contracts.
+Maintenance-adjusted statistics, certificate reminders, overall service summary,
+service/observer/time-range links and capacity/release acceptance remain incomplete.
 Configuration enablement alone does not start execution; v1 Agents remain supported
 for their existing capabilities and never receive HTTP tasks.
+
+Portable configuration v2 includes service definitions and observer assignments,
+but excludes service alert settings, scope policies, incidents and delivery history.
+Use a complete encrypted database backup to transfer those records; importing a
+service definition changes its revision and administratively ends old incidents.
 
 | Area | Requirement | Acceptance evidence | Status |
 | --- | --- | --- | --- |

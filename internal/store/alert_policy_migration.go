@@ -37,7 +37,7 @@ func migrateLegacyAlertPolicies(ctx context.Context, tx *sql.Tx) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id,node_id,channel_id,kind,config_json,enabled,cooldown_seconds,created_at,updated_at FROM alert_rules WHERE NOT EXISTS(SELECT 1 FROM alert_policy_rule_bindings b WHERE b.rule_id=alert_rules.id) ORDER BY id LIMIT 1001`)
+	rows, err := tx.QueryContext(ctx, `SELECT id,node_id,channel_id,kind,config_json,enabled,cooldown_seconds,created_at,updated_at FROM alert_rules WHERE kind<>'service_http' AND NOT EXISTS(SELECT 1 FROM alert_policy_rule_bindings b WHERE b.rule_id=alert_rules.id) ORDER BY id LIMIT 1001`)
 	if err != nil {
 		return 0, err
 	}

@@ -30,6 +30,9 @@ func TestServiceIncidentIntegrationUpgradesEitherDevelopmentSchema(t *testing.T)
 			}
 			for _, entry := range entries {
 				name := entry.Name()
+				if name >= "034_" {
+					continue
+				}
 				httpMigration := name >= "016_" && name < "021_"
 				if source == "http" && (name >= "021_" || name >= "015_" && name < "016_") || source == "incidents" && httpMigration {
 					continue

@@ -18,6 +18,13 @@ var ErrHTTPBusy = errors.New("HTTP session task limit reached")
 func (g *Gateway) EnableHTTPProbes(enabled bool) { g.httpEnabled.Store(enabled) }
 func (g *Gateway) HTTPProbesEnabled() bool       { return g.httpEnabled.Load() }
 
+func (g *Gateway) SupportsHTTP(nodeID string) bool {
+	g.sessionsMu.RLock()
+	defer g.sessionsMu.RUnlock()
+	session := g.sessions[nodeID]
+	return g.httpEnabled.Load() && session != nil && session.httpAllowed
+}
+
 func (g *Gateway) DispatchHTTP(ctx context.Context, nodeID, serviceID string, scheduledAt time.Time) error {
 	g.sessionsMu.RLock()
 	session := g.sessions[nodeID]

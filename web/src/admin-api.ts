@@ -454,6 +454,8 @@ export async function uploadDatabaseRestore(file: File, passphrase: string): Pro
 }
 
 export interface Incident {
+	service_id?: string
+	service_name?: string
   seq: number; id: string; node_id: string; node_name: string; kind: string
   state: 'pending' | 'firing' | 'resolved'; started_at: string; resolved_at?: string
   observation_stale: boolean; message: string; origin: string; approximate_start: boolean; resolution_reason?: string
@@ -521,3 +523,18 @@ export const loadIncidentSilences = (id: string, after = '') => request<SilenceP
 export const loadDeliverySilences = (id: string, after = '') => request<SilencePage>(`/api/v1/admin/notification-deliveries/${encodeURIComponent(id)}/silences?limit=25&after=${encodeURIComponent(after)}`)
 export const createIncidentSilence = (id: string, requestID: string, params: SilenceCreateParams) => request<SilenceMutationResult>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/silences`, { method: 'POST', body: JSON.stringify({ request_id: requestID, ...params }) })
 export const cancelIncidentSilence = (id: string, silenceID: string, requestID: string, revision: number) => request<SilenceMutationResult>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/silences/${encodeURIComponent(silenceID)}/cancel`, { method: 'POST', body: JSON.stringify({ request_id: requestID, revision }) })
+
+export interface ServiceAlertSettings {
+  service_id: string
+  service_revision: number
+  revision: number
+  channel_id: string
+  enabled: boolean
+  duration_seconds: number
+  recovery_seconds: number
+  repeat_seconds: number
+  cooldown_seconds: number
+}
+export const loadServiceAlerting = (id: string) => request<{ alerting: ServiceAlertSettings; execution_enabled: boolean }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/alerting`)
+export const saveServiceAlerting = (id: string, v: ServiceAlertSettings) => request<{ alerting: ServiceAlertSettings; execution_enabled: boolean }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/alerting`, { method: 'PUT', body: JSON.stringify({ service_revision: v.service_revision, revision: v.revision, channel_id: v.channel_id, enabled: v.enabled, duration_seconds: v.duration_seconds, recovery_seconds: v.recovery_seconds, repeat_seconds: v.repeat_seconds, cooldown_seconds: v.cooldown_seconds }) })
+export const loadServiceIncidents = (id: string, before = 0) => request<{ incidents: Incident[]; next_before: number }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/incidents?limit=25&before=${before}`)

@@ -13,7 +13,18 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   development branch, preserving execution/origin configuration, private service
   management and notification navigation. Separate HTTP/incident development
   database upgrade fixtures preserve pending work and original history. Service
-  incident evaluation, certificate reminders and maintenance statistics remain open.
+  certificate reminders and maintenance statistics remain open.
+- Added private HTTP service alert settings and per-observer incidents to the
+  existing state machine and delivery queue. Actual current-revision failures and
+  recoveries notify through configured channels; missing, pending, offline,
+  unsupported, disabled-execution and stale observations remain unknown. Event
+  history and notifications retain safe service identity and original-event links.
+  Management changes fence stale observations and in-flight receipt authority;
+  existing silence, node maintenance, retry and full database restore apply.
+- Added service alert configuration/history management, dual revision conflict
+  checks and responsive controls. Portable JSON export explicitly excludes alert
+  settings/history; complete database backup includes them. Public-node and Agent
+  payloads do not gain service details.
 - New individual incident notifications capture an authenticated event URL when
   queued. Webhook JSON includes `incident_path`, custom Webhooks support
   `{{incident.url}}`, and Telegram/Discord/SMTP append a formatted event entry.
@@ -21,6 +32,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   original bytes. Configure `MYPROBE_NOTIFICATION_ORIGIN` for absolute links.
 
 ### Fixed
+
+- Forward-only migration 034 preserves legacy rules, events, states, receipts and
+  queued incident work while adding managed service bindings/settings. The rebuilt
+  rule-kind constraint also accepts existing memory, disk and latency kinds.
+  Service bindings cannot enter host-scope migration or direct host-rule editing.
 
 - Delivery completion now rechecks current policy, rule, node and channel state
   before applying a receipt. Management changes during an actual request cancel

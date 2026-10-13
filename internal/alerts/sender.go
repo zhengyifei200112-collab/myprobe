@@ -40,6 +40,8 @@ type ChannelConfig struct {
 }
 
 type Notification struct {
+	ServiceID         string `json:"service_id,omitempty"`
+	ServiceName       string `json:"service_name,omitempty"`
 	IncidentPath      string `json:"incident_path,omitempty"`
 	templateEventTime string
 	SnapshotID        string                              `json:"snapshot_id,omitempty"`

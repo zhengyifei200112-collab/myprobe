@@ -10,7 +10,9 @@ The v2 envelope, mutual-capability helper and Server WebSocket endpoint are
 implemented, with Agent v2-first transport selection and bounded v1 fallback.
 Agent execution, Server ingestion, durable scheduling, configuration transfer,
 management UI and per-observer statistics are connected. Production execution is
-opt-in; maintenance integration, service alerts and release acceptance remain open.
+opt-in. Per-observer service incidents and delivery now reuse the durable alert
+platform; see [service incidents](SERVICE_INCIDENTS.md). Maintenance-adjusted
+statistics, certificate reminders and release acceptance remain open.
 Syntax acceptance
 does not allow a network request or waive the Agent address policy below.
 
@@ -208,7 +210,8 @@ A real Agent/Gateway/SQLite/scheduler test verifies negotiation, periodic dispat
 result persistence and statistics for policy denial without opening a target
 socket. Opt-in private-target tests additionally exercise real successful GET/HEAD,
 status/content mismatch, redirect limits, oversized bodies and timeout using the unchanged production executor and
-address policy. Maintenance exclusion, service incidents, certificate notifications,
+address policy. Service fault/recovery delivery also has real Agent and browser
+acceptance on the combined development branch. Maintenance exclusion, certificate notifications,
 historical binary compatibility and capacity acceptance remain release work.
 
 ### Reproducible live HTTP acceptance
@@ -354,7 +357,9 @@ or availability statuses. Deletion confirms removal of configuration and history
 Agent-local address policy is explained without suggesting the form can override it.
 `scripts/http-services-ui.cjs` checks create, numeric round-trip, conflict, cancel
 and delete with intercepted APIs at 360/768/1440 px in both themes. Live-backend UI
-acceptance, result/certificate views, maintenance and alert integration remain.
+acceptance and result/certificate views have since gained live tests; service alert
+settings and incidents are described in [service incidents](SERVICE_INCIDENTS.md).
+Maintenance-adjusted statistics and certificate reminders remain open.
 
 ### Configuration transfer v2
 

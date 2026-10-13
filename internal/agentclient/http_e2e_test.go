@@ -60,7 +60,7 @@ func startPrivateHTTPTarget(t *testing.T) (Config, string) {
 	return startPrivateTarget(t, false)
 }
 
-func startPrivateTarget(t *testing.T, useTLS bool) (Config, string) {
+func startPrivateTarget(t *testing.T, useTLS bool, override ...http.Handler) (Config, string) {
 	t.Helper()
 	if os.Getenv("MYPROBE_TEST_PRIVATE_HTTP") != "1" {
 		t.Skip("set MYPROBE_TEST_PRIVATE_HTTP=1 in an isolated environment")
@@ -104,6 +104,9 @@ func startPrivateTarget(t *testing.T, useTLS bool) (Config, string) {
 	}))
 	target.Listener.Close()
 	target.Listener = listener
+	if len(override) == 1 {
+		target.Config.Handler = override[0]
+	}
 	// Expected TLS handshake errors must not print fixture interface addresses.
 	target.Config.ErrorLog = log.New(io.Discard, "", 0)
 	scheme := "http://"

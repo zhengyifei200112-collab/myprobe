@@ -45,6 +45,13 @@ func aggregateContentParts(n Notification) (string, string) {
 func telegramContent(n Notification, mode string) string {
 	text := n.Title + "\n" + n.Message
 	if n.AggregateID == "" {
+		if n.ServiceID != "" {
+			if mode == "HTML" {
+				text = html.EscapeString(text)
+			} else if mode == "MarkdownV2" {
+				text = escapeMarkdownText(text, "\\_*[]()~`>#+-=|{}.!")
+			}
+		}
 		return text + incidentContentSuffix(n.IncidentPath, mode)
 	} // Preserve the existing single-template contract.
 	text, link := aggregateContentParts(n)
@@ -69,6 +76,9 @@ func telegramContent(n Notification, mode string) string {
 }
 func discordContent(n Notification) string {
 	if n.AggregateID == "" {
+		if n.ServiceID != "" {
+			return escapeMarkdownText(n.Title+"\n"+n.Message, "\\_*[]()~`>#+-=|{}.!") + incidentContentSuffix(n.IncidentPath, "discord")
+		}
 		return "**" + n.Title + "**\n" + n.Message + incidentContentSuffix(n.IncidentPath, "discord")
 	}
 	text, link := aggregateContentParts(n)

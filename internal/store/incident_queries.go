@@ -71,14 +71,15 @@ func (s *Store) ListDeliveryAttemptPage(ctx context.Context, deliveryID string, 
 }
 
 type IncidentFilter struct {
-	Before int64
-	Limit  int
-	State  string
-	NodeID string
+	ServiceID string
+	Before    int64
+	Limit     int
+	State     string
+	NodeID    string
 }
 
 func (s *Store) ListIncidents(ctx context.Context, f IncidentFilter) ([]Incident, error) {
-	if f.Limit < 1 || f.Limit > 100 || f.Before < 0 || len(f.NodeID) > 128 {
+	if f.Limit < 1 || f.Limit > 100 || f.Before < 0 || len(f.NodeID) > 128 || len(f.ServiceID) > 128 {
 		return nil, errors.New("invalid incident filter")
 	}
 	if f.State != "" && f.State != "pending" && f.State != "firing" && f.State != "resolved" {
@@ -86,6 +87,10 @@ func (s *Store) ListIncidents(ctx context.Context, f IncidentFilter) ([]Incident
 	}
 	query := "SELECT " + incidentColumns + " FROM alert_incidents WHERE 1=1"
 	args := []any{}
+	if f.ServiceID != "" {
+		query += " AND kind='service_http' AND json_extract(rule_snapshot_json,'$.config.service_id')=?"
+		args = append(args, f.ServiceID)
+	}
 	if f.Before > 0 {
 		query += " AND seq < ?"
 		args = append(args, f.Before)

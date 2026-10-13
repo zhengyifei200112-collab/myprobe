@@ -46,6 +46,8 @@ func New(cfg config.Config, database *store.Store, authService *auth.Service, ga
 // NewWithAlertService shares the evaluator used by the application runtime so
 // administrative preparation status describes that evaluator, not a dormant copy.
 func NewWithAlertService(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub, alertService *alerts.Service) *Server {
+	alertService.EnableHTTPServiceAlerts(cfg.HTTPProbesEnabled)
+	alertService.SetHTTPAgentAvailability(gateway.SupportsHTTP)
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	gateway.SetTrustedProxies(cfg.TrustedProxies)
@@ -136,6 +138,9 @@ func (s *Server) routes() {
 	services.GET("/:serviceID", s.getHTTPService)
 	services.GET("/:serviceID/results", s.recentHTTPResults)
 	services.GET("/:serviceID/statistics", s.httpServiceStatistics)
+	services.GET("/:serviceID/alerting", s.getServiceAlerting)
+	services.GET("/:serviceID/incidents", s.serviceIncidents)
+	services.PUT("/:serviceID/alerting", s.putServiceAlerting)
 	services.PUT("/:serviceID", s.replaceHTTPService)
 	admin.GET("/nodes", s.adminNodes)
 	admin.POST("/nodes", s.createNode)
@@ -905,7 +910,13 @@ func (s *Server) listAlertRules(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list alert rules"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"rules": items})
+	visible := make([]store.AlertRule, 0, len(items))
+	for _, item := range items {
+		if item.Kind != "service_http" {
+			visible = append(visible, item)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"rules": visible})
 }
 
 func (s *Server) createAlertRule(c *gin.Context) {
@@ -1222,7 +1233,7 @@ func writeAlertError(c *gin.Context, err error) {
 		return
 	} else if errors.Is(err, store.ErrNotFound) {
 		status = http.StatusNotFound
-	} else if errors.Is(err, store.ErrNotificationChannelInUse) || errors.Is(err, store.ErrAlertRuleManaged) {
+	} else if errors.Is(err, store.ErrNotificationChannelInUse) || errors.Is(err, store.ErrAlertRuleManaged) || errors.Is(err, store.ErrServiceNotificationChannelInUse) || errors.Is(err, store.ErrServiceAlertRuleManaged) {
 		status = http.StatusConflict
 	} else if errors.Is(err, alerts.ErrEncryptionNotConfigured) {
 		status = http.StatusServiceUnavailable

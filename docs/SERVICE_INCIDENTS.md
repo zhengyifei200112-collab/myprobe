@@ -1,64 +1,98 @@
-# Service availability and durable incidents
+# HTTP 服务故障事件：实施与后续开发
 
-Roadmap authority: `MyProbe后续开发文档.md`, sections 6 and 18.5.
-Status: integration foundation; service incidents/reminders are not implemented yet.
+需求基线：工作区 MyProbe后续开发文档.md 第 6、17.3、18.5 节。
+当前状态：feature/service-incidents 已实现服务告警及单观测点事件，待评审；不表示已合并、发布或完成 M3。
+依赖：HTTP PR #53（d711950）与告警 PR #58（7bee226），集成基础 f384620。草稿 PR #59 保留完整依赖，源 PR 未合并。
 
-The `feature/service-incidents` branch integrates HTTP checks from PR #53
-(`d711950c2af8da9fe5147ee9d56259cfbb3c8e41`) with the durable incident platform
-from PR #58 (`7bee226289bdd73e5e7c6b721ca618f5427b89e4`). Both source PRs remain
-unmerged. The combined branch preserves their contracts and is not a release.
-Reserved HTTP migrations 016–020 coexist with incident 015 and alert 021–033;
-existing numbered migrations have not been rewritten.
+## 用户流程
 
-## Integrated baseline
+1. 创建 HTTP 服务，选择 1–100 个观测节点；服务端设置 MYPROBE_HTTP_PROBES_ENABLED=true 并重启，Agent 协商 HTTP 能力且本地目标策略允许执行。
+2. 进入管理中心 → HTTP 服务 → 服务告警与事件，选择已有通知通道并启用服务故障通知。保存告警不会开启 HTTP 执行。
+3. 主机仍在线但网站发生实际检查失败时，该观测点生成事件；达到触发持续时间后，使用原有通知队列发送。
+4. 点击消息中的事件链接；未登录时先登录，再进入原事件的当前状态、知悉、静默、维护原因及投递历史。
+5. 新鲜成功结果达到恢复持续时间后，原事件结束并按既有投递规则通知恢复。通知失败不会抹掉技术事件。
 
-HTTP execution remains explicitly opt-in. Server startup preserves both HTTP
-execution/capability negotiation and validated notification-origin configuration.
-Management exposes both HTTP service and notification centers, preserving private
-configuration, bounded statistics, deep-link login and configuration transfer.
-Generated assets are rebuilt from the combined source rather than selected from
-either source branch. Public-node payloads and the existing v1 capability contract
-remain as documented by the HTTP and incident specifications.
+当前每个服务/观测点独立判断。事件列表不是服务整体健康摘要；没有事件、没有结果、没有分母都不能表示检查成功。最近结果和覆盖率仍应同时查看。
 
-Upgrade tests independently construct the HTTP-development schema and the
-incident-development schema, then apply missing migrations. They verify original
-HTTP configuration/task/result IDs, pending-result admission, incident identity,
-aggregate frozen body/key/member history, current lease completion and channel wait.
-Foreign-key checks and repeat migration pass. These fixtures are not acceptance of
-every historical release binary or an owner-approved production rollout.
+## 观测判定契约
 
-Real Agent/scheduler/Gateway tests cover policy denial as unobserved, allowed private
-GET/HEAD, status/content failures, redirect limit, oversized response, timeout and
-untrusted TLS. The allowed fixture uses an explicit Agent CIDR/port policy and the
-production executor. HTTP browser CRUD/execution/reload/result flows pass in both
-themes at 360/768/1440 px, alongside all policy, ACK, silence, maintenance, channel
-wait, single-event-link and aggregation browser regressions. Local full Go has only
-the known Windows collector path case (separate PR #47); vet/build/diff checks pass.
-Local CGO is disabled, so no local race-detector evidence is claimed.
+仅消费 Store 已接纳的任务结果，绑定当前服务版本、服务 ID、观测节点 ID 和计划槽。
+选择当前版本中不晚于评估时刻的最近计划任务；结果缺失的较新任务会遮住较旧结果，未来任务不能遮住当前结果。
 
-## Required next implementation
+| 输入 | 处理 |
+| --- | --- |
+| 当前在线且支持 HTTP，实际 failure，合法分类，计划及完成时间新鲜 | 该观测点发生故障 |
+| 同样条件下实际 success | 该观测点正常，可推进原事件恢复窗口 |
+| 未派发、等待结果、结果未接纳、过期或 unobserved | 未知，不制造故障或恢复 |
+| Agent 离线、无能力元数据、未协商 HTTP 或当前 Gateway 会话不支持 | 未知，即使数据库仍有旧成功结果 |
+| 服务端执行关闭 | 未知；历史保留，不伪造恢复 |
+| 服务、告警或节点关联变更 | 旧观察不能提交；正常同步以管理原因结束原事件 |
 
-1. Persist service alert configuration and service/observer event identity. Reuse
-   existing incident state and notification Outbox/attempts, including suppression,
-   retries, restore and management fences. Do not create a second delivery queue.
-   Service-bound execution rules must not be migrated into host-scope policies.
-2. Evaluate fresh, admitted current-revision observations per selected observer.
-   Missing, offline, unsupported, policy-denied or unexecuted checks are unknown;
-   they must neither manufacture recovery nor become target failures. A host can
-   remain online while an actual failed service observation creates a fault.
-   Service summary must disclose its per-observer aggregation rule.
-3. Persist 14/7/1-day certificate reminder deduplication by service, certificate
-   identity and threshold. Cover replacement, repeated reports, exact boundaries
-   and restart; certificate display alone does not prove reminder delivery.
-4. Exclude the union of maintenance plan slots from service statistics while
-   retaining original observations and separately reporting exclusions. Overlap
-   must not double-subtract; notification suppression alone is insufficient.
-5. Add protected service/observer/time-range navigation and diagnostics for DNS,
-   TCP, TLS, HTTP status, assertions, missing execution and unsupported capability.
-   Avoid raw URLs, bodies, internal addresses and credentials in notifications or
-   public output. Verify real Agent failure → incident → local receiver → login
-   navigation → recovery with restart/restore and concurrent configuration changes.
+计划时间和完成时间均要求年龄不超过 max(60 秒, 3 × 服务检查间隔)。未来超过 30 秒的完成时间视为未知。主机 last_seen 不超过 max(20 秒, 3 × 节点上报间隔)，未来超过 30 秒也视为未知。生产路径还要求当前 Gateway 的活动会话实际协商 HTTP；仅数据库 capability 字段不能证明当前会话可执行。
 
-Release integration, data retention/capacity, historical Agent acceptance, public
-provider/client rendering and owner merge approval remain separate gates. M1–M5
-retain their original scope; this integration does not complete SVC-03 or M3.
+失败分类限于 DNS、连接拒绝、超时、TLS 无效、证书过期、状态码不符、内容断言不符、响应过大、重定向超限。缺测的 unsupported/busy/cancelled/policy_denied 等属于未观测。
+
+未知会清空连续触发/恢复窗口；已触发故障保持原 ID 和故障状态，标记等待新鲜观测。持续时间根据已有事件状态机的评估时刻累计，并非把单个结果外推成完整历史 SLA。
+
+## 设置、并发与管理所有权
+
+受保护接口位于 /api/v1/admin/service-monitors/:serviceID：
+
+| 接口 | 内容 |
+| --- | --- |
+| GET /alerting | 告警配置、当前服务版本及服务端执行开关 |
+| PUT /alerting | 保存配置，要求登录、CSRF、服务版本和告警版本 |
+| GET /incidents | 本服务历史，倒序游标分页，默认 25、上限 100 |
+
+GET 使用 no-store；PUT 最多 8 KiB，拒绝未知字段、尾随 JSON、数值溢出和无 enabled。单个 JSON 对象中的重复键沿用 Go 标准解码行为，不宣称严格拒绝。分页重复参数和非法游标拒绝。
+
+首次配置 revision=0，保存后为 1；每次保存递增。service_revision 同时匹配 HTTP 定义当前版本，避免旧表单覆盖已修改的服务。两版本通过同一查询快照读取，写入在事务内复核。冲突返回 409，请刷新后核对，不自动覆盖。
+
+触发与恢复持续时间为 0–2592000 秒，0 表示立即。重复提醒为 0 或 30–2592000 秒，0 使用冷却间隔，不能理解为关闭重复提醒。冷却间隔为 30–2592000 秒。保存后下一轮评估应用；通道停用只阻止投递，技术事件仍记录。
+
+配置通过 http_service_rule_bindings 生成稳定的 service_http 规则；服务规则不能进入主机范围策略迁移，主机规则编辑/删除接口拒绝直接修改。停止服务、关闭通知、删除服务或移除关联后，原事件以规则停用/变更/删除结束，不发送虚构的技术恢复。旧规则绑定保留快照身份，不因源对象删除重新变成主机规则。
+
+服务版本、告警版本、当前关联、通道和稳定规则身份在观察提交、授权发送及回执完成时重查。管理操作发生在真实请求期间，旧尝试的实际送达/失败/未知证据仍保留；失效任务取消，不能继续重试或推进旧提醒时钟。
+
+已有服务配置会引用通知通道，即使告警停用也保留引用。删除通道前改用其他通道或删除服务，不能绕过引用检查。未变更的同步不改规则更新时间。每次同步及历史绑定总量上限均为 100000；完整容量和历史绑定治理仍待验收。
+
+## 投递、维护、隐私和恢复
+
+使用既有 alert_incidents、notification_deliveries、delivery_attempts，不新增第二套发送队列。共享渠道等待、持久租约、有限重试、幂等身份、真实回执、原事件链接及知悉/静默保持现有语义。此批服务配置未开放通知聚合参数，服务通知单独排队并遵守共享通道等待。
+
+节点维护和事件静默共同抑制通知；解除其中一个不能越过另一个。全部解除后需要新鲜故障证据才发送当前摘要，不能回放旧故障。维护期间实际恢复仍记录技术状态，恢复通知遵循原有抑制规则。
+
+本批维护只处理通知抑制；HTTP 统计仍 maintenance_excluded=false，不能称为已扣除维护的 SLA。未来维护统计需以计划槽并集排除，不能从通知取消数量反推。
+
+事件及默认通知新增 service_id/service_name，仅出现在管理员接口和配置的通知目标。快照包含服务别名、版本与时序参数，不包含目标 URL、请求正文、断言值或凭据；页面与消息使用受限失败分类。公开节点和 Agent 协议不增加服务字段。Telegram HTML/MarkdownV2 和 Discord 将服务别名视为文本，生成的事件入口单独格式化；自定义 Webhook 保留已有模板规则。
+
+完整数据库备份包含告警设置、稳定绑定、事件、待发送任务、尝试历史和共享渠道等待。恢复保留原服务/规则/事件/投递 ID、正文、键和实际回执，不把未知响应改成已送达。平台的加密数据库备份仍需原有密钥管理流程。
+
+可迁移 JSON 配置 v2 仅包含服务定义和节点关联，不包含服务告警设置、范围策略或事件/投递历史。导入定义会更新服务版本，已有事件按管理变更结束；应重新核对告警。新环境迁移这些运行记录必须使用完整数据库备份，不能把 JSON 导入成功当作告警已恢复。
+
+## 迁移与可复现验证
+
+新增且仅新增前向迁移 034_service_alerts.sql。原 016–020 与 015、021–033 保持原编号和内容。034 在迁移事务内暂存并恢复 legacy alert_events/alert_states 后重建规则约束，新增 service_http，同时补齐已存在 API 支持的 memory/disk/latency。迁移不清空旧事件、状态、错误、投递或回执；故意失败验证 DDL 与数据整体回滚，重复迁移与 foreign_key_check 通过。
+
+两方向集成升级夹具分别从 HTTP 原分支和告警原分支 schema 出发，保留待结果接纳、原事件、聚合冻结正文/键/成员和租约/共享等待。服务告警额外验证完整备份恢复、管理变更期间真实回执保留、维护/静默叠加、新计划待结果遮住旧结果、能力/离线/执行开关和新鲜度边界。夹具不能代替每个历史 release 二进制验收。
+
+定向命令：go test ./internal/store ./internal/alerts ./internal/httpapi -run '^Test(Service|LatestServiceObservation|ServiceIncidentIntegration)' -count=1。
+
+真实 Agent 与浏览器：设置 MYPROBE_TEST_PRIVATE_HTTP=1、MYPROBE_TEST_HTTP_BROWSER=1 和 PLAYWRIGHT_MODULE，运行 go test ./internal/agentclient -run '^Test(HTTPPeriodic|HTTPSPeriodic|HTTPBrowserLive|ServiceIncidentThroughRealAgent)' -count=1 -v。私有测试地址由本机接口动态选择，CIDR/端口显式允许，使用生产执行器；没有放宽默认生产地址或 TLS 策略。
+
+TestServiceIncidentThroughRealAgent 运行实际 Agent、调度器、Gateway、评估与 Outbox，网站 503 → 故障通知 → 200 → 原事件恢复 → 两条持久送达回执；浏览器使用实际消息链接检查未登录不读取事件、登录回原事件、配置保存刷新、历史入口和明暗主题 360/768/1440 px。这是本地接收端验收，不是公网服务商账号或邮箱客户端验收。
+
+必需全仓检查：前端 ci/build、Go 全仓 test/vet/build、git diff --check 及既有策略/知悉/静默/维护/聚合浏览器回归。本机 CGO 关闭，不声称本地 race 通过；全仓已知 Windows 采集器路径用例由独立 PR #47 处理，不属于本批。既有 npm 五项告警和图表分包提示仍保留。
+
+## 后续实施顺序与验收标准
+
+| 顺序 | 工作 | 完成标准 |
+| --- | --- | --- |
+| 1 | 当前服务/观测点健康摘要 | 明确 any-required-observer-failure 规则；故障、成功、未知及覆盖率分别显示，空观测不能变健康 |
+| 2 | 证书 14/7/1 天提醒 | 持久按服务、证书指纹、档位去重；替换证书、重复报告、精确边界、重启/恢复均验证，不只显示证书 |
+| 3 | 维护排除统计 | 按节点和计划槽排除维护并集，保留原始结果与排除数量；重叠不双扣，取消/改窗有明确历史口径 |
+| 4 | 服务诊断与深链 | 受保护的服务/观测点/时间范围入口；DNS/TCP/TLS/状态/断言/缺执行分别说明，避免公开原始 URL/正文 |
+| 5 | 告警可迁移配置 | 设计通道身份映射及版本契约，dry-run、冲突和未知通道严格验证；保持 v1/v2 向后兼容 |
+| 6 | 发布和容量 | 跨分支迁移协调、历史 Agent、真实 Provider/客户端、保留与负载/24 小时运行、所有者审批与恢复演练 |
+
+上述工作继续使用原 M1–M5 需求范围。服务事件实现不代表证书、维护统计、完整 SVC-03、M3 或整条开发路线已交付。

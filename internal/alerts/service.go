@@ -9,6 +9,7 @@ import (
 	"math"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/notificationlink"
@@ -30,6 +31,8 @@ type RuleConfig struct {
 }
 
 type Service struct {
+	httpAlertsEnabled  atomic.Bool
+	httpAvailability   atomic.Value // func(string) bool, supplied by the current Gateway.
 	notificationOrigin string
 	linkErr            error
 	store              *store.Store
@@ -319,6 +322,8 @@ func (s *Service) evaluate(ctx context.Context, rule store.AlertRule, node store
 		return false, "", false, err
 	}
 	switch rule.Kind {
+	case "service_http":
+		return s.evaluateHTTPService(ctx, rule, node, now)
 	case "offline":
 		lastSeen := node.CreatedAt
 		if node.LastSeenAt != nil {
