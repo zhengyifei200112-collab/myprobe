@@ -16,7 +16,7 @@ func (s *Service) deliverAggregate(ctx context.Context, now time.Time) (bool, er
 		return false, err
 	}
 	send, err := s.store.PrepareAggregateSend(ctx, g.ID, g.LeaseToken, now.Add(time.Since(started)))
-	if errors.Is(err, store.ErrDeliveryCanceled) {
+	if errors.Is(err, store.ErrDeliveryCanceled) || errors.Is(err, store.ErrAggregatePreparationFailed) {
 		return true, nil
 	}
 	if err != nil {
@@ -33,6 +33,7 @@ func (s *Service) deliverAggregate(ctx context.Context, now time.Time) (bool, er
 	}
 	if deliveryErr == nil {
 		notification.IdempotencyKey = send.IdempotencyKey
+		notification.templateEventTime = send.TemplateEventTime
 		sendCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		deliveryErr = s.sender.Deliver(sendCtx, channel.Kind, config, notification)
 		cancel()

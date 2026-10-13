@@ -6,6 +6,9 @@ import (
 )
 
 func TestOriginValidationAndCanonicalLinks(t *testing.T) {
+	if _, err := NormalizeOrigin("https://" + strings.Repeat("界", 160)); err == nil {
+		t.Fatal("encoded origin exceeded its stored bound")
+	}
 	for raw, want := range map[string]string{"": "", "  https://probe.example.com/  ": "https://probe.example.com", "http://127.0.0.1:25775": "http://127.0.0.1:25775", "https://[::1]:443/": "https://[::1]:443"} {
 		got, err := NormalizeOrigin(raw)
 		if err != nil || got != want {

@@ -75,6 +75,7 @@ onMounted(() => { void refresh(); if (selectedID.value) void inspect(selectedID.
         <h4>当前逐事件结果</h4>
         <ul class="member-list"><li v-for="m in detail.members" :key="m.id"><a :href="eventPath(m.incident_id)">{{ m.node_name }} · 查看事件</a><p>{{ labels[m.status] || m.status }} · {{ m.incident_state === 'firing' ? '故障持续' : m.incident_state === 'resolved' ? '事件已恢复或结束' : '等待触发' }}{{ m.observation_stale ? ' · 观测已过期，等待新数据' : '' }}<span v-if="m.error_class"> · {{ m.error_class }}</span></p></li></ul>
         <h4>{{ snapshot ? '通知入口对应的内容及重试' : '每次发送尝试' }}</h4>
+        <p>这里展示冻结的摘要与成员，渠道可能调整格式或进一步截短。内容已生成不代表已经发出或被接收；请结合每次尝试的结果判断。</p>
         <p v-if="snapshot">以下内容对应原通知中的摘要；相同内容的多次重试共用此入口。</p>
         <p v-if="snapshot && !visibleAttempts.length" role="status">{{ detail.next_before ? '尚未在已加载记录中找到原通知内容，请继续加载较早记录。' : '未找到原通知对应的内容，记录可能来自旧环境或已被清理。' }}</p>
         <DsButton v-if="snapshot" size="small" @click="snapshot = ''">查看此组全部尝试</DsButton>
@@ -83,10 +84,11 @@ onMounted(() => { void refresh(); if (selectedID.value) void inspect(selectedID.
           <h5>第 {{ a.number }} 次 · {{ labels[a.outcome] || a.outcome }}</h5>
           <p>{{ date(a.started_at) }}<span v-if="a.completed_at"> → {{ date(a.completed_at) }}</span><span v-if="a.error_class"> · {{ a.error_class }}</span></p>
           <p v-if="a.outcome === 'unknown'">外部渠道可能已收到这次通知。重试可能重复通知；该记录不能作为确定未发送的证据。</p>
+          <p v-if="a.outcome === 'failed' && ['aggregate_payload_invalid','aggregate_payload_too_large'].includes(a.error_class || '')">未发起外部发送：聚合正文无效或超限。请检查配置和数据；本次任务不会自动重试。</p>
           <p v-if="a.outcome === 'canceled'">本次未获发送授权，关联成员没有继承外部发送结果。</p>
           <template v-if="a.content"><h6>{{ a.content.title }}</h6><pre>{{ a.content.message }}</pre><p>下列成员及观测时间来自这次冻结的发送内容：</p><ul><li v-for="m in a.content.members" :key="m.incident_id"><a :href="eventPath(m.incident_id)">{{ m.node_name }} · 查看事件</a> · 观测 {{ date(m.observed_at) }}</li></ul></template>
-          <p v-else>尚未冻结发送内容；准备记录不表示已发送。</p>
-          <details><summary>本次成员关联</summary><ul><li v-for="m in a.members" :key="m.delivery_id">{{ m.node_name }} · 逐事件第 {{ m.delivery_attempt }} 次 · {{ m.included ? '包含在实际发送内容中' : '未包含在实际发送内容中' }}</li></ul></details>
+          <p v-else>{{ a.outcome === 'prepared' ? '尚未冻结发送内容；准备记录不表示已发送。' : '本次未生成可发送正文。' }}</p>
+          <details><summary>本次成员关联</summary><ul><li v-for="m in a.members" :key="m.delivery_id">{{ m.node_name }} · 逐事件第 {{ m.delivery_attempt }} 次 · {{ m.included ? '已纳入冻结的发送内容' : '未纳入本次发送内容' }}</li></ul></details>
         </article>
         <DsButton v-if="detail.next_before" :disabled="detailBusy" @click="inspect(selectedID, true)">加载较早发送尝试</DsButton>
       </template>

@@ -9,6 +9,21 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Telegram delivery requires a valid Bot API message confirmation; Discord requests
+  and validates saved-message confirmation. Malformed/empty successful responses
+  remain unknown, and provider body/header retry delays are honored without leaking
+  response details. Aggregate names/excerpts are escaped for rich formatting,
+  Discord keeps its content link while bounding text, and SMTP now sends encoded
+  UTF-8 subjects and quoted-printable MIME over verified TLS/STARTTLS.
+- Aggregate JSON can avoid optional HTML-escaping overhead while retaining all
+  references. Invalid/oversized logical rendering now records an atomic known-unsent
+  failure and lets other groups progress. History explains logical content versus
+  provider formatting and local failure versus unknown reception.
+- Migration 032 captures new groups' private custom-Webhook template time so
+  timezone changes across restart/restore do not alter an unchanged retry body.
+  Old groups preserve legacy rendering/key identity; keep their timezone until
+  pending work drains. No public/API/Agent fields are added.
+
 - Maintenance decision and delivery-link writes now use bounded batches within
   the original transaction, reducing repeated SQL work under overlapping windows.
   Later-batch failures roll back earlier records and preserve queued-task state.
@@ -50,7 +65,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   identity and freezes optional `MYPROBE_NOTIFICATION_ORIGIN` for new notification
   content/event links. Login returns to the original content; real receiver and
   browser checks cover identical ambiguous-send retries and both themes/three
-  widths. Provider/release/capacity acceptance remains pending; this is unreleased.
+  widths. Local provider protocol acceptance passes; live account/client rendering,
+  shared-channel rate backpressure, release/capacity acceptance remain pending;
+  this is unreleased.
   Restart/full restore retain windows and keys. Actual late results after a parent
   takeover refine history without changing successor jobs or clocks. Destination
   configuration is read from the final send snapshot and its version participates

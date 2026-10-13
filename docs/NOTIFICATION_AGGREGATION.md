@@ -35,6 +35,11 @@ keeps its logical delivery, repeat clock, cancellation causes and attempt histor
   16 KiB. Names/message excerpts are clipped at UTF-8 boundaries. Members retain
   event/node IDs, original observation time and an event path. Custom webhook
   expansion exceeding the JSON transport limit fails permanently without sending.
+  Standard JSON bytes are retained when they fit. Only an over-limit encoding
+  retries without optional HTML escaping, preserving all structured references.
+  Invalid/oversized logical rendering fails the prepared parent and eligible
+  leaves atomically, with null content and no included members or provider receipts;
+  other shards continue. Storage errors still roll back instead of consuming work.
 - A retry with unchanged content and destination configuration version keeps its
   key; changed membership or a re-encrypted destination configuration gets a new
   key. A provider may have received an ambiguous earlier attempt, so changed
@@ -66,8 +71,10 @@ the transport setting. Changing it does not rewrite an existing group's window.
 
 In **Alerts → Notification aggregates**, each row shows its bounded window and
 current counts of pending/inflight/delivered/failed/canceled logical jobs. Detail
-shows current incident state separately from each historical attempt's exact
-content and member associations. `included=false` is a prepared association,
+shows current incident state separately from each historical attempt's frozen
+logical content and member associations. Channels can escape, encode or clip
+that content; the API does not archive the final HTTP/MIME envelope. A frozen
+payload is not proof of I/O or acceptance. `included=false` is a prepared association,
 not proof the event entered the send. Prepared attempts have null content.
 An `unknown` result means a channel may have received the message; retries can
 duplicate it. `finished` does not imply every member succeeded, and channel
@@ -92,12 +99,17 @@ character grammar. Missing records return 404; storage failures return a generic
 500 without database details. Empty collections are arrays. Leases, idempotency
 keys, encrypted channel credentials and raw storage payloads are not exposed.
 Group member count remains at most 10; attempt pages are bounded independently.
+Local logical rendering failure is labeled as failed before external sending,
+not unknown; it has no frozen content. A sender's later envelope rejection can
+retain frozen content even though no request was made. Both are known failures
+and stop that job's automatic retry; a future policy repeat is still possible.
 
 Set optional `MYPROBE_NOTIFICATION_ORIGIN=https://probe.example.com` before
 startup to make new aggregate/event links absolute. It accepts only an HTTP(S)
 origin with host and optional valid port, at most 512 UTF-8 bytes; credentials,
 paths except a root slash, queries, fragments and internal whitespace are
 rejected. Errors never echo the input. Compose passes the setting from `.env`.
+Both input and normalized URL must fit the limit, including percent expansion.
 Host/Forwarded headers never determine notification URLs. With no setting,
 links are relative `/admin?...` paths; some external clients cannot open those
 directly. The operator must configure an externally reachable origin for them.
@@ -131,6 +143,47 @@ state even when it is outside the current list page. A late initial link read
 cannot replace a different event explicitly selected while loading. Names and
 messages render as text, including markup-like names. Authentication,
 forward-only upgrades and backup rollback requirements remain unchanged.
+
+## Provider envelopes and confirmation
+
+| Channel | Aggregate envelope | Acceptance and retry |
+| --- | --- | --- |
+| Webhook | Default JSON is bounded to 16 KiB with all event references. A custom template retains literal substitution and its configured content type; the expanded body has the same limit. | HTTP 2xx confirms endpoint acceptance. `Idempotency-Key` is sent; deduplication depends on the receiver. |
+| Telegram | Plain text, HTML and MarkdownV2 preserve literal names/excerpts. Rich modes escape data and create a separate absolute content link. Relative links remain text. The logical text is conservatively checked within 4096 UTF-16 units; the provider enforces its post-entity limit. | HTTP 2xx alone is insufficient: a valid `ok=true` result and usable message/chat IDs are required. Rejection codes classify retries; `parameters.retry_after` and the HTTP header use the later deadline. |
+| Discord | Data is escaped as literal Markdown, with mentions disabled. The complete absolute content link is reserved inside a 2000-unit UTF-16 budget; excess excerpts are clipped at rune/escape boundaries. Full members remain in protected history/default Webhook JSON. | `wait=true` requests a saved-message response while preserving existing query parameters. A usable message/channel ID is required; empty/incomplete 2xx is unknown. Fractional body/header delays round upward, using the later deadline. |
+| SMTP | UTF-8 subject uses RFC 2047 encoded words; the text body uses quoted-printable MIME, including servers without 8BITMIME. SMTP newline normalization is expected. CR/LF titles and oversized raw ASCII subjects fail before dialing. | TLS and STARTTLS retain certificate/hostname verification. DATA acknowledgement confirms acceptance. Loss after DATA is unknown and can duplicate on retry; QUIT failure after acceptance does not retry. |
+
+The Telegram response and escaping rules follow the official
+[Bot API](https://core.telegram.org/bots/api#sendmessage) and
+[formatting contract](https://core.telegram.org/bots/api#formatting-options).
+Discord confirmation and delay handling follow its
+[webhook API](https://docs.discord.com/developers/resources/webhook#execute-webhook)
+and [rate-limit contract](https://docs.discord.com/developers/topics/rate-limits).
+MIME encoding uses Go's [WordEncoder](https://pkg.go.dev/mime#WordEncoder.Encode)
+and [RFC 2045 quoted-printable](https://www.rfc-editor.org/rfc/rfc2045#section-6.7).
+
+Telegram/Discord responses are read up to 64 KiB; unreadable, oversized or malformed
+successful responses are unknown, never silently delivered. Raw response bodies,
+provider descriptions and destination credentials are not stored in error history.
+These confirmations apply to existing single notifications as well. Single rich
+templates keep their previous markup contract; aggregate excerpts are literal data.
+Custom Webhook substitution does not JSON-escape template variables: the operator
+must supply a valid body for the receiver, or choose a text body/content type.
+
+Forward migration **032** adds a private captured `template_event_time`. New groups
+freeze `{{event.time}}` from their window end in the creating server's local timezone,
+so retries across restart/full restore/timezone changes keep the same expanded body.
+It is not added to API, Agent or default notification JSON. The existing logical
+payload and content digest are unchanged. Old groups default to an empty capture
+and preserve legacy local-time rendering and payload/key identity; new assignments
+never append to such old groups. Keep the old timezone until their pending custom
+Webhook work drains. This fix does not change single-notification time substitution.
+All forward upgrades require a full backup; rollback uses a compatible pre-upgrade
+database rather than deleting migrations. Restore can rewind acceptance evidence.
+
+Retry-After currently defers only the affected jobs/group. A persisted channel-wide
+cooldown shared with single deliveries is still required; other work on that channel
+can run during this wait. No Telegram/Discord/SMTP exactly-once guarantee is claimed.
 
 ## Measured receiver baseline
 
@@ -176,8 +229,8 @@ The real loopback receiver/worker tests cover partial silence and recovery while
 an actual aggregate request is held, recording late results independently for each
 included leaf without clock resurrection. An actual failed request and retry keep
 the same body/key and respect the stored deadline. Existing Store, alert worker and
-API suites pass. Provider-specific envelope limits, broad administrative races and
-management-facing explanations still require acceptance before delivery. Existing
+API suites pass. Broader administrative races and live provider/client rendering
+still require acceptance before delivery. Existing
 policy, ACK, silence and both maintenance browser flows pass on the aggregate-capable
 worker at both themes and three widths.
 
@@ -214,7 +267,27 @@ Set `PLAYWRIGHT_MODULE` to the installed Playwright module if it is outside the
 Node search path; the script uses headless Edge. Screenshots are disposable local
 test outputs, not committed evidence or production data.
 
-Provider-specific envelope/parse-mode acceptance, broader administrative races,
+Real worker tests additionally cover 10-member Webhook, all three Telegram modes
+and Discord envelopes, literal special characters and bounded absolute links.
+Real TLS/STARTTLS SMTP fixtures verify certificate trust, decoded UTF-8 MIME and
+identical retry bytes after losing DATA acknowledgement. Telegram 429 delays and
+Discord incomplete-acknowledgement retries retain their actual history and keys.
+A full database backup/restore under a different server timezone preserves a
+new group's custom template time/body/key; migration 032 keeps old payload/key
+identity and separates new assignments. Retry scheduling here uses injected clocks,
+not measured wall-clock provider wait. The 512-byte origin fixture is synthetic
+and used for bounds, not evidence of working public DNS. No live provider account
+or mail-client rendering has been tested.
+
+Local rendering tests force a later-leaf write failure and verify full rollback,
+then assert known-unsent completion without provider receipts, fake late success
+or orphan recovery. The opt-in `TestLiveAggregatePreparationFailureBrowser`
+uses the actual Store/worker and embedded protected UI, asserts zero receiver
+requests, null content, two non-included members, private-error isolation and both
+themes at 360/768/1440 px. It runs with the same aggregation browser flag above.
+Local Go tests run with CGO disabled; no local race-detector result is claimed.
+
+Live provider/client rendering, persisted shared-channel rate backpressure, broader administrative races,
 non-aggregate/service notification link coverage, published-version integration,
 retention/capacity and owner approval remain release gates. M3–M5 remain in the
 original roadmap; this batch does not complete AGG-01/ALT-05 or that full scope.

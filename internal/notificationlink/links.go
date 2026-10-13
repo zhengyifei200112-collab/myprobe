@@ -29,7 +29,11 @@ func NormalizeOrigin(raw string) (string, error) {
 		}
 	}
 	u.Path = ""
-	return u.String(), nil
+	normalized := u.String()
+	if len(normalized) > 512 {
+		return "", invalid
+	}
+	return normalized, nil
 }
 func Incident(origin, id string) string { return origin + "/admin?incident=" + url.QueryEscape(id) }
 func Aggregate(origin, id, snapshot string) string {

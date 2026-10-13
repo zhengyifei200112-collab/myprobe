@@ -46,7 +46,7 @@ func TestAggregateContextExactMembersAndRedaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, secret := range []string{g.LeaseToken, send.IdempotencyKey, "lease_token", "lease_until", "idempotency_key", "config_encrypted", "payload_json", "synthetic", "notification_origin", "render_version"} {
+	for _, secret := range []string{g.LeaseToken, send.IdempotencyKey, "lease_token", "lease_until", "idempotency_key", "config_encrypted", "payload_json", "synthetic", "notification_origin", "render_version", "template_event_time", "TemplateEventTime"} {
 		if strings.Contains(string(raw), secret) {
 			t.Fatalf("private field exposed: %s", secret)
 		}

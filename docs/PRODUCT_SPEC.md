@@ -177,7 +177,14 @@ the configured notification origin and content-link renderer while preserving
 old payload/key identity. Password and GitHub return navigation open aggregate
 content or individual events after authentication. Real receiver/browser checks
 cover ambiguous acceptance, identical retry and both themes/three widths;
-GitHub return navigation is locally simulated. Provider-specific acceptance,
+GitHub return navigation is locally simulated. Local provider protocol checks cover
+Webhook, Telegram's three parse modes, Discord and verified TLS/STARTTLS SMTP.
+Frozen logical history differs from escaped/clipped HTTP or encoded MIME envelopes;
+local rendering failures are known unsent and complete atomically without receipts.
+Telegram/Discord require valid message confirmation and honor body/header delays.
+Migration 032 captures new groups' private template time across timezone-changing
+restore; old groups keep their legacy behavior and require a stable timezone while
+draining. Live account/client acceptance, shared-channel rate backpressure,
 broader administrative races, release integration and retention/capacity remain
 pending. See [NOTIFICATION_AGGREGATION.md](NOTIFICATION_AGGREGATION.md).
 

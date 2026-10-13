@@ -44,7 +44,7 @@ func TestHTTPSenderTelegram(t *testing.T) {
 	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path = r.URL.Path
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":1,"chat":{"id":-100}}}`))
 	}))
 	defer receiver.Close()
 
@@ -74,7 +74,10 @@ func TestHTTPSenderDiscordDisablesMentions(t *testing.T) {
 	var body map[string]any
 	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		w.WriteHeader(http.StatusNoContent)
+		if r.URL.Query().Get("wait") != "true" {
+			t.Error("Discord did not request persistence confirmation")
+		}
+		_, _ = w.Write([]byte(`{"id":"123","channel_id":"456"}`))
 	}))
 	defer receiver.Close()
 	sender := NewHTTPSender(receiver.Client())

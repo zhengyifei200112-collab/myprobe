@@ -14,6 +14,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/zhengyifei200112-collab/myprobe/internal/notificationjson"
 	"github.com/zhengyifei200112-collab/myprobe/internal/notificationlink"
 )
 
@@ -21,9 +22,12 @@ const AggregateMemberLimit = 10
 const AggregateMessageByteLimit = 1600
 const AggregatePayloadByteLimit = 16 << 10
 
+var ErrAggregatePreparationFailed = errors.New("aggregate payload rejected before sending")
+
 type NotificationAggregate struct {
 	RenderVersion      int        `json:"-"`
 	NotificationOrigin string     `json:"-"`
+	TemplateEventTime  string     `json:"-"`
 	Seq                int64      `json:"seq"`
 	ID                 string     `json:"id"`
 	PolicyID           string     `json:"policy_id"`
@@ -41,14 +45,14 @@ type NotificationAggregate struct {
 	LeaseUntil         *time.Time `json:"-"`
 }
 
-const aggregateColumns = `seq,id,policy_id,policy_revision,channel_id,provider,notification_type,starts_at_ms,ends_at_ms,status,sealed,attempt_count,available_at_ms,lease_token,lease_until_ms,render_version,notification_origin`
+const aggregateColumns = `seq,id,policy_id,policy_revision,channel_id,provider,notification_type,starts_at_ms,ends_at_ms,status,sealed,attempt_count,available_at_ms,lease_token,lease_until_ms,render_version,notification_origin,template_event_time`
 
 func scanAggregate(row rowScanner) (NotificationAggregate, error) {
 	var g NotificationAggregate
 	var start, end, available int64
 	var token sql.NullString
 	var until sql.NullInt64
-	err := row.Scan(&g.Seq, &g.ID, &g.PolicyID, &g.PolicyRevision, &g.ChannelID, &g.Provider, &g.NotificationType, &start, &end, &g.Status, &g.Sealed, &g.AttemptCount, &available, &token, &until, &g.RenderVersion, &g.NotificationOrigin)
+	err := row.Scan(&g.Seq, &g.ID, &g.PolicyID, &g.PolicyRevision, &g.ChannelID, &g.Provider, &g.NotificationType, &start, &end, &g.Status, &g.Sealed, &g.AttemptCount, &available, &token, &until, &g.RenderVersion, &g.NotificationOrigin, &g.TemplateEventTime)
 	g.StartsAt, g.EndsAt, g.AvailableAt = time.UnixMilli(start).UTC(), time.UnixMilli(end).UTC(), time.UnixMilli(available).UTC()
 	g.LeaseToken = token.String
 	if until.Valid {
@@ -105,7 +109,7 @@ func aggregateForNotification(ctx context.Context, tx *sql.Tx, ruleID, channelID
 	}
 	var id string
 	var end int64
-	err = tx.QueryRowContext(ctx, `SELECT g.id,g.ends_at_ms FROM notification_aggregates g WHERE g.policy_id=? AND g.policy_revision=? AND g.channel_id=? AND g.provider=? AND g.notification_type=? AND g.render_version=2 AND g.notification_origin=? AND g.status='pending' AND g.sealed=0 AND g.starts_at_ms<=? AND g.ends_at_ms>? AND (SELECT count(*) FROM notification_deliveries d WHERE d.aggregate_id=g.id)<? ORDER BY g.seq DESC LIMIT 1`, p.ID, p.Revision, channelID, provider, kind, origin, at.UnixMilli(), at.UnixMilli(), AggregateMemberLimit).Scan(&id, &end)
+	err = tx.QueryRowContext(ctx, `SELECT g.id,g.ends_at_ms FROM notification_aggregates g WHERE g.policy_id=? AND g.policy_revision=? AND g.channel_id=? AND g.provider=? AND g.notification_type=? AND g.render_version=2 AND g.notification_origin=? AND g.template_event_time<>'' AND g.status='pending' AND g.sealed=0 AND g.starts_at_ms<=? AND g.ends_at_ms>? AND (SELECT count(*) FROM notification_deliveries d WHERE d.aggregate_id=g.id)<? ORDER BY g.seq DESC LIMIT 1`, p.ID, p.Revision, channelID, provider, kind, origin, at.UnixMilli(), at.UnixMilli(), AggregateMemberLimit).Scan(&id, &end)
 	if err == nil {
 		return id, time.UnixMilli(end).UTC(), nil
 	}
@@ -114,7 +118,7 @@ func aggregateForNotification(ctx context.Context, tx *sql.Tx, ruleID, channelID
 	}
 	id = randomID()
 	until := ceilMilliseconds(at.Add(time.Duration(*config.Seconds) * time.Second))
-	_, err = tx.ExecContext(ctx, `INSERT INTO notification_aggregates(id,policy_id,policy_revision,channel_id,provider,notification_type,starts_at_ms,ends_at_ms,available_at_ms,created_at,updated_at,render_version,notification_origin) VALUES(?,?,?,?,?,?,?,?,?,?,?,2,?)`, id, p.ID, p.Revision, channelID, provider, kind, at.UnixMilli(), until.UnixMilli(), until.UnixMilli(), formatTime(at), formatTime(at), origin)
+	_, err = tx.ExecContext(ctx, `INSERT INTO notification_aggregates(id,policy_id,policy_revision,channel_id,provider,notification_type,starts_at_ms,ends_at_ms,available_at_ms,created_at,updated_at,render_version,notification_origin,template_event_time) VALUES(?,?,?,?,?,?,?,?,?,?,?,2,?,?)`, id, p.ID, p.Revision, channelID, provider, kind, at.UnixMilli(), until.UnixMilli(), until.UnixMilli(), formatTime(at), formatTime(at), origin, until.Local().Format("2006-01-02 15:04:05"))
 	return id, until, err
 }
 func aggregateDeliveries(ctx context.Context, tx *sql.Tx, id string) ([]NotificationDelivery, error) {
@@ -246,14 +250,11 @@ func renderAggregate(g NotificationAggregate, members []NotificationDelivery) (j
 		n.Message += "\n查看本次内容：" + n.GroupPath
 	}
 	if len(n.Message) > AggregateMessageByteLimit {
-		return nil, "", errors.New("aggregate message limit exceeded")
+		return nil, "", notificationjson.ErrTooLarge
 	}
-	raw, err := json.Marshal(n)
+	raw, err := notificationjson.MarshalBounded(n, AggregatePayloadByteLimit)
 	if err != nil {
 		return nil, "", err
-	}
-	if len(raw) > AggregatePayloadByteLimit {
-		return nil, "", errors.New("aggregate payload limit exceeded")
 	}
 	sum := sha256.Sum256(raw)
 	return raw, "aggregate:" + g.ID + ":" + hex.EncodeToString(sum[:]), nil

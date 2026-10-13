@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/zhengyifei200112-collab/myprobe/internal/notificationjson"
 )
 
 func beginAggregateWrite(ctx context.Context, s *Store) (*sql.Tx, error) {
@@ -189,10 +191,11 @@ func (s *Store) ClaimAggregate(ctx context.Context, at time.Time, lease time.Dur
 }
 
 type AggregateSend struct {
-	Payload          json.RawMessage
-	IdempotencyKey   string
-	MaxMemberAttempt int
-	Channel          NotificationChannel `json:"-"`
+	Payload           json.RawMessage
+	IdempotencyKey    string
+	MaxMemberAttempt  int
+	TemplateEventTime string              `json:"-"`
+	Channel           NotificationChannel `json:"-"`
 }
 
 // PrepareAggregateSend is a one-shot final check. It freezes the exact body/key
@@ -269,10 +272,21 @@ func (s *Store) PrepareAggregateSend(ctx context.Context, id, token string, at t
 	}
 	result.Payload, result.IdempotencyKey, err = renderAggregate(g, included)
 	if err != nil {
-		return result, err
+		class := "aggregate_payload_invalid"
+		if errors.Is(err, notificationjson.ErrTooLarge) {
+			class = "aggregate_payload_too_large"
+		}
+		if err := rejectAggregatePreparation(ctx, tx, g, included, at, class); err != nil {
+			return result, err
+		}
+		if err := tx.Commit(); err != nil {
+			return result, err
+		}
+		return AggregateSend{}, ErrAggregatePreparationFailed
 	}
 	// Freeze the destination configuration from this same writer snapshot;
 	// later envelope/credential changes must not reuse the previous send key.
+	result.TemplateEventTime = g.TemplateEventTime
 	result.Channel.ID = g.ChannelID
 	if err := tx.QueryRowContext(ctx, `SELECT name,COALESCE(NULLIF(provider,''),kind),config_encrypted,enabled FROM notification_channels WHERE id=?`, g.ChannelID).Scan(&result.Channel.Name, &result.Channel.Kind, &result.Channel.ConfigEncrypted, &result.Channel.Enabled); err != nil {
 		return result, err
@@ -288,6 +302,32 @@ func (s *Store) PrepareAggregateSend(ctx context.Context, id, token string, at t
 		return result, err
 	}
 	return result, tx.Commit()
+}
+
+// Local rendering failure is known unsent. Complete the prepared owner under
+// the same writer without authorizing members or inventing a provider receipt.
+func rejectAggregatePreparation(ctx context.Context, tx *sql.Tx, g NotificationAggregate, members []NotificationDelivery, at time.Time, class string) error {
+	for _, d := range members {
+		result, err := tx.ExecContext(ctx, `UPDATE notification_deliveries SET status='failed',error_class=?,finished_at=?,updated_at=?,lease_token=NULL,lease_until_ms=NULL WHERE id=? AND status='inflight' AND lease_token=? AND attempt_count=?`, class, formatTime(at), formatTime(at), d.ID, g.LeaseToken, d.AttemptCount)
+		if err != nil {
+			return err
+		}
+		if n, err := result.RowsAffected(); err != nil {
+			return err
+		} else if n != 1 {
+			return ErrDeliveryLeaseLost
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE delivery_attempts SET outcome='failed',error_class=?,completed_at=? WHERE delivery_id=? AND attempt_number=? AND lease_token=? AND outcome='started'`, class, formatTime(at), d.ID, d.AttemptCount, g.LeaseToken); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE alert_incidents SET last_enqueued_at=? WHERE id=?`, formatTime(at), d.IncidentID); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE notification_aggregate_attempts SET outcome='failed',error_class=?,completed_at=? WHERE aggregate_id=? AND attempt_number=? AND lease_token=? AND outcome='prepared'`, class, formatTime(at), g.ID, g.AttemptCount, g.LeaseToken); err != nil {
+		return err
+	}
+	return scheduleAggregate(ctx, tx, g.ID, at)
 }
 
 func (s *Store) CompleteAggregate(ctx context.Context, id, token string, at time.Time, outcome DeliveryOutcome) error {
