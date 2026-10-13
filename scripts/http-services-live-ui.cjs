@@ -56,7 +56,7 @@ const path = require('node:path');
         const result = await response;
         assert.equal(result.status(), 200);
         const body = await result.json();
-        await statisticsPanel.getByText('尚未排除维护窗口', { exact: false }).waitFor();
+        await statisticsPanel.getByText('当前按计划时刻排除维护窗口并集', { exact: false }).waitFor();
         return body;
       }
       const immature = await queryStatistics();
@@ -85,7 +85,8 @@ const path = require('node:path');
         assert.equal(stats.missing, 0);
         assert.equal(stats.success_rate, 1);
         assert.equal(stats.coverage, 1);
-        assert.equal(mature.maintenance_excluded, false);
+        assert.equal(mature.maintenance_excluded, true);
+        assert.equal(stats.maintenance_excluded_counts.expected,0);
         assert.equal(await statisticsPanel.getByText('100.00%', { exact: true }).count(), 2);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
         await page.screenshot({ path: path.join(output, 'live-mature-statistics.png'), fullPage: true });

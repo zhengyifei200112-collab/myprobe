@@ -9,6 +9,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Private HTTP statistics optionally exclude effective maintenance-window unions
+  by planned slot and frozen observer membership. Raw and removed counts share
+  one read snapshot; overlapping windows cannot double-count, cancellation clips
+  future coverage, and newly backdated windows cannot erase earlier history.
+  The browser explicitly defaults to exclusion, supports raw comparison, and
+  preserves null rates when every mature slot is excluded. API omission keeps
+  the original raw behavior; no schema, public-node or Agent protocol change.
+
 - Opt-in certificate expiry warnings independently enable 14/7/1-day reminders
   per HTTP service. Migration 035 persists service/fingerprint/threshold identity,
   queue and final-send authorization across observers and full database restore.

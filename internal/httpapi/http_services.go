@@ -24,6 +24,21 @@ type httpServiceRequest struct {
 }
 
 func (s *Server) httpServiceStatistics(c *gin.Context) {
+	values := c.Request.URL.Query()
+	for _, key := range []string{"start", "end", "node_id", "exclude_maintenance"} {
+		if len(values[key]) > 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid repeated statistics parameter"})
+			return
+		}
+	}
+	exclude := false
+	if value, present := values["exclude_maintenance"]; present {
+		if len(value) != 1 || (value[0] != "true" && value[0] != "false") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "exclude_maintenance must be true or false"})
+			return
+		}
+		exclude = value[0] == "true"
+	}
 	start, startErr := time.Parse(time.RFC3339Nano, c.Query("start"))
 	end, endErr := time.Parse(time.RFC3339Nano, c.Query("end"))
 	nodeID := c.Query("node_id")
@@ -34,12 +49,12 @@ func (s *Server) httpServiceStatistics(c *gin.Context) {
 	now := time.Now().UTC()
 	queryCtx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
-	stats, err := s.store.HTTPServiceStatistics(queryCtx, c.Param("serviceID"), nodeID, start, end, now)
+	stats, err := s.store.HTTPServiceStatistics(queryCtx, c.Param("serviceID"), nodeID, start, end, now, exclude)
 	if err != nil {
 		writeHTTPServiceError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"statistics": stats, "node_id": nodeID, "server_time": now, "maintenance_excluded": false, "execution_enabled": s.gateway.HTTPProbesEnabled()})
+	c.JSON(http.StatusOK, gin.H{"statistics": stats, "node_id": nodeID, "server_time": now, "maintenance_excluded": stats.MaintenanceExcluded, "execution_enabled": s.gateway.HTTPProbesEnabled()})
 }
 
 func (s *Server) recentHTTPResults(c *gin.Context) {

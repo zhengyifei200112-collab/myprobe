@@ -10,33 +10,42 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/httpcheck"
 )
 
-// HTTPStatistics is an internal per-observer summary, before maintenance support.
+// HTTPStatisticsCounts holds outcome counts for one declared slot denominator.
 // Rates use fractions [0,1], with nil for an empty denominator.
+type HTTPStatisticsCounts struct {
+	Expected    int64    `json:"expected"`
+	Success     int64    `json:"success"`
+	Failure     int64    `json:"failure"`
+	Unobserved  int64    `json:"unobserved"`
+	Missing     int64    `json:"missing"`
+	SuccessRate *float64 `json:"success_rate"`
+	Coverage    *float64 `json:"coverage"`
+}
 type HTTPStatistics struct {
-	RequestedStart    time.Time `json:"requested_start"`
-	RequestedEnd      time.Time `json:"requested_end"`
-	RetainedFrom      time.Time `json:"retained_from"`
-	ScheduleKnownFrom time.Time `json:"schedule_known_from"`
-	Start             time.Time `json:"start"`
-	End               time.Time `json:"end"`
-	Expected          int64     `json:"expected"`
-	Success           int64     `json:"success"`
-	Failure           int64     `json:"failure"`
-	Unobserved        int64     `json:"unobserved"`
-	Missing           int64     `json:"missing"`
-	SuccessRate       *float64  `json:"success_rate"`
-	Coverage          *float64  `json:"coverage"`
+	HTTPStatisticsCounts
+	Raw                       HTTPStatisticsCounts `json:"raw"`
+	MaintenanceExcludedCounts HTTPStatisticsCounts `json:"maintenance_excluded_counts"`
+	MaintenanceExcluded       bool                 `json:"maintenance_excluded"`
+	MaintenancePolicy         string               `json:"maintenance_policy"`
+	RequestedStart            time.Time            `json:"requested_start"`
+	RequestedEnd              time.Time            `json:"requested_end"`
+	RetainedFrom              time.Time            `json:"retained_from"`
+	ScheduleKnownFrom         time.Time            `json:"schedule_known_from"`
+	Start                     time.Time            `json:"start"`
+	End                       time.Time            `json:"end"`
 }
 
 // HTTPServiceStatistics summarizes only mature slots: the conservative 126s lag
 // includes the 5s dispatch window, 60s request limit, 60s receipt grace and cleanup.
-// Both counters and results share one SQLite snapshot. Historical coverage before
-// retained schedule epochs must be handled by the API before exposing this method.
-func (s *Store) HTTPServiceStatistics(ctx context.Context, serviceID, nodeID string, start, end, now time.Time) (HTTPStatistics, error) {
-	result := HTTPStatistics{Start: start.UTC(), End: end.UTC(), RequestedStart: start.UTC(), RequestedEnd: end.UTC()}
-	if !end.After(start) || end.Sub(start) > 31*24*time.Hour || start.Year() < 1970 || end.Year() > 2100 {
+// Original/excluded counters, maintenance windows and results share one SQLite
+// snapshot, clipped to retained and reconstructable schedule history. Omitting
+// excludeMaintenance keeps the original raw result for existing callers.
+func (s *Store) HTTPServiceStatistics(ctx context.Context, serviceID, nodeID string, start, end, now time.Time, excludeMaintenance ...bool) (HTTPStatistics, error) {
+	result := HTTPStatistics{Start: start.UTC(), End: end.UTC(), RequestedStart: start.UTC(), RequestedEnd: end.UTC(), MaintenancePolicy: "planned_slot_effective_window_v1"}
+	if len(excludeMaintenance) > 1 || now.IsZero() || now.Year() < 1970 || now.Year() > 2100 || !end.After(start) || end.Sub(start) > 31*24*time.Hour || start.Year() < 1970 || end.Year() > 2100 {
 		return result, errors.New("invalid HTTP statistics range")
 	}
+	result.MaintenanceExcluded = len(excludeMaintenance) == 1 && excludeMaintenance[0]
 	cutoff := now.Add(-126 * time.Second)
 	if result.End.After(cutoff) {
 		result.End = cutoff.UTC()
@@ -100,6 +109,10 @@ func (s *Store) HTTPServiceStatistics(ctx context.Context, serviceID, nodeID str
 	if result.End.Equal(result.Start) {
 		return result, nil
 	}
+	windows, err := httpMaintenanceIntervals(ctx, tx, nodeID, result.Start, result.End)
+	if err != nil {
+		return result, err
+	}
 	type epoch struct{ start, end, period int64 }
 	epochs := make(map[int64]epoch)
 	rows, err := tx.QueryContext(ctx, `SELECT revision,start_ns,end_ns,interval_seconds FROM http_schedule_epochs WHERE service_id=? AND node_id=? AND start_ns<? AND (end_ns IS NULL OR end_ns>?) LIMIT 10001`, serviceID, nodeID, result.End.UnixNano(), start.UnixNano())
@@ -123,7 +136,16 @@ func (s *Store) HTTPServiceStatistics(ctx context.Context, serviceID, nodeID str
 		}
 		e := epoch{anchor, stop, seconds * int64(time.Second)}
 		epochs[revision] = e
-		result.Expected += countHTTPSlots(e.start, e.period, start.UnixNano(), e.end)
+		result.Raw.Expected += countHTTPSlots(e.start, e.period, start.UnixNano(), e.end)
+		for _, window := range windows {
+			if window.end <= max(e.start, start.UnixNano()) {
+				continue
+			}
+			if window.start >= e.end {
+				break
+			}
+			result.MaintenanceExcludedCounts.Expected += countHTTPSlots(e.start, e.period, max(start.UnixNano(), window.start), min(e.end, window.end))
+		}
 	}
 	err = rows.Err()
 	rows.Close()
@@ -160,32 +182,61 @@ func (s *Store) HTTPServiceStatistics(ctx context.Context, serviceID, nodeID str
 		if err = json.Unmarshal([]byte(body), &value); err != nil {
 			return result, err
 		}
-		switch value.Outcome {
-		case "success":
-			result.Success++
-		case "failure":
-			result.Failure++
-		case "unobserved":
-			result.Unobserved++
-		default:
-			return result, errors.New("invalid stored HTTP outcome")
+		if err := result.Raw.addOutcome(value.Outcome); err != nil {
+			return result, err
+		}
+		if httpSlotInMaintenance(windows, at.UnixNano()) {
+			if err := result.MaintenanceExcludedCounts.addOutcome(value.Outcome); err != nil {
+				return result, err
+			}
 		}
 	}
 	if err = rows.Err(); err != nil {
 		return result, err
 	}
-	valid := result.Success + result.Failure
-	result.Missing = result.Expected - valid
-	if result.Missing < 0 || result.Unobserved > result.Missing {
-		return result, errors.New("inconsistent HTTP sample counts")
+	if err := result.Raw.finish(); err != nil {
+		return result, err
 	}
-	if valid > 0 {
-		value := float64(result.Success) / float64(valid)
-		result.SuccessRate = &value
+	if err := result.MaintenanceExcludedCounts.finish(); err != nil {
+		return result, err
 	}
-	if result.Expected > 0 {
-		value := float64(valid) / float64(result.Expected)
-		result.Coverage = &value
+	result.HTTPStatisticsCounts = result.Raw
+	if result.MaintenanceExcluded {
+		excluded := result.MaintenanceExcludedCounts
+		result.HTTPStatisticsCounts = HTTPStatisticsCounts{Expected: result.Raw.Expected - excluded.Expected, Success: result.Raw.Success - excluded.Success, Failure: result.Raw.Failure - excluded.Failure, Unobserved: result.Raw.Unobserved - excluded.Unobserved}
+		if err := result.HTTPStatisticsCounts.finish(); err != nil {
+			return result, err
+		}
 	}
 	return result, nil
+}
+
+func (c *HTTPStatisticsCounts) addOutcome(outcome string) error {
+	switch outcome {
+	case "success":
+		c.Success++
+	case "failure":
+		c.Failure++
+	case "unobserved":
+		c.Unobserved++
+	default:
+		return errors.New("invalid stored HTTP outcome")
+	}
+	return nil
+}
+func (c *HTTPStatisticsCounts) finish() error {
+	valid := c.Success + c.Failure
+	c.Missing = c.Expected - valid
+	if c.Expected < 0 || c.Success < 0 || c.Failure < 0 || c.Unobserved < 0 || c.Missing < 0 || c.Unobserved > c.Missing {
+		return errors.New("inconsistent HTTP sample counts")
+	}
+	if valid > 0 {
+		v := float64(c.Success) / float64(valid)
+		c.SuccessRate = &v
+	}
+	if c.Expected > 0 {
+		v := float64(valid) / float64(c.Expected)
+		c.Coverage = &v
+	}
+	return nil
 }

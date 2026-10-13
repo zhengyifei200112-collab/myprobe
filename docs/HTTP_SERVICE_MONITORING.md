@@ -11,8 +11,10 @@ implemented, with Agent v2-first transport selection and bounded v1 fallback.
 Agent execution, Server ingestion, durable scheduling, configuration transfer,
 management UI and per-observer statistics are connected. Production execution is
 opt-in. Per-observer service incidents and delivery now reuse the durable alert
-platform; see [service incidents](SERVICE_INCIDENTS.md). Maintenance-adjusted
-statistics and release acceptance remain open. Independent certificate reminders
+platform; see [service incidents](SERVICE_INCIDENTS.md). Optional maintenance
+statistics now retain raw counts and exclude effective frozen-member window unions
+by planned slot; see [maintenance statistics](HTTP_MAINTENANCE_STATISTICS.md).
+Capacity and release acceptance remain open. Independent certificate reminders
 now persist 14/7/1-day identity and use verified current evidence and the existing
 outbox; see [certificate reminders](CERTIFICATE_REMINDERS.md). Warnings do not
 change service health or add a TLS-verification bypass.
@@ -289,7 +291,7 @@ the new controls. Closing a panel ignores any response arriving after unmount.
 The panel shows success/failure/expected/missing/unobserved counts, success rate and
 coverage, with distinct null-denominator labels. It displays requested/effective
 times, retained-history and known-schedule starts, Server observation time, the
-126-second maturity explanation and the maintenance-not-excluded limitation.
+126-second maturity explanation and the selected maintenance/raw count policy.
 These are per-observer measurements, not a combined multi-node SLA. Browser fixture
 checks cover values, empty denominators, changed ranges and failures in six layouts.
 
@@ -297,10 +299,13 @@ checks cover values, empty denominators, changed ranges and failures in six layo
 
 `GET /api/v1/admin/service-monitors/:serviceID/statistics` requires `node_id`,
 `start` and `end` (RFC3339 timestamps, at most 31 days, a nonempty half-open range).
-It returns the per-observer `statistics`, `server_time`, execution gate and an
-explicit `maintenance_excluded: false` until shared maintenance integration lands.
-This flag must be shown by consumers; these numbers are not maintenance-adjusted
-availability or SLA. The query has a five-second context deadline and requires an
+It accepts optional `exclude_maintenance=true|false`; omission retains raw counts.
+It returns per-observer `statistics`, `server_time`, execution gate and the actual
+`maintenance_excluded` mode. Raw and excluded counts are included in the same read
+snapshot. Effective windows use frozen membership, creation and cancellation
+bounds, and their union excludes each planned slot once. The browser explicitly
+defaults to exclusion and displays both counts; all-excluded rates remain null.
+These numbers are not continuous-time SLA. The query has a five-second deadline and requires an
 existing node and service. Removed assignments can still be queried while their
 node and retained history exist. Unknown resources return 404, invalid ranges 400.
 
@@ -371,7 +376,8 @@ acceptance and result/certificate views have since gained live tests; service al
 settings and incidents are described in [service incidents](SERVICE_INCIDENTS.md).
 Independent certificate reminder settings/history now also have live acceptance;
 see [certificate reminders](CERTIFICATE_REMINDERS.md). Maintenance-adjusted
-statistics remain open.
+statistics also use the shared persistent windows; see
+[maintenance statistics](HTTP_MAINTENANCE_STATISTICS.md).
 
 ### Configuration transfer v2
 
@@ -466,9 +472,10 @@ effective interval, zero counts and null rates. Both bounds are half-open and
 nanosecond timestamps are compared in Go after widened indexed text bounds.
 Queries reject more than 31 days, 10,000 revisions or 100,000 candidate results.
 
-This primitive is not exposed as a public availability endpoint yet. Maintenance
-exclusions, pre-migration unknown coverage, retained-history boundaries and the
-requested-versus-effective range presentation remain required before API/UI use.
+The private API/UI now expose this primitive with schedule/retention boundaries,
+requested/effective ranges and optional maintenance unions. Original and excluded
+counts remain available; exclusion is not a public availability endpoint or a
+continuous-time SLA claim. Full capacity and release validation remain required.
 
 ### Expected-slot history
 
@@ -480,7 +487,8 @@ it does not erase earlier expectations. The internal count primitive uses
 `[start,end)` and counts slots even when no task was dispatched. It bounds queries
 to 31 days and 10,000 overlapping revisions per service/node, rejecting excessive
 ranges rather than silently truncating results. Caller-supplied observation time
-must cap historical queries; maintenance exclusions are not implemented yet.
+must cap historical queries; maintenance exclusion intersects the same epochs
+and mature range, without changing the stored schedule or result history.
 
 On upgrade from migration 017, a transactional Go backfill preserves the exact
 current revision's timestamp without SQLite fractional-second rounding. Older
@@ -505,7 +513,8 @@ revision, and removed assignments are removed from the scheduler's memory.
 Production main starts this scheduler only when the execution flag is true.
 Schedule epochs retain revision/assignment history so offline and missed slots
 count as missing even without task rows. Bounded statistics and retention are
-implemented; maintenance exclusions and sustained-load acceptance remain open.
+implemented, including optional maintenance-window unions. Sustained-load and
+release acceptance remain open.
 
 ### Configuration storage foundation
 

@@ -47,8 +47,14 @@ Complete fresh success confirms replacement, and expiry/rotation never sends
 technical recovery. Warning state does not change current health. Private history
 distinguishes queueing, final authorization and real receipts; see
 [certificate reminders](CERTIFICATE_REMINDERS.md) for migration 035 and live TLS evidence.
-Maintenance-adjusted statistics,
-service/observer/time-range links and capacity/release acceptance remain incomplete.
+Private statistics now optionally exclude the union of effective frozen-member
+maintenance windows by planned slot, retaining raw and removed counts in one read
+snapshot. Creation bounds prevent backdated historical exclusion; cancellation
+clips the future interval. API default remains raw, while the browser explicitly
+requests exclusion and exposes both counts. All-excluded denominators stay null;
+this does not change current health or claim continuous-time SLA. See
+[maintenance statistics](HTTP_MAINTENANCE_STATISTICS.md).
+Service/observer/time-range links and capacity/release acceptance remain incomplete.
 Configuration enablement alone does not start execution; v1 Agents remain supported
 for their existing capabilities and never receive HTTP tasks.
 
