@@ -177,6 +177,12 @@ should also read [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) and
 
 ### Incident delivery work in progress
 
+Private node diagnostics additionally distinguish expected sampling settings,
+Agent application acknowledgements and the actual last accepted report transport.
+Collection and reporting run independently; optional v2 capability negotiation
+preserves released v1 Agents. See [Agent runtime evidence](docs/AGENT_RUNTIME_EVIDENCE.md)
+for bounded sampling semantics, compatibility and remaining release gates.
+
 The incident-outbox branch adds independent fault incidents, durable delivery jobs
 and per-attempt diagnostics. See the [Chinese operations guide](docs/ALERT_OPERATIONS.zh-CN.md)
 and [implementation evidence](docs/INCIDENT_DELIVERY.md). This work is not released;

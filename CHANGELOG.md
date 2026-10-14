@@ -9,6 +9,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Private node diagnostics separate desired sampling revisions, negotiated Agent
+  application acknowledgements and actual persisted HTTP/WebSocket report ingress.
+  Migration 040 fences revisions, connections and nonces without public fields.
+  Optional v2 `config_apply.v1` preserves unnegotiated peers and released v0.2.1
+  Agents; connection presence and dispatch never substitute for application proof.
+
 - Administrators can preview a bounded, session-bound diagnostic JSON and download
   those exact bytes after a required audit write. Explicit export projections omit
   credentials, paths, addresses, names, payloads and arbitrary version labels.
@@ -103,6 +109,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   original bytes. Configure `MYPROBE_NOTIFICATION_ORIGIN` for absolute links.
 
 ### Fixed
+
+- Agent welcome sampling periods now take effect. Independent collection and
+  reporting loops retain only the latest successful sample, discard old-generation
+  samples after period changes, and avoid repeating the same cached sample.
+  Period-only legacy messages preserve local interface/mount selection; partial
+  omission preserves fractional local durations.
 
 - HTTP history cleanup catches up in separate 1000-row transactions, yielding
   between batches instead of leaving growing expired backlogs behind an hourly

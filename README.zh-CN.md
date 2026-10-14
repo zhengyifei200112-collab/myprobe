@@ -156,6 +156,11 @@ TLS；请在 HTTPS 反代可用或明确接受直接 HTTP 风险后再设置。�
 不包含数据库、秘密材料或基础设施标识。范围、期限与验证说明见
 [诊断导出](docs/DIAGNOSTIC_EXPORT.md)。
 
+“系统健康 → 节点诊断”可区分期望周期、Agent 实际应用回执与最后成功入库通道。
+新 Agent 的采集和上报独立运行，只缓存最新成功样本；旧 Agent 继续上报，无法确认时
+明确显示能力不可用。协议、迁移 040、采样含义与兼容验收见
+[Agent 运行证据](docs/AGENT_RUNTIME_EVIDENCE.md)。这些功能仍处于开发分支。
+
 一键安装脚本同样默认提供 `http://服务器IP:25775`。如果从安装时就准备使用域名反代，
 请执行 `sudo ./install.sh server --reverse-proxy`。
 

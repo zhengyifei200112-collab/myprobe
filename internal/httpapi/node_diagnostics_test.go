@@ -14,6 +14,7 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
+	v2 "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v2"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
@@ -84,6 +85,34 @@ func TestNodeDiagnosticsEvidenceAndAccess(t *testing.T) {
 	for _, secret := range []string{"private-hostname", "private-machine-id", token, agentToken} {
 		if strings.Contains(actual.Body.String(), secret) {
 			t.Fatal("private diagnostic field leaked")
+		}
+	}
+	epoch := strings.Repeat("d", 32)
+	configuration, err := db.BeginAgentConnection(ctx, node.ID, epoch, 2, true, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AcknowledgeSamplingConfiguration(ctx, node.ID, epoch, v2.ConfigurationApplied(*configuration), time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SaveReportWithIngress(ctx, node.ID, protocol.Report{CapturedAt: time.Now().UTC()}, "http", 1); err != nil {
+		t.Fatal(err)
+	}
+	actual = request(node.ID, token)
+	var runtimeEvidence struct {
+		Configuration store.SamplingConfigurationEvidence `json:"configuration_acknowledgement"`
+		Ingress       store.ReportIngress                 `json:"last_report_ingress"`
+		Transport     string                              `json:"last_report_transport"`
+	}
+	if err := json.Unmarshal(actual.Body.Bytes(), &runtimeEvidence); err != nil {
+		t.Fatal(err)
+	}
+	if runtimeEvidence.Configuration.Status != "confirmed_no_active_connection" || runtimeEvidence.Configuration.AppliedRevision == nil || runtimeEvidence.Transport != "http" || runtimeEvidence.Ingress.WireVersion == nil || *runtimeEvidence.Ingress.WireVersion != 1 {
+		t.Fatal("historical confirmation or actual ingress was projected as a live connection")
+	}
+	for _, secret := range []string{epoch, configuration.Nonce, "connection_epoch", "issued_nonce", token, agentToken} {
+		if strings.Contains(actual.Body.String(), secret) {
+			t.Fatal("private runtime fence leaked")
 		}
 	}
 	if err := a.Logout(ctx, token); err != nil {
