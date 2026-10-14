@@ -47,6 +47,7 @@ type Server struct {
 	backupJob             diagnostics.Job
 	scheduledBackups      *backup.Scheduler
 	retentionWorkerHealth func() diagnostics.LoopSnapshot
+	diagnosticExports     diagnostics.ExportPreviews
 }
 
 type Option func(*Server)
@@ -170,6 +171,9 @@ func (s *Server) routes() {
 	// Set cache policy before authentication so rejected diagnostics are private too.
 	s.router.GET("/api/v1/admin/system/health", privateNoStore(), s.requireSession(true), s.systemHealth)
 	s.router.GET("/api/v1/admin/nodes/:nodeID/diagnostics", privateNoStore(), s.requireSession(true), s.nodeDiagnostics)
+	diagnosticExports := s.router.Group("/api/v1/admin/system/diagnostic-exports", privateNoStore(), s.requireSession(true))
+	diagnosticExports.POST("/preview", s.prepareDiagnosticExport)
+	diagnosticExports.POST("/download", s.downloadDiagnosticExport)
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
 	serviceTransfers := s.router.Group("/api/v1/admin/service-alert-transfers", privateNoStore(), s.requireSession(true))
 	serviceTransfers.GET("/export", s.exportServiceAlerts)

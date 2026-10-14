@@ -9,6 +9,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Administrators can preview a bounded, session-bound diagnostic JSON and download
+  those exact bytes after a required audit write. Explicit export projections omit
+  credentials, paths, addresses, names, payloads and arbitrary version labels.
+  Private controls expose content scope, expiry and checksum; busy transport locks
+  produce unavailable evidence without mutating pending work.
+
 - Optional daily local encrypted backups use explicit time zones, durable date
   claims, owned file retention and independent passphrase files. Interrupted
   plaintext scratch is reclaimed only with authenticated cleanup authorization.
