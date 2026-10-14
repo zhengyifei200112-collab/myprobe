@@ -98,8 +98,10 @@ time, configured reporting interval, advertised Agent version/capabilities and
 the Server receipt time of the last hello. It excludes hostname, machine ID,
 addresses and credentials. No hello is explicitly unavailable, not an empty
 capability claim; a hello is not evidence of a live connection. Current WebSocket
-presence is sampled separately. Last-report transport is unknown and configuration
-acknowledgement remains unavailable until that provider is integrated. The
+presence is sampled separately. The subsequent [runtime-evidence extension](AGENT_RUNTIME_EVIDENCE.md)
+records actual report ingress and sampling application acknowledgements. Prepared,
+sent, current confirmation and offline historical confirmation remain distinct;
+old Agents without the optional capability are explicitly unsupported. The
 advertised metadata can be older than the current session; its timestamp matters.
 Missing nodes return 404 only after administrator authentication.
 
@@ -126,7 +128,7 @@ overflow, and revoked-session login fallback. It deletes its fixture node and do
 not use production data or notification channels. This checks keyboard activation,
 not a complete screen-reader or accessibility audit.
 
-Linux CI run `37141705827` passed for implementation commit `3db292d`; local
+Historical health-only checkpoint: Linux CI run `37141705827` passed for implementation commit `3db292d`; local
 `go vet ./...` and `go build ./cmd/...` also passed. Configuration acknowledgement
 and notification-outbox integration remain pending.
 
@@ -210,8 +212,10 @@ $env:PLAYWRIGHT_MODULE = '<absolute Playwright module path>'
 go test ./cmd/server -run '^TestLiveSystemHealthMainBrowser$' -v -count=1
 ```
 
-Compatibility alerts, configuration acknowledgement, actual last-report transport,
-full diagnostic-export acceptance, full scheduled-backup/failover acceptance and full-system capacity/
+The sampling confirmation and report-ingress follow-up is documented separately
+in [AGENT_RUNTIME_EVIDENCE.md](AGENT_RUNTIME_EVIDENCE.md), including optional capability
+warnings and pinned v0.2.1 binary compatibility. Upstream version discovery/automatic
+upgrades, full diagnostic-export acceptance, full scheduled-backup/failover acceptance and full-system capacity/
 24-hour operation remain separate roadmap work. This integration and local
 checks do not establish complete SYS-01–03 or M5 acceptance. The original health
 branch's CI references above are historical evidence, not latest integration CI.

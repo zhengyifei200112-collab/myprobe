@@ -264,6 +264,10 @@ func (s *Store) AuthenticateAgent(ctx context.Context, token string) (Node, erro
 }
 
 func (s *Store) SaveReport(ctx context.Context, nodeID string, report protocol.Report) error {
+	return s.saveReport(ctx, nodeID, report, nil)
+}
+
+func (s *Store) saveReport(ctx context.Context, nodeID string, report protocol.Report, source *ingressSource) error {
 	if err := report.Validate(); err != nil {
 		return err
 	}
@@ -303,10 +307,14 @@ func (s *Store) SaveReport(ctx context.Context, nodeID string, report protocol.R
 	if err != nil {
 		return err
 	}
-	if _, err = tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", nowText(), nowText(), nodeID); err != nil {
+	observed := time.Now().UTC()
+	if _, err = tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", formatTime(observed), formatTime(observed), nodeID); err != nil {
 		return err
 	}
 	if err = s.updateTrafficState(ctx, tx, nodeID, report.CapturedAt, rxTotal, txTotal); err != nil {
+		return err
+	}
+	if err = recordReportIngress(ctx, tx, nodeID, report.CapturedAt, observed, source); err != nil {
 		return err
 	}
 	return tx.Commit()

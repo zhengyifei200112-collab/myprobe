@@ -93,7 +93,7 @@ this does not complete full-system capacity or the 24-hour acceptance.
 
 | Area | Requirement | Acceptance evidence | Status |
 | --- | --- | --- | --- |
-| System health | Private runtime/version/database/retention/transport, both schedulers, durable queue, backup-generation and node diagnostics; configuration acknowledgement/recovery remain separate | `docs/SYSTEM_HEALTH.md`, actual Server/browser/Agent and privacy/lifecycle tests | In progress |
+| System health | Private runtime/version/database/retention/transport, schedulers, queue and node diagnostics; negotiated sampling application and actual report ingress, with old-Agent capability warnings; full recovery/capacity remain separate | `docs/SYSTEM_HEALTH.md`, `docs/AGENT_RUNTIME_EVIDENCE.md`, actual Server/browser/Agent and privacy/lifecycle tests | In progress |
 | Scheduled backup | Daily time-zone/date claims, independent secret file, authenticated local retention, durable failure reminders and isolated DB/channel recovery evidence | `docs/SCHEDULED_BACKUPS.md`; Store/Provider/API, process-kill and actual main/browser tests; physical ENOSPC, large DB and production failover remain separate | In progress |
 | Diagnostic export | Whitelist-only private JSON preview, session-bound frozen bytes, short bounded retention and mandatory audited download | `docs/DIAGNOSTIC_EXPORT.md`; version/field privacy, expiry/concurrency, source mutation, audit failure and actual main/browser evidence | In progress |
 | Public overview | Current time, online/offline counts, aggregate traffic and rate | Responsive browser tests and live API data | Implemented |

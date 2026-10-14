@@ -26,11 +26,14 @@ const health = {
     for (const theme of ['light', 'dark']) for (const width of [360, 768, 1440]) {
       const page = await browser.newPage({ viewport: { width, height: 1000 } })
       let status = 200
+      let nodeStatus = 200
+      let configurationStatus = 'agent_confirmed'
+      let ingressTransport = 'websocket'
       const errors = []
       page.on('pageerror', error => { errors.push(error.message); console.error(error.message) })
       page.on('console', message => { if (message.type() === 'error') console.error(message.text()) })
       await page.route('**/api/v1/admin/system/health', route => route.fulfill({ status, json: status === 200 ? health : { error: 'unavailable' } }))
-      await page.route('**/api/v1/admin/nodes/*/diagnostics', route => route.fulfill({ json: { observed_at: health.observed_at, websocket_connected: false, node: { report_seconds: 5, agent_evidence_status: 'advertised', agent_version: 'fixture-agent', capabilities: ['metrics.v1'] } } }))
+      await page.route('**/api/v1/admin/nodes/*/diagnostics', route => route.fulfill({ status: nodeStatus, json: { observed_at: health.observed_at, websocket_connected: true, node: { report_seconds: 5, agent_evidence_status: 'advertised', agent_version: 'fixture-agent', capabilities: ['metrics.v1','config_apply.v1'] }, configuration_acknowledgement: {status:configurationStatus,scope:'sampling_periods',desired_revision:3,applied_revision:configurationStatus==='agent_confirmed'||configurationStatus==='confirmed_no_active_connection'?3:2,collection_seconds:2,report_seconds:5,acknowledged_at:health.observed_at},last_report_ingress:{status:'observed',transport:ingressTransport,wire_version:ingressTransport==='websocket'?2:1,observed_at:health.observed_at,captured_at:health.observed_at} } }))
       await page.route('**/__health_acceptance', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><html lang="zh-CN" data-theme="${theme}"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><div id="app" style="padding:16px"></div><script type="module">
         import {createApp} from '${vueURL}';
         import Health from '/src/SystemHealth.vue';
@@ -41,11 +44,32 @@ const health = {
       await page.getByText('acceptance-fixture', { exact: true }).waitFor()
       await page.getByLabel('选择节点').selectOption('fixture')
       await page.getByText('fixture-agent', { exact: true }).waitFor()
+      await page.getByText('Agent 已确认应用设置', {exact:true}).waitFor()
+      await page.getByText('WebSocket / v2', {exact:true}).waitFor()
+      const configurationStates = {awaiting_dispatch:'等待下发当前版本',awaiting_agent_ack:'已发送，等待 Agent 确认',acknowledgement_unsupported:'该通道不支持配置确认',confirmed_no_active_connection:'历史设置已确认，当前未连接',connection_evidence_not_current:'存储证据属于其他连接',connection_observation_unavailable:'当前连接观察不可用',dispatch_failed:'配置发送失败'}
+      for(const [state,label] of Object.entries(configurationStates)) {
+        configurationStatus=state
+        await page.getByRole('button',{name:'刷新节点诊断',exact:true}).click()
+        await page.getByText(label,{exact:true}).waitFor()
+      }
+      configurationStatus='awaiting_agent_ack'
+      ingressTransport='http'
+      await page.getByRole('button',{name:'刷新节点诊断',exact:true}).click()
+      await page.getByText('HTTP / v1',{exact:true}).waitFor()
+      nodeStatus=503
+      await page.getByRole('button',{name:'刷新节点诊断',exact:true}).click()
+      await page.getByText('节点诊断读取失败，请重试。',{exact:true}).waitFor()
+      assert.equal(await page.getByText('fixture-agent',{exact:true}).count(),0)
+      nodeStatus=200
+      await page.getByRole('button',{name:'刷新节点诊断',exact:true}).click()
+      await page.getByText('HTTP / v1',{exact:true}).waitFor()
       await page.getByRole('heading',{name:'持久通知队列',exact:true}).waitFor()
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `overflow ${theme}/${width}`)
       await page.screenshot({ path: path.join(output, `${theme}-${width}.png`), fullPage: true })
       await page.getByRole('heading',{name:'持久通知队列',exact:true}).scrollIntoViewIfNeeded()
       await page.screenshot({path:path.join(output,`${theme}-${width}-queue.png`)})
+      await page.getByRole('heading',{name:'节点诊断',exact:true}).scrollIntoViewIfNeeded()
+      await page.locator('section.admin-panel').filter({has:page.getByRole('heading',{name:'节点诊断',exact:true})}).screenshot({path:path.join(output,`${theme}-${width}-node.png`)})
       status = 500
       await page.getByRole('button', { name: '刷新诊断', exact: true }).click()
       await page.getByText('以下为上次读取的数据，可能已经过时。').waitFor()
@@ -56,6 +80,7 @@ const health = {
       await page.getByRole('button', { name: '刷新诊断', exact: true }).click()
       await page.waitForFunction(() => document.body.dataset.unauthorized === 'true')
       assert.equal(await page.getByText('acceptance-fixture', { exact: true }).count(), 0)
+      assert.equal(await page.getByText('HTTP / v1',{exact:true}).count(),0)
       assert.deepEqual(errors, [])
       await page.close()
     }
