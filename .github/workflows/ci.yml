@@ -71,6 +71,11 @@ jobs:
           chmod 700 "$released_agent"
           MYPROBE_TEST_RELEASED_AGENT="$released_agent" go test ./internal/agentclient -run '^TestReleased021AgentRuntimeCompatibility$' -count=1 -v
 
+      - name: Verify permanent service replay capacity and restore
+        env:
+          MYPROBE_TEST_SERVICE_REPLAY_CAPACITY: '1'
+        run: go test ./internal/store -run '^TestServiceAlertPermanentReplayCapacity$' -timeout 10m -count=1 -v
+
       - name: Build and validate container images
         shell: bash
         run: |

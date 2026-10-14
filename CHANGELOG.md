@@ -110,6 +110,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Committed service-alert imports replay their original result through a read-only
+  point lookup instead of waiting for unrelated management writers. New requests
+  still recheck inside the original atomic transaction; receipt retention, caps,
+  request conflicts, authentication and CSRF remain unchanged.
+
 - History retention now locates exact epoch buckets and filters eligible ranges
   instead of scanning each node's year of rollups. Migration 041 adds indexes and
   private virtual nanosecond sort keys while preserving original sample/JSON bytes.
