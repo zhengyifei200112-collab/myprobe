@@ -9,6 +9,15 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Administrator system and node diagnostics observe process identity, database
+  metadata, actual runtime jobs, Agent connections, and encrypted backup generation.
+  A private health page restores node context through login and reload and separates
+  unavailable evidence from zero counts; delivery and recovery evidence retain
+  their distinct meanings.
+  Current service runtime integration adds HTTP dispatch/receipt-grace evidence,
+  actual cleanup-loop/batch observations and read-only durable queue counters.
+  Missing send configuration is separate from a running technical evaluator.
+
 - Service alert mapping and overwrite previews use bounded 25-item pages and a
   shared searchable destination picker. Explicit mapping templates support large
   batches without automatic matching; compact pending-request recovery retains

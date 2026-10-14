@@ -93,6 +93,7 @@ this does not complete full-system capacity or the 24-hour acceptance.
 
 | Area | Requirement | Acceptance evidence | Status |
 | --- | --- | --- | --- |
+| System health | Private runtime/version/database/retention/transport, both schedulers, durable queue, backup-generation and node diagnostics; configuration acknowledgement/recovery remain separate | `docs/SYSTEM_HEALTH.md`, actual Server/browser/Agent and privacy/lifecycle tests | In progress |
 | Public overview | Current time, online/offline counts, aggregate traffic and rate | Responsive browser tests and live API data | Implemented |
 | Public filtering | Tag/region pills with counts and horizontal mobile scrolling | UI test at 360/768/1440 px | Implemented |
 | Node cards | Bundled country flag artwork, name, status, masked IP, OS, uptime, last update | Metadata persistence, privacy, API contract, and browser rendering tests | Implemented |

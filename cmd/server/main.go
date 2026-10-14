@@ -15,12 +15,16 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/alerts"
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
+	"github.com/zhengyifei200112-collab/myprobe/internal/diagnostics"
 	"github.com/zhengyifei200112-collab/myprobe/internal/httpapi"
 	"github.com/zhengyifei200112-collab/myprobe/internal/scheduler"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
+var version = "dev"
+
 func main() {
+	startedAt := time.Now()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	cfg, err := config.Load()
 	if err != nil {
@@ -66,17 +70,30 @@ func main() {
 	defer cancelRun()
 	latencyScheduler := scheduler.New(database, gateway, logger)
 	go latencyScheduler.Run(runCtx)
+	var httpScheduler *scheduler.HTTPScheduler
 	if cfg.HTTPProbesEnabled {
 		gateway.EnableHTTPProbes(true)
-		go scheduler.NewHTTP(database, gateway, logger).Run(runCtx)
+		httpScheduler = scheduler.NewHTTP(database, gateway, logger)
+		go httpScheduler.Run(runCtx)
 		logger.Info("HTTP service probing enabled", "maintenance_excluded", false)
 	}
 	alertService := alerts.New(database, cfg.EncryptionKey, nil, logger, cfg.NotificationOrigin)
 	alertService.EnableHTTPServiceAlerts(cfg.HTTPProbesEnabled)
 	alertService.SetHTTPAgentAvailability(gateway.SupportsHTTP)
 	go alertService.Run(runCtx)
-	go runRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger)
-	api := httpapi.NewWithAlertService(cfg, database, authService, gateway, hub, alertService)
+	retentionLoop := &diagnostics.Loop{}
+	go runRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger, retentionLoop)
+	api := httpapi.NewWithAlertService(cfg, database, authService, gateway, hub, alertService,
+		httpapi.WithRuntimeIdentity(version, startedAt),
+		httpapi.WithRetentionWorkerHealth(retentionLoop.Snapshot),
+		httpapi.WithAlertHealth(alertService.Diagnostics),
+		httpapi.WithHTTPSchedulerHealth(func() any {
+			if httpScheduler == nil {
+				return map[string]string{"status": "not_attached"}
+			}
+			return httpScheduler.Diagnostics()
+		}),
+		httpapi.WithSchedulerHealth(func() any { return latencyScheduler.Diagnostics() }))
 	server := &http.Server{
 		Addr: cfg.ListenAddress, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 90 * time.Second,
@@ -109,12 +126,26 @@ type retentionDatabase interface {
 	PruneHTTPHistory(context.Context, time.Time) (store.HTTPRetentionBatch, error)
 }
 
-func runRetention(ctx context.Context, database retentionDatabase, policy store.RetentionPolicy, interval time.Duration, logger *slog.Logger) {
+func runRetention(ctx context.Context, database retentionDatabase, policy store.RetentionPolicy, interval time.Duration, logger *slog.Logger, observers ...*diagnostics.Loop) {
+	var observer *diagnostics.Loop
+	if len(observers) > 0 {
+		observer = observers[0]
+	}
+	if observer != nil {
+		stop := observer.Begin()
+		defer stop()
+	}
+	schedule := func(delay time.Duration) {
+		if observer != nil {
+			observer.Schedule(delay)
+		}
+	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	// Startup retention removes only one HTTP batch. Catch up after startup,
 	// releasing the SQLite writer between every bounded pass.
 	cleanup := time.NewTimer(100 * time.Millisecond)
+	schedule(100 * time.Millisecond)
 	defer cleanup.Stop()
 	catchingUp := true
 	for {
@@ -127,6 +158,7 @@ func runRetention(ctx context.Context, database retentionDatabase, policy store.
 			}
 			if !catchingUp {
 				cleanup.Reset(100 * time.Millisecond)
+				schedule(100 * time.Millisecond)
 			}
 		case <-cleanup.C:
 			batch, err := database.PruneHTTPHistory(ctx, time.Now().UTC())
@@ -137,6 +169,7 @@ func runRetention(ctx context.Context, database retentionDatabase, policy store.
 				logger.Error("prune HTTP history", "error", err)
 				catchingUp = true
 				cleanup.Reset(5 * time.Second)
+				schedule(5 * time.Second)
 				continue
 			}
 			if batch.TasksDeleted > 0 || batch.EpochsDeleted > 0 {
@@ -145,8 +178,10 @@ func runRetention(ctx context.Context, database retentionDatabase, policy store.
 			catchingUp = batch.More
 			if batch.More {
 				cleanup.Reset(100 * time.Millisecond)
+				schedule(100 * time.Millisecond)
 			} else {
 				cleanup.Reset(interval)
+				schedule(interval)
 			}
 		}
 	}
