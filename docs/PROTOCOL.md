@@ -1,5 +1,18 @@
 # Agent protocol v1
 
+The v1 runtime contract below remains unchanged. An opt-in v2 HTTP-check contract
+is being developed in [HTTP service monitoring](HTTP_SERVICE_MONITORING.md).
+The Server offers `/api/v2/agent/ws` with explicit v2 envelopes and a capabilities
+array in its welcome. HTTP capability requires `MYPROBE_HTTP_PROBES_ENABLED=true`
+on the Server and explicit Agent support; do not send HTTP tasks
+to v1 Agents or assume that a v2 connection establishes HTTP execution support.
+
+Private service diagnostics use already admitted HTTP results, not a new Agent
+request. Failure categories identify available evidence; the Agent still reports
+only total duration, not DNS/TCP/TLS phase timing or resolved addresses. See
+[service diagnostics](SERVICE_DIAGNOSTICS.md) for the protected history/navigation
+contract and Server-only migration 036. No new public or Agent fields are required.
+
 ## Transport
 
 - Primary: `GET /api/v1/agent/ws` using WebSocket.

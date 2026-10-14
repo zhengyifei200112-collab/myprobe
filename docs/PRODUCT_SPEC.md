@@ -20,6 +20,76 @@ saving a policy is distinct from applying it or delivering a notification. Faile
 startup preparation prevents notification workers from starting. Live browser,
 full upgrade/restore, capacity and configuration-transfer checks remain release
 gates. See [alert policy design](ALERT_POLICIES.md).
+HTTP monitoring is experimental and opt-in via the Server environment variable
+`MYPROBE_HTTP_PROBES_ENABLED=true` (default false; restart required). The current
+implementation includes negotiated v2 execution, bounded GET/HEAD checks, private
+administrator configuration/results, certificate evidence and per-observer
+statistics. Policy rejection counts as unobserved, not a target failure. See
+[HTTP service monitoring](HTTP_SERVICE_MONITORING.md) for contracts and evidence.
+Live HTTP GET/HEAD and six theme/viewport browser CRUD/result flows have opt-in
+integration evidence, including live HTTPS verification failures. Service settings
+and per-observer fault/recovery now reuse the incident state machine, suppression,
+Outbox and original-event links. A real online Agent checking a failing site then
+a recovered site verifies both persisted receipts and protected browser navigation.
+Full database restore retains service settings, event identity and pending delivery
+evidence. Missing, pending, stale or unsupported observations remain unknown,
+including when the current Gateway cannot execute HTTP. See
+[service incidents](SERVICE_INCIDENTS.md) for revision, privacy and timing contracts.
+The private service list/detail now summarize current observers using
+any-required-observer-failure: one failure degrades, partial success remains
+unknown, and only all fresh successes are healthy. Current observer coverage is
+separate from historical slot coverage/success rate. Snapshot expiry and read
+failure revoke old healthy presentation; see [current service health](SERVICE_HEALTH.md).
+Certificate reminders now independently enable verified 14/7/1-day warnings,
+persistently deduplicated per service/fingerprint/tier across observers and full
+restore. Only the most urgent reached tier is sent; missed tiers are skipped.
+Complete fresh success confirms replacement, and expiry/rotation never sends
+technical recovery. Warning state does not change current health. Private history
+distinguishes queueing, final authorization and real receipts; see
+[certificate reminders](CERTIFICATE_REMINDERS.md) for migration 035 and live TLS evidence.
+Private statistics now optionally exclude the union of effective frozen-member
+maintenance windows by planned slot, retaining raw and removed counts in one read
+snapshot. Creation bounds prevent backdated historical exclusion; cancellation
+clips the future interval. API default remains raw, while the browser explicitly
+requests exclusion and exposes both counts. All-excluded denominators stay null;
+this does not change current health or claim continuous-time SLA. See
+[maintenance statistics](HTTP_MAINTENANCE_STATISTICS.md).
+Protected service/observer/time-range diagnostics now restore context through
+password/session login, reload and the existing OAuth navigation storage. New
+service notices durably capture a diagnostic link; bounded pages distinguish
+failures, unexecuted checks and absent results using existing admitted evidence
+and mature raw statistics from one read snapshot. No target/body/credentials or
+unmeasured phase timings are returned. See [service diagnostics](SERVICE_DIAGNOSTICS.md)
+for migration 036, cursor/privacy and navigation contracts. Capacity, real OAuth
+and public-provider/client release acceptance remain incomplete.
+Configuration enablement alone does not start execution; v1 Agents remain supported
+for their existing capabilities and never receive HTTP tasks.
+
+Portable configuration v2 includes service definitions and observer assignments,
+but excludes service alert settings, scope policies, incidents and delivery history.
+Use a complete encrypted database backup to transfer those records; importing a
+service definition changes its revision and administratively ends old incidents.
+Service alert parameters now have a separate private `myprobe-service-alerts` v1
+bundle with explicit service/channel mapping, read-only before/after preview,
+destination revision fences and atomic persistent request replay. It covers fault
+and certificate-reminder settings, including disabled and cross-provider choices,
+without credentials or historical records. Migration 037 preserves replay identity
+through full backups; browser recovery confirms the original request after lost
+responses or refresh. See [service alert transfer](SERVICE_ALERT_TRANSFER.md).
+Source mapping and previews now render 25 items per page, with one searchable
+destination picker and an explicitly filled mapping-file template. Paging never
+limits the complete atomic batch. Compact recovery retains the original request
+and digest and accepts legacy full-preview caches. A 1000-service/channel local
+transfer check verifies every stored row and lost-response replay; see
+[capacity evidence](SERVICE_ALERT_CAPACITY.md). This is not Agent throughput or
+the full-system 24-hour acceptance.
+
+HTTP retention now independently catches up in bounded 1000-row transactions,
+yielding between batches and retrying errors with backoff. A monotonic 31-day
+floor and both deletions remain atomic per batch; migration 038 indexes closed
+epochs. Host rollups and permanent replay/deduplication records are preserved.
+See [cleanup contracts and local capacity evidence](HTTP_RETENTION_CAPACITY.md);
+this does not complete full-system capacity or the 24-hour acceptance.
 
 | Area | Requirement | Acceptance evidence | Status |
 | --- | --- | --- | --- |

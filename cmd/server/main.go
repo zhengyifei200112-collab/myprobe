@@ -66,7 +66,14 @@ func main() {
 	defer cancelRun()
 	latencyScheduler := scheduler.New(database, gateway, logger)
 	go latencyScheduler.Run(runCtx)
+	if cfg.HTTPProbesEnabled {
+		gateway.EnableHTTPProbes(true)
+		go scheduler.NewHTTP(database, gateway, logger).Run(runCtx)
+		logger.Info("HTTP service probing enabled", "maintenance_excluded", false)
+	}
 	alertService := alerts.New(database, cfg.EncryptionKey, nil, logger, cfg.NotificationOrigin)
+	alertService.EnableHTTPServiceAlerts(cfg.HTTPProbesEnabled)
+	alertService.SetHTTPAgentAvailability(gateway.SupportsHTTP)
 	go alertService.Run(runCtx)
 	go runRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger)
 	api := httpapi.NewWithAlertService(cfg, database, authService, gateway, hub, alertService)
@@ -97,16 +104,49 @@ func main() {
 	}
 }
 
-func runRetention(ctx context.Context, database *store.Store, policy store.RetentionPolicy, interval time.Duration, logger *slog.Logger) {
+type retentionDatabase interface {
+	ApplyRetention(context.Context, time.Time, store.RetentionPolicy) error
+	PruneHTTPHistory(context.Context, time.Time) (store.HTTPRetentionBatch, error)
+}
+
+func runRetention(ctx context.Context, database retentionDatabase, policy store.RetentionPolicy, interval time.Duration, logger *slog.Logger) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	// Startup retention removes only one HTTP batch. Catch up after startup,
+	// releasing the SQLite writer between every bounded pass.
+	cleanup := time.NewTimer(100 * time.Millisecond)
+	defer cleanup.Stop()
+	catchingUp := true
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case now := <-ticker.C:
-			if err := database.ApplyRetention(ctx, now.UTC(), policy); err != nil && !errors.Is(err, context.Canceled) {
+		case <-ticker.C:
+			if err := database.ApplyRetention(ctx, time.Now().UTC(), policy); err != nil && !errors.Is(err, context.Canceled) {
 				logger.Error("apply history retention", "error", err)
+			}
+			if !catchingUp {
+				cleanup.Reset(100 * time.Millisecond)
+			}
+		case <-cleanup.C:
+			batch, err := database.PruneHTTPHistory(ctx, time.Now().UTC())
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				logger.Error("prune HTTP history", "error", err)
+				catchingUp = true
+				cleanup.Reset(5 * time.Second)
+				continue
+			}
+			if batch.TasksDeleted > 0 || batch.EpochsDeleted > 0 {
+				logger.Info("pruned HTTP history batch", "tasks", batch.TasksDeleted, "epochs", batch.EpochsDeleted, "retained_from", batch.RetainedFrom, "more", batch.More)
+			}
+			catchingUp = batch.More
+			if batch.More {
+				cleanup.Reset(100 * time.Millisecond)
+			} else {
+				cleanup.Reset(interval)
 			}
 		}
 	}

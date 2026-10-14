@@ -84,6 +84,9 @@ func (s *Store) ApplyRetention(ctx context.Context, now time.Time, policy Retent
 			return err
 		}
 	}
+	if _, err := pruneHTTPHistory(ctx, tx, now); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 

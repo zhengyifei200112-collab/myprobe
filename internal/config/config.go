@@ -24,6 +24,7 @@ type Config struct {
 	TrustedProxies     []string
 	Retention          Retention
 	PublicHTTPAck      bool
+	HTTPProbesEnabled  bool
 }
 
 type Retention struct {
@@ -54,6 +55,13 @@ func Load() (Config, error) {
 	cfg.NotificationOrigin, originErr = notificationlink.NormalizeOrigin(os.Getenv("MYPROBE_NOTIFICATION_ORIGIN"))
 	if originErr != nil {
 		return Config{}, errors.New("invalid MYPROBE_NOTIFICATION_ORIGIN; expected an HTTP(S) origin without credentials, path, query or fragment")
+	}
+	if raw := strings.TrimSpace(os.Getenv("MYPROBE_HTTP_PROBES_ENABLED")); raw != "" {
+		var err error
+		cfg.HTTPProbesEnabled, err = strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, errors.New("MYPROBE_HTTP_PROBES_ENABLED must be a boolean")
+		}
 	}
 	if raw := strings.TrimSpace(os.Getenv("MYPROBE_TRUSTED_PROXIES")); raw != "" {
 		for _, item := range strings.Split(raw, ",") {

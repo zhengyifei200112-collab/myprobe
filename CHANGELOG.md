@@ -9,6 +9,70 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Service alert mapping and overwrite previews use bounded 25-item pages and a
+  shared searchable destination picker. Explicit mapping templates support large
+  batches without automatic matching; compact pending-request recovery retains
+  the original identity and remains compatible with old full-preview caches.
+  An opt-in 1000-service/channel browser fixture verifies the full batch and replay.
+
+- Private versioned HTTP service alert export/import explicitly maps existing
+  destination services and channels, previews all overwritten reminder parameters,
+  rejects stale destination revisions, and commits the whole batch with durable
+  request replay. Certificate-only and cross-provider configurations are supported.
+  Migration 037 retains original import results across full backups; browser refresh
+  and lost responses reuse the original request. Credentials and runtime history
+  are excluded, and existing configuration v1/v2 and host policy bundles are unchanged.
+
+- Protected HTTP service diagnostics restore the service, observer and time range
+  after login or reload. Bounded history pages separate real failures from
+  unexecuted, pending and missing checks, with mature raw-slot counts in the same
+  read snapshot. New service notifications capture a separate diagnostic link
+  through retries and full restore; Webhook templates and Telegram/Discord/SMTP
+  render it. Migration 036 adds a pagination index. No private targets, bodies,
+  credentials, unmeasured phase timings, public fields or Agent changes are added.
+
+- Private HTTP statistics optionally exclude effective maintenance-window unions
+  by planned slot and frozen observer membership. Raw and removed counts share
+  one read snapshot; overlapping windows cannot double-count, cancellation clips
+  future coverage, and newly backdated windows cannot erase earlier history.
+  The browser explicitly defaults to exclusion, supports raw comparison, and
+  preserves null rates when every mature slot is excluded. API omission keeps
+  the original raw behavior; no schema, public-node or Agent protocol change.
+
+- Opt-in certificate expiry warnings independently enable 14/7/1-day reminders
+  per HTTP service. Migration 035 persists service/fingerprint/threshold identity,
+  queue and final-send authorization across observers and full database restore.
+  Only the most urgent currently due tier is notified; missed tiers are skipped.
+  Verified fresh evidence drives warnings, complete fresh success confirms
+  certificate replacement, and expiry/rotation never sends technical recovery.
+  Private settings/history show warning severity, expiry, dedup state and the
+  original event link without changing service health or public/Agent contracts.
+  Existing outbox retries and provider receipt limitations remain in effect.
+
+- Private HTTP service lists and current-state detail now declare the
+  any-required-observer-failure policy and separate success, failure, unknown and
+  current observer coverage. Partial success or an empty observer set never
+  becomes healthy. Summaries share service-alert freshness/capability evaluation,
+  use bounded current-revision database/session snapshots, and omit target specs.
+  Browser expiry/read failure removes old healthy presentation and allows refresh.
+  Existing Agent, public-node, schema and notification contracts are unchanged.
+
+- Integrated opt-in HTTP checks and the durable incident platform on the service
+  development branch, preserving execution/origin configuration, private service
+  management and notification navigation. Separate HTTP/incident development
+  database upgrade fixtures preserve pending work and original history. Service
+  certificate reminders and maintenance statistics remain open.
+- Added private HTTP service alert settings and per-observer incidents to the
+  existing state machine and delivery queue. Actual current-revision failures and
+  recoveries notify through configured channels; missing, pending, offline,
+  unsupported, disabled-execution and stale observations remain unknown. Event
+  history and notifications retain safe service identity and original-event links.
+  Management changes fence stale observations and in-flight receipt authority;
+  existing silence, node maintenance, retry and full database restore apply.
+- Added service alert configuration/history management, dual revision conflict
+  checks and responsive controls. Portable JSON export explicitly excludes alert
+  settings/history; complete database backup includes them. Public-node and Agent
+  payloads do not gain service details.
 - New individual incident notifications capture an authenticated event URL when
   queued. Webhook JSON includes `incident_path`, custom Webhooks support
   `{{incident.url}}`, and Telegram/Discord/SMTP append a formatted event entry.
@@ -16,6 +80,17 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   original bytes. Configure `MYPROBE_NOTIFICATION_ORIGIN` for absolute links.
 
 ### Fixed
+
+- HTTP history cleanup catches up in separate 1000-row transactions, yielding
+  between batches instead of leaving growing expired backlogs behind an hourly
+  limit. Failed batches roll back and retry with backoff; clock rollback preserves
+  the published floor. Migration 038 indexes closed epochs. Host rollups, original
+  import replay and public/Agent contracts retain their meanings.
+
+- Forward-only migration 034 preserves legacy rules, events, states, receipts and
+  queued incident work while adding managed service bindings/settings. The rebuilt
+  rule-kind constraint also accepts existing memory, disk and latency kinds.
+  Service bindings cannot enter host-scope migration or direct host-rule editing.
 
 - Delivery completion now rechecks current policy, rule, node and channel state
   before applying a receipt. Management changes during an actual request cancel
@@ -202,6 +277,78 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   This foundation must ship together with the new evaluation and delivery engine;
   it is not yet a completed incident-center release.
 
+- Opt-in Server HTTP execution with `MYPROBE_HTTP_PROBES_ENABLED=true`, defaulting
+  to disabled, and real Agent/scheduler/result-storage coverage for policy denial.
+  Maintenance integration and HTTP incident/certificate notifications remain pending.
+
+- HTTP per-observer statistics panel with sample counts, success/coverage rates,
+  null-denominator labels, explicit effective ranges and maintenance limitations.
+
+- Administrator per-node HTTP statistics API with bounded ranges, query timeout,
+  explicit history boundaries and maintenance-adjustment status. No SLA claim is made.
+
+- HTTP statistics disclose the known schedule-history boundary and exclude
+  unreconstructable pre-migration revisions from the effective coverage window.
+
+- Administrator HTTP recent-result panel with failure categories, explicit waiting
+  and missing states, and expandable certificate summaries. Status uses the Server
+  observation time; empty lists do not imply service health.
+
+- Bounded administrator HTTP observation queries with private-spec exclusion,
+  null pending results and exact timestamp ordering (migration 020).
+
+- Administrator HTTP Services tab with configuration forms, observer selection,
+  pagination, conflict-preserving edits and explicit history-deletion confirmation.
+  JSON numeric assertions retain exact tokens; the page shows when Server execution
+  is disabled. Result and certificate views remain under development.
+
+- Configuration import preview displays HTTP service create/update counts and
+  explains assignment replacement; export copy identifies private URL/assertion data.
+
+- Configuration snapshot v2 transfers HTTP services and node assignments, with
+  transactional dry-run/merge counts and v1 import compatibility. HTTP results,
+  revision history and Agent-local network allowances are not transferred.
+
+- Paginated administrator HTTP service summaries and revision-checked deletion,
+  including associated task/history cleanup. Summary responses omit target URLs.
+
+- Private HTTP service create/read/replace APIs with administrator authentication,
+  CSRF protection, no-store responses, optimistic revisions and sanitized audit
+  metadata. Saving configuration does not enable production HTTP dispatch.
+
+- Bounded 31-day HTTP task/history cleanup with a durable retention floor
+  (migration 019). Internal statistics expose requested and effective ranges and
+  exclude deleted history from missing-sample counts.
+
+- Internal HTTP per-observer statistics with separate success, failure and missing
+  counts, null empty rates, consistent read snapshots and a conservative result
+  maturity window. Public statistics endpoints remain pending.
+
+- HTTP schedule revision history and bounded half-open expected-slot counting
+  (migration 018), preserving the denominator when checks are not dispatched.
+  Availability and coverage APIs are still under development.
+
+- HTTP scheduler foundation with configuration-anchored slots, bounded dispatch
+  workers and no replay of missed checks. Production startup and coverage
+  accounting remain pending integration.
+
+- Private HTTP service configuration storage with revision-checked updates and
+  transactional node assignments (migration 016). Service APIs and scheduling
+  remain under development and are not enabled by this storage foundation.
+- Durable HTTP task snapshots and conditional result storage (migration 017),
+  rejecting wrong-node, expired, obsolete-revision and duplicate results. Transport
+  dispatch and ingestion are integrated behind a default-off gateway gate;
+  production scheduling remains pending.
+
+- Opt-in Agent v2 WebSocket endpoint with explicit version isolation and capability
+  negotiation. Existing v1 clients remain supported; HTTP execution is not enabled.
+- Agent prefers v2 and falls back to v1 when that endpoint is absent (404/405),
+  while preserving v1 HTTP report fallback and refusing authentication-error downgrade.
+- Bounded Agent HTTP executor with TLS validation, decoded-response limits and
+  connection-scoped cancellation. Local `-http-private-cidrs` and
+  `-http-additional-ports` options (and matching `MYPROBE_HTTP_PRIVATE_CIDRS` /
+  `MYPROBE_HTTP_ADDITIONAL_PORTS` environment variables) configure target policy.
+  Server HTTP scheduling remains disabled pending result persistence.
 
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
