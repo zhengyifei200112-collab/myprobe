@@ -5,9 +5,11 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/agentgateway"
+	"github.com/zhengyifei200112-collab/myprobe/internal/diagnostics"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
@@ -25,10 +27,14 @@ type httpSlotKey struct {
 
 // HTTPScheduler has one owning Run goroutine and a bounded dispatch worker pool.
 type HTTPScheduler struct {
-	store      httpAssignmentStore
-	dispatcher httpDispatcher
-	logger     *slog.Logger
-	last       map[httpSlotKey]time.Time
+	store         httpAssignmentStore
+	dispatcher    httpDispatcher
+	logger        *slog.Logger
+	last          map[httpSlotKey]time.Time
+	running       atomic.Bool
+	diagnosticsMu sync.Mutex
+	cycleJob      diagnostics.Job
+	lastCycle     *HTTPCycleDiagnostics
 }
 
 func NewHTTP(database httpAssignmentStore, dispatcher httpDispatcher, logger *slog.Logger) *HTTPScheduler {
@@ -36,6 +42,8 @@ func NewHTTP(database httpAssignmentStore, dispatcher httpDispatcher, logger *sl
 }
 
 func (s *HTTPScheduler) Run(ctx context.Context) {
+	s.running.Store(true)
+	defer s.running.Store(false)
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
@@ -49,13 +57,28 @@ func (s *HTTPScheduler) Run(ctx context.Context) {
 }
 
 func (s *HTTPScheduler) dispatch(ctx context.Context, now time.Time) {
+	complete := s.cycleJob.Begin()
+	cycle := HTTPCycleDiagnostics{ScheduledAt: now, StartDelaySeconds: max(0, time.Since(now).Seconds())}
+	var cycleError error
+	var cycleMu sync.Mutex
+	defer func() {
+		if cycleError == nil {
+			cycleError = ctx.Err()
+		}
+		s.diagnosticsMu.Lock()
+		defer s.diagnosticsMu.Unlock()
+		s.lastCycle = &cycle
+		complete(cycleError)
+	}()
 	items, err := s.store.ListHTTPAssignments(ctx)
 	if err != nil {
+		cycleError = err
 		if ctx.Err() == nil {
 			s.logger.Warn("list HTTP assignments failed")
 		}
 		return
 	}
+	cycle.AssignmentsLoaded, cycle.Assignments = true, len(items)
 	type work struct {
 		assignment store.HTTPAssignment
 		slot       time.Time
@@ -75,6 +98,25 @@ func (s *HTTPScheduler) dispatch(ctx context.Context, now time.Time) {
 					err = s.dispatcher.DispatchHTTP(jobCtx, job.assignment.NodeID, job.assignment.ServiceID, job.slot)
 				}
 				cancel()
+				cycleMu.Lock()
+				switch {
+				case err == nil:
+					cycle.Dispatched++
+				case errors.Is(err, agentgateway.ErrAgentOffline):
+					cycle.Offline++
+				case errors.Is(err, agentgateway.ErrHTTPUnavailable):
+					cycle.Unavailable++
+				case errors.Is(err, agentgateway.ErrHTTPBusy):
+					cycle.Busy++
+				case errors.Is(err, store.ErrHTTPTaskRejected):
+					cycle.Rejected++
+				default:
+					cycle.Failed++
+					if cycleError == nil {
+						cycleError = err
+					}
+				}
+				cycleMu.Unlock()
 				if err != nil && ctx.Err() == nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, agentgateway.ErrAgentOffline) && !errors.Is(err, agentgateway.ErrHTTPUnavailable) && !errors.Is(err, agentgateway.ErrHTTPBusy) && !errors.Is(err, store.ErrHTTPTaskRejected) {
 					s.logger.Warn("dispatch HTTP task failed", "service_id", job.assignment.ServiceID, "node_id", job.assignment.NodeID)
 				}
@@ -96,9 +138,11 @@ func (s *HTTPScheduler) dispatch(ctx context.Context, now time.Time) {
 		// Failed/offline attempts are not retried each second and never turn into
 		// a false service failure. Historical slots are not replayed after downtime.
 		s.last[key] = slot
+		cycle.Due++
 		select {
 		case jobs <- work{item, slot}:
 		case <-ctx.Done():
+			cycle.NotQueued++
 		}
 		if ctx.Err() != nil {
 			break
