@@ -186,6 +186,17 @@ func (s *Store) ApplyServiceAlertImport(ctx context.Context, requestID string, b
 	if err != nil {
 		return result, err
 	}
+	// Committed receipts are permanent and immutable through the application.
+	// A point read can return one without waiting for unrelated management writes.
+	// Misses still take the writer and recheck below, closing concurrent commits.
+	var stored, raw string
+	err = s.db.QueryRowContext(ctx, `SELECT request_digest,result_json FROM service_alert_imports WHERE request_id=?`, requestID).Scan(&stored, &raw)
+	if err == nil {
+		return decodeServiceAlertReplay(stored, digest, raw)
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return result, err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return result, err
@@ -194,16 +205,12 @@ func (s *Store) ApplyServiceAlertImport(ctx context.Context, requestID string, b
 	if _, err := tx.ExecContext(ctx, `UPDATE alert_policy_writer SET version=version WHERE id=1`); err != nil {
 		return result, err
 	}
-	var stored, raw string
 	err = tx.QueryRowContext(ctx, `SELECT request_digest,result_json FROM service_alert_imports WHERE request_id=?`, requestID).Scan(&stored, &raw)
 	if err == nil {
-		if stored != digest {
-			return result, ErrServiceAlertImportRequestConflict
+		result, err = decodeServiceAlertReplay(stored, digest, raw)
+		if err != nil {
+			return result, err
 		}
-		if json.Unmarshal([]byte(raw), &result) != nil {
-			return result, errors.New("invalid service alert replay result")
-		}
-		result.Replayed = true
 		return result, tx.Commit()
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -239,4 +246,16 @@ func (s *Store) ApplyServiceAlertImport(ctx context.Context, requestID string, b
 		return result, err
 	}
 	return result, tx.Commit()
+}
+
+func decodeServiceAlertReplay(stored, digest, raw string) (ServiceAlertImportResult, error) {
+	result := ServiceAlertImportResult{ServiceIDs: []string{}}
+	if stored != digest {
+		return result, ErrServiceAlertImportRequestConflict
+	}
+	if json.Unmarshal([]byte(raw), &result) != nil {
+		return result, errors.New("invalid service alert replay result")
+	}
+	result.Replayed = true
+	return result, nil
 }

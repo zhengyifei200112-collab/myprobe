@@ -86,6 +86,17 @@ func TestServiceAlertTransferAPIAuthStrictnessPrivacyAndReplay(t *testing.T) {
 			t.Fatal("API replay")
 		}
 	}
+	// A permanent receipt is not an authentication or CSRF credential. The new
+	// read-only Store path must remain behind the same HTTP boundary on replay.
+	deniedReplay := httptest.NewRecorder()
+	handler.ServeHTTP(deniedReplay, httptest.NewRequest(http.MethodPost, base+"/apply", strings.NewReader(string(raw))))
+	if deniedReplay.Code != http.StatusUnauthorized || !strings.Contains(deniedReplay.Header().Get("Cache-Control"), "no-store") {
+		t.Fatal("known replay bypassed administrator authentication")
+	}
+	csrfReplay := authenticatedRequest(t, handler, cookie, "", http.MethodPost, base+"/apply", string(raw))
+	if csrfReplay.Code != http.StatusForbidden || !strings.Contains(csrfReplay.Header().Get("Cache-Control"), "no-store") {
+		t.Fatal("known replay bypassed CSRF")
+	}
 	current, err := db.ServiceAlertSettings(context.Background(), v.ID)
 	if err != nil || current.Revision != 2 || !current.CertificateRemindersEnabled || current.Enabled {
 		t.Fatal("wrong imported flags")
