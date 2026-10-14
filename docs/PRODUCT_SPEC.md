@@ -95,6 +95,7 @@ this does not complete full-system capacity or the 24-hour acceptance.
 | --- | --- | --- | --- |
 | System health | Private runtime/version/database/retention/transport, both schedulers, durable queue, backup-generation and node diagnostics; configuration acknowledgement/recovery remain separate | `docs/SYSTEM_HEALTH.md`, actual Server/browser/Agent and privacy/lifecycle tests | In progress |
 | Scheduled backup | Daily time-zone/date claims, independent secret file, authenticated local retention, durable failure reminders and isolated DB/channel recovery evidence | `docs/SCHEDULED_BACKUPS.md`; Store/Provider/API, process-kill and actual main/browser tests; physical ENOSPC, large DB and production failover remain separate | In progress |
+| Diagnostic export | Whitelist-only private JSON preview, session-bound frozen bytes, short bounded retention and mandatory audited download | `docs/DIAGNOSTIC_EXPORT.md`; version/field privacy, expiry/concurrency, source mutation, audit failure and actual main/browser evidence | In progress |
 | Public overview | Current time, online/offline counts, aggregate traffic and rate | Responsive browser tests and live API data | Implemented |
 | Public filtering | Tag/region pills with counts and horizontal mobile scrolling | UI test at 360/768/1440 px | Implemented |
 | Node cards | Bundled country flag artwork, name, status, masked IP, OS, uptime, last update | Metadata persistence, privacy, API contract, and browser rendering tests | Implemented |

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import DiagnosticExport from './DiagnosticExport.vue'
 
 interface Job { state: string; last_success_at?: string; last_completed_at?: string; failed_runs: number; completed_runs: number }
 interface Queue { pending: number; pending_due_by_time: number; pending_future: number; inflight: number; expired_leases: number; aggregate_members?: number; collecting?: number; oldest_pending_available_ms?: number }
@@ -20,6 +21,7 @@ interface Health {
   notification_engine?: { status: string; reason?: string; delivery_configuration?: string; evaluation?: Job }
 }
 const emit = defineEmits<{ unauthorized: [] }>()
+const authRejected = ref(false)
 defineProps<{ nodes: Array<{ id: string; name: string }> }>()
 interface NodeEvidence {
   observed_at: string
@@ -44,7 +46,7 @@ async function loadNode() {
   try {
     const response = await fetch(`/api/v1/admin/nodes/${encodeURIComponent(selectedNode.value)}/diagnostics`, { credentials: 'same-origin', cache: 'no-store', signal: nodeController.signal })
     if (current !== nodeGeneration) return
-    if (response.status === 401 || response.status === 403) { data.value = null; nodeData.value = null; emit('unauthorized'); return }
+    if (response.status === 401 || response.status === 403) { data.value = null; nodeData.value = null; authRejected.value = true; emit('unauthorized'); return }
     if (!response.ok) throw new Error(response.status === 404 ? '节点已不存在，请重新选择。' : '节点诊断读取失败，请重试。')
     const result = await response.json() as NodeEvidence
     if (current === nodeGeneration) nodeData.value = result
@@ -91,7 +93,7 @@ async function refresh() {
   try {
     const response = await fetch('/api/v1/admin/system/health', { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
     if (current !== generation) return
-    if (response.status === 401 || response.status === 403) { data.value = null; nodeData.value = null; emit('unauthorized'); return }
+    if (response.status === 401 || response.status === 403) { data.value = null; nodeData.value = null; authRejected.value = true; emit('unauthorized'); return }
     if (!response.ok) throw new Error('暂时无法读取系统健康，请重试。')
     const result = await response.json() as Health
     if (current === generation) data.value = result
@@ -125,6 +127,7 @@ onUnmounted(() => { generation++; controller?.abort(); nodeGeneration++; nodeCon
       <section class="admin-panel"><h2>持久通知队列</h2><p v-if="data.notification_queue?.status !== 'available'">当前队列读取不可用，不能判断没有积压。</p><template v-else><p>采样时间：{{ date(data.notification_queue.observed_at) }}</p><div class="health-grid"><article v-for="item in queues" :key="item.name"><h3>{{ item.name }}</h3><dl v-if="item.counts"><dt>待处理</dt><dd>{{ item.counts.pending }}</dd><dt>到计划时刻</dt><dd>{{ item.counts.pending_due_by_time }}</dd><dt>计划时刻尚未到</dt><dd>{{ item.counts.pending_future }}</dd><dt>持有租约</dt><dd>{{ item.counts.inflight }}</dd><dt>租约已过期</dt><dd>{{ item.counts.expired_leases }}</dd><dt v-if="item.counts.aggregate_members !== undefined">其中聚合成员</dt><dd v-if="item.counts.aggregate_members !== undefined">{{ item.counts.aggregate_members }}</dd><dt v-if="item.counts.collecting !== undefined">窗口收集中</dt><dd v-if="item.counts.collecting !== undefined">{{ item.counts.collecting }}</dd></dl></article></div><p>逻辑投递包含聚合成员，不能与组数量相加。到计划时刻仍须通过渠道等待、当前配置和证据检查；持有租约不等于请求已发送。读取不领取任务、不解除等待或过期租约。</p></template></section>
       <p class="health-note">手动备份生成成功仅表示加密文件已生成；客户端保存未知。定时备份与隔离恢复演练的逐份结果可在“设置 → 迁移与备份”中查看。</p>
     </template>
+    <DiagnosticExport v-if="!authRejected" @unauthorized="data = null; nodeData = null; authRejected = true; emit('unauthorized')" />
     <section class="admin-panel" aria-labelledby="node-health-title" :aria-busy="nodeBusy">
       <h2 id="node-health-title">节点诊断</h2>
       <div class="health-heading"><label for="diagnostic-node">选择节点</label><select id="diagnostic-node" v-model="selectedNode"><option value="">请选择节点</option><option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option></select><button class="soft-button" :disabled="!selectedNode || nodeBusy" @click="loadNode">刷新节点诊断</button></div>

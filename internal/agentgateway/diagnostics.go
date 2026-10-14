@@ -21,6 +21,70 @@ func (g *Gateway) Diagnostics() GatewayDiagnostics {
 	return g.diagnosticsAt(time.Now().UTC())
 }
 
+// TryDiagnostics is for bounded export preparation. A busy global lock means
+// unavailable evidence; it must not be reported as zero activity.
+func (g *Gateway) TryDiagnostics() (GatewayDiagnostics, bool) {
+	now := time.Now().UTC()
+	result := GatewayDiagnostics{ObservedAt: now}
+	if !g.sessionsMu.TryRLock() {
+		return result, false
+	}
+	if !g.pendingMu.TryLock() {
+		g.sessionsMu.RUnlock()
+		return result, false
+	}
+	sessions := make([]*agentSession, 0, len(g.sessions))
+	result.AgentConnections = len(g.sessions)
+	for _, session := range g.sessions {
+		switch session.version {
+		case 2:
+			result.V2Connections++
+		case 1:
+			result.V1Connections++
+		default:
+			result.UnknownConnections++
+		}
+		sessions = append(sessions, session)
+	}
+	g.sessionsMu.RUnlock()
+	for _, task := range g.pending {
+		if task.expires.After(now) {
+			result.PendingResults++
+		} else {
+			result.ExpiredResults++
+		}
+	}
+	g.pendingMu.Unlock()
+	result.HTTPResultsStatus = "available"
+	pending, expired := 0, 0
+	for _, session := range sessions {
+		if !session.httpMu.TryLock() {
+			result.HTTPResultsStatus = "unavailable"
+			continue
+		}
+		for _, expiry := range session.httpPending {
+			if expiry.After(now) {
+				pending++
+			} else {
+				expired++
+			}
+		}
+		session.httpMu.Unlock()
+	}
+	if result.HTTPResultsStatus == "available" {
+		result.HTTPPendingResults = &pending
+		result.HTTPExpiredResults = &expired
+	}
+	return result, true
+}
+func (h *Hub) TrySubscriberCount() (int, bool) {
+	if !h.mu.TryRLock() {
+		return 0, false
+	}
+	defer h.mu.RUnlock()
+	return len(h.subscribers), true
+}
+
 func (g *Gateway) diagnosticsAt(now time.Time) GatewayDiagnostics {
 	result := GatewayDiagnostics{ObservedAt: now}
 	g.sessionsMu.RLock()

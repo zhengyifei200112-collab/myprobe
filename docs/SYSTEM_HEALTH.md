@@ -9,6 +9,11 @@ private per-artifact recovery evidence in maintenance, described in
 [scheduled backup contracts](SCHEDULED_BACKUPS.md). The original health integration
 and its historical CI are not evidence for that dependent implementation.
 
+The dependent diagnostic-export branch adds a separately reviewed, private JSON
+preview and an audited download of frozen bytes. It does not serialize this health
+response as a file. See [diagnostic export](DIAGNOSTIC_EXPORT.md) for the stricter
+field projections, session binding, expiry and exact-byte/privacy acceptance.
+
 ## Current API contract
 
 `GET /api/v1/admin/system/health` requires an active administrator session.
@@ -206,7 +211,7 @@ go test ./cmd/server -run '^TestLiveSystemHealthMainBrowser$' -v -count=1
 ```
 
 Compatibility alerts, configuration acknowledgement, actual last-report transport,
-diagnostic export, full scheduled-backup/failover acceptance and full-system capacity/
+full diagnostic-export acceptance, full scheduled-backup/failover acceptance and full-system capacity/
 24-hour operation remain separate roadmap work. This integration and local
 checks do not establish complete SYS-01–03 or M5 acceptance. The original health
 branch's CI references above are historical evidence, not latest integration CI.
