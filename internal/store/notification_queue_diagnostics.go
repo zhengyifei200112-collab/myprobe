@@ -26,6 +26,7 @@ type NotificationQueueDiagnostics struct {
 	Scope      string       `json:"scope"`
 	Deliveries *QueueCounts `json:"deliveries,omitempty"`
 	Aggregates *QueueCounts `json:"aggregates,omitempty"`
+	System     *QueueCounts `json:"system,omitempty"`
 }
 
 // NotificationQueueDiagnostics reads safe counters in one read-only snapshot.
@@ -69,9 +70,24 @@ func (s *Store) NotificationQueueDiagnostics(ctx context.Context, now time.Time)
 		groups.OldestPendingAvailableMS = &value
 	}
 	err = tx.QueryRowContext(ctx, `SELECT COUNT(*),COALESCE(SUM(lease_until_ms<=?),0) FROM notification_aggregates WHERE status='inflight'`, now.UnixMilli()).Scan(&groups.Inflight, &groups.ExpiredLeases)
+	if err != nil {
+		return result
+	}
+	system := QueueCounts{}
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*),COALESCE(SUM(available_at_ms<=?),0),MIN(available_at_ms) FROM system_notifications WHERE status='pending'`, now.UnixMilli()).Scan(&system.Pending, &system.PendingDueByTime, &oldest)
+	if err != nil {
+		return result
+	}
+	system.PendingFuture = system.Pending - system.PendingDueByTime
+	if oldest.Valid {
+		value := oldest.Int64
+		system.OldestPendingAvailableMS = &value
+	}
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*),COALESCE(SUM(lease_until_ms<=?),0) FROM system_notifications WHERE status='inflight'`, now.UnixMilli()).Scan(&system.Inflight, &system.ExpiredLeases)
 	if err != nil || tx.Commit() != nil {
 		return result
 	}
+	result.System = &system
 	result.Status, result.ErrorCode, result.Deliveries, result.Aggregates = "available", "", &deliveries, &groups
 	return result
 }

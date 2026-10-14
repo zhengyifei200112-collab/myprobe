@@ -3,13 +3,19 @@
 Status: integration in progress on `feature/system-health-integration`, based on
 service PR #59 (`0abad97`) and reusing health PR #52 (`12b5bba`). Not released.
 
+The dependent scheduled-backup branch adds `scheduled_backup_worker` and a
+separate read-only `notification_queue.system` counter object. It also provides
+private per-artifact recovery evidence in maintenance, described in
+[scheduled backup contracts](SCHEDULED_BACKUPS.md). The original health integration
+and its historical CI are not evidence for that dependent implementation.
+
 ## Current API contract
 
 `GET /api/v1/admin/system/health` requires an active administrator session.
 Both successful and rejected requests use `Cache-Control: private, no-store`.
 The response contains `observed_at`, `server`, `database`, `retention`, `transport`,
 `browser_subscriptions`, `scheduler`, `http_scheduler`, `http_execution_enabled`,
-`notification_engine`, `backup` and `notification_queue`.
+`notification_engine`, `backup`, `scheduled_backup_worker` and `notification_queue`.
 
 Database inspection failures are represented by `database.status=unavailable`
 and a fixed error code, without raw errors or paths. Missing file sizes and
@@ -18,7 +24,8 @@ unknown file sizes remain distinct. Retention observations have process scope;
 Transport counts are sampled under separate locks, not a transaction spanning
 all connections. Pending results expire at their deadline; diagnostics do not
 remove expired entries. Browser subscriptions are separate from Agent sockets.
-The durable queue now reads active logical deliveries and aggregate groups in
+The durable queue now reads active incident logical deliveries, aggregate groups
+and independent backup-failure system reminders in
 one read-only snapshot. It reports pending, future/due-by-time, inflight and
 expired-lease counts, aggregate members, collecting groups and oldest pending
 availability. Member and group counts overlap and must not be added. Due by time
@@ -199,7 +206,7 @@ go test ./cmd/server -run '^TestLiveSystemHealthMainBrowser$' -v -count=1
 ```
 
 Compatibility alerts, configuration acknowledgement, actual last-report transport,
-diagnostic export, scheduled backup/verified recovery and full-system capacity/
+diagnostic export, full scheduled-backup/failover acceptance and full-system capacity/
 24-hour operation remain separate roadmap work. This integration and local
 checks do not establish complete SYS-01–03 or M5 acceptance. The original health
 branch's CI references above are historical evidence, not latest integration CI.

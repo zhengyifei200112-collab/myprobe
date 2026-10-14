@@ -11,6 +11,12 @@ coverage.*
 *.db-shm
 *.db-wal
 *.log
+*.mpb
+.myprobe-backup-*
+.myprobe-scratch-*.json
+.myprobe-recovery-*
+/backup-archives/
+/private/backup-passphrase
 
 # Frontend
 /web/node_modules/

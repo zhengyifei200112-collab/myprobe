@@ -48,6 +48,12 @@ jobs:
           git fetch --no-tags --depth=1 origin 532352963ab47aed4af730c400f25163d0e6ed45
           go test ./internal/store -run '^TestReleased021SchemaUpgradeToPolicies$' -count=1 -v
 
+      - name: Verify backups on an exhausted filesystem
+        shell: bash
+        run: |
+          go test -c ./internal/backup -o "${RUNNER_TEMP}/myprobe-backup-linux.test"
+          sudo sh scripts/run-backup-enospc.sh "${RUNNER_TEMP}/myprobe-backup-linux.test"
+
       - name: Build and validate container images
         shell: bash
         run: |
@@ -69,5 +75,7 @@ jobs:
           sudo apt-get install --yes shellcheck
           bash -n install.sh scripts/install_test.sh
           shellcheck install.sh scripts/install_test.sh
+          sh -n scripts/run-backup-enospc.sh
+          shellcheck scripts/run-backup-enospc.sh
           bash scripts/install_test.sh
           bash install.sh --help >/dev/null

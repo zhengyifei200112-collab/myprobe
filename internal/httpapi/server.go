@@ -17,6 +17,7 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/agentgateway"
 	"github.com/zhengyifei200112-collab/myprobe/internal/alerts"
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
+	"github.com/zhengyifei200112-collab/myprobe/internal/backup"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
 	"github.com/zhengyifei200112-collab/myprobe/internal/diagnostics"
 	"github.com/zhengyifei200112-collab/myprobe/internal/sharing"
@@ -44,6 +45,7 @@ type Server struct {
 	buildVersion          string
 	processStartedAt      time.Time
 	backupJob             diagnostics.Job
+	scheduledBackups      *backup.Scheduler
 	retentionWorkerHealth func() diagnostics.LoopSnapshot
 }
 
@@ -244,6 +246,11 @@ func (s *Server) routes() {
 	admin.GET("/maintenance/config", s.exportConfiguration)
 	admin.POST("/maintenance/config/import", s.importConfiguration)
 	admin.POST("/maintenance/backup", s.exportDatabaseBackup)
+	backups := s.router.Group("/api/v1/admin/maintenance/backup-schedule", privateNoStore(), s.requireSession(true))
+	backups.GET("", s.scheduledBackupStatus)
+	backups.PUT("", s.saveBackupSchedule)
+	backups.POST("/run", s.runScheduledBackup)
+	backups.POST("/runs/:id/verify", s.verifyScheduledBackup)
 	admin.POST("/maintenance/restore", s.stageDatabaseRestore)
 	admin.GET("/audit", s.listAudit)
 	admin.GET("/auth-settings", s.getAuthSettings)
