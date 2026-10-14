@@ -81,6 +81,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- HTTP history cleanup catches up in separate 1000-row transactions, yielding
+  between batches instead of leaving growing expired backlogs behind an hourly
+  limit. Failed batches roll back and retry with backoff; clock rollback preserves
+  the published floor. Migration 038 indexes closed epochs. Host rollups, original
+  import replay and public/Agent contracts retain their meanings.
+
 - Forward-only migration 034 preserves legacy rules, events, states, receipts and
   queued incident work while adding managed service bindings/settings. The rebuilt
   rule-kind constraint also accepts existing memory, disk and latency kinds.

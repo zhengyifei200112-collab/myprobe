@@ -84,6 +84,13 @@ transfer check verifies every stored row and lost-response replay; see
 [capacity evidence](SERVICE_ALERT_CAPACITY.md). This is not Agent throughput or
 the full-system 24-hour acceptance.
 
+HTTP retention now independently catches up in bounded 1000-row transactions,
+yielding between batches and retrying errors with backoff. A monotonic 31-day
+floor and both deletions remain atomic per batch; migration 038 indexes closed
+epochs. Host rollups and permanent replay/deduplication records are preserved.
+See [cleanup contracts and local capacity evidence](HTTP_RETENTION_CAPACITY.md);
+this does not complete full-system capacity or the 24-hour acceptance.
+
 | Area | Requirement | Acceptance evidence | Status |
 | --- | --- | --- | --- |
 | Public overview | Current time, online/offline counts, aggregate traffic and rate | Responsive browser tests and live API data | Implemented |

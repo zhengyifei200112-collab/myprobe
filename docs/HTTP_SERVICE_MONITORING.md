@@ -449,11 +449,14 @@ configuration. The UI must disclose history deletion before submitting the actio
 ### Raw HTTP history retention
 
 Migration `019_http_retention.sql` adds a durable retention floor and a task-time
-index. Existing history maintenance now removes HTTP tasks older than 31 days and
-closed schedule epochs ending before that boundary, up to 10,000 rows of each per
-maintenance pass. Open epochs keep their original anchors. Large backlogs drain
-over successive passes; the retention floor is advanced in the same transaction
-and never moves backwards, even after a clock correction. HTTP currently has no
+index. History maintenance removes HTTP tasks strictly older than 31 days and
+closed schedule epochs ending at or before that boundary, up to 1000 rows of each
+per transaction. Migration 038 adds a partial closed-epoch retention index. The
+Server catches up 100 ms after startup and after periodic retention, yielding
+100 ms between full batches and retrying failures after 5 seconds. The host
+rollup schedule remains independent; open epochs keep their original anchors.
+The floor and both deletions commit atomically per batch, and the published floor
+never regresses. Catchup keeps using that floor after clock rollback. HTTP has no
 long-term rollup; this 31-day policy is separate from host/latency retention.
 
 Statistics return requested start/end, effective start/end and retained-from time.
@@ -463,9 +466,11 @@ an empty effective interval. Raw timestamp deletion uses a whole-second boundary
 that preserves samples exactly on that boundary. The current tests cover partial
 range trimming, deletion and a non-regressing floor after clock rollback.
 
-Capacity testing must verify that bounded cleanup keeps pace with ingestion at the
-supported deployment size. Earlier-than-retained queries are not evidence of past
-availability; future UI must visibly show the actual range and history limitation.
+Local synthetic retention measurements cover 100 observers, 3 service definitions,
+432000 expired tasks and concurrent report writes; see
+[cleanup capacity and contracts](HTTP_RETENTION_CAPACITY.md). Full deployment
+capacity and 24-hour operation remain unverified. Earlier-than-retained queries
+are not evidence of past availability; UI must show the actual range limitation.
 
 ### Per-observer statistics foundation
 
