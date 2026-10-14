@@ -54,6 +54,13 @@ jobs:
           go test -c ./internal/backup -o "${RUNNER_TEMP}/myprobe-backup-linux.test"
           sudo sh scripts/run-backup-enospc.sh "${RUNNER_TEMP}/myprobe-backup-linux.test"
 
+      - name: Verify dense history retention and report writes
+        env:
+          MYPROBE_TEST_HISTORY_CAPACITY: '1'
+          MYPROBE_TEST_HISTORY_NODES: '5'
+          MYPROBE_TEST_HISTORY_VARIANT: full
+        run: go test ./internal/store -run '^TestHistoryRetentionDenseCapacity$' -timeout 10m -count=1 -v
+
       - name: Verify published Agent compatibility
         shell: bash
         run: |
