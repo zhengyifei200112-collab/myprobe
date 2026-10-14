@@ -669,7 +669,7 @@ func (s *Store) ListLatestLatency(ctx context.Context, nodeID string) ([]LatestL
 	)
 	SELECT a.id, a.name, a.kind, l.captured_at, l.success, l.latency_ms, l.error_class
 	FROM assigned a LEFT JOIN latency_samples l ON l.id = (
-		SELECT id FROM latency_samples WHERE node_id = ? AND target_id = a.id ORDER BY captured_at DESC LIMIT 1
+		SELECT id FROM latency_samples WHERE node_id = ? AND target_id = a.id ORDER BY captured_sort_ns DESC,id DESC LIMIT 1
 	) ORDER BY a.sort_order, a.name`, nodeID, nodeID)
 	if err != nil {
 		return nil, err
@@ -707,12 +707,12 @@ func (s *Store) ListLatestLatency(ctx context.Context, nodeID string) ([]LatestL
 }
 
 const metricHistoryQuery = `WITH history AS (
-		SELECT m.node_id,m.captured_at AS sample_at,1 AS sample_count,m.cpu_usage AS cpu_sum,
+		SELECT m.node_id,substr(m.captured_at,1,19)||'Z' AS sample_at,1 AS sample_count,m.cpu_usage AS cpu_sum,
 		CASE WHEN m.memory_total>0 THEN 100.0*m.memory_used/m.memory_total ELSE 0 END AS memory_sum,
 		CASE WHEN m.disk_total>0 THEN 100.0*m.disk_used/m.disk_total ELSE 0 END AS disk_sum,
 		m.net_rx_rate AS rx_sum,m.net_tx_rate AS tx_sum
 		FROM metric_samples m
-		WHERE m.node_id=? AND m.captured_at>=?
+		WHERE m.node_id=? AND m.captured_sort_ns>=?
 		UNION ALL
 		SELECT node_id,bucket_at,sample_count,cpu_sum,memory_percent_sum,disk_percent_sum,net_rx_rate_sum,net_tx_rate_sum
 		FROM metric_rollups WHERE node_id=? AND bucket_at>=?
@@ -731,7 +731,7 @@ func (s *Store) MetricHistory(ctx context.Context, nodeID string, start time.Tim
 	// transaction. Reading both sources with UNION ALL is therefore sufficient;
 	// a per-sample NOT EXISTS scan is redundant and becomes quadratic on long-lived
 	// installations with tens of thousands of rollup buckets.
-	rows, err := s.db.QueryContext(ctx, metricHistoryQuery, nodeID, formatTime(start), nodeID, formatTime(start), bucketSeconds, bucketSeconds)
+	rows, err := s.db.QueryContext(ctx, metricHistoryQuery, nodeID, formatCapturedTime(start), nodeID, formatTime(start), bucketSeconds, bucketSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -754,10 +754,10 @@ func (s *Store) LatencyHistory(ctx context.Context, nodeID string, start time.Ti
 		return nil, errors.New("invalid history bucket")
 	}
 	rows, err := s.db.QueryContext(ctx, `WITH history AS (
-		SELECT node_id,target_id,kind,captured_at AS sample_at,1 AS sample_count,success AS success_count,
+		SELECT node_id,target_id,kind,substr(captured_at,1,19)||'Z' AS sample_at,1 AS sample_count,success AS success_count,
 		CASE WHEN success=1 AND latency_ms IS NOT NULL THEN 1 ELSE 0 END AS latency_count,
 		CASE WHEN success=1 THEN COALESCE(latency_ms,0) ELSE 0 END AS latency_sum
-		FROM latency_samples WHERE node_id=? AND captured_at>=?
+			FROM latency_samples WHERE node_id=? AND captured_sort_ns>=?
 		UNION ALL
 		SELECT node_id,target_id,kind,bucket_at,sample_count,success_count,latency_count,latency_sum
 		FROM latency_rollups WHERE node_id=? AND bucket_at>=?
@@ -767,7 +767,7 @@ func (s *Store) LatencyHistory(ctx context.Context, nodeID string, start time.Ti
 		100.0*SUM(success_count)/SUM(sample_count)
 	FROM history JOIN targets t ON t.id=history.target_id JOIN nodes n ON n.id=history.node_id
 	WHERE n.hidden=0 GROUP BY bucket,history.target_id,t.name,history.kind
-	ORDER BY bucket,t.sort_order,t.name`, nodeID, formatTime(start), nodeID, formatTime(start), bucketSeconds, bucketSeconds)
+		ORDER BY bucket,t.sort_order,t.name`, nodeID, formatCapturedTime(start), nodeID, formatTime(start), bucketSeconds, bucketSeconds)
 	if err != nil {
 		return nil, err
 	}

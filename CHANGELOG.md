@@ -110,6 +110,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- History retention now locates exact epoch buckets and filters eligible ranges
+  instead of scanning each node's year of rollups. Migration 041 adds indexes and
+  private virtual nanosecond sort keys while preserving original sample/JSON bytes.
+  Raw history/latency ranges, latest results and counter anchors correctly order
+  fractional timestamps; samples just before a minute no longer round into it.
+
 - Agent welcome sampling periods now take effect. Independent collection and
   reporting loops retain only the latest successful sample, discard old-generation
   samples after period changes, and avoid repeating the same cached sample.
