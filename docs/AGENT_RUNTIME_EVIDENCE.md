@@ -110,3 +110,5 @@ go test ./cmd/server -run '^TestLiveSystemHealthMainBrowser$' -count=1 -v
 当前模块不承担自动 Agent 升级、上游版本查询、完整本地离线缓存或每次采集历史保留。500/1000 节点真实负载、全系统实际 24 小时、其他历史发布/平台、公网 Provider/OAuth、依赖分支合并与正式发布仍遵循原路线，不能以此处单节点和界面验证替代。
 
 2026-10-15 本地核验：npm ci/build、导航契约、gofmt、全仓 Go、vet、命令构建和差异检查完成。生成资源为 `index-DM6HnYPo.js / index-qPqymloK.css`。全仓实际启用健康+CLI Agent、定时备份、诊断导出、正式库升级与 v0.2.1 原始二进制套件；仅既有 Windows 磁盘路径用例失败（独立 PR #47），其余包通过。CGO 关闭，不声称本地 race；既有 npm 五项提示与图表包体积提示不变。Linux、容器和准确提交 CI 另行记录，不能用依赖分支 CI 替代本模块。
+
+实现提交 `3d87bd27016511b6acca6259e67376ac8f753179` 的准确 CI [38610349157](https://github.com/zhengyifei200112-collab/myprobe/actions/runs/38610349157) 全部成功：前端确定性构建、Linux 全仓 Go/vet/build、正式库升级、真实受限 tmpfs ENOSPC、固定原始 v0.2.1 Linux Agent 的 WebSocket/v1 与 HTTP/v1 兼容、Server/Agent 容器与 Compose、安装脚本。草稿 PR [#63](https://github.com/zhengyifei200112-collab/myprobe/pull/63) 基于 #62，仍未合并/发布；此条引用绑定实现提交，不冒充后续文档提交的 CI。
