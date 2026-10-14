@@ -54,4 +54,6 @@ Windows 10 19045、Go 1.26.5、i5-13490F（16 逻辑 CPU）、可见内存 34138
 
 npm ci/build、导航契约、gofmt、全仓 Go/vet/命令构建及差异检查完成；资源 `index-DM6HnYPo.js / index-qPqymloK.css` 无变化。全仓实际启用服务/迁移/1000 项浏览器、健康+CLI Agent、备份/诊断、正式库及发布二进制套件，只有既有 Windows 路径断言失败（独立 #47），其余包通过。CGO 关闭，不声称本地 race；原 npm 五项提示与图表体积提示不变。
 
-准确提交 Linux CI 尚待本分支记录，不能用 #64 CI 替代。联合系统负载、2 vCPU/2 GiB 门槛、WAL/RSS峰值、实际 24 小时、其他永久账本、加密归档大库内存/磁盘成本及生产恢复切换仍保留原路线。此处完整 SQLite 恢复不冒充加密归档压力测试或生产 failover。
+实现提交 `7697c85ce54b54c3abb9bf3b71651192ae0f58a1` 的准确 CI [38656237745](https://github.com/zhengyifei200112-collab/myprobe/actions/runs/38656237745) 全部成功，包括 Linux 全仓 Go/vet/build、前端确定性、正式库/发布 Agent、真实 ENOSPC、稠密历史、两种永久满库/恢复、容器/Compose 和安装脚本。Linux 10K 条的库大小与本地两种案例一致；200 次 Store 回放 p95 分别 1.37/2.09 ms，快照分别 2.34/7.80 秒，Go 1.26.9/4 逻辑 CPU。CI 原始结构记录已加入证据文件，ledger hash 在每个独立夹具内验证完整恢复，不要求不同运行的随机渠道/创建时间有同一 hash。
+
+草稿 [#65](https://github.com/zhengyifei200112-collab/myprobe/pull/65) 基于 #64，未合并/发布；上述 CI 绑定实现提交，不能冒充后续文档 head。联合系统负载、2 vCPU/2 GiB 门槛、WAL/RSS峰值、实际 24 小时、其他永久账本、加密归档大库内存/磁盘成本及生产恢复切换仍保留原路线。此处完整 SQLite 恢复不冒充加密归档压力测试或生产 failover。

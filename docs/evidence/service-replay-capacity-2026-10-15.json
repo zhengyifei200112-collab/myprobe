@@ -112,5 +112,104 @@
       "schema": "myprobe.service_replay_capacity.v1",
       "services_per_result": 1000
     }
-  ]
+  ],
+  "ci": {
+    "run_id": 38656237745,
+    "head_sha": "7697c85ce54b54c3abb9bf3b71651192ae0f58a1",
+    "conclusion": "success",
+    "linux_results": [
+      {
+        "arch": "amd64",
+        "backup_bytes": 371007488,
+        "backup_ms": 2343.330281,
+        "deleted_destinations_replayed": true,
+        "destination_id_length": 32,
+        "go": "go1.26.9",
+        "ledger_sha256": "d9e303f7b22850adb4ffbf86ff5d38e5eb2502ec0ee66ef0e1c88b8627ca5349",
+        "levels": [
+          {
+            "database_bytes": 38576128,
+            "records": 1000,
+            "replay_calls": 200,
+            "replay_max_ms": 2.033212,
+            "replay_p50_ms": 1.109742,
+            "replay_p95_ms": 1.487216,
+            "result_bytes": 35061,
+            "seed_ms": 577.653523,
+            "seed_wal_allocated_bytes": 37228352,
+            "total_result_bytes": 35061000,
+            "used_page_bytes": 38576128
+          },
+          {
+            "database_bytes": 371851264,
+            "records": 10000,
+            "replay_calls": 200,
+            "replay_max_ms": 1.487191,
+            "replay_p50_ms": 1.122511,
+            "replay_p95_ms": 1.372072,
+            "result_bytes": 35061,
+            "seed_ms": 5256.703452,
+            "seed_wal_allocated_bytes": 335269152,
+            "total_result_bytes": 350610000,
+            "used_page_bytes": 371851264
+          }
+        ],
+        "logical_cpus": 4,
+        "os": "linux",
+        "record_limit": 10000,
+        "recorded_at": "2026-10-14T23:50:02.563941631Z",
+        "request_id_length": 128,
+        "restored_records": 10000,
+        "retention_preserved_history": true,
+        "schema": "myprobe.service_replay_capacity.v1",
+        "services_per_result": 1000
+      },
+      {
+        "arch": "amd64",
+        "backup_bytes": 1318133760,
+        "backup_ms": 7800.114281,
+        "deleted_destinations_replayed": true,
+        "destination_id_length": 128,
+        "go": "go1.26.9",
+        "ledger_sha256": "58394ecf1d79ae667bef1d3217e9bcd3ca69229000490b4824b13392c8698282",
+        "levels": [
+          {
+            "database_bytes": 133931008,
+            "records": 1000,
+            "replay_calls": 200,
+            "replay_max_ms": 2.461098,
+            "replay_p50_ms": 1.786377,
+            "replay_p95_ms": 2.073384,
+            "result_bytes": 131061,
+            "seed_ms": 1821.966516,
+            "seed_wal_allocated_bytes": 132396232,
+            "total_result_bytes": 131061000,
+            "used_page_bytes": 133931008
+          },
+          {
+            "database_bytes": 1319620608,
+            "records": 10000,
+            "replay_calls": 200,
+            "replay_max_ms": 2.260356,
+            "replay_p50_ms": 1.801425,
+            "replay_p95_ms": 2.085904,
+            "result_bytes": 131061,
+            "seed_ms": 17552.962376,
+            "seed_wal_allocated_bytes": 1192665872,
+            "total_result_bytes": 1310610000,
+            "used_page_bytes": 1319620608
+          }
+        ],
+        "logical_cpus": 4,
+        "os": "linux",
+        "record_limit": 10000,
+        "recorded_at": "2026-10-14T23:50:40.380679262Z",
+        "request_id_length": 128,
+        "restored_records": 10000,
+        "retention_preserved_history": true,
+        "schema": "myprobe.service_replay_capacity.v1",
+        "services_per_result": 1000
+      }
+    ]
+  }
 }
