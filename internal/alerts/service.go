@@ -233,6 +233,8 @@ func (s *Service) UpdateRule(ctx context.Context, id, nodeID, channelID, kind st
 func (s *Service) Run(ctx context.Context) {
 	var workers sync.WaitGroup
 	defer workers.Wait()
+	workers.Add(1)
+	go func() { defer workers.Done(); s.runSystemNotificationWorker(ctx) }()
 	workersStarted := false
 	ticker := time.NewTicker(s.interval)
 	s.running.Store(true)

@@ -132,7 +132,7 @@ const backgrounds: Array<{ key: 'public_background' | 'admin_background' | 'logi
         <h2>{{ section === 'notifications' ? '通知系统已启用' : section === 'security' ? '登录与安全' : section === 'maintenance' ? '现有维护工具已可使用' : '系统信息' }}</h2>
         <p v-if="section === 'notifications'">管理 Provider、告警规则、消息模板和发送历史。</p>
         <p v-else-if="section === 'security'">管理密码登录、GitHub OAuth 白名单、会话安全与审计记录。</p>
-        <p v-else-if="section === 'maintenance'">配置迁移和加密数据库备份未发生变化，可继续使用现有工具。</p>
+        <p v-else-if="section === 'maintenance'">配置迁移、加密数据库备份、每日备份设置和隔离恢复演练。</p>
         <p v-else>MyProbe 的运行配置沿用当前安全默认值；本阶段不修改服务端部署参数。</p>
         <DsButton v-if="section === 'notifications'" @click="emit('openLegacy', 'alerts')">打开当前告警页面</DsButton>
         <DsButton v-else-if="section === 'security'" @click="emit('openLegacy', 'security')">打开登录与安全</DsButton>

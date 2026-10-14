@@ -9,6 +9,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Optional daily local encrypted backups use explicit time zones, durable date
+  claims, owned file retention and independent passphrase files. Interrupted
+  plaintext scratch is reclaimed only with authenticated cleanup authorization.
+  Private asynchronous controls retain job/checksum history and separately verify
+  isolated database and channel-credential recovery. Migration 039 stores backup
+  jobs and independent failure reminders, sharing Provider retries and channel
+  waits without synthetic nodes; unknown authorized sends are not retried.
+
 - Administrator system and node diagnostics observe process identity, database
   metadata, actual runtime jobs, Agent connections, and encrypted backup generation.
   A private health page restores node context through login and reload and separates
