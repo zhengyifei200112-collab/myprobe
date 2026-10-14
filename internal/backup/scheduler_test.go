@@ -85,7 +85,14 @@ func TestScheduledBackupLocalDateClaimAndFailureReminder(t *testing.T) {
 	if err != nil || len(notices) != 1 || notices[0].Status != "pending" {
 		t.Fatalf("durable reminder: %+v %v", notices, err)
 	}
-	if worked, err := service.DeliverSystemNotification(ctx, at.Add(time.Second)); err != nil || !worked {
+	// The schedule uses a fixed local-date clock; task completion queues the
+	// reminder at its actual finish time. Deliver against durable due evidence,
+	// not a fixed timestamp that becomes past as the real calendar advances.
+	due := notices[0].AvailableAt
+	if worked, err := service.DeliverSystemNotification(ctx, due.Add(-time.Millisecond)); err != nil || worked {
+		t.Fatalf("early delivery: %v %v", worked, err)
+	}
+	if worked, err := service.DeliverSystemNotification(ctx, due.Add(time.Millisecond)); err != nil || !worked {
 		t.Fatalf("actual delivery: %v %v", worked, err)
 	}
 	notices, err = db.SystemNotifications(ctx)
