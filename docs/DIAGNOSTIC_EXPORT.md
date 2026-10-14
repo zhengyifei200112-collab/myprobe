@@ -4,6 +4,12 @@
 这是运维统计与状态的诊断文件，不是配置迁移、数据库备份或远程命令执行功能。
 依赖备份分支 #61 的 `1f37dfe` 以及原健康/服务栈，尚未合并或发布。
 
+实现提交 `dc79116cbf2e4ca18c37bb7137512697bb2abdcb` 的
+[CI 38599582849](https://github.com/zhengyifei200112-collab/myprobe/actions/runs/38599582849)
+已全部通过：确定性前端、Linux 全仓 Go/vet/build、正式库升级、继承的真实 tmpfs
+ENOSPC、容器/Compose 及安装脚本。引用绑定实现提交；文档后继的最新 CI 以 PR #62
+检查为准，草稿未合并。
+
 ## 内容和隐私边界
 
 格式为 `myprobe.diagnostics.v1`。Collector 使用明确的导出 DTO，不把健康 API、
