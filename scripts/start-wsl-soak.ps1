@@ -39,6 +39,8 @@ function Write-Status([string]$Directory, [System.Collections.IDictionary]$Value
 # Start-Process joins ArgumentList into one Windows command line. Quote each
 # argument explicitly, including embedded quotes and trailing backslashes.
 function Quote-WindowsArgument([string]$Value) {
+    # wsl.exe parses its own options before the command; preserve bare options.
+    if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') { return $Value }
     '"' + (($Value -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"'
 }
 
@@ -101,14 +103,30 @@ $status = [ordered]@{
     ended_at = $null; exit_code = $null; test_acceptance = 'not_evaluated'
 }
 $child = $null
+$stdoutFile = $null
+$stderrFile = $null
 try {
     Write-Status $directory $status
     $arguments = @('--distribution', $manifest.distribution, '--user', 'root', '--exec', '/bin/sh', $manifest.linux_script)
     $commandLine = ($arguments | ForEach-Object { Quote-WindowsArgument $_ }) -join ' '
-    $child = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32/wsl.exe') `
-        -ArgumentList $commandLine -WindowStyle Hidden -PassThru `
-        -RedirectStandardOutput (Join-Path $directory 'wsl.stdout.log') `
-        -RedirectStandardError (Join-Path $directory 'wsl.stderr.log')
+    # Own the process handle from Start, including a WSL client which fails
+    # immediately. Windows PowerShell Start-Process can otherwise lose ExitCode.
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = Join-Path $env:SystemRoot 'System32/wsl.exe'
+    $startInfo.Arguments = $commandLine
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $child = New-Object System.Diagnostics.Process
+    $child.StartInfo = $startInfo
+    $stdoutFile = [IO.File]::Open((Join-Path $directory 'wsl.stdout.log'), 'CreateNew', 'Write', 'Read')
+    $stderrFile = [IO.File]::Open((Join-Path $directory 'wsl.stderr.log'), 'CreateNew', 'Write', 'Read')
+    if (-not $child.Start()) { throw 'WSL client did not start.' }
+    # Copy both pipes concurrently without PowerShell event callbacks/runspaces,
+    # preventing a full stdout or stderr pipe from blocking the Linux process.
+    $stdoutCopy = $child.StandardOutput.BaseStream.CopyToAsync($stdoutFile)
+    $stderrCopy = $child.StandardError.BaseStream.CopyToAsync($stderrFile)
     $status.wsl_pid = $child.Id
     $status.state = 'running'
     do {
@@ -119,6 +137,8 @@ try {
     $child.WaitForExit()
     $child.Refresh()
     $status.exit_code = $child.ExitCode
+    $stdoutCopy.GetAwaiter().GetResult()
+    $stderrCopy.GetAwaiter().GetResult()
     $status.state = 'exited'
 } catch {
     # Do not restart, kill other WSL instances, or hide an unknown Linux outcome.
@@ -130,4 +150,6 @@ try {
     $status.ended_at = $status.observed_at
     Write-Status $directory $status
     if ($null -ne $child) { $child.Dispose() }
+    if ($null -ne $stdoutFile) { $stdoutFile.Dispose() }
+    if ($null -ne $stderrFile) { $stderrFile.Dispose() }
 }
