@@ -172,6 +172,8 @@ MIT
 The opt-in [dense-history joint workload](docs/DENSE_JOINT_HISTORY.md) checks
 30-day/year history while real Agents, services, notifications and browser pages
 run together. Its evidence is separate from the remaining 24-hour stability gate.
+For long runs, [independent resource sampling](docs/JOINT_RESOURCE_OBSERVATION.md)
+records actual sampling gaps while historical requests are in flight.
 
 MyProbe uses GitHub Flow, Conventional Commits, reviewed pull requests, automated checks,
 Semantic Versioning, and forward-only database migrations. Start with
