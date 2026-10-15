@@ -78,7 +78,14 @@ func TestDiagnosticsActualWebSocketLifecycle(t *testing.T) {
 	if !g.NodeConnected(node.ID) || g.Diagnostics().AgentConnections != 1 {
 		t.Fatal("old disconnect removed replacement")
 	}
-	task := protocol.Task{ID: "diagnostic-task", TargetID: "diagnostic-target", Kind: protocol.TaskKindPing, Host: "example.com", TimeoutMS: 1000, ExpiresAt: time.Now().UTC().Add(time.Minute)}
+	target, err := db.CreateTarget(ctx, store.CreateTargetParams{Name: "Synthetic diagnostic target", Kind: protocol.TaskKindPing, Host: "example.test", TimeoutMS: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AssignTarget(ctx, node.ID, target.ID); err != nil {
+		t.Fatal(err)
+	}
+	task := protocol.Task{ID: "diagnostic-task", TargetID: target.ID, Kind: protocol.TaskKindPing, Host: target.Host, TimeoutMS: 1000, ExpiresAt: time.Now().UTC().Add(time.Minute)}
 	if err := g.SendTask(ctx, node.ID, task); err != nil {
 		t.Fatal(err)
 	}
