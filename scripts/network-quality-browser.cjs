@@ -54,10 +54,19 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
     const unsupported = series.at(-1).nodes.find(n => n.node_id === ids[0]);
     assert.equal(unsupported.counts.success, 0); assert.equal(unsupported.counts.failure, 0); assert.ok(unsupported.counts.not_executed > 0); assert.equal(unsupported.execution_failure_pct, null); assert.equal(unsupported.rtt_mean_ms, null);
     evidence.ipv6_case = { synthetic_configured_observer: true, unsupported_is_not_execution_failure: true, exact_packet_loss_unavailable: true, actual_ipv6_network_execution: false };
+    // Only this observer is unsupported. After local 23:00 the last completed
+    // peak can overlap the other seven observers' real successful fixture data.
+    // Select the explicit no-success population; never infer empty data from
+    // the wall-clock-dependent peak preset.
+    for (const id of ids.slice(1)) await dialog.locator(`input[value="${id}"]`).uncheck();
+    await compare.click(); await dialog.locator('.quality-table tbody tr').waitFor(); await assertEnabled(compare);
+    assert.equal(series.at(-1).nodes.length, 1); assert.equal(series.at(-1).nodes[0].node_id, ids[0]);
+    assert.equal(series.at(-1).nodes[0].counts.success, 0); assert.ok(series.at(-1).nodes[0].counts.not_executed > 0);
+    await dialog.getByText('所选范围没有可信的成功 RTT 样本；空白不代表 0 ms。').waitFor({ state: 'visible' });
     await dialog.getByLabel('时间范围', { exact: true }).selectOption('peak'); await compare.click(); await dialog.locator('.quality-table').waitFor(); await assertEnabled(compare);
     const peak = series.at(-1); assert.equal(Date.parse(peak.requested_end) - Date.parse(peak.requested_start), 4 * 3600000);
     assert.ok(Date.parse(peak.requested_end) <= Date.parse(peak.as_of));
-    assert.ok(await dialog.getByText('所选范围没有可信的成功 RTT 样本；空白不代表 0 ms。').isVisible());
+    await dialog.getByText('所选范围没有可信的成功 RTT 样本；空白不代表 0 ms。').waitFor({ state: 'visible' });
     let abort = true;
     await page.route('**/network-quality/series?**', async route => { if (abort) { abort = false; await route.abort(); } else await route.continue(); });
     await compare.click(); await dialog.getByRole('alert').waitFor(); assert.ok((await dialog.getByRole('alert').textContent()).includes('网络请求未完成')); await assertEnabled(compare);
