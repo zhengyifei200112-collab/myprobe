@@ -1,0 +1,73 @@
+{
+  "format": "myprobe.wsl-soak-supervision-evidence.v1",
+  "source_commit": "847cc4f11dda32371f42e3699e04ab3188cf6b23",
+  "supervisor_sha256": "9594a54ec96e3e2d2cbaceeaf7840f581251de6bb98ee9f5d8d8efde9d230f3a",
+  "mid_run": {
+    "observed_at": "2026-10-15T14:53:58.9642414Z",
+    "launching_shell_pid": 26352,
+    "launching_shell_gone": true,
+    "status": {
+      "format": "myprobe.wsl-soak-status.v1",
+      "run_id": "ee9eadb1ea8d497aa6e0005980967780",
+      "state": "running",
+      "supervisor_pid": 20116,
+      "wsl_pid": 32328,
+      "started_at": "2026-10-15T14:53:16.3529672Z",
+      "observed_at": "2026-10-15T14:53:56.4976217Z",
+      "ended_at": null,
+      "exit_code": null,
+      "test_acceptance": "not_evaluated"
+    },
+    "linux_log_tail": [
+      "heartbeat=2026-10-15T14:53:56Z",
+      "heartbeat=2026-10-15T14:53:57Z",
+      "heartbeat=2026-10-15T14:53:58Z"
+    ],
+    "existing_directory_rejected": true,
+    "manifest_unchanged": true
+  },
+  "final_status": {
+    "format": "myprobe.wsl-soak-status.v1",
+    "run_id": "ee9eadb1ea8d497aa6e0005980967780",
+    "state": "exited",
+    "supervisor_pid": 20116,
+    "wsl_pid": 32328,
+    "started_at": "2026-10-15T14:53:16.3529672Z",
+    "observed_at": "2026-10-15T14:54:46.6829103Z",
+    "ended_at": "2026-10-15T14:54:46.6829103Z",
+    "exit_code": 0,
+    "test_acceptance": "not_evaluated"
+  },
+  "heartbeat_count": 90,
+  "completed_marker": [
+    "fixture_completed=90"
+  ],
+  "burst_failure": {
+    "stdout_bytes": 2097152,
+    "status": {
+      "format": "myprobe.wsl-soak-status.v1",
+      "run_id": "42943de2d76d41c1a54180af48964cf8",
+      "state": "exited",
+      "supervisor_pid": 35828,
+      "wsl_pid": 41756,
+      "started_at": "2026-10-15T14:53:16.3829642Z",
+      "observed_at": "2026-10-15T14:53:16.6009696Z",
+      "ended_at": "2026-10-15T14:53:16.6009696Z",
+      "exit_code": 31,
+      "test_acceptance": "not_evaluated"
+    },
+    "stderr_bytes": 2097152
+  },
+  "fixed_during_validation": [
+    "Windows PowerShell 5.1 null backup-path coercion",
+    "WSL option parsing with quoted options",
+    "fast-process ExitCode handle ownership",
+    "stream logs before terminal status"
+  ],
+  "limits": [
+    "90 seconds only, not 24-hour acceptance",
+    "launching shell exit only; application close, host sleep/restart not tested",
+    "does not prove cause of the previous WSL shutdown",
+    "test_acceptance deliberately remains not_evaluated"
+  ]
+}
