@@ -42,6 +42,7 @@ jobs:
           go build ./cmd/...
           go test -race ./internal/agentclient -run '^TestJointResource' -count=1
           go test -race ./internal/store ./internal/scheduler ./internal/agentgateway -run '^TestNetwork' -count=1
+          go test -race ./internal/httpapi -run '^TestNetworkQuality' -count=1
           go test -race ./internal/networkquality -count=1
           go test -race ./cmd/server -run '^TestNetworkRetention' -count=1
 
