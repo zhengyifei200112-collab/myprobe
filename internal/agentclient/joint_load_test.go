@@ -61,7 +61,14 @@ func TestJointRuntimeLoad(t *testing.T) {
 			t.Fatal("load duration must be 90s to 48h")
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), duration+3*time.Minute)
+	setupBudget := time.Duration(0)
+	if mode := os.Getenv("MYPROBE_TEST_LOAD_HISTORY"); mode != "" {
+		if mode != "year" {
+			t.Fatal("unsupported joint history mode")
+		}
+		setupBudget = time.Hour
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), duration+3*time.Minute+setupBudget)
 	defer cancel()
 	root := t.TempDir()
 	databasePath := filepath.Join(root, "joint.db")
@@ -168,6 +175,13 @@ func TestJointRuntimeLoad(t *testing.T) {
 	if _, err = db.SaveServiceAlertSettings(ctx, store.ServiceAlertSettings{ServiceID: service.ID, ServiceRevision: service.Revision, Enabled: true, ChannelID: channel.ID, CooldownSeconds: 30}); err != nil {
 		t.Fatal(err)
 	}
+	var history jointHistorySeed
+	if setupBudget > 0 {
+		history = seedJointHistory(t, ctx, databasePath, db, ids)
+		for i := range fixtures {
+			fixtures[i].source.counterOffset = history.CounterOffset
+		}
+	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -185,6 +199,9 @@ func TestJointRuntimeLoad(t *testing.T) {
 	login.Body.Close()
 	if login.StatusCode != 200 {
 		t.Fatalf("fixture login status %d", login.StatusCode)
+	}
+	if history.Mode != "" {
+		checkJointHistoryNodes(t, httpClient, base, ids, history.Anchor)
 	}
 	runCtx, stopLoad := context.WithCancel(ctx)
 	var reportObserver *jointReportObserver
@@ -222,11 +239,16 @@ func TestJointRuntimeLoad(t *testing.T) {
 	result := jointLoadResult{Format: "myprobe.joint-load.v1", StartedAt: time.Now().UTC(), Nodes: nodes, DurationRequestedSeconds: duration.Seconds(), ReportSeconds: 15, TargetsPerNode: 3, TargetSeconds: 60, HTTPServices: 1, SubscriptionClients: 5, OS: runtime.GOOS, GoVersion: runtime.Version(), LogicalCPUs: runtime.NumCPU(), HistoryFixture: "current-run-only", ResourceLimits: server.limits,
 		Limitations: []string{"synthetic host metrics; actual Client.Run and TCP/HTTP executors", "five Go WebSocket consumers are not rendered browser sessions", "current-run history does not establish dense 30-day/year query capacity", "collected-minus-persisted includes latest-cache skips and unacknowledged sends; not a packet-loss proof", "one-second resource/WAL sampling can miss instantaneous peaks", "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment", "short runs do not establish 24-hour stability"}}
 	result.SubscriptionMode = "go-websocket-consumers"
+	result.DenseHistory = history
+	if history.Mode != "" {
+		result.HistoryFixture = history.Mode
+		result.Limitations[2] = "SQL-generated dense retained year, with real startup retention and live workload; setup is not a live soak"
+	}
 	if reportObserver != nil {
 		result.Limitations[3] = "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports"
 	}
 	result.SourceSHA256 = make(map[string]string)
-	for _, path := range []string{"cmd/server/main.go", "internal/agentclient/client.go", "internal/agentclient/sampling.go", "internal/agentgateway/gateway.go", "internal/store/store.go", "internal/store/agent_metadata.go", "internal/agentclient/joint_load_test.go", "internal/agentclient/joint_load_process_test.go", "internal/agentclient/joint_load_browser_test.go", "internal/agentclient/joint_load_reconciliation_test.go", "internal/agentclient/joint_load_reconciliation_validation_test.go", "scripts/joint-load-browser.cjs", "scripts/run-joint-load.sh"} {
+	for _, path := range []string{"cmd/server/main.go", "internal/agentclient/client.go", "internal/agentclient/sampling.go", "internal/agentgateway/gateway.go", "internal/store/store.go", "internal/store/agent_metadata.go", "internal/agentclient/joint_load_test.go", "internal/agentclient/joint_load_history_test.go", "internal/agentclient/joint_load_history_validation_test.go", "internal/agentclient/joint_load_process_test.go", "internal/agentclient/joint_load_browser_test.go", "internal/agentclient/joint_load_reconciliation_test.go", "internal/agentclient/joint_load_reconciliation_validation_test.go", "scripts/joint-load-browser.cjs", "scripts/run-joint-load.sh"} {
 		raw, err := os.ReadFile(filepath.Join("../..", filepath.FromSlash(path)))
 		if err != nil {
 			t.Fatal("load fixture source unavailable for provenance")
@@ -306,7 +328,12 @@ func TestJointRuntimeLoad(t *testing.T) {
 		if len(result.ResourceTimeline) == 0 || elapsed.Seconds() >= float64(len(result.ResourceTimeline)*30) {
 			result.ResourceTimeline = append(result.ResourceTimeline, jointResourcePoint{ElapsedSeconds: elapsed.Seconds(), RSSBytes: server.rssBytes(), CPUMicroseconds: cpuMicros + server.cpuMicros(), SampledPeakWALBytes: peakWAL})
 		}
-		for _, endpoint := range []struct{ name, path string }{{"overview", "/api/v1/public/nodes"}, {"history_current_30d_range", "/api/v1/public/nodes/" + ids[int(elapsed.Seconds())%nodes] + "/history?range=30d"}, {"health", "/api/v1/admin/system/health"}} {
+		endpoints := []struct{ name, path string }{{"overview", "/api/v1/public/nodes"}, {"history_current_30d_range", "/api/v1/public/nodes/" + ids[int(elapsed.Seconds())%nodes] + "/history?range=30d"}, {"health", "/api/v1/admin/system/health"}}
+		if history.Mode != "" {
+			endpoints[1].name = "history_dense_30d"
+			endpoints = append(endpoints, struct{ name, path string }{"history_dense_1y", "/api/v1/public/nodes/" + ids[int(elapsed.Seconds())%nodes] + "/history?range=1y"})
+		}
+		for _, endpoint := range endpoints {
 			before := time.Now()
 			response, err := httpClient.Get(base + endpoint.path)
 			if err != nil {
@@ -320,6 +347,11 @@ func TestJointRuntimeLoad(t *testing.T) {
 				continue
 			}
 			measurements[endpoint.name] = append(measurements[endpoint.name], float64(time.Since(before))/float64(time.Millisecond))
+			if strings.HasPrefix(endpoint.name, "history_dense_") {
+				if err := validateJointHistory(body, strings.TrimPrefix(endpoint.name, "history_dense_"), history.Anchor, before); err != nil {
+					t.Errorf("dense history during live workload: %v", err)
+				}
+			}
 			if endpoint.name == "health" {
 				var current jointHealth
 				if err := json.Unmarshal(body, &current); err != nil {
@@ -457,7 +489,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 	outcomes.Close()
 	for _, f := range fixtures {
 		storedReports[f.id] = make(map[string][32]byte)
-		rows, err := readDB.QueryContext(ctx, "SELECT captured_at,report_json FROM metric_samples WHERE node_id=? ORDER BY id", f.id)
+		rows, err := readDB.QueryContext(ctx, "SELECT captured_at,report_json FROM metric_samples WHERE node_id=? AND id>? ORDER BY id", f.id, history.LastMetricID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -499,7 +531,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 			t.Errorf("node has only %d persisted reports", count)
 		}
 		var latencyCount, httpCount int
-		if err := readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM latency_samples WHERE node_id=? AND success=1", f.id).Scan(&latencyCount); err != nil {
+		if err := readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM latency_samples WHERE node_id=? AND success=1 AND id>?", f.id, history.LastLatencyID).Scan(&latencyCount); err != nil {
 			t.Fatal(err)
 		}
 		if err := readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM http_tasks WHERE node_id=? AND result_json IS NOT NULL", f.id).Scan(&httpCount); err != nil {
@@ -569,9 +601,10 @@ func TestJointRuntimeLoad(t *testing.T) {
 }
 
 type jointMetrics struct {
-	calls   atomic.Int64
-	mu      sync.Mutex
-	reports map[string][32]byte
+	calls         atomic.Int64
+	mu            sync.Mutex
+	reports       map[string][32]byte
+	counterOffset uint64
 }
 
 func (s *jointMetrics) Hello(_ context.Context, version string, collection, report int) (protocol.Hello, error) {
@@ -579,7 +612,7 @@ func (s *jointMetrics) Hello(_ context.Context, version string, collection, repo
 }
 func (*jointMetrics) UpdateConfig(collector.Config) {}
 func (s *jointMetrics) Collect(context.Context) (protocol.Report, error) {
-	n := uint64(s.calls.Add(1))
+	n := uint64(s.calls.Add(1)) + s.counterOffset
 	report := protocol.Report{CapturedAt: time.Now().UTC(), CPU: protocol.CPUMetric{UsagePercent: 17, LogicalCores: 2}, Memory: protocol.MemoryMetric{TotalBytes: 2 << 30, UsedBytes: 300 << 20, UsagePercent: 14.65}, Networks: []protocol.NetworkMetric{{Interface: "synthetic0", RXTotalBytes: n * 1000, TXTotalBytes: n * 2000}}, Uptime: n}
 	raw, _ := json.Marshal(report)
 	s.mu.Lock()
@@ -639,6 +672,7 @@ type jointLoadResult struct {
 	OS, GoVersion                                                                                                                             string
 	LogicalCPUs                                                                                                                               int
 	HistoryFixture                                                                                                                            string
+	DenseHistory                                                                                                                              jointHistorySeed
 	SourceSHA256                                                                                                                              map[string]string
 	ServerBinarySHA256                                                                                                                        string
 	ResourceTimeline                                                                                                                          []jointResourcePoint
