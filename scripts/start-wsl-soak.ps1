@@ -19,6 +19,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 if ($env:OS -ne 'Windows_NT') { throw 'This launcher requires Windows and wsl.exe.' }
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 
@@ -27,7 +28,9 @@ function Write-Status([string]$Directory, [System.Collections.IDictionary]$Value
     $destination = Join-Path $Directory 'status.json'
     [IO.File]::WriteAllText($next, ($Value | ConvertTo-Json -Depth 8), $utf8)
     if ([IO.File]::Exists($destination)) {
-        [IO.File]::Replace($next, $destination, $null)
+        # Windows PowerShell 5.1 coerces $null to an empty string for a .NET
+        # string parameter; NullString passes the required null backup path.
+        [IO.File]::Replace($next, $destination, [System.Management.Automation.Language.NullString]::Value)
     } else {
         [IO.File]::Move($next, $destination)
     }
@@ -71,7 +74,7 @@ if ($PSCmdlet.ParameterSetName -eq 'Launch') {
         # holds a foreground wsl.exe for the entire Linux job; no systemd-only hold.
         $windowsPowerShell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
         $worker = Start-Process -FilePath $windowsPowerShell `
-            -ArgumentList "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand $encoded" `
+            -ArgumentList "-NoProfile -NonInteractive -OutputFormat Text -ExecutionPolicy Bypass -EncodedCommand $encoded" `
             -WindowStyle Hidden -PassThru `
             -RedirectStandardOutput (Join-Path $directory 'supervisor.stdout.log') `
             -RedirectStandardError (Join-Path $directory 'supervisor.stderr.log')
