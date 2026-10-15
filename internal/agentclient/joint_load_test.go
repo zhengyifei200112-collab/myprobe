@@ -523,8 +523,13 @@ func TestJointRuntimeLoad(t *testing.T) {
 	}
 	if reportObserver != nil {
 		result.ReportAccounting = reportObserver.reconcile(storedReports, duplicateReports)
+		generated := make(map[string]uint64)
+		for _, f := range fixtures {
+			generated[f.id] = f.client.sequence.Load()
+		}
+		reportObserver.sequenceAccounting(&result.ReportAccounting, generated)
 		a := result.ReportAccounting
-		if a.UnexplainedNotStored+a.ACKWithoutStored+a.UnknownStored+a.HashMismatch+a.DuplicateStored != 0 {
+		if a.UnexplainedNotStored+a.ACKWithoutStored+a.UnknownStored+a.HashMismatch+a.DuplicateStored+a.UnobservedGeneratedEnvelopes != 0 {
 			t.Errorf("wire/ACK/storage reconciliation failed: %+v", a)
 		}
 	}

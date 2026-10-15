@@ -27,6 +27,7 @@ type jointReportObserver struct {
 	mu          sync.Mutex
 	nodes       map[string]string // generated fixture tokens stay in memory only
 	attempts    map[jointAttemptKey]*jointReportAttempt
+	sequences   map[string]map[uint64]bool
 	connections map[*websocket.Conn]bool
 	workers     sync.WaitGroup
 	closing     bool
@@ -51,10 +52,11 @@ type jointReportAccounting struct {
 	ReportAttempts, Forwarded, Acknowledged, Stored, StoredWithoutACK                                          int
 	InterruptedNotStored, UnexplainedNotStored, ACKWithoutStored, UnknownStored, HashMismatch, DuplicateStored int
 	MaxACKDelayMilliseconds                                                                                    float64
+	GeneratedEnvelopes, ObservedEnvelopes, UnobservedGeneratedEnvelopes                                        int
 }
 
 func newJointReportObserver(upstream string) *jointReportObserver {
-	p := &jointReportObserver{upstream: upstream, client: &http.Client{Timeout: 15 * time.Second}, nodes: make(map[string]string), attempts: make(map[jointAttemptKey]*jointReportAttempt), connections: make(map[*websocket.Conn]bool)}
+	p := &jointReportObserver{upstream: upstream, client: &http.Client{Timeout: 15 * time.Second}, nodes: make(map[string]string), attempts: make(map[jointAttemptKey]*jointReportAttempt), sequences: make(map[string]map[uint64]bool), connections: make(map[*websocket.Conn]bool)}
 	p.server = httptest.NewServer(http.HandlerFunc(p.serveHTTP))
 	return p
 }
@@ -80,6 +82,15 @@ func (p *jointReportObserver) close() {
 	})
 }
 func (p *jointReportObserver) record(node, transport string, envelope protocol.Envelope) {
+	p.mu.Lock()
+	if p.sequences == nil {
+		p.sequences = make(map[string]map[uint64]bool)
+	}
+	if p.sequences[node] == nil {
+		p.sequences[node] = make(map[uint64]bool)
+	}
+	p.sequences[node][envelope.Sequence] = true
+	p.mu.Unlock()
 	if envelope.Type != protocol.TypeReport {
 		return
 	}
@@ -95,6 +106,21 @@ func (p *jointReportObserver) record(node, transport string, envelope protocol.E
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.attempts[jointAttemptKey{node, envelope.Sequence}] = &jointReportAttempt{node: node, sequence: envelope.Sequence, captured: report.CapturedAt.UTC().Format(time.RFC3339Nano), transport: transport, hash: sha256.Sum256(raw), sentAt: time.Now()}
+}
+
+func (p *jointReportObserver) sequenceAccounting(result *jointReportAccounting, generated map[string]uint64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for node, maximum := range generated {
+		result.GeneratedEnvelopes += int(maximum)
+		for sequence := uint64(1); sequence <= maximum; sequence++ {
+			if p.sequences[node][sequence] {
+				result.ObservedEnvelopes++
+			} else {
+				result.UnobservedGeneratedEnvelopes++
+			}
+		}
+	}
 }
 func (p *jointReportObserver) forwarded(node string, sequence uint64) {
 	p.mu.Lock()

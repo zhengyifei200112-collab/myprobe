@@ -65,3 +65,12 @@ func TestReportObserverACKCannotConfirmAnotherNodeOrSequence(t *testing.T) {
 		t.Fatal("matching repeated receipt changed first proof")
 	}
 }
+
+func TestReportObserverSequenceGapCannotDisappearBeforeProxy(t *testing.T) {
+	observer := &jointReportObserver{sequences: map[string]map[uint64]bool{"node": {1: true, 3: true}}}
+	var result jointReportAccounting
+	observer.sequenceAccounting(&result, map[string]uint64{"node": 3})
+	if result.GeneratedEnvelopes != 3 || result.ObservedEnvelopes != 2 || result.UnobservedGeneratedEnvelopes != 1 {
+		t.Fatalf("pre-observer gap hidden: %+v", result)
+	}
+}
