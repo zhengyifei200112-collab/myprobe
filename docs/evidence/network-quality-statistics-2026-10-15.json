@@ -1,0 +1,51 @@
+{
+  "format": "myprobe.network-quality-statistics-evidence.v1",
+  "date": "2026-10-15",
+  "scope": "internal statistics, atomic bounded network archival and process-local private worker evidence",
+  "state": "implementation locally validated; Linux CI pending; not NET-01/NET-02 release acceptance",
+  "base_commit": "8786c202c56c739428c55fe4be2b8a9c68280608",
+  "migration": "044_network_quality_rollups.sql",
+  "platform": {"os": "Windows", "arch": "amd64", "cpu": "13th Gen Intel Core i5-13490F", "go": "1.26.5", "cgo_enabled": false},
+  "checks": {
+    "targeted_statistics_archive_http_health_worker": "passed",
+    "full_go_test": "all packages passed except inherited TestDiskUsagePathUsesHostRootForAbsoluteMounts in internal/collector/network_test.go:26 (PR #47)",
+    "go_vet": "passed",
+    "go_build_cmd": "passed",
+    "gofmt": "passed",
+    "git_diff_check": "passed",
+    "frontend": "no frontend sources or embedded assets changed; native CI rebuild required",
+    "local_race": "not run; Windows environment has no C compiler; native Linux CI includes network Store/Gateway/Scheduler, statistics and worker race tests"
+  },
+  "small_archive_fixture": {
+    "slot_interval_seconds": 5,
+    "generated_slots": 500,
+    "requested_minutes": 45,
+    "as_of_minutes_after_anchor": 50,
+    "retention_minutes": {"raw": 10, "one_minute": 30, "five_minute": 120},
+    "planned": 540,
+    "success": 380,
+    "failure": 30,
+    "missing": 130,
+    "jitter_pairs": 350,
+    "passes": [
+      {"raw_buckets": 32, "minute_to_five_buckets": 4, "tasks_deleted": 361, "duration_ms": 8.6358, "more": true},
+      {"raw_buckets": 8, "minute_to_five_buckets": 0, "tasks_deleted": 90, "duration_ms": 2.716, "more": false}
+    ],
+    "retained_raw_tasks": 19,
+    "minute_rollups": 20,
+    "five_minute_rollups": 4,
+    "total_summary_payload_bytes": 3149,
+    "maximum_summary_payload_bytes": 229,
+    "invariants": "raw, partial backlog and drained mixed-tier counts/rates/jitter agree; true raw P50/P95 lie within merged histogram bounds"
+  },
+  "codec_microbenchmark": {
+    "samples_per_bucket": 5,
+    "benchtime_ms": 300,
+    "histogram": {"encoded_bytes": 21, "decode_ns_per_op": 109.3, "heap_bytes_per_op": 192, "allocations_per_op": 2},
+    "segment": {"encoded_bytes": 99, "decode_ns_per_op": 323.8, "heap_bytes_per_op": 224, "allocations_per_op": 4},
+    "limitation": "small in-memory decode and small file-backed SQLite fixture; not whole-database size or dense-year throughput"
+  },
+  "additional_regressions": ["all representable histogram bins meet 1 microsecond plus 1 percent interval-width budget", "weighted distributions", "fixed manual counts and exact raw quantiles", "failed/missing/unexecuted slots break jitter", "cross-bucket and cross-epoch boundaries", "subsecond half-open ranges", "zero denominators and pending slots", "hidden-node rejection and manual diagnostic exclusion", "concurrent archive/read/current result writes", "delete failure rolls back summaries, tasks and floors", "corrupt result and summary refusal", "forward migration rollback", "clock rollback and expanded retention", "short policy cannot remove accepting task", "consistent backup, staged restore, startup recovery and foreign-key checks", "worker immediate startup, bounded yield, error backoff and cancellation"],
+  "remaining_gates": ["native exact-head CI", "dense-year network archival storage and concurrent writer capacity", "public/share/admin batch quality DTO and authorization", "eight-node real comparison page and six theme/viewport checks", "IPv4/IPv6 evidence and packet-count protocol capability", "owner dependency integration, merge and release approval"],
+  "independent_24h_run": {"source_commit": "ecfed969bd444a58286006a3a032e2cadadc6602", "measurement_started_at": "2026-10-15T07:47:16.967098625Z", "status": "running; cannot validate this implementation"}
+}

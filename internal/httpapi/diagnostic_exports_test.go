@@ -172,11 +172,11 @@ func assertDiagnosticClosedFields(t *testing.T, raw []byte) {
 		}
 	}
 	check(bundle["database"], "status schema_version journal_mode allocated_bytes reusable_bytes database_bytes wal_bytes database_file_status wal_file_status")
-	check(bundle["jobs"], "host_retention http_retention manual_backup_generation notification_evaluation latency_scheduler http_scheduler")
+	check(bundle["jobs"], "host_retention http_retention network_retention manual_backup_generation notification_evaluation latency_scheduler http_scheduler")
 	for _, job := range object(bundle["jobs"]) {
 		check(job, "state active completed failed cancelled error_class last_completed_at last_success_at duration_seconds")
 	}
-	check(bundle["workers"], "retention notification latency_scheduler http_scheduler scheduled_backup")
+	check(bundle["workers"], "retention network_retention notification latency_scheduler http_scheduler scheduled_backup")
 	for _, worker := range object(bundle["workers"]) {
 		check(worker, "status error_class operation")
 	}
