@@ -55,16 +55,15 @@ func TestSamplingCollectionRunsIndependentlyOfReportPeriod(t *testing.T) {
 	done := make(chan struct{})
 	go func() { client.collectionLoop(ctx); close(done) }()
 	defer func() { cancel(); <-done }()
-	for deadline := time.Now().Add(4 * time.Second); time.Now().Before(deadline) && source.calls.Load() < 3; {
+	// Collect increments calls before returning. Wait for publication instead:
+	// entering the third call does not mean collectionLoop has cached its result.
+	for deadline := time.Now().Add(4 * time.Second); time.Now().Before(deadline); {
+		if sample, ok := client.currentSample(); ok && sample.report.Uptime >= 3 {
+			return
+		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if source.calls.Load() < 3 {
-		t.Fatal("collection waited for the ten-second report period")
-	}
-	sample, ok := client.currentSample()
-	if !ok || sample.report.Uptime < 3 {
-		t.Fatal("latest successful collection missing")
-	}
+	t.Fatalf("three collections were not published before the ten-second report period (calls=%d)", source.calls.Load())
 }
 func TestSamplingChangeDiscardsCollectionStartedUnderOldGeneration(t *testing.T) {
 	source := &samplingFixtureSource{block: make(chan struct{}), started: make(chan struct{})}
