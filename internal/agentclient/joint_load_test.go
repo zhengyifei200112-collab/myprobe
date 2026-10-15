@@ -213,7 +213,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 		Limitations: []string{"synthetic host metrics; actual Client.Run and TCP/HTTP executors", "five Go WebSocket consumers are not rendered browser sessions", "current-run history does not establish dense 30-day/year query capacity", "collected-minus-persisted includes latest-cache skips and unacknowledged sends; not a packet-loss proof", "one-second resource/WAL sampling can miss instantaneous peaks", "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment", "short runs do not establish 24-hour stability"}}
 	result.SubscriptionMode = "go-websocket-consumers"
 	result.SourceSHA256 = make(map[string]string)
-	for _, path := range []string{"cmd/server/main.go", "internal/agentclient/client.go", "internal/agentclient/sampling.go", "internal/agentclient/joint_load_test.go", "internal/agentclient/joint_load_process_test.go", "internal/agentclient/joint_load_browser_test.go", "scripts/joint-load-browser.cjs", "scripts/run-joint-load.sh"} {
+	for _, path := range []string{"cmd/server/main.go", "internal/agentclient/client.go", "internal/agentclient/sampling.go", "internal/agentgateway/gateway.go", "internal/store/store.go", "internal/store/agent_metadata.go", "internal/agentclient/joint_load_test.go", "internal/agentclient/joint_load_process_test.go", "internal/agentclient/joint_load_browser_test.go", "scripts/joint-load-browser.cjs", "scripts/run-joint-load.sh"} {
 		raw, err := os.ReadFile(filepath.Join("../..", filepath.FromSlash(path)))
 		if err != nil {
 			t.Fatal("load fixture source unavailable for provenance")

@@ -321,12 +321,39 @@ func (s *Store) saveReport(ctx context.Context, nodeID string, report protocol.R
 }
 
 func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNode, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT n.id, n.name, n.sort_order, n.hidden, n.tags_json, n.country_code,
+	return s.listPublicNodes(ctx, now, nil)
+}
+
+// PublicNode preserves the public projection while reading only one visible
+// node. Live publication must not read every other node for each update.
+func (s *Store) PublicNode(ctx context.Context, nodeID string, now time.Time) (*PublicNode, error) {
+	if nodeID == "" {
+		return nil, ErrNotFound
+	}
+	items, err := s.listPublicNodes(ctx, now, &nodeID)
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return nil, ErrNotFound
+	}
+	return &items[0], nil
+}
+
+func (s *Store) listPublicNodes(ctx context.Context, now time.Time, nodeID *string) ([]PublicNode, error) {
+	query := `SELECT n.id, n.name, n.sort_order, n.hidden, n.tags_json, n.country_code,
 		n.currency, n.price_minor, n.billing_cycle, n.expires_at, n.traffic_reset_day, n.use_since_boot,
 		n.latency_mode, n.custom_html, n.custom_badges_json, n.custom_links_json, n.collection_seconds, n.report_seconds, n.created_at, n.updated_at,
 		n.last_seen_at, m.report_json
 		FROM nodes n LEFT JOIN metric_latest m ON m.node_id = n.id
-		WHERE n.hidden = 0 ORDER BY n.sort_order, n.name`)
+		WHERE n.hidden = 0`
+	var args []any
+	if nodeID != nil {
+		query += " AND n.id = ?"
+		args = append(args, *nodeID)
+	}
+	query += " ORDER BY n.sort_order, n.name"
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +390,10 @@ func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNod
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	metadata, err := s.agentMetadata(ctx)
+	if nodeID != nil && len(result) == 0 {
+		return result, nil
+	}
+	metadata, err := s.readAgentMetadata(ctx, nodeID)
 	if err != nil {
 		return nil, err
 	}
