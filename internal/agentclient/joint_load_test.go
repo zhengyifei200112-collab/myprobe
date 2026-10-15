@@ -248,7 +248,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 		result.Limitations[3] = "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports"
 	}
 	result.SourceSHA256 = make(map[string]string)
-	for _, path := range []string{"cmd/server/main.go", "internal/agentclient/client.go", "internal/agentclient/sampling.go", "internal/agentgateway/gateway.go", "internal/store/store.go", "internal/store/agent_metadata.go", "internal/agentclient/joint_load_test.go", "internal/agentclient/joint_load_history_test.go", "internal/agentclient/joint_load_history_validation_test.go", "internal/agentclient/joint_load_process_test.go", "internal/agentclient/joint_load_browser_test.go", "internal/agentclient/joint_load_reconciliation_test.go", "internal/agentclient/joint_load_reconciliation_validation_test.go", "scripts/joint-load-browser.cjs", "scripts/run-joint-load.sh"} {
+	for _, path := range []string{"cmd/server/main.go", "internal/agentclient/client.go", "internal/agentclient/sampling.go", "internal/agentgateway/gateway.go", "internal/store/store.go", "internal/store/agent_metadata.go", "internal/agentclient/joint_load_test.go", "internal/agentclient/joint_load_history_test.go", "internal/agentclient/joint_load_history_validation_test.go", "internal/agentclient/joint_load_process_test.go", "internal/agentclient/joint_load_resource_test.go", "internal/agentclient/joint_load_resource_validation_test.go", "internal/agentclient/joint_load_browser_test.go", "internal/agentclient/joint_load_reconciliation_test.go", "internal/agentclient/joint_load_reconciliation_validation_test.go", "scripts/joint-load-browser.cjs", "scripts/run-joint-load.sh"} {
 		raw, err := os.ReadFile(filepath.Join("../..", filepath.FromSlash(path)))
 		if err != nil {
 			t.Fatal("load fixture source unavailable for provenance")
@@ -285,11 +285,14 @@ func TestJointRuntimeLoad(t *testing.T) {
 	}
 	measurements := make(map[string][]float64)
 	var requestErrors int
-	var peakRSS, peakWAL int64
 	var cpuMicros uint64
 	restarted, disconnected := false, false
 	started := time.Now()
 	result.StartedAt = started.UTC()
+	resourceTarget := &jointResourceTarget{}
+	resourceTarget.set(&server, 0)
+	resourceSampler := startJointResourceSampler(ctx, started, time.Second, resourceTarget.read)
+	defer resourceSampler.stop()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for time.Since(started) < duration {
@@ -311,22 +314,15 @@ func TestJointRuntimeLoad(t *testing.T) {
 		}
 		if !restarted && elapsed > duration/2 && (deniedReceiver || deliveredNotices.Load() > 0) {
 			cpuMicros += server.cpuMicros()
+			resourceTarget.set(nil, cpuMicros)
 			server.stop()
 			server.start(t, ctx, base)
+			resourceTarget.set(&server, cpuMicros)
 			restarted = true
 			result.Faults = append(result.Faults, "restarted the same real Server/database; normal Agent and subscription reconnection")
 		}
 		if elapsed > duration*2/3 {
 			targetStatus.Store(200)
-		}
-		if rss := server.rssBytes(); rss > peakRSS {
-			peakRSS = rss
-		}
-		if stat, err := os.Stat(databasePath + "-wal"); err == nil && stat.Size() > peakWAL {
-			peakWAL = stat.Size()
-		}
-		if len(result.ResourceTimeline) == 0 || elapsed.Seconds() >= float64(len(result.ResourceTimeline)*30) {
-			result.ResourceTimeline = append(result.ResourceTimeline, jointResourcePoint{ElapsedSeconds: elapsed.Seconds(), RSSBytes: server.rssBytes(), CPUMicroseconds: cpuMicros + server.cpuMicros(), SampledPeakWALBytes: peakWAL})
 		}
 		endpoints := []struct{ name, path string }{{"overview", "/api/v1/public/nodes"}, {"history_current_30d_range", "/api/v1/public/nodes/" + ids[int(elapsed.Seconds())%nodes] + "/history?range=30d"}, {"health", "/api/v1/admin/system/health"}}
 		if history.Mode != "" {
@@ -402,12 +398,6 @@ func TestJointRuntimeLoad(t *testing.T) {
 			result.RecoveryDrained = true
 			break
 		}
-		if rss := server.rssBytes(); rss > peakRSS {
-			peakRSS = rss
-		}
-		if stat, err := os.Stat(databasePath + "-wal"); err == nil && stat.Size() > peakWAL {
-			peakWAL = stat.Size()
-		}
 		select {
 		case <-ctx.Done():
 			t.Fatal("recovery drain timed out")
@@ -417,10 +407,11 @@ func TestJointRuntimeLoad(t *testing.T) {
 	result.RecoveryDrainSeconds = time.Since(drainStarted).Seconds()
 	result.ElapsedSeconds = time.Since(started).Seconds()
 	result.EndedAt = time.Now().UTC()
-	result.APIErrors, result.SampledPeakRSSBytes, result.SampledPeakWALBytes = requestErrors, peakRSS, peakWAL
+	result.ResourceObservation = resourceSampler.stop()
+	result.APIErrors, result.SampledPeakRSSBytes, result.SampledPeakWALBytes = requestErrors, result.ResourceObservation.PeakRSSBytes, result.ResourceObservation.PeakWALBytes
 	result.ServerCPUMicroseconds = cpuMicros + server.cpuMicros()
 	result.ResourceSampleSeconds = 1
-	result.ResourceTimeline = append(result.ResourceTimeline, jointResourcePoint{ElapsedSeconds: result.ElapsedSeconds, RSSBytes: server.rssBytes(), CPUMicroseconds: result.ServerCPUMicroseconds, SampledPeakWALBytes: peakWAL})
+	result.ResourceTimeline = result.ResourceObservation.Timeline
 	result.APILatency = make(map[string]jointLatency)
 	for name, values := range measurements {
 		result.APILatency[name] = jointDistribution(values)
@@ -663,6 +654,7 @@ func jointDistribution(values []float64) jointLatency {
 }
 
 type jointLoadResult struct {
+	ResourceObservation                                                                                                                       jointResourceObservation
 	Format                                                                                                                                    string `json:"format"`
 	StartedAt, EndedAt                                                                                                                        time.Time
 	Nodes, ReportSeconds, TargetsPerNode, TargetSeconds, HTTPServices, SubscriptionClients                                                    int
