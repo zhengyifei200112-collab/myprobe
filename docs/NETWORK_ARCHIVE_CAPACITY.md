@@ -96,7 +96,37 @@ The failed 1 ms experiment and the adjusted phase contract are preserved in
 PR #72 implementation `ca9bfec` passed all steps of native CI
 [38711368914](https://github.com/zhengyifei200112-collab/myprobe/actions/runs/38711368914);
 this success predates the new capacity fixture and is not native capacity proof.
-The new exact-source CI job independently runs the year fixture; its result is
-pending. Full node/target combinations, actual worker-wide drain duration,
+The exact-source year job and complete baseline both passed for c871093 in CI 38713286763. Full node/target combinations, actual worker-wide drain duration,
 eight-node API/UI and platform/runtime acceptance remain open. Nothing here
 merges, deploys, releases or completes NET-01/NET-02.
+
+## Independent oracle on Windows and native Linux
+
+The strengthened fixture at `c871093a5fd1177d0facdf165c0a8be12b57aa46`
+passed locally and in the exact-source Linux capacity job. Its independent
+integer frequency ranks and closed-form populations/jitter replace the first
+experiment's production-segment oracle. Both produce the same population and
+12,240,704 summary payload bytes; timing differences are observations, not a
+comparison on controlled hardware.
+
+| Observation | Windows, Go 1.26.5 | Linux CI, Go 1.26.9 |
+| --- | --- | --- |
+| Seed | 27.14 s | 55.04 s |
+| First 100 paced batches | 10.37 s | 11.07 s |
+| Current write samples / p95 / max | 103 / 3.716 / 8.075 ms | 110 / 9.670 / 20.298 ms |
+| Current query samples / p95 | 10 / 0.653 ms | 11 / 0.776 ms |
+| Total drain, including unpaced remainder | 76.40 s | 167.60 s |
+| Largest observed archive call | 27.545 ms | 72.697 ms |
+| One year aggregate | 567.98 ms | 671.54 ms |
+| One 30-day aggregate | 133.77 ms | 195.47 ms |
+| Restored year aggregate | 480.49 ms | 684.36 ms |
+| Compact snapshot bytes | 39,309,312 | 39,317,504 |
+
+[Windows independent result](evidence/network-archive-year-windows-independent-2026-10-15.json),
+[Linux result](evidence/network-archive-year-linux-2026-10-15.json) and
+[CI job/step metadata](evidence/network-archive-ci-2026-10-15.json) preserve source
+and platform identities. Both jobs in
+[CI 38713286763](https://github.com/zhengyifei200112-collab/myprobe/actions/runs/38713286763)
+succeeded. This includes the full baseline and independent year job, not only a
+single unit-test command. The synthetic workload and pacing limits above remain
+unchanged; native success does not complete the larger roadmap gates.
