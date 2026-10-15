@@ -46,13 +46,17 @@
 
 准确源 `89418ca60df7a3d8c6ae8d534d806fd8f28a90e5` 的 Windows Chromium 151
 结果见 [原始 JSON](evidence/network-comparison-browser-windows-2026-10-15.json)。原生 Linux
-CI 的独立 `network-comparison-browser` job 同源通过，保存六组截图和原始 JSON 为七天
-artifact。脚本真实登录管理及密码分享，分享外节点为 404；合成 IPv6 不支持场景明确验证
+CI 的独立 `network-comparison-browser` job 同源通过，
+[Linux 原始 JSON](evidence/network-comparison-browser-linux-2026-10-15.json) 同样保留，
+六组截图和原始 JSON 作为七天 artifact 保存。脚本真实登录管理及密码分享，分享外节点为 404；合成 IPv6 不支持场景明确验证
 未执行不计为执行失败、失败率/RTT 为 null。这不是 Agent 实际 IPv6 联网或精确 ICMP 丢包验收。
 
 本地 npm ci/build、时间边界测试、相关 Store/HTTP 测试、vet/build 与差异检查通过。
 完整本地 Go 测试仅继承的 #47 Windows HostRoot 测试失败，其余包通过；本地 CGO 关闭，
 不声称 race 通过。原生 CI 单独执行完整基线、race、一年归档与真实页面 job。
+准确实现 `89418ca` 的 [CI 38753109644](https://github.com/zhengyifei200112-collab/myprobe/actions/runs/38753109644)
+三个 job 已全部成功，完整步骤见 [元数据](evidence/network-comparison-ci-2026-10-15.json)。
+后继文档提交仍按其准确 head 检查，不由这份历史证据自动继承通过状态。
 
 本阶段不合并或发布，也不替代最终源 24 小时稳定性、真实公网 Provider/OAuth、协议
 地址族/包数证据及完整路线门槛。旧 ecfed96 长稳已因 WSL 有序关机中断，状态详见
