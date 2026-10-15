@@ -62,3 +62,6 @@ Windows 未重启，但当前进程无权读取 Windows System 事件，具体�
 再从零测量完整 24 小时。不能拼接旧时长或依赖 systemd 服务自动保持 WSL 存活；
 [微软说明](https://learn.microsoft.com/en-us/windows/wsl/systemd) 明确后者不成立。
 不修改本机全局电源设置，也不把测试环境中断当成已定位的 Server 运行故障。
+
+Windows 入口、心跳/退出状态、生命周期实验与证据边界见
+[WSL 长稳托管](WSL_SOAK_SUPERVISION.md)。启动成功不代表测试通过，完整测量须从零开始。
