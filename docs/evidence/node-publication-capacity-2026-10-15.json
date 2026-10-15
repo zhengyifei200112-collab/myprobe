@@ -1,0 +1,1504 @@
+{
+  "format": "myprobe.node-publication-evidence.v1",
+  "date": "2026-10-15",
+  "base_head": "94867aa1f41b8d908af14eff0f739d3695c3a235",
+  "implementation_head": "04f9b79e91d20760eb07d66de0cafd6c4b490e41",
+  "environment_reference": "joint-runtime-load-2026-10-15.json",
+  "baseline_reference": "joint-runtime-load-2026-10-15.json",
+  "changes": [
+    "single visible-node and metadata lookup for live publication",
+    "public list and point share projection; API/event/schema/protocol unchanged",
+    "fixture only adds modified runtime files to provenance list; workload unchanged"
+  ],
+  "short_fixture_gate": {
+    "overview_100_node_p95_ms": [
+      97.016066,
+      24.423862,
+      24.439299
+    ],
+    "target_ms": 500,
+    "all_three_under_target": true,
+    "dense_history_included": false,
+    "real_24_hours_completed": false,
+    "complete_report_ack_reconciliation": false,
+    "per_node_render_convergence_checked": false
+  },
+  "local_results": [
+    {
+      "format": "myprobe.joint-load.v1",
+      "StartedAt": "2026-10-15T00:38:10.954160077Z",
+      "EndedAt": "2026-10-15T00:39:40.959158186Z",
+      "Nodes": 5,
+      "ReportSeconds": 15,
+      "TargetsPerNode": 3,
+      "TargetSeconds": 60,
+      "HTTPServices": 1,
+      "SubscriptionClients": 5,
+      "DurationRequestedSeconds": 90,
+      "ElapsedSeconds": 90.004998006,
+      "MeasurementSeconds": 90.004280908,
+      "RecoveryDrainSeconds": 0.000716898,
+      "RecoveryDrained": true,
+      "OS": "linux",
+      "GoVersion": "go1.26.5",
+      "LogicalCPUs": 8,
+      "HistoryFixture": "current-run-only",
+      "SourceSHA256": {
+        "cmd/server/main.go": "c5c9eee3d757a44173c0b5344d92768416db1dd6ad1ed18ce29038866bd0eca4",
+        "internal/agentclient/client.go": "07f3243608b12c8dc14acec7f02645e9e50639f155abcd3d4d2074496bb02987",
+        "internal/agentclient/joint_load_browser_test.go": "ce571bf9c55c81c5d0ece3bedf7183719d0fab30b0d109f395012b0eaae37597",
+        "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+        "internal/agentclient/joint_load_test.go": "b0622b89714d4d8f87fd90d751babcc2225ef079010b02d0a44cddf393cbef55",
+        "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+        "internal/agentgateway/gateway.go": "af968d7c7ca65275f1beed39d72492184230cba9b99f9b73b0af3f78b230bd82",
+        "internal/store/agent_metadata.go": "7007a06e829cba634f9a271e57ba5b4338b68a66c38c1b8eafa36b4a263c6922",
+        "internal/store/store.go": "1b9f1f89f49bcf510e76fa3ac82ce854aaf607c46988ceff734671d5e1a51f4e",
+        "scripts/joint-load-browser.cjs": "4bc74269f0d3e255f23d2032fe73e995ffa33bfef53a7396143563b425cb34e4",
+        "scripts/run-joint-load.sh": "9871cbf189ed0f1ad9585356152845d4aee3b6f5fd448562eece029c6ec236b7"
+      },
+      "ServerBinarySHA256": "fb6107f0c21cb55e0fa0be602fbcfda7250cad00f0e7b0cc0f7a8e1274262a15",
+      "ResourceTimeline": [
+        {
+          "ElapsedSeconds": 1.000257083,
+          "RSSBytes": 24985600,
+          "CPUMicroseconds": 232662,
+          "SampledPeakWALBytes": 506792
+        },
+        {
+          "ElapsedSeconds": 30.00083823,
+          "RSSBytes": 25788416,
+          "CPUMicroseconds": 520322,
+          "SampledPeakWALBytes": 1854032
+        },
+        {
+          "ElapsedSeconds": 60.00083666,
+          "RSSBytes": 26058752,
+          "CPUMicroseconds": 864355,
+          "SampledPeakWALBytes": 2591512
+        },
+        {
+          "ElapsedSeconds": 90.000941389,
+          "RSSBytes": 24109056,
+          "CPUMicroseconds": 1275014,
+          "SampledPeakWALBytes": 2591512
+        },
+        {
+          "ElapsedSeconds": 90.004998006,
+          "RSSBytes": 24121344,
+          "CPUMicroseconds": 1278430,
+          "SampledPeakWALBytes": 2591512
+        }
+      ],
+      "SubscriptionMode": "playwright-rendered",
+      "RSSObservation": "proc-vmrss-sampled",
+      "CPUObservation": "cgroup-usage-usec",
+      "BrowserPageErrors": 0,
+      "NotificationMode": "real-default-sender-isolated-rfc5737-receiver",
+      "DeliveryAttempts": 10,
+      "ConfigurationsConfirmed": 5,
+      "FinalHealth": {
+        "notification_engine": {
+          "status": "running",
+          "observation_scope": "process",
+          "delivery_configuration": "available",
+          "evaluation": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 2,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:39:27.226609967Z",
+            "last_completed_at": "2026-10-15T00:39:27.230030817Z",
+            "last_success_at": "2026-10-15T00:39:27.230030817Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.00342085
+          }
+        },
+        "notification_queue": {
+          "status": "available",
+          "observed_at": "2026-10-15T00:39:40.958723202Z",
+          "scope": "stored_active_logical_rows",
+          "deliveries": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "aggregates": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "system": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          }
+        },
+        "transport": {
+          "agent_connections": 5,
+          "pending_results": 0,
+          "http_pending_results": 0,
+          "http_expired_results": 0
+        },
+        "browser_subscriptions": 5,
+        "retention": {
+          "job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:39:12.21602551Z",
+            "last_completed_at": "2026-10-15T00:39:12.220112074Z",
+            "last_success_at": "2026-10-15T00:39:12.220112074Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.004086564
+          },
+          "http_catchup_job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:39:12.327774579Z",
+            "last_completed_at": "2026-10-15T00:39:12.328813458Z",
+            "last_success_at": "2026-10-15T00:39:12.328813458Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.001038879
+          }
+        }
+      },
+      "HTTPOutcomes": {
+        "failure:status_mismatch": 10,
+        "success:": 5
+      },
+      "ResourceLimits": {
+        "cpu.max": "200000 100000",
+        "cpuset.cpus.effective": "0-1",
+        "memory.max": "2147483648",
+        "memory.swap.max": "0",
+        "mode": "systemd-cgroup-v2"
+      },
+      "ResourceSampleSeconds": 1,
+      "SampledPeakRSSBytes": 26144768,
+      "SampledPeakWALBytes": 2591512,
+      "ServerCPUMicroseconds": 1278430,
+      "APILatency": {
+        "health": {
+          "count": 90,
+          "P50": 0.831177,
+          "P95": 1.03172,
+          "Max": 1.16548
+        },
+        "history_current_30d_range": {
+          "count": 90,
+          "P50": 1.065784,
+          "P95": 1.352593,
+          "Max": 1.474599
+        },
+        "overview": {
+          "count": 90,
+          "P50": 2.061761,
+          "P95": 2.863859,
+          "Max": 3.344273
+        }
+      },
+      "APIErrors": 0,
+      "CollectedReports": 35,
+      "PersistedReports": 24,
+      "TCPSuccesses": 45,
+      "HTTPResults": 15,
+      "Snapshots": 10,
+      "SubscriptionEvents": 300,
+      "NotificationsFailed": 5,
+      "NotificationsDelivered": 5,
+      "Faults": [
+        "closed all Agent sockets; normal reconnect/backoff remained active",
+        "restarted the same real Server/database; normal Agent and subscription reconnection"
+      ],
+      "Limitations": [
+        "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+        "five real rendered pages run outside the Server resource group",
+        "current-run history does not establish dense 30-day/year query capacity",
+        "collected-minus-persisted includes latest-cache skips and unacknowledged sends; not a packet-loss proof",
+        "one-second resource/WAL sampling can miss instantaneous peaks",
+        "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+        "short runs do not establish 24-hour stability"
+      ],
+      "Passed": true
+    },
+    {
+      "format": "myprobe.joint-load.v1",
+      "StartedAt": "2026-10-15T00:39:43.36178795Z",
+      "EndedAt": "2026-10-15T00:41:13.383868453Z",
+      "Nodes": 50,
+      "ReportSeconds": 15,
+      "TargetsPerNode": 3,
+      "TargetSeconds": 60,
+      "HTTPServices": 1,
+      "SubscriptionClients": 5,
+      "DurationRequestedSeconds": 90,
+      "ElapsedSeconds": 90.022080503,
+      "MeasurementSeconds": 90.02132991,
+      "RecoveryDrainSeconds": 0.000750494,
+      "RecoveryDrained": true,
+      "OS": "linux",
+      "GoVersion": "go1.26.5",
+      "LogicalCPUs": 8,
+      "HistoryFixture": "current-run-only",
+      "SourceSHA256": {
+        "cmd/server/main.go": "c5c9eee3d757a44173c0b5344d92768416db1dd6ad1ed18ce29038866bd0eca4",
+        "internal/agentclient/client.go": "07f3243608b12c8dc14acec7f02645e9e50639f155abcd3d4d2074496bb02987",
+        "internal/agentclient/joint_load_browser_test.go": "ce571bf9c55c81c5d0ece3bedf7183719d0fab30b0d109f395012b0eaae37597",
+        "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+        "internal/agentclient/joint_load_test.go": "b0622b89714d4d8f87fd90d751babcc2225ef079010b02d0a44cddf393cbef55",
+        "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+        "internal/agentgateway/gateway.go": "af968d7c7ca65275f1beed39d72492184230cba9b99f9b73b0af3f78b230bd82",
+        "internal/store/agent_metadata.go": "7007a06e829cba634f9a271e57ba5b4338b68a66c38c1b8eafa36b4a263c6922",
+        "internal/store/store.go": "1b9f1f89f49bcf510e76fa3ac82ce854aaf607c46988ceff734671d5e1a51f4e",
+        "scripts/joint-load-browser.cjs": "4bc74269f0d3e255f23d2032fe73e995ffa33bfef53a7396143563b425cb34e4",
+        "scripts/run-joint-load.sh": "9871cbf189ed0f1ad9585356152845d4aee3b6f5fd448562eece029c6ec236b7"
+      },
+      "ServerBinarySHA256": "fb6107f0c21cb55e0fa0be602fbcfda7250cad00f0e7b0cc0f7a8e1274262a15",
+      "ResourceTimeline": [
+        {
+          "ElapsedSeconds": 1.000629661,
+          "RSSBytes": 32550912,
+          "CPUMicroseconds": 406937,
+          "SampledPeakWALBytes": 5063512
+        },
+        {
+          "ElapsedSeconds": 30.000610854,
+          "RSSBytes": 31789056,
+          "CPUMicroseconds": 1372082,
+          "SampledPeakWALBytes": 5755672
+        },
+        {
+          "ElapsedSeconds": 60.000323489,
+          "RSSBytes": 29618176,
+          "CPUMicroseconds": 2547004,
+          "SampledPeakWALBytes": 5755672
+        },
+        {
+          "ElapsedSeconds": 90.000234423,
+          "RSSBytes": 28237824,
+          "CPUMicroseconds": 3521188,
+          "SampledPeakWALBytes": 6254192
+        },
+        {
+          "ElapsedSeconds": 90.022080503,
+          "RSSBytes": 28540928,
+          "CPUMicroseconds": 3544428,
+          "SampledPeakWALBytes": 6254192
+        }
+      ],
+      "SubscriptionMode": "playwright-rendered",
+      "RSSObservation": "proc-vmrss-sampled",
+      "CPUObservation": "cgroup-usage-usec",
+      "BrowserPageErrors": 0,
+      "NotificationMode": "real-default-sender-isolated-rfc5737-receiver",
+      "DeliveryAttempts": 100,
+      "ConfigurationsConfirmed": 50,
+      "FinalHealth": {
+        "notification_engine": {
+          "status": "running",
+          "observation_scope": "process",
+          "delivery_configuration": "available",
+          "evaluation": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 3,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:40:58.656680412Z",
+            "last_completed_at": "2026-10-15T00:40:58.684552112Z",
+            "last_success_at": "2026-10-15T00:40:58.684552112Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.0278717
+          }
+        },
+        "notification_queue": {
+          "status": "available",
+          "observed_at": "2026-10-15T00:41:13.383388668Z",
+          "scope": "stored_active_logical_rows",
+          "deliveries": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "aggregates": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "system": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          }
+        },
+        "transport": {
+          "agent_connections": 50,
+          "pending_results": 0,
+          "http_pending_results": 0,
+          "http_expired_results": 0
+        },
+        "browser_subscriptions": 5,
+        "retention": {
+          "job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:40:28.640596009Z",
+            "last_completed_at": "2026-10-15T00:40:28.645600592Z",
+            "last_success_at": "2026-10-15T00:40:28.645600592Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.005004482
+          },
+          "http_catchup_job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:40:28.758610804Z",
+            "last_completed_at": "2026-10-15T00:40:28.759309667Z",
+            "last_success_at": "2026-10-15T00:40:28.759309667Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.000698863
+          }
+        }
+      },
+      "HTTPOutcomes": {
+        "failure:status_mismatch": 100,
+        "success:": 50
+      },
+      "ResourceLimits": {
+        "cpu.max": "200000 100000",
+        "cpuset.cpus.effective": "0-1",
+        "memory.max": "2147483648",
+        "memory.swap.max": "0",
+        "mode": "systemd-cgroup-v2"
+      },
+      "ResourceSampleSeconds": 1,
+      "SampledPeakRSSBytes": 32759808,
+      "SampledPeakWALBytes": 6254192,
+      "ServerCPUMicroseconds": 3544428,
+      "APILatency": {
+        "health": {
+          "count": 90,
+          "P50": 0.607955,
+          "P95": 1.22139,
+          "Max": 1.668217
+        },
+        "history_current_30d_range": {
+          "count": 90,
+          "P50": 0.824111,
+          "P95": 1.810481,
+          "Max": 2.738209
+        },
+        "overview": {
+          "count": 90,
+          "P50": 9.033688,
+          "P95": 17.499476,
+          "Max": 19.702196
+        }
+      },
+      "APIErrors": 0,
+      "CollectedReports": 350,
+      "PersistedReports": 292,
+      "TCPSuccesses": 300,
+      "HTTPResults": 150,
+      "Snapshots": 10,
+      "SubscriptionEvents": 2589,
+      "NotificationsFailed": 47,
+      "NotificationsDelivered": 53,
+      "Faults": [
+        "closed all Agent sockets; normal reconnect/backoff remained active",
+        "restarted the same real Server/database; normal Agent and subscription reconnection"
+      ],
+      "Limitations": [
+        "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+        "five real rendered pages run outside the Server resource group",
+        "current-run history does not establish dense 30-day/year query capacity",
+        "collected-minus-persisted includes latest-cache skips and unacknowledged sends; not a packet-loss proof",
+        "one-second resource/WAL sampling can miss instantaneous peaks",
+        "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+        "short runs do not establish 24-hour stability"
+      ],
+      "Passed": true
+    },
+    {
+      "format": "myprobe.joint-load.v1",
+      "StartedAt": "2026-10-15T00:46:31.182708666Z",
+      "EndedAt": "2026-10-15T00:48:01.198269665Z",
+      "Nodes": 100,
+      "ReportSeconds": 15,
+      "TargetsPerNode": 3,
+      "TargetSeconds": 60,
+      "HTTPServices": 1,
+      "SubscriptionClients": 5,
+      "DurationRequestedSeconds": 90,
+      "ElapsedSeconds": 90.0155608,
+      "MeasurementSeconds": 90.014273865,
+      "RecoveryDrainSeconds": 0.001286735,
+      "RecoveryDrained": true,
+      "OS": "linux",
+      "GoVersion": "go1.26.5",
+      "LogicalCPUs": 8,
+      "HistoryFixture": "current-run-only",
+      "SourceSHA256": {
+        "cmd/server/main.go": "c5c9eee3d757a44173c0b5344d92768416db1dd6ad1ed18ce29038866bd0eca4",
+        "internal/agentclient/client.go": "07f3243608b12c8dc14acec7f02645e9e50639f155abcd3d4d2074496bb02987",
+        "internal/agentclient/joint_load_browser_test.go": "ce571bf9c55c81c5d0ece3bedf7183719d0fab30b0d109f395012b0eaae37597",
+        "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+        "internal/agentclient/joint_load_test.go": "b0622b89714d4d8f87fd90d751babcc2225ef079010b02d0a44cddf393cbef55",
+        "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+        "internal/agentgateway/gateway.go": "af968d7c7ca65275f1beed39d72492184230cba9b99f9b73b0af3f78b230bd82",
+        "internal/store/agent_metadata.go": "7007a06e829cba634f9a271e57ba5b4338b68a66c38c1b8eafa36b4a263c6922",
+        "internal/store/store.go": "1b9f1f89f49bcf510e76fa3ac82ce854aaf607c46988ceff734671d5e1a51f4e",
+        "scripts/joint-load-browser.cjs": "4bc74269f0d3e255f23d2032fe73e995ffa33bfef53a7396143563b425cb34e4",
+        "scripts/run-joint-load.sh": "9871cbf189ed0f1ad9585356152845d4aee3b6f5fd448562eece029c6ec236b7"
+      },
+      "ServerBinarySHA256": "fb6107f0c21cb55e0fa0be602fbcfda7250cad00f0e7b0cc0f7a8e1274262a15",
+      "ResourceTimeline": [
+        {
+          "ElapsedSeconds": 1.000944806,
+          "RSSBytes": 34660352,
+          "CPUMicroseconds": 762297,
+          "SampledPeakWALBytes": 10518392
+        },
+        {
+          "ElapsedSeconds": 30.000740484,
+          "RSSBytes": 35835904,
+          "CPUMicroseconds": 2123551,
+          "SampledPeakWALBytes": 13262312
+        },
+        {
+          "ElapsedSeconds": 60.000204148,
+          "RSSBytes": 33599488,
+          "CPUMicroseconds": 3980666,
+          "SampledPeakWALBytes": 13262312
+        },
+        {
+          "ElapsedSeconds": 90.00065762,
+          "RSSBytes": 36069376,
+          "CPUMicroseconds": 5415422,
+          "SampledPeakWALBytes": 13262312
+        },
+        {
+          "ElapsedSeconds": 90.0155608,
+          "RSSBytes": 37457920,
+          "CPUMicroseconds": 5432222,
+          "SampledPeakWALBytes": 13262312
+        }
+      ],
+      "SubscriptionMode": "playwright-rendered",
+      "RSSObservation": "proc-vmrss-sampled",
+      "CPUObservation": "cgroup-usage-usec",
+      "BrowserPageErrors": 0,
+      "NotificationMode": "real-default-sender-isolated-rfc5737-receiver",
+      "DeliveryAttempts": 200,
+      "ConfigurationsConfirmed": 100,
+      "FinalHealth": {
+        "notification_engine": {
+          "status": "running",
+          "observation_scope": "process",
+          "delivery_configuration": "available",
+          "evaluation": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 3,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:47:46.461806164Z",
+            "last_completed_at": "2026-10-15T00:47:46.531494524Z",
+            "last_success_at": "2026-10-15T00:47:46.531494524Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.06968836
+          }
+        },
+        "notification_queue": {
+          "status": "available",
+          "observed_at": "2026-10-15T00:48:01.197916151Z",
+          "scope": "stored_active_logical_rows",
+          "deliveries": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "aggregates": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "system": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          }
+        },
+        "transport": {
+          "agent_connections": 100,
+          "pending_results": 0,
+          "http_pending_results": 0,
+          "http_expired_results": 0
+        },
+        "browser_subscriptions": 5,
+        "retention": {
+          "job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:47:16.450270108Z",
+            "last_completed_at": "2026-10-15T00:47:16.454116329Z",
+            "last_success_at": "2026-10-15T00:47:16.454116329Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.003846322
+          },
+          "http_catchup_job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:47:16.563560234Z",
+            "last_completed_at": "2026-10-15T00:47:16.564227865Z",
+            "last_success_at": "2026-10-15T00:47:16.564227865Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.000667631
+          }
+        }
+      },
+      "HTTPOutcomes": {
+        "failure:status_mismatch": 200,
+        "success:": 100
+      },
+      "ResourceLimits": {
+        "cpu.max": "200000 100000",
+        "cpuset.cpus.effective": "0-1",
+        "memory.max": "2147483648",
+        "memory.swap.max": "0",
+        "mode": "systemd-cgroup-v2"
+      },
+      "ResourceSampleSeconds": 1,
+      "SampledPeakRSSBytes": 38617088,
+      "SampledPeakWALBytes": 13262312,
+      "ServerCPUMicroseconds": 5432222,
+      "APILatency": {
+        "health": {
+          "count": 90,
+          "P50": 0.574743,
+          "P95": 1.070591,
+          "Max": 1.631501
+        },
+        "history_current_30d_range": {
+          "count": 90,
+          "P50": 0.800895,
+          "P95": 1.564998,
+          "Max": 3.880827
+        },
+        "overview": {
+          "count": 90,
+          "P50": 11.41379,
+          "P95": 24.439299,
+          "Max": 268.045095
+        }
+      },
+      "APIErrors": 0,
+      "CollectedReports": 700,
+      "PersistedReports": 541,
+      "TCPSuccesses": 600,
+      "HTTPResults": 300,
+      "Snapshots": 10,
+      "SubscriptionEvents": 4586,
+      "NotificationsFailed": 65,
+      "NotificationsDelivered": 135,
+      "Faults": [
+        "closed all Agent sockets; normal reconnect/backoff remained active",
+        "restarted the same real Server/database; normal Agent and subscription reconnection"
+      ],
+      "Limitations": [
+        "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+        "five real rendered pages run outside the Server resource group",
+        "current-run history does not establish dense 30-day/year query capacity",
+        "collected-minus-persisted includes latest-cache skips and unacknowledged sends; not a packet-loss proof",
+        "one-second resource/WAL sampling can miss instantaneous peaks",
+        "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+        "short runs do not establish 24-hour stability"
+      ],
+      "Passed": true
+    }
+  ],
+  "repeated_100_node_results": [
+    {
+      "format": "myprobe.joint-load.v1",
+      "StartedAt": "2026-10-15T00:41:16.107523949Z",
+      "EndedAt": "2026-10-15T00:42:46.123674487Z",
+      "Nodes": 100,
+      "ReportSeconds": 15,
+      "TargetsPerNode": 3,
+      "TargetSeconds": 60,
+      "HTTPServices": 1,
+      "SubscriptionClients": 5,
+      "DurationRequestedSeconds": 90,
+      "ElapsedSeconds": 90.016150438,
+      "MeasurementSeconds": 90.015127772,
+      "RecoveryDrainSeconds": 0.001022467,
+      "RecoveryDrained": true,
+      "OS": "linux",
+      "GoVersion": "go1.26.5",
+      "LogicalCPUs": 8,
+      "HistoryFixture": "current-run-only",
+      "SourceSHA256": {
+        "cmd/server/main.go": "c5c9eee3d757a44173c0b5344d92768416db1dd6ad1ed18ce29038866bd0eca4",
+        "internal/agentclient/client.go": "07f3243608b12c8dc14acec7f02645e9e50639f155abcd3d4d2074496bb02987",
+        "internal/agentclient/joint_load_browser_test.go": "ce571bf9c55c81c5d0ece3bedf7183719d0fab30b0d109f395012b0eaae37597",
+        "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+        "internal/agentclient/joint_load_test.go": "b0622b89714d4d8f87fd90d751babcc2225ef079010b02d0a44cddf393cbef55",
+        "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+        "internal/agentgateway/gateway.go": "af968d7c7ca65275f1beed39d72492184230cba9b99f9b73b0af3f78b230bd82",
+        "internal/store/agent_metadata.go": "7007a06e829cba634f9a271e57ba5b4338b68a66c38c1b8eafa36b4a263c6922",
+        "internal/store/store.go": "1b9f1f89f49bcf510e76fa3ac82ce854aaf607c46988ceff734671d5e1a51f4e",
+        "scripts/joint-load-browser.cjs": "4bc74269f0d3e255f23d2032fe73e995ffa33bfef53a7396143563b425cb34e4",
+        "scripts/run-joint-load.sh": "9871cbf189ed0f1ad9585356152845d4aee3b6f5fd448562eece029c6ec236b7"
+      },
+      "ServerBinarySHA256": "fb6107f0c21cb55e0fa0be602fbcfda7250cad00f0e7b0cc0f7a8e1274262a15",
+      "ResourceTimeline": [
+        {
+          "ElapsedSeconds": 1.001133187,
+          "RSSBytes": 33808384,
+          "CPUMicroseconds": 697713,
+          "SampledPeakWALBytes": 10316512
+        },
+        {
+          "ElapsedSeconds": 30.000184419,
+          "RSSBytes": 38694912,
+          "CPUMicroseconds": 2257605,
+          "SampledPeakWALBytes": 18099192
+        },
+        {
+          "ElapsedSeconds": 60.000996351,
+          "RSSBytes": 37122048,
+          "CPUMicroseconds": 4080557,
+          "SampledPeakWALBytes": 18099192
+        },
+        {
+          "ElapsedSeconds": 90.000168145,
+          "RSSBytes": 38137856,
+          "CPUMicroseconds": 5553974,
+          "SampledPeakWALBytes": 18099192
+        },
+        {
+          "ElapsedSeconds": 90.016150438,
+          "RSSBytes": 38658048,
+          "CPUMicroseconds": 5570111,
+          "SampledPeakWALBytes": 18099192
+        }
+      ],
+      "SubscriptionMode": "playwright-rendered",
+      "RSSObservation": "proc-vmrss-sampled",
+      "CPUObservation": "cgroup-usage-usec",
+      "BrowserPageErrors": 0,
+      "NotificationMode": "real-default-sender-isolated-rfc5737-receiver",
+      "DeliveryAttempts": 200,
+      "ConfigurationsConfirmed": 100,
+      "FinalHealth": {
+        "notification_engine": {
+          "status": "running",
+          "observation_scope": "process",
+          "delivery_configuration": "available",
+          "evaluation": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 3,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:42:31.411755308Z",
+            "last_completed_at": "2026-10-15T00:42:31.477624701Z",
+            "last_success_at": "2026-10-15T00:42:31.477624701Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.065869393
+          }
+        },
+        "notification_queue": {
+          "status": "available",
+          "observed_at": "2026-10-15T00:42:46.123253418Z",
+          "scope": "stored_active_logical_rows",
+          "deliveries": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "aggregates": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "system": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          }
+        },
+        "transport": {
+          "agent_connections": 100,
+          "pending_results": 0,
+          "http_pending_results": 0,
+          "http_expired_results": 0
+        },
+        "browser_subscriptions": 5,
+        "retention": {
+          "job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:42:01.397632607Z",
+            "last_completed_at": "2026-10-15T00:42:01.40185875Z",
+            "last_success_at": "2026-10-15T00:42:01.40185875Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.004226042
+          },
+          "http_catchup_job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:42:01.512830316Z",
+            "last_completed_at": "2026-10-15T00:42:01.514059628Z",
+            "last_success_at": "2026-10-15T00:42:01.514059628Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.001229211
+          }
+        }
+      },
+      "HTTPOutcomes": {
+        "failure:status_mismatch": 200,
+        "success:": 100
+      },
+      "ResourceLimits": {
+        "cpu.max": "200000 100000",
+        "cpuset.cpus.effective": "0-1",
+        "memory.max": "2147483648",
+        "memory.swap.max": "0",
+        "mode": "systemd-cgroup-v2"
+      },
+      "ResourceSampleSeconds": 1,
+      "SampledPeakRSSBytes": 39776256,
+      "SampledPeakWALBytes": 18099192,
+      "ServerCPUMicroseconds": 5570111,
+      "APILatency": {
+        "health": {
+          "count": 90,
+          "P50": 0.583332,
+          "P95": 1.377174,
+          "Max": 11.216791
+        },
+        "history_current_30d_range": {
+          "count": 90,
+          "P50": 0.814783,
+          "P95": 1.634405,
+          "Max": 27.746903
+        },
+        "overview": {
+          "count": 90,
+          "P50": 11.596107,
+          "P95": 97.016066,
+          "Max": 422.578603
+        }
+      },
+      "APIErrors": 0,
+      "CollectedReports": 700,
+      "PersistedReports": 572,
+      "TCPSuccesses": 600,
+      "HTTPResults": 300,
+      "Snapshots": 10,
+      "SubscriptionEvents": 4464,
+      "NotificationsFailed": 96,
+      "NotificationsDelivered": 104,
+      "Faults": [
+        "closed all Agent sockets; normal reconnect/backoff remained active",
+        "restarted the same real Server/database; normal Agent and subscription reconnection"
+      ],
+      "Limitations": [
+        "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+        "five real rendered pages run outside the Server resource group",
+        "current-run history does not establish dense 30-day/year query capacity",
+        "collected-minus-persisted includes latest-cache skips and unacknowledged sends; not a packet-loss proof",
+        "one-second resource/WAL sampling can miss instantaneous peaks",
+        "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+        "short runs do not establish 24-hour stability"
+      ],
+      "Passed": true
+    },
+    {
+      "format": "myprobe.joint-load.v1",
+      "StartedAt": "2026-10-15T00:44:58.422721569Z",
+      "EndedAt": "2026-10-15T00:46:28.446454042Z",
+      "Nodes": 100,
+      "ReportSeconds": 15,
+      "TargetsPerNode": 3,
+      "TargetSeconds": 60,
+      "HTTPServices": 1,
+      "SubscriptionClients": 5,
+      "DurationRequestedSeconds": 90,
+      "ElapsedSeconds": 90.023732371,
+      "MeasurementSeconds": 90.023007544,
+      "RecoveryDrainSeconds": 0.000724627,
+      "RecoveryDrained": true,
+      "OS": "linux",
+      "GoVersion": "go1.26.5",
+      "LogicalCPUs": 8,
+      "HistoryFixture": "current-run-only",
+      "SourceSHA256": {
+        "cmd/server/main.go": "c5c9eee3d757a44173c0b5344d92768416db1dd6ad1ed18ce29038866bd0eca4",
+        "internal/agentclient/client.go": "07f3243608b12c8dc14acec7f02645e9e50639f155abcd3d4d2074496bb02987",
+        "internal/agentclient/joint_load_browser_test.go": "ce571bf9c55c81c5d0ece3bedf7183719d0fab30b0d109f395012b0eaae37597",
+        "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+        "internal/agentclient/joint_load_test.go": "b0622b89714d4d8f87fd90d751babcc2225ef079010b02d0a44cddf393cbef55",
+        "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+        "internal/agentgateway/gateway.go": "af968d7c7ca65275f1beed39d72492184230cba9b99f9b73b0af3f78b230bd82",
+        "internal/store/agent_metadata.go": "7007a06e829cba634f9a271e57ba5b4338b68a66c38c1b8eafa36b4a263c6922",
+        "internal/store/store.go": "1b9f1f89f49bcf510e76fa3ac82ce854aaf607c46988ceff734671d5e1a51f4e",
+        "scripts/joint-load-browser.cjs": "4bc74269f0d3e255f23d2032fe73e995ffa33bfef53a7396143563b425cb34e4",
+        "scripts/run-joint-load.sh": "9871cbf189ed0f1ad9585356152845d4aee3b6f5fd448562eece029c6ec236b7"
+      },
+      "ServerBinarySHA256": "fb6107f0c21cb55e0fa0be602fbcfda7250cad00f0e7b0cc0f7a8e1274262a15",
+      "ResourceTimeline": [
+        {
+          "ElapsedSeconds": 1.00319529,
+          "RSSBytes": 35532800,
+          "CPUMicroseconds": 669363,
+          "SampledPeakWALBytes": 10427752
+        },
+        {
+          "ElapsedSeconds": 30.000770018,
+          "RSSBytes": 37199872,
+          "CPUMicroseconds": 2246310,
+          "SampledPeakWALBytes": 21745392
+        },
+        {
+          "ElapsedSeconds": 60.000341595,
+          "RSSBytes": 33329152,
+          "CPUMicroseconds": 4071153,
+          "SampledPeakWALBytes": 21745392
+        },
+        {
+          "ElapsedSeconds": 90.000368653,
+          "RSSBytes": 33480704,
+          "CPUMicroseconds": 5680822,
+          "SampledPeakWALBytes": 21745392
+        },
+        {
+          "ElapsedSeconds": 90.023732371,
+          "RSSBytes": 34222080,
+          "CPUMicroseconds": 5705909,
+          "SampledPeakWALBytes": 21745392
+        }
+      ],
+      "SubscriptionMode": "playwright-rendered",
+      "RSSObservation": "proc-vmrss-sampled",
+      "CPUObservation": "cgroup-usage-usec",
+      "BrowserPageErrors": 0,
+      "NotificationMode": "real-default-sender-isolated-rfc5737-receiver",
+      "DeliveryAttempts": 200,
+      "ConfigurationsConfirmed": 100,
+      "FinalHealth": {
+        "notification_engine": {
+          "status": "running",
+          "observation_scope": "process",
+          "delivery_configuration": "available",
+          "evaluation": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 3,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:46:13.709100979Z",
+            "last_completed_at": "2026-10-15T00:46:13.766191972Z",
+            "last_success_at": "2026-10-15T00:46:13.766191972Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.057090993
+          }
+        },
+        "notification_queue": {
+          "status": "available",
+          "observed_at": "2026-10-15T00:46:28.446119052Z",
+          "scope": "stored_active_logical_rows",
+          "deliveries": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "aggregates": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "system": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          }
+        },
+        "transport": {
+          "agent_connections": 100,
+          "pending_results": 0,
+          "http_pending_results": 0,
+          "http_expired_results": 0
+        },
+        "browser_subscriptions": 5,
+        "retention": {
+          "job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:45:43.697542709Z",
+            "last_completed_at": "2026-10-15T00:45:43.701955852Z",
+            "last_success_at": "2026-10-15T00:45:43.701955852Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.004413143
+          },
+          "http_catchup_job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:45:43.808534302Z",
+            "last_completed_at": "2026-10-15T00:45:43.80924494Z",
+            "last_success_at": "2026-10-15T00:45:43.80924494Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.000710638
+          }
+        }
+      },
+      "HTTPOutcomes": {
+        "failure:status_mismatch": 200,
+        "success:": 100
+      },
+      "ResourceLimits": {
+        "cpu.max": "200000 100000",
+        "cpuset.cpus.effective": "0-1",
+        "memory.max": "2147483648",
+        "memory.swap.max": "0",
+        "mode": "systemd-cgroup-v2"
+      },
+      "ResourceSampleSeconds": 1,
+      "SampledPeakRSSBytes": 37888000,
+      "SampledPeakWALBytes": 21745392,
+      "ServerCPUMicroseconds": 5705909,
+      "APILatency": {
+        "health": {
+          "count": 90,
+          "P50": 0.554902,
+          "P95": 0.964004,
+          "Max": 16.292894
+        },
+        "history_current_30d_range": {
+          "count": 90,
+          "P50": 0.801102,
+          "P95": 1.624184,
+          "Max": 4.006887
+        },
+        "overview": {
+          "count": 90,
+          "P50": 14.538406,
+          "P95": 24.423862,
+          "Max": 90.641623
+        }
+      },
+      "APIErrors": 0,
+      "CollectedReports": 700,
+      "PersistedReports": 556,
+      "TCPSuccesses": 600,
+      "HTTPResults": 300,
+      "Snapshots": 10,
+      "SubscriptionEvents": 4413,
+      "NotificationsFailed": 31,
+      "NotificationsDelivered": 169,
+      "Faults": [
+        "closed all Agent sockets; normal reconnect/backoff remained active",
+        "restarted the same real Server/database; normal Agent and subscription reconnection"
+      ],
+      "Limitations": [
+        "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+        "five real rendered pages run outside the Server resource group",
+        "current-run history does not establish dense 30-day/year query capacity",
+        "collected-minus-persisted includes latest-cache skips and unacknowledged sends; not a packet-loss proof",
+        "one-second resource/WAL sampling can miss instantaneous peaks",
+        "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+        "short runs do not establish 24-hour stability"
+      ],
+      "Passed": true
+    },
+    {
+      "format": "myprobe.joint-load.v1",
+      "StartedAt": "2026-10-15T00:46:31.182708666Z",
+      "EndedAt": "2026-10-15T00:48:01.198269665Z",
+      "Nodes": 100,
+      "ReportSeconds": 15,
+      "TargetsPerNode": 3,
+      "TargetSeconds": 60,
+      "HTTPServices": 1,
+      "SubscriptionClients": 5,
+      "DurationRequestedSeconds": 90,
+      "ElapsedSeconds": 90.0155608,
+      "MeasurementSeconds": 90.014273865,
+      "RecoveryDrainSeconds": 0.001286735,
+      "RecoveryDrained": true,
+      "OS": "linux",
+      "GoVersion": "go1.26.5",
+      "LogicalCPUs": 8,
+      "HistoryFixture": "current-run-only",
+      "SourceSHA256": {
+        "cmd/server/main.go": "c5c9eee3d757a44173c0b5344d92768416db1dd6ad1ed18ce29038866bd0eca4",
+        "internal/agentclient/client.go": "07f3243608b12c8dc14acec7f02645e9e50639f155abcd3d4d2074496bb02987",
+        "internal/agentclient/joint_load_browser_test.go": "ce571bf9c55c81c5d0ece3bedf7183719d0fab30b0d109f395012b0eaae37597",
+        "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+        "internal/agentclient/joint_load_test.go": "b0622b89714d4d8f87fd90d751babcc2225ef079010b02d0a44cddf393cbef55",
+        "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+        "internal/agentgateway/gateway.go": "af968d7c7ca65275f1beed39d72492184230cba9b99f9b73b0af3f78b230bd82",
+        "internal/store/agent_metadata.go": "7007a06e829cba634f9a271e57ba5b4338b68a66c38c1b8eafa36b4a263c6922",
+        "internal/store/store.go": "1b9f1f89f49bcf510e76fa3ac82ce854aaf607c46988ceff734671d5e1a51f4e",
+        "scripts/joint-load-browser.cjs": "4bc74269f0d3e255f23d2032fe73e995ffa33bfef53a7396143563b425cb34e4",
+        "scripts/run-joint-load.sh": "9871cbf189ed0f1ad9585356152845d4aee3b6f5fd448562eece029c6ec236b7"
+      },
+      "ServerBinarySHA256": "fb6107f0c21cb55e0fa0be602fbcfda7250cad00f0e7b0cc0f7a8e1274262a15",
+      "ResourceTimeline": [
+        {
+          "ElapsedSeconds": 1.000944806,
+          "RSSBytes": 34660352,
+          "CPUMicroseconds": 762297,
+          "SampledPeakWALBytes": 10518392
+        },
+        {
+          "ElapsedSeconds": 30.000740484,
+          "RSSBytes": 35835904,
+          "CPUMicroseconds": 2123551,
+          "SampledPeakWALBytes": 13262312
+        },
+        {
+          "ElapsedSeconds": 60.000204148,
+          "RSSBytes": 33599488,
+          "CPUMicroseconds": 3980666,
+          "SampledPeakWALBytes": 13262312
+        },
+        {
+          "ElapsedSeconds": 90.00065762,
+          "RSSBytes": 36069376,
+          "CPUMicroseconds": 5415422,
+          "SampledPeakWALBytes": 13262312
+        },
+        {
+          "ElapsedSeconds": 90.0155608,
+          "RSSBytes": 37457920,
+          "CPUMicroseconds": 5432222,
+          "SampledPeakWALBytes": 13262312
+        }
+      ],
+      "SubscriptionMode": "playwright-rendered",
+      "RSSObservation": "proc-vmrss-sampled",
+      "CPUObservation": "cgroup-usage-usec",
+      "BrowserPageErrors": 0,
+      "NotificationMode": "real-default-sender-isolated-rfc5737-receiver",
+      "DeliveryAttempts": 200,
+      "ConfigurationsConfirmed": 100,
+      "FinalHealth": {
+        "notification_engine": {
+          "status": "running",
+          "observation_scope": "process",
+          "delivery_configuration": "available",
+          "evaluation": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 3,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:47:46.461806164Z",
+            "last_completed_at": "2026-10-15T00:47:46.531494524Z",
+            "last_success_at": "2026-10-15T00:47:46.531494524Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.06968836
+          }
+        },
+        "notification_queue": {
+          "status": "available",
+          "observed_at": "2026-10-15T00:48:01.197916151Z",
+          "scope": "stored_active_logical_rows",
+          "deliveries": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "aggregates": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "system": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          }
+        },
+        "transport": {
+          "agent_connections": 100,
+          "pending_results": 0,
+          "http_pending_results": 0,
+          "http_expired_results": 0
+        },
+        "browser_subscriptions": 5,
+        "retention": {
+          "job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:47:16.450270108Z",
+            "last_completed_at": "2026-10-15T00:47:16.454116329Z",
+            "last_success_at": "2026-10-15T00:47:16.454116329Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.003846322
+          },
+          "http_catchup_job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:47:16.563560234Z",
+            "last_completed_at": "2026-10-15T00:47:16.564227865Z",
+            "last_success_at": "2026-10-15T00:47:16.564227865Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.000667631
+          }
+        }
+      },
+      "HTTPOutcomes": {
+        "failure:status_mismatch": 200,
+        "success:": 100
+      },
+      "ResourceLimits": {
+        "cpu.max": "200000 100000",
+        "cpuset.cpus.effective": "0-1",
+        "memory.max": "2147483648",
+        "memory.swap.max": "0",
+        "mode": "systemd-cgroup-v2"
+      },
+      "ResourceSampleSeconds": 1,
+      "SampledPeakRSSBytes": 38617088,
+      "SampledPeakWALBytes": 13262312,
+      "ServerCPUMicroseconds": 5432222,
+      "APILatency": {
+        "health": {
+          "count": 90,
+          "P50": 0.574743,
+          "P95": 1.070591,
+          "Max": 1.631501
+        },
+        "history_current_30d_range": {
+          "count": 90,
+          "P50": 0.800895,
+          "P95": 1.564998,
+          "Max": 3.880827
+        },
+        "overview": {
+          "count": 90,
+          "P50": 11.41379,
+          "P95": 24.439299,
+          "Max": 268.045095
+        }
+      },
+      "APIErrors": 0,
+      "CollectedReports": 700,
+      "PersistedReports": 541,
+      "TCPSuccesses": 600,
+      "HTTPResults": 300,
+      "Snapshots": 10,
+      "SubscriptionEvents": 4586,
+      "NotificationsFailed": 65,
+      "NotificationsDelivered": 135,
+      "Faults": [
+        "closed all Agent sockets; normal reconnect/backoff remained active",
+        "restarted the same real Server/database; normal Agent and subscription reconnection"
+      ],
+      "Limitations": [
+        "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+        "five real rendered pages run outside the Server resource group",
+        "current-run history does not establish dense 30-day/year query capacity",
+        "collected-minus-persisted includes latest-cache skips and unacknowledged sends; not a packet-loss proof",
+        "one-second resource/WAL sampling can miss instantaneous peaks",
+        "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+        "short runs do not establish 24-hour stability"
+      ],
+      "Passed": true
+    }
+  ],
+  "ci": {
+    "run_id": 38661387110,
+    "head_sha": "04f9b79e91d20760eb07d66de0cafd6c4b490e41",
+    "conclusion": "success",
+    "scope": "5 nodes, Go subscriptions, unrestricted GitHub runner; not rendered or low-resource acceptance",
+    "raw_result": {
+      "format": "myprobe.joint-load.v1",
+      "StartedAt": "2026-10-15T00:44:30.573657299Z",
+      "EndedAt": "2026-10-15T00:46:00.580831805Z",
+      "Nodes": 5,
+      "ReportSeconds": 15,
+      "TargetsPerNode": 3,
+      "TargetSeconds": 60,
+      "HTTPServices": 1,
+      "SubscriptionClients": 5,
+      "DurationRequestedSeconds": 90,
+      "ElapsedSeconds": 90.007174426,
+      "MeasurementSeconds": 90.006177818,
+      "RecoveryDrainSeconds": 0.000996427,
+      "RecoveryDrained": true,
+      "OS": "linux",
+      "GoVersion": "go1.26.8",
+      "LogicalCPUs": 4,
+      "HistoryFixture": "current-run-only",
+      "SourceSHA256": {
+        "cmd/server/main.go": "c5c9eee3d757a44173c0b5344d92768416db1dd6ad1ed18ce29038866bd0eca4",
+        "internal/agentclient/client.go": "07f3243608b12c8dc14acec7f02645e9e50639f155abcd3d4d2074496bb02987",
+        "internal/agentclient/joint_load_browser_test.go": "ce571bf9c55c81c5d0ece3bedf7183719d0fab30b0d109f395012b0eaae37597",
+        "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+        "internal/agentclient/joint_load_test.go": "b0622b89714d4d8f87fd90d751babcc2225ef079010b02d0a44cddf393cbef55",
+        "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+        "internal/agentgateway/gateway.go": "af968d7c7ca65275f1beed39d72492184230cba9b99f9b73b0af3f78b230bd82",
+        "internal/store/agent_metadata.go": "7007a06e829cba634f9a271e57ba5b4338b68a66c38c1b8eafa36b4a263c6922",
+        "internal/store/store.go": "1b9f1f89f49bcf510e76fa3ac82ce854aaf607c46988ceff734671d5e1a51f4e",
+        "scripts/joint-load-browser.cjs": "4bc74269f0d3e255f23d2032fe73e995ffa33bfef53a7396143563b425cb34e4",
+        "scripts/run-joint-load.sh": "9871cbf189ed0f1ad9585356152845d4aee3b6f5fd448562eece029c6ec236b7"
+      },
+      "ServerBinarySHA256": "6d9c72a79d3407397ad3850e53d0b22d5ca4417370b9858af7d264fd2d91506a",
+      "ResourceTimeline": [
+        {
+          "ElapsedSeconds": 1.000806734,
+          "RSSBytes": 28971008,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 506792
+        },
+        {
+          "ElapsedSeconds": 30.000991125,
+          "RSSBytes": 31133696,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 1330792
+        },
+        {
+          "ElapsedSeconds": 60.000698177,
+          "RSSBytes": 32157696,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 2715112
+        },
+        {
+          "ElapsedSeconds": 90.000953522,
+          "RSSBytes": 32305152,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 3914032
+        },
+        {
+          "ElapsedSeconds": 90.007174426,
+          "RSSBytes": 32305152,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 3914032
+        }
+      ],
+      "SubscriptionMode": "go-websocket-consumers",
+      "RSSObservation": "proc-vmrss-sampled",
+      "CPUObservation": "unavailable",
+      "BrowserPageErrors": 0,
+      "NotificationMode": "real-default-sender-isolated-rfc5737-receiver",
+      "DeliveryAttempts": 11,
+      "ConfigurationsConfirmed": 5,
+      "FinalHealth": {
+        "notification_engine": {
+          "status": "running",
+          "observation_scope": "process",
+          "delivery_configuration": "available",
+          "evaluation": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 3,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:45:45.654822936Z",
+            "last_completed_at": "2026-10-15T00:45:45.661960996Z",
+            "last_success_at": "2026-10-15T00:45:45.661960996Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.007138071
+          }
+        },
+        "notification_queue": {
+          "status": "available",
+          "observed_at": "2026-10-15T00:46:00.580175562Z",
+          "scope": "stored_active_logical_rows",
+          "deliveries": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "aggregates": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "system": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          }
+        },
+        "transport": {
+          "agent_connections": 5,
+          "pending_results": 0,
+          "http_pending_results": 0,
+          "http_expired_results": 0
+        },
+        "browser_subscriptions": 5,
+        "retention": {
+          "job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:45:15.652332355Z",
+            "last_completed_at": "2026-10-15T00:45:15.654169005Z",
+            "last_success_at": "2026-10-15T00:45:15.654169005Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.00183665
+          },
+          "http_catchup_job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:45:15.761821946Z",
+            "last_completed_at": "2026-10-15T00:45:15.762713045Z",
+            "last_success_at": "2026-10-15T00:45:15.762713045Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.000891099
+          }
+        }
+      },
+      "HTTPOutcomes": {
+        "failure:status_mismatch": 5,
+        "success:": 5
+      },
+      "ResourceLimits": {
+        "mode": "unrestricted"
+      },
+      "ResourceSampleSeconds": 1,
+      "SampledPeakRSSBytes": 32755712,
+      "SampledPeakWALBytes": 3914032,
+      "ServerCPUMicroseconds": 0,
+      "APILatency": {
+        "health": {
+          "count": 90,
+          "P50": 0.777069,
+          "P95": 1.139695,
+          "Max": 2.437722
+        },
+        "history_current_30d_range": {
+          "count": 90,
+          "P50": 1.0839,
+          "P95": 1.209625,
+          "Max": 1.665643
+        },
+        "overview": {
+          "count": 90,
+          "P50": 2.475609,
+          "P95": 2.97134,
+          "Max": 3.134704
+        }
+      },
+      "APIErrors": 0,
+      "CollectedReports": 35,
+      "PersistedReports": 21,
+      "TCPSuccesses": 30,
+      "HTTPResults": 10,
+      "Snapshots": 10,
+      "SubscriptionEvents": 255,
+      "NotificationsFailed": 2,
+      "NotificationsDelivered": 9,
+      "Faults": [
+        "closed all Agent sockets; normal reconnect/backoff remained active",
+        "restarted the same real Server/database; normal Agent and subscription reconnection"
+      ],
+      "Limitations": [
+        "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+        "five Go WebSocket consumers are not rendered browser sessions",
+        "current-run history does not establish dense 30-day/year query capacity",
+        "collected-minus-persisted includes latest-cache skips and unacknowledged sends; not a packet-loss proof",
+        "one-second resource/WAL sampling can miss instantaneous peaks",
+        "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+        "short runs do not establish 24-hour stability"
+      ],
+      "Passed": true
+    }
+  },
+  "caveats": [
+    "90-second current-run history fixture; not dense 30-day/year or 24-hour acceptance",
+    "counts include warmup/drain; API quantiles cover the measurement window",
+    "stored source correlation and duplicate checks do not prove ACK completeness or packet-loss rate",
+    "one-second resource and allocated WAL samples can miss instantaneous peaks",
+    "WSL shared host; Server-only cgroup, generators/browsers outside",
+    "browser frame totals do not prove every node DOM converged",
+    "WAL sampled allocation increased in the first 100-node comparison; not every resource metric decreased"
+  ]
+}
