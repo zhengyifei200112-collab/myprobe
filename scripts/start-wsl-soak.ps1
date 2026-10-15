@@ -69,17 +69,19 @@ if ($PSCmdlet.ParameterSetName -eq 'Launch') {
     })
     $escapedScript = $frozenSupervisor.Replace("'", "''")
     $escapedManifest = $manifestPath.Replace("'", "''")
-    $command = "& '$escapedScript' -RunManifest '$escapedManifest'"
+    $escapedStdout = (Join-Path $directory 'supervisor.stdout.log').Replace("'", "''")
+    $escapedStderr = (Join-Path $directory 'supervisor.stderr.log').Replace("'", "''")
+    $command = "& '$escapedScript' -RunManifest '$escapedManifest' 1> '$escapedStdout' 2> '$escapedStderr'"
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
     try {
         # Windows Start-Process detaches from the launching shell. The worker
         # holds a foreground wsl.exe for the entire Linux job; no systemd-only hold.
         $windowsPowerShell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
+        # Redirect inside the worker. Start-Process -Redirect* owns async pumps
+        # in the launching PowerShell 5.1 process and can keep that host alive.
         $worker = Start-Process -FilePath $windowsPowerShell `
             -ArgumentList "-NoProfile -NonInteractive -OutputFormat Text -ExecutionPolicy Bypass -EncodedCommand $encoded" `
-            -WindowStyle Hidden -PassThru `
-            -RedirectStandardOutput (Join-Path $directory 'supervisor.stdout.log') `
-            -RedirectStandardError (Join-Path $directory 'supervisor.stderr.log')
+            -WindowStyle Hidden -PassThru
     } catch {
         Write-Status $directory ([ordered]@{
             format = 'myprobe.wsl-soak-status.v1'; run_id = $manifest.run_id
