@@ -11,6 +11,14 @@
 
 ## Feature parity matrix
 
+Network quality comparison is available in the public dashboard, administrator UI
+and authenticated shares. Scoped target discovery and one batched response compare
+up to eight observers using aligned RTT, execution-failure and coverage timelines,
+range quantiles/jitter, actual history bounds and explicit time zones. Real-backend
+browser checks cover both themes at 360/768/1440 px. Unreported address families and
+packet counts remain unavailable; real IPv6 execution and final integrated capacity
+and long-soak acceptance remain open. See [network quality UI](NETWORK_QUALITY_UI.md).
+
 Scoped alert-policy inheritance (ALT-02) is in development. Its internal resolver
 and revisioned persistence support global, tag and explicit-node scopes, conflict
 validation and snapshot-based effective-policy previews. Each runtime tick maps

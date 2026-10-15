@@ -26,9 +26,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Companion time-series routes share a UTC grid capped at 2,000 points per node,
   generate both summaries and points in one historical scan, and distinguish
   unknown history from retention-resolution clipping. Protocol-unreported
-  address families and packet loss stay unavailable. Comparison pages,
-  target discovery and full network capacity acceptance remain under
-  development; Agents are not assumed to retry lost results.
+  address families and packet loss stay unavailable. Target discovery now pages
+  authorized current/retained aliases without target
+  addresses. Public, administrator and protected-share comparison dialogs show
+  up to eight observers, RTT/failure/coverage timelines, range quantiles/jitter,
+  actual availability, timezone-aware custom windows and last completed evening
+  presets. A real-backend Chromium fixture covers six theme/viewport combinations,
+  scoped roles, missing data and keyboard access; full network capacity remains
+  under validation. Agents are not assumed to retry lost results.
 
 - Private node diagnostics separate desired sampling revisions, negotiated Agent
   application acknowledgements and actual persisted HTTP/WebSocket report ingress.
