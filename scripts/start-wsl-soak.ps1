@@ -120,8 +120,10 @@ try {
     $startInfo.RedirectStandardError = $true
     $child = New-Object System.Diagnostics.Process
     $child.StartInfo = $startInfo
-    $stdoutFile = [IO.File]::Open((Join-Path $directory 'wsl.stdout.log'), 'CreateNew', 'Write', 'Read')
-    $stderrFile = [IO.File]::Open((Join-Path $directory 'wsl.stderr.log'), 'CreateNew', 'Write', 'Read')
+    $stdoutFile = [IO.FileStream]::new((Join-Path $directory 'wsl.stdout.log'), [IO.FileMode]::CreateNew,
+        [IO.FileAccess]::Write, [IO.FileShare]::Read, 1, [IO.FileOptions]::Asynchronous)
+    $stderrFile = [IO.FileStream]::new((Join-Path $directory 'wsl.stderr.log'), [IO.FileMode]::CreateNew,
+        [IO.FileAccess]::Write, [IO.FileShare]::Read, 1, [IO.FileOptions]::Asynchronous)
     if (-not $child.Start()) { throw 'WSL client did not start.' }
     # Copy both pipes concurrently without PowerShell event callbacks/runspaces,
     # preventing a full stdout or stderr pipe from blocking the Linux process.
@@ -139,6 +141,8 @@ try {
     $status.exit_code = $child.ExitCode
     $stdoutCopy.GetAwaiter().GetResult()
     $stderrCopy.GetAwaiter().GetResult()
+    $stdoutFile.Flush()
+    $stderrFile.Flush()
     $status.state = 'exited'
 } catch {
     # Do not restart, kill other WSL instances, or hide an unknown Linux outcome.
