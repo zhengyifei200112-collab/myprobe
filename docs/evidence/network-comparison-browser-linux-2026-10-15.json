@@ -1,0 +1,93 @@
+{
+  "format": "myprobe.network-comparison-browser.v1",
+  "source_commit": "89418ca60df7a3d8c6ae8d534d806fd8f28a90e5",
+  "browser_version": "151.0.7922.34",
+  "started_at": "2026-10-15T14:39:13.406Z",
+  "transport": "real Gin/Store APIs and built embedded assets; synthetic persisted task history; one intentional network abort for failure UI",
+  "views": [
+    {
+      "theme": "light",
+      "width": 360,
+      "nodes": 8,
+      "api_mode": "time_series",
+      "requests_per_explicit_node_change": 2,
+      "canvas": true,
+      "unknown_family": true,
+      "packet_loss_unavailable": true,
+      "errors": []
+    },
+    {
+      "theme": "light",
+      "width": 768,
+      "nodes": 8,
+      "api_mode": "time_series",
+      "requests_per_explicit_node_change": 2,
+      "canvas": true,
+      "unknown_family": true,
+      "packet_loss_unavailable": true,
+      "errors": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "nodes": 8,
+      "api_mode": "time_series",
+      "requests_per_explicit_node_change": 2,
+      "canvas": true,
+      "unknown_family": true,
+      "packet_loss_unavailable": true,
+      "errors": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "nodes": 8,
+      "api_mode": "time_series",
+      "requests_per_explicit_node_change": 2,
+      "canvas": true,
+      "unknown_family": true,
+      "packet_loss_unavailable": true,
+      "errors": []
+    },
+    {
+      "theme": "dark",
+      "width": 768,
+      "nodes": 8,
+      "api_mode": "time_series",
+      "requests_per_explicit_node_change": 2,
+      "canvas": true,
+      "unknown_family": true,
+      "packet_loss_unavailable": true,
+      "errors": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "nodes": 8,
+      "api_mode": "time_series",
+      "requests_per_explicit_node_change": 2,
+      "canvas": true,
+      "unknown_family": true,
+      "packet_loss_unavailable": true,
+      "errors": []
+    }
+  ],
+  "roles": [
+    {
+      "role": "administrator",
+      "hidden_observer_selectable": true
+    },
+    {
+      "role": "password_share",
+      "observers": 2,
+      "selected_private_observer": true,
+      "outside_scope_status": 404
+    }
+  ],
+  "ipv6_case": {
+    "synthetic_configured_observer": true,
+    "unsupported_is_not_execution_failure": true,
+    "exact_packet_loss_unavailable": true,
+    "actual_ipv6_network_execution": false
+  }
+}
