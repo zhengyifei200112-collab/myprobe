@@ -172,6 +172,28 @@ func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 	}
 	evidence.SeedSeconds = time.Since(started).Seconds()
 	t.Logf("seed complete tasks=%d elapsed=%s", evidence.SeededTasks, time.Since(started))
+	for _, statement := range []struct {
+		name, query string
+		args        []any
+	}{
+		{"manual expiry", `SELECT id FROM network_probe_tasks WHERE source='manual' AND expires_at_ns<? ORDER BY expires_at_ns LIMIT ?`, []any{q.AsOf.Add(-7 * 24 * time.Hour).UnixNano(), 1000}},
+		{"scheduled expiry", `SELECT id FROM network_probe_tasks WHERE source='scheduled' AND scheduled_at<? ORDER BY scheduled_at LIMIT ?`, []any{q.Start.Unix(), 1000}},
+		{"raw bucket", `SELECT t.epoch_id,t.scheduled_at,e.target_id,e.starts_at,e.interval_seconds FROM network_probe_tasks t JOIN network_schedule_epochs e ON e.id=t.epoch_id WHERE t.source='scheduled' AND t.scheduled_at>=? AND t.scheduled_at<? ORDER BY t.scheduled_at,t.epoch_id LIMIT 1`, []any{q.Start.Unix(), q.End.Add(-7 * 24 * time.Hour).Unix()}},
+	} {
+		rows, err := s.db.QueryContext(ctx, "EXPLAIN QUERY PLAN "+statement.query, statement.args...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rows.Next() {
+			var id, parent, unused int
+			var detail string
+			if err = rows.Scan(&id, &parent, &unused, &detail); err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("query plan %s: %s", statement.name, detail)
+		}
+		rows.Close()
+	}
 	// An unarchived year exceeds the explicit query work budget. It must fail,
 	// not return a percentile based on its first 350000 rows.
 	if _, err = s.PublicNetworkQuality(ctx, q); !errors.Is(err, ErrNetworkQualityUnavailable) {
@@ -199,8 +221,14 @@ func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 				probeCtx, probeCancel := context.WithTimeout(ctx, 2*time.Second)
 				began := time.Now()
 				task, err := s.RecordManualNetworkTask(probeCtx, node, protocol.Task{ID: fmt.Sprintf("synthetic-current-%06d", sequence), Kind: target.Kind, TargetID: target.ID, Host: target.Host, TimeoutMS: 1000, ExpiresAt: now.Add(16 * time.Second)}, now)
+				if err != nil {
+					err = fmt.Errorf("record current task: %w", err)
+				}
 				if err == nil {
 					_, err = s.AcceptNetworkResult(probeCtx, node, target.Kind, protocol.LatencyResult{TaskID: task.Task.ID, TargetID: target.ID, Success: true, LatencyMS: 3, CompletedAt: now}, now)
+					if err != nil {
+						err = fmt.Errorf("accept current result: %w", err)
+					}
 				}
 				elapsed := float64(time.Since(began)) / float64(time.Millisecond)
 				if err != nil {
@@ -219,7 +247,7 @@ func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 					elapsed = float64(time.Since(began)) / float64(time.Millisecond)
 					if err != nil {
 						probeCancel()
-						probeError <- err
+						probeError <- fmt.Errorf("read current quality: %w", err)
 						return
 					}
 					probeMu.Lock()
@@ -248,6 +276,9 @@ func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 		evidence.RawBuckets += batch.RawBuckets
 		evidence.MinuteBuckets += batch.MinuteBuckets
 		evidence.MaximumBatchMS = max(evidence.MaximumBatchMS, float64(time.Since(passStart))/float64(time.Millisecond))
+		if evidence.ArchivePasses <= 10 {
+			t.Logf("initial batch pass=%d elapsed=%s raw=%d minute=%d", evidence.ArchivePasses, time.Since(passStart), batch.RawBuckets, batch.MinuteBuckets)
+		}
 		if evidence.ArchivePasses%2000 == 0 {
 			t.Logf("archive passes=%d raw_buckets=%d elapsed=%s", evidence.ArchivePasses, evidence.RawBuckets, time.Since(started))
 		}
