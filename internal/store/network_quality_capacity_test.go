@@ -27,6 +27,8 @@ type networkArchiveCapacityEvidence struct {
 	GoVersion                                                          string `json:"go_version"`
 	Slots, SeededTasks, ArchivePasses, RawBuckets, MinuteBuckets       int64
 	SeedSeconds, DrainSeconds, MaximumBatchMS                          float64
+	ConcurrentArchivePasses                                            int64
+	ConcurrentPhaseSeconds                                             float64
 	WriterSamples                                                      int
 	WriterP95MS, WriterMaximumMS                                       float64
 	CurrentQuerySamples                                                int
@@ -54,8 +56,9 @@ func capacityP95(values []float64) float64 {
 
 // This is a real SQLite storage/competition/restore experiment with synthetic
 // completed task identities. It does not claim a year of live Agent traffic.
-// Production's 100ms catch-up pacing is separately tested; this fixture uses
-// a 1ms yield to measure transaction cost without spending half an hour idle.
+// First measure concurrent writes/reads using production's 100ms pacing, then
+// stop those probes and fast-drain the remaining year to verify storage/math.
+// Never attribute unpaced-drain throughput to the production worker.
 func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 	if os.Getenv("MYPROBE_TEST_NETWORK_ARCHIVE_CAPACITY") != "1" {
 		t.Skip("opt-in year network ledger capacity")
@@ -75,7 +78,7 @@ func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 		t.Fatal(err)
 	}
 	q := NetworkQualityQuery{NodeID: node, TargetID: target.ID, Kind: target.Kind, Start: anchor, End: anchor.Add(365 * 24 * time.Hour), AsOf: anchor.Add(365*24*time.Hour + 75*time.Second)}
-	evidence := networkArchiveCapacityEvidence{Format: "myprobe.network-archive-capacity.v1", SourceCommit: os.Getenv("MYPROBE_TEST_SOURCE_COMMIT"), Platform: runtime.GOOS + "/" + runtime.GOARCH, GoVersion: runtime.Version(), Slots: 365 * 24 * 60, Scope: "one synthetic node/target; real SQLite Store archival, concurrent manual task/result writes, quality queries and staged snapshot restore; direct SQL historical seed, no live Gateway/main; 1ms fixture yield, not production 100ms drain pacing; Go heap and sampled WAL are not process RSS or exact WAL peak"}
+	evidence := networkArchiveCapacityEvidence{Format: "myprobe.network-archive-capacity.v1", SourceCommit: os.Getenv("MYPROBE_TEST_SOURCE_COMMIT"), Platform: runtime.GOOS + "/" + runtime.GOARCH, GoVersion: runtime.Version(), Slots: 365 * 24 * 60, Scope: "one synthetic node/target; real SQLite Store archival; current manual task/result writes and queries overlap first 100 batches at production 100ms pacing, then probes stop and remaining history fast-drains without production pacing; direct SQL historical seed, no live Gateway/main; Go heap and sampled WAL are not process RSS or exact WAL peak"}
 	var resourceMu sync.Mutex
 	resourceDone := make(chan struct{})
 	resourceStopped := make(chan struct{})
@@ -259,11 +262,15 @@ func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 		}
 	}()
 	stopped := false
-	defer func() {
+	stopProbes := func() {
 		if !stopped {
 			close(probeDone)
 			<-probeStopped
+			stopped = true
 		}
+	}
+	defer func() {
+		stopProbes()
 	}()
 	started = time.Now()
 	for {
@@ -282,6 +289,13 @@ func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 		if evidence.ArchivePasses%2000 == 0 {
 			t.Logf("archive passes=%d raw_buckets=%d elapsed=%s", evidence.ArchivePasses, evidence.RawBuckets, time.Since(started))
 		}
+		if evidence.ArchivePasses <= 100 {
+			evidence.ConcurrentArchivePasses++
+		}
+		if evidence.ArchivePasses == 100 {
+			stopProbes()
+			evidence.ConcurrentPhaseSeconds = time.Since(started).Seconds()
+		}
 		select {
 		case err := <-probeError:
 			t.Fatal("current result/query failed during archival", err)
@@ -290,12 +304,14 @@ func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 		if !batch.More {
 			break
 		}
-		time.Sleep(time.Millisecond)
+		if evidence.ArchivePasses < 100 {
+			time.Sleep(100 * time.Millisecond)
+		} else {
+			runtime.Gosched()
+		}
 	}
 	evidence.DrainSeconds = time.Since(started).Seconds()
-	close(probeDone)
-	<-probeStopped
-	stopped = true
+	stopProbes()
 	select {
 	case err := <-probeError:
 		t.Fatal(err)
