@@ -76,6 +76,13 @@ jobs:
           MYPROBE_TEST_SERVICE_REPLAY_CAPACITY: '1'
         run: go test ./internal/store -run '^TestServiceAlertPermanentReplayCapacity$' -timeout 10m -count=1 -v
 
+      - name: Verify joint Server and Agent runtime with isolated notification receiver
+        shell: bash
+        run: |
+          go build -o "${RUNNER_TEMP}/myprobe-joint-server" ./cmd/server
+          go test -c ./internal/agentclient -o "${RUNNER_TEMP}/myprobe-joint-agentclient.test"
+          sudo sh scripts/run-joint-load.sh "${RUNNER_TEMP}/myprobe-joint-agentclient.test" "${RUNNER_TEMP}/myprobe-joint-server"
+
       - name: Build and validate container images
         shell: bash
         run: |
@@ -99,5 +106,7 @@ jobs:
           shellcheck install.sh scripts/install_test.sh
           sh -n scripts/run-backup-enospc.sh
           shellcheck scripts/run-backup-enospc.sh
+          sh -n scripts/run-joint-load.sh
+          shellcheck scripts/run-joint-load.sh
           bash scripts/install_test.sh
           bash install.sh --help >/dev/null
