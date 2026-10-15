@@ -4,16 +4,17 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
  const base = process.env.UI_BASE_URL, ids = process.env.QA_PUBLIC_IDS.split(','), output = process.env.QA_ARTIFACT_DIR || path.join(require('node:os').tmpdir(), 'myprobe-network-comparison');
  await fs.mkdir(output, { recursive: true });
  const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}), args: process.platform === 'linux' ? ['--no-sandbox'] : [] });
- const evidence = { format: 'myprobe.network-comparison-browser.v1', source_commit: process.env.MYPROBE_TEST_SOURCE_COMMIT || '', transport: 'real Gin/Store APIs and built embedded assets; synthetic persisted task history; one intentional network abort for failure UI', views: [], roles: [] };
+ const evidence = { format: 'myprobe.network-comparison-browser.v1', source_commit: process.env.MYPROBE_TEST_SOURCE_COMMIT || '', browser_version: browser.version(), started_at: new Date().toISOString(), transport: 'real Gin/Store APIs and built embedded assets; synthetic persisted task history; one intentional network abort for failure UI', views: [], roles: [] };
+ let activePage;
  try {
   for (const theme of ['light', 'dark']) for (const width of [360, 768, 1440]) {
    const context = await browser.newContext({ viewport: { width, height: 1000 }, colorScheme: theme });
    await context.addInitScript(theme => localStorage.setItem('myprobe-theme', theme), theme);
-   const page = await context.newPage(), errors = [], calls = [], series = [];
+   const page = await context.newPage(); activePage = page; const errors = [], calls = [], series = [];
    page.on('pageerror', e => errors.push(e.message));
    page.on('request', r => { const u = new URL(r.url()); if (u.pathname.includes('/network-quality')) calls.push(u.pathname); });
    page.on('response', async r => { if (new URL(r.url()).pathname.endsWith('/network-quality/series') && r.status() === 200) series.push(await r.json()); });
-   await page.goto(base); await page.getByRole('button', { name: '网络质量', exact: true }).click();
+   await page.goto(base); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'dashboard viewport overflow'); await page.getByRole('button', { name: '网络质量', exact: true }).click();
    const dialog = page.getByRole('dialog', { name: '网络质量对比' }); await dialog.waitFor();
    const compare = dialog.getByRole('button', { name: '比较', exact: true });
    await dialog.locator('.quality-result-heading').waitFor(); await compare.waitFor({ state: 'visible' }); await assertEnabled(compare);
@@ -67,7 +68,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
   // Authentication roles use the same real backend; no payload interception.
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const login = await context.request.post(`${base}/api/v1/auth/login`, { data: { username: 'admin', password: 'correct horse battery staple' } }); assert.equal(login.status(), 200);
-  const page = await context.newPage(); await page.goto(`${base}/admin`); await page.getByRole('button', { name: '网络质量', exact: true }).click();
+  const page = await context.newPage(); activePage = page; await page.goto(`${base}/admin`); await page.getByRole('button', { name: '网络质量', exact: true }).click();
   let dialog = page.getByRole('dialog', { name: '网络质量对比' }); await dialog.locator('.quality-result-heading').waitFor();
   assert.equal(await dialog.locator(`input[value="${process.env.QA_HIDDEN_ID}"]`).count(), 1);
   evidence.roles.push({ role: 'administrator', hidden_observer_selectable: true }); await page.keyboard.press('Escape');
@@ -81,6 +82,6 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
   evidence.roles.push({ role: 'password_share', observers: 2, selected_private_observer: true, outside_scope_status: 404 }); await context.close();
   await fs.writeFile(path.join(output, 'result.json'), JSON.stringify(evidence, null, 2));
   console.log(JSON.stringify(evidence));
- } finally { await browser.close(); }
+ } catch (error) { if (activePage && !activePage.isClosed()) await activePage.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {}); throw error; } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exit(1); });
 async function assertEnabled(locator) { await locator.evaluate(async el => { for (let i = 0; i < 200 && el.disabled; i++) await new Promise(r => setTimeout(r, 25)); if (el.disabled) throw new Error('comparison remained busy'); }); }

@@ -141,8 +141,8 @@ onBeforeUnmount(() => { alive = false; revision++; controller?.abort(); moreCont
         <button type="button" class="soft-button" @click="firstEight">选择前 8 个</button>
       </fieldset>
       <form class="quality-controls" @submit.prevent="compare">
-        <label>探测目标<select v-model="selectedTarget" @change="changed()"><option v-if="!targets.length" value="">{{ busy ? '正在读取目标…' : '暂无目标' }}</option><option v-for="t in targets" :key="targetKey(t)" :value="targetKey(t)">{{ t.name }} · {{ t.kind === 'ping' ? 'ICMP' : 'TCP' }}</option></select></label>
-        <label>时间范围<select v-model="range" @change="changed()"><option v-for="r in ranges" :key="r" :value="r">{{ r }}</option><option value="peak">最近完整晚高峰 · 19:00—23:00</option><option value="custom">自定义</option></select></label>
+        <label>探测目标<select v-model="selectedTarget" aria-label="探测目标" @change="changed()"><option v-if="!targets.length" value="">{{ busy ? '正在读取目标…' : '暂无目标' }}</option><option v-for="t in targets" :key="targetKey(t)" :value="targetKey(t)">{{ t.name }} · {{ t.kind === 'ping' ? 'ICMP' : 'TCP' }}</option></select></label>
+        <label>时间范围<select v-model="range" aria-label="时间范围" @change="changed()"><option v-for="r in ranges" :key="r" :value="r">{{ r }}</option><option value="peak">最近完整晚高峰 · 19:00—23:00</option><option value="custom">自定义</option></select></label>
         <label>显示时区<input v-model="zone" list="quality-zones" aria-label="显示时区" @change="changed()"><datalist id="quality-zones"><option value="Asia/Shanghai"/><option value="UTC"/><option value="Asia/Tokyo"/><option value="Europe/London"/><option value="America/New_York"/></datalist></label>
         <button class="primary-button" type="submit" :disabled="busy || !selected.length">{{ busy ? '正在比较…' : '比较' }}</button>
         <template v-if="range === 'custom'"><label>起点（所选时区）<input v-model="customStart" type="datetime-local" @change="changed()"></label><label>终点（所选时区）<input v-model="customEnd" type="datetime-local" @change="changed()"></label></template>
