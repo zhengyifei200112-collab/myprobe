@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -106,10 +107,10 @@ func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 		}
 	}()
 	defer func() { close(resourceDone); <-resourceStopped }()
-	expected, err := quality.NewSegment(epoch, anchor.Unix(), 60)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Independent oracle: fixed integer frequencies and closed-form counts;
+	// never use the production histogram/sequence merge to predict itself.
+	var rttFrequency [1000]uint64
+	var expectedRTTSum float64
 	started := time.Now()
 	tx, err := s.networkWrite(ctx)
 	if err != nil {
@@ -161,8 +162,9 @@ func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 		if _, err = insert.ExecContext(ctx, id, epoch, node, target.ID, slot.Unix(), target.Kind, target.Host, slot.Add(5*time.Second).UnixNano(), slot.Add(16*time.Second).UnixNano(), slot.UnixNano(), state, slot.Add(5*time.Second).UnixNano(), dispatch, received, raw, sha, storedOutcome); err != nil {
 			t.Fatal(err)
 		}
-		if err = expected.Add(slot.Unix(), outcome, rtt, reason); err != nil {
-			t.Fatal(err)
+		if outcome == quality.Success {
+			rttFrequency[i%1000]++
+			expectedRTTSum += rtt
 		}
 		evidence.SeededTasks++
 		if i > 0 && i%100000 == 0 {
@@ -335,16 +337,31 @@ func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Planned != uint64(evidence.Slots) || got.Success != expected.Totals.Success || got.Failure != expected.Totals.Failure || got.NotExecuted != expected.Totals.NotExecuted || got.ObservedMissing != expected.Totals.Unobserved || got.JitterPairs != expected.Totals.JitterPairs || got.Totals.Causes != expected.Totals.Causes || mathAbs(got.Totals.JitterSum-expected.Totals.JitterSum) > 1e-5 {
+	groups := uint64(evidence.Slots / 20)
+	var causes [len(quality.CauseNames)]uint64
+	causes[0], causes[4], causes[7] = groups, groups, groups
+	if got.Planned != uint64(evidence.Slots) || got.Success != 16*groups || got.Failure != groups || got.Missing != 3*groups || got.NotExecuted != groups || got.ObservedMissing != groups || got.JitterPairs != 15*groups || got.Totals.Causes != causes || math.Abs(got.Totals.JitterSum-1.5*float64(groups)) > 1e-5 || math.Abs(got.Totals.RTTSum-expectedRTTSum) > 1e-4 {
 		t.Fatal("year mixed-tier statistics differ from generated slot oracle")
+	}
+	if got.Coverage == nil || math.Abs(*got.Coverage-85) > 1e-9 || got.FailureRate == nil || math.Abs(*got.FailureRate-100.0/17) > 1e-9 {
+		t.Fatal("year rates differ from independent 20-slot pattern")
 	}
 	for _, p := range []struct {
 		percent int
 		actual  *quality.Bounds
 	}{{50, got.P50Bounds}, {95, got.P95Bounds}} {
-		want, err := expected.Totals.Histogram.Quantile(p.percent)
-		if err != nil || p.actual == nil || *p.actual != want {
-			t.Fatal("year distribution population changed", err)
+		rank := (got.Success*uint64(p.percent) + 99) / 100
+		var seen uint64
+		var exact float64
+		for value, count := range rttFrequency {
+			seen += count
+			if seen >= rank {
+				exact = 1 + float64(value)/10
+				break
+			}
+		}
+		if p.actual == nil || exact < p.actual.LowerMS || exact > p.actual.UpperMS {
+			t.Fatal("year distribution excludes independently ranked true quantile")
 		}
 	}
 	evidence.Planned, evidence.Success, evidence.Failure, evidence.Missing, evidence.JitterPairs = got.Planned, got.Success, got.Failure, got.Missing, got.JitterPairs
@@ -410,11 +427,4 @@ func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 		}
 	}
 	t.Logf("capacity evidence: %s", encoded)
-}
-
-func mathAbs(v float64) float64 {
-	if v < 0 {
-		return -v
-	}
-	return v
 }

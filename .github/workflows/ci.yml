@@ -114,3 +114,25 @@ jobs:
           shellcheck scripts/run-joint-load.sh
           bash scripts/install_test.sh
           bash install.sh --help >/dev/null
+
+  network-archive-capacity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: go.sum
+
+      - name: Verify year network archive, paced current writes and staged restore
+        env:
+          MYPROBE_TEST_NETWORK_ARCHIVE_CAPACITY: '1'
+          MYPROBE_TEST_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          MYPROBE_TEST_NETWORK_ARCHIVE_OUTPUT: ${{ runner.temp }}/network-archive-capacity.json
+        run: go test ./internal/store -run '^TestNetworkQualityArchiveYearCapacity$' -timeout 12m -count=1 -v

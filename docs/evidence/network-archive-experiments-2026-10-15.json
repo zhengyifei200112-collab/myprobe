@@ -1,0 +1,13 @@
+{
+ "format":"myprobe.network-archive-experiments.v1",
+ "date":"2026-10-15",
+ "implementation":"ca9bfec51fa22fc4e3e982d9cfa77b9d7626a43a",
+ "experiments":[
+  {"fixture_source":"8a3c75b","pacing":"1ms during continuous competing writes","result":"failed","failure":"current operation context deadline exceeded after 37.81s; historical seed 27.11s","interpretation":"accelerated fixture is not the production worker's 100ms pacing; not production concurrency acceptance"},
+  {"fixture_source":"2147c59","pacing":"1ms during continuous competing writes","result":"failed","failure":"record current task: context deadline exceeded; run 52.50s","observations":"manual and scheduled retention indexes selected; first ten archive calls 3.82-5.08ms; 2000 batches in 12.67s before failure","interpretation":"short gaps allowed current writer starvation in accelerated fixture; normal 100ms worker pacing still needed verification"},
+  {"fixture_source":"ecc525575a1f11070119cb008e6b40148eb0a865","pacing":"first 100 batches at production 100ms with competing probes, then probes stop and unpaced remainder drains","result":"passed","operation_deadline_seconds":2,"interpretation":"103 current result writes and 10 current queries succeeded during actual pacing; full-year storage/math/restore passed; no full-drain concurrent-write or production throughput claim"}
+ ],
+ "changed_runtime_code":"none; capacity follow-up changes tests, CI and documentation only",
+ "native_capacity_ci":"pending",
+ "raw_windows_evidence_sha256":"16b895c77b82e075515535651624e2aa8362841f1f9d4d63783b5ecc8e324dfb"
+}
