@@ -24,3 +24,21 @@ Server 重启时发布只含 PID、cgroup 路径、数据库路径及累计 CPU 
 
 本工作依赖稠密历史联合夹具，仍需真实联合运行及 24 小时趋势证据；源码测试通过
 不代表长时间稳定性或完整容量验收已完成。
+
+## 2026-10-15 短时验证
+
+实现 `ecfed969bd444a58286006a3a032e2cadadc6602` 的五节点稠密历史、五个真实页面、
+Server CPU 200%/CPU 0—1/2 GiB/swap 0 联合运行通过。约 90 秒测量和恢复阶段获得
+93 次资源采样，最大间隔 1.004 秒，进度写入失败 0；每类 API 完成 52 次请求。
+RSS/WAL 采样最大值 55246848/5582632 B。报告尝试/ACK/入库均 31，126 个生成封套
+全部进入观察层，差异为零；通知排空和全部节点在五页最终收敛通过。
+
+源代码、二进制 hash、原始结果和最终进度快照见
+[证据文件](evidence/joint-resource-observation-2026-10-15.json)。本地完整 Go 测试仅
+既有 Windows HostRoot #47 失败，其余包及 vet/build/gofmt/差异检查通过；CGO 关闭。
+准确实现 CI 38696911014 尚在运行，包含这些测试的 Linux race 检查。
+
+100 节点 24 小时测试使用同一组最终二进制，附加
+`MYPROBE_TEST_LOAD_NODES=100 MYPROBE_TEST_LOAD_DURATION=24h MYPROBE_TEST_LOAD_TIMEOUT=26h`，
+保留 `year` 历史、对账、真实页面及 systemd 限额。结果须等真实运行结束并核对，
+不能用短时通过或运行中的进度文件替代。
