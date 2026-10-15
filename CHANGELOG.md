@@ -9,6 +9,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Internal network schedule epochs preserve effective assignment definitions and
+  the known-history boundary from migration 042. Target group expansion is atomic
+  with effective assignments and epoch records. Private snapshots retain target
+  addresses; no new public field or Agent protocol change is introduced. Coverage,
+  persistent task/result statistics and comparison pages remain under development.
+
 - Private node diagnostics separate desired sampling revisions, negotiated Agent
   application acknowledgements and actual persisted HTTP/WebSocket report ingress.
   Migration 040 fences revisions, connections and nonces without public fields.
