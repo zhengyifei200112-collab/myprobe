@@ -187,11 +187,21 @@ func TestJointRuntimeLoad(t *testing.T) {
 		t.Fatalf("fixture login status %d", login.StatusCode)
 	}
 	runCtx, stopLoad := context.WithCancel(ctx)
+	var reportObserver *jointReportObserver
+	agentBase := base
+	if os.Getenv("MYPROBE_TEST_LOAD_RECONCILE") == "1" {
+		reportObserver = newJointReportObserver(base)
+		defer reportObserver.close()
+		agentBase = reportObserver.server.URL
+	}
 	var workers sync.WaitGroup
 	defer func() { stopLoad(); workers.Wait() }()
 	for i := range fixtures {
 		f := &fixtures[i]
-		client, err := New(Config{ServerURL: base, Token: f.token, AgentVersion: "joint-load-synthetic-source", CollectionPeriod: 15 * time.Second, ReportPeriod: 15 * time.Second, HTTPPrivateCIDRs: httpConfig.HTTPPrivateCIDRs, HTTPAdditionalPorts: httpConfig.HTTPAdditionalPorts}, collector.New(collector.Config{}), logger)
+		if reportObserver != nil {
+			reportObserver.register(f.token, f.id)
+		}
+		client, err := New(Config{ServerURL: agentBase, Token: f.token, AgentVersion: "joint-load-synthetic-source", CollectionPeriod: 15 * time.Second, ReportPeriod: 15 * time.Second, HTTPPrivateCIDRs: httpConfig.HTTPPrivateCIDRs, HTTPAdditionalPorts: httpConfig.HTTPAdditionalPorts}, collector.New(collector.Config{}), logger)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -212,8 +222,11 @@ func TestJointRuntimeLoad(t *testing.T) {
 	result := jointLoadResult{Format: "myprobe.joint-load.v1", StartedAt: time.Now().UTC(), Nodes: nodes, DurationRequestedSeconds: duration.Seconds(), ReportSeconds: 15, TargetsPerNode: 3, TargetSeconds: 60, HTTPServices: 1, SubscriptionClients: 5, OS: runtime.GOOS, GoVersion: runtime.Version(), LogicalCPUs: runtime.NumCPU(), HistoryFixture: "current-run-only", ResourceLimits: server.limits,
 		Limitations: []string{"synthetic host metrics; actual Client.Run and TCP/HTTP executors", "five Go WebSocket consumers are not rendered browser sessions", "current-run history does not establish dense 30-day/year query capacity", "collected-minus-persisted includes latest-cache skips and unacknowledged sends; not a packet-loss proof", "one-second resource/WAL sampling can miss instantaneous peaks", "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment", "short runs do not establish 24-hour stability"}}
 	result.SubscriptionMode = "go-websocket-consumers"
+	if reportObserver != nil {
+		result.Limitations[3] = "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports"
+	}
 	result.SourceSHA256 = make(map[string]string)
-	for _, path := range []string{"cmd/server/main.go", "internal/agentclient/client.go", "internal/agentclient/sampling.go", "internal/agentgateway/gateway.go", "internal/store/store.go", "internal/store/agent_metadata.go", "internal/agentclient/joint_load_test.go", "internal/agentclient/joint_load_process_test.go", "internal/agentclient/joint_load_browser_test.go", "scripts/joint-load-browser.cjs", "scripts/run-joint-load.sh"} {
+	for _, path := range []string{"cmd/server/main.go", "internal/agentclient/client.go", "internal/agentclient/sampling.go", "internal/agentgateway/gateway.go", "internal/store/store.go", "internal/store/agent_metadata.go", "internal/agentclient/joint_load_test.go", "internal/agentclient/joint_load_process_test.go", "internal/agentclient/joint_load_browser_test.go", "internal/agentclient/joint_load_reconciliation_test.go", "internal/agentclient/joint_load_reconciliation_validation_test.go", "scripts/joint-load-browser.cjs", "scripts/run-joint-load.sh"} {
 		raw, err := os.ReadFile(filepath.Join("../..", filepath.FromSlash(path)))
 		if err != nil {
 			t.Fatal("load fixture source unavailable for provenance")
@@ -382,12 +395,37 @@ func TestJointRuntimeLoad(t *testing.T) {
 	}
 	result.Snapshots, result.SubscriptionEvents = snapshots.Load(), browserEvents.Load()
 	result.NotificationsFailed, result.NotificationsDelivered = failedNotices.Load(), deliveredNotices.Load()
+	stopLoad()
+	workers.Wait()
+	if reportObserver != nil {
+		expected := make(map[string]float64)
+		for i, f := range fixtures {
+			report, _ := f.source.Collect(ctx)
+			report.CPU.UsagePercent = float64(i%90+1) + 0.125
+			raw, _ := json.Marshal(report)
+			f.source.mu.Lock()
+			f.source.reports[report.CapturedAt.UTC().Format(time.RFC3339Nano)] = sha256.Sum256(raw)
+			f.source.mu.Unlock()
+			if err := f.client.sendReport(ctx, report); err != nil {
+				t.Fatalf("final real HTTP report failed: %v", err)
+			}
+			expected[fmt.Sprintf("Synthetic load %03d", i)] = report.CPU.UsagePercent
+		}
+		if browsers != nil {
+			browsers.expect(t, expected)
+		}
+	}
 	if browsers != nil {
 		stats := browsers.finish(t)
 		result.Snapshots, result.SubscriptionEvents, result.BrowserPageErrors = stats.Snapshots, stats.Events, stats.PageErrors
+		result.BrowserConvergedNodes, result.BrowserConvergedPages = stats.ConvergedNodes, stats.ConvergedPages
+		if reportObserver != nil && (stats.ConvergedNodes != nodes || stats.ConvergedPages != 5) {
+			t.Error("all rendered node states did not converge")
+		}
 	}
-	stopLoad()
-	workers.Wait()
+	if reportObserver != nil {
+		reportObserver.close()
+	}
 	server.stop()
 	readDB, err := sql.Open("sqlite", "file:"+filepath.ToSlash(databasePath)+"?mode=ro")
 	if err != nil {
@@ -395,6 +433,8 @@ func TestJointRuntimeLoad(t *testing.T) {
 	}
 	defer readDB.Close()
 	readDB.SetMaxOpenConns(1)
+	storedReports := make(map[string]map[string][32]byte)
+	duplicateReports := 0
 	if err := readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM delivery_attempts").Scan(&result.DeliveryAttempts); err != nil {
 		t.Fatal(err)
 	}
@@ -416,6 +456,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 	}
 	outcomes.Close()
 	for _, f := range fixtures {
+		storedReports[f.id] = make(map[string][32]byte)
 		rows, err := readDB.QueryContext(ctx, "SELECT captured_at,report_json FROM metric_samples WHERE node_id=? ORDER BY id", f.id)
 		if err != nil {
 			t.Fatal(err)
@@ -444,6 +485,10 @@ func TestJointRuntimeLoad(t *testing.T) {
 			if !exists || hash != sha256.Sum256(original) || seen[captured] {
 				t.Error("stored report unknown, changed or duplicated")
 			}
+			if seen[captured] {
+				duplicateReports++
+			}
+			storedReports[f.id][captured] = sha256.Sum256(original)
 			seen[captured], count = true, count+1
 		}
 		if err := rows.Err(); err != nil {
@@ -475,6 +520,18 @@ func TestJointRuntimeLoad(t *testing.T) {
 		result.PersistedReports += int64(count)
 		result.TCPSuccesses += int64(latencyCount)
 		result.HTTPResults += int64(httpCount)
+	}
+	if reportObserver != nil {
+		result.ReportAccounting = reportObserver.reconcile(storedReports, duplicateReports)
+		generated := make(map[string]uint64)
+		for _, f := range fixtures {
+			generated[f.id] = f.client.sequence.Load()
+		}
+		reportObserver.sequenceAccounting(&result.ReportAccounting, generated)
+		a := result.ReportAccounting
+		if a.UnexplainedNotStored+a.ACKWithoutStored+a.UnknownStored+a.HashMismatch+a.DuplicateStored+a.UnobservedGeneratedEnvelopes != 0 {
+			t.Errorf("wire/ACK/storage reconciliation failed: %+v", a)
+		}
 	}
 	notificationsOK := result.NotificationsFailed > 0 && result.NotificationsDelivered > 0
 	if deniedReceiver {
@@ -587,11 +644,13 @@ type jointLoadResult struct {
 	ResourceTimeline                                                                                                                          []jointResourcePoint
 	SubscriptionMode, RSSObservation, CPUObservation                                                                                          string
 	BrowserPageErrors                                                                                                                         int
+	BrowserConvergedNodes, BrowserConvergedPages                                                                                              int
 	NotificationMode                                                                                                                          string
 	DeliveryAttempts                                                                                                                          int
 	ConfigurationsConfirmed                                                                                                                   int
 	FinalHealth                                                                                                                               jointHealth
 	HTTPOutcomes                                                                                                                              map[string]int
+	ReportAccounting                                                                                                                          jointReportAccounting
 	ResourceLimits                                                                                                                            map[string]string
 	ResourceSampleSeconds                                                                                                                     int
 	SampledPeakRSSBytes, SampledPeakWALBytes                                                                                                  int64

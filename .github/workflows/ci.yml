@@ -81,7 +81,7 @@ jobs:
         run: |
           go build -o "${RUNNER_TEMP}/myprobe-joint-server" ./cmd/server
           go test -c ./internal/agentclient -o "${RUNNER_TEMP}/myprobe-joint-agentclient.test"
-          sudo sh scripts/run-joint-load.sh "${RUNNER_TEMP}/myprobe-joint-agentclient.test" "${RUNNER_TEMP}/myprobe-joint-server"
+          sudo env MYPROBE_TEST_LOAD_RECONCILE=1 sh scripts/run-joint-load.sh "${RUNNER_TEMP}/myprobe-joint-agentclient.test" "${RUNNER_TEMP}/myprobe-joint-server"
 
       - name: Build and validate container images
         shell: bash

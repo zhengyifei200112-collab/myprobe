@@ -210,6 +210,10 @@ docker compose --env-file .env.agent -f compose.agent.yaml ps
 实时节点更新采用单节点公开查询，保留原有脱敏及隐藏规则；完整快照仍返回完整列表。
 [单节点发布复测](docs/NODE_PUBLICATION_CAPACITY.md) 记录 100 节点短测的改善及剩余门槛。
 
+测试可选的[报告回执与渲染收敛检查](docs/RUNTIME_RECONCILIATION.md) 核对观察到的
+发送、Server ACK 和入库内容，并检查真实页面最终节点值；它增加测试专用转发跳转，
+短结果不代替稠密历史或 24 小时验收。
+
 安装依赖、构建前端并运行测试：
 
 ```bash
