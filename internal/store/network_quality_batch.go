@@ -55,31 +55,17 @@ func (s *Store) readNetworkQualityBatch(ctx context.Context, q NetworkQualityBat
 	if len(q.NodeIDs) < 1 || len(q.NodeIDs) > 8 || !validQualityID(q.TargetID) || !validNetworkQualityWindow(q.Kind, q.Start, q.End, q.AsOf) {
 		return result, quality.ErrInvalid
 	}
-	seen := make(map[string]bool, len(q.NodeIDs))
-	for _, id := range q.NodeIDs {
-		if !validQualityID(id) || seen[id] {
-			return result, quality.ErrInvalid
-		}
-		seen[id] = true
+	if err := validateQualityNodes(q.NodeIDs); err != nil {
+		return result, err
 	}
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return result, err
 	}
 	defer tx.Rollback()
-	// Authorize the complete batch before reading the target or any result. A
-	// mixed authorized/unauthorized request never returns a partial projection.
-	for _, id := range q.NodeIDs {
-		var name string
-		err = tx.QueryRowContext(ctx, `SELECT name FROM nodes WHERE id=? AND (? OR hidden=0)
- AND (?='' OR EXISTS(SELECT 1 FROM chart_share_nodes n JOIN chart_shares s ON s.id=n.share_id WHERE n.share_id=? AND n.node_id=nodes.id AND s.enabled=1))`, id, hidden, share, share).Scan(&name)
-		if errors.Is(err, sql.ErrNoRows) {
-			return NetworkQualityBatch{}, ErrNotFound
-		}
-		if err != nil {
-			return NetworkQualityBatch{}, err
-		}
-		result.Nodes = append(result.Nodes, NetworkQualityNodeStats{NodeID: id, Name: name})
+	result.Nodes, err = authorizeQualityNodes(ctx, tx, q.NodeIDs, hidden, share)
+	if err != nil {
+		return NetworkQualityBatch{}, err
 	}
 	assigned := false
 	for _, id := range q.NodeIDs {

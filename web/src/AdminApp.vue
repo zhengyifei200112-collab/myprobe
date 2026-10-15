@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NetworkQualityComparison from './network-quality/NetworkQualityComparison.vue'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import type { NodeMetadata } from './types'
 import { DsButton, DsConfirmDialog, DsDialog, DsDropdown, DsEmptyState, DsSheet, DsStatusIndicator } from './design-system'
@@ -20,6 +21,7 @@ import {
   updateChartShare, updateNode, updateSiteSettings, updateTarget,
 } from './admin-api'
 
+const comparisonOpen = ref(false)
 type Tab = 'nodes' | 'targets' | 'services' | 'settings' | 'alerts' | 'shares' | 'maintenance' | 'security' | 'health'
 const authenticated = ref(false)
 const booting = ref(true)
@@ -535,7 +537,7 @@ onMounted(async () => {
         <button :class="{ active: tab === 'health' }" @click="tab = 'health'">系统健康</button>
         <button :class="{ active: ['settings', 'maintenance', 'security'].includes(tab) }" @click="tab = 'settings'">设置</button>
       </nav>
-      <div class="nav-actions"><a class="soft-button" href="/">公开面板</a><button v-if="authenticated" class="soft-button" @click="signOut">退出</button></div>
+      <div class="nav-actions"><a class="soft-button" href="/">公开面板</a><button v-if="authenticated" class="soft-button quality-entry" type="button" :disabled="!nodes.length" @click="comparisonOpen = true">网络质量</button><button v-if="authenticated" class="soft-button" @click="signOut">退出</button></div>
     </header>
 
     <main v-if="booting" id="main-content" class="state-panel" tabindex="-1" role="status"><div class="loader"></div><p>正在恢复管理会话…</p></main>
@@ -746,4 +748,5 @@ onMounted(async () => {
     </div>
     <div v-if="Object.keys(importTokens).length" class="admin-overlay"><section class="admin-panel token-dialog import-token-dialog"><span class="eyebrow">ONE-TIME SECRETS</span><h2>导入节点的 Agent Token</h2><p>这些 Token 只展示一次。请全部安全保存后再关闭。</p><div class="import-token-list"><div v-for="(value, id) in importTokens" :key="id"><strong>{{ nodeName(id) }}</strong><code>{{ value }}</code></div></div><div class="form-actions"><button @click="importTokens = {}">我已全部保存</button></div></section></div>
   </div>
+<NetworkQualityComparison v-if="authenticated && comparisonOpen" :observers="nodes.map(n => ({ id: n.id, name: n.name }))" api-base="/api/v1/admin" @close="comparisonOpen = false" @expired="authenticated = false; comparisonOpen = false; error = '会话已过期，请重新登录。'" />
 </template>

@@ -138,6 +138,7 @@ func (s *Server) routes() {
 	public.GET("/nodes/:nodeID/history", s.publicNodeHistory)
 	public.GET("/network-quality", privateNoStore(), s.publicNetworkQuality)
 	public.GET("/network-quality/series", privateNoStore(), s.publicNetworkQualitySeries)
+	public.GET("/network-quality/targets", privateNoStore(), s.publicNetworkQualityTargets)
 
 	s.router.POST("/api/v1/agent/report", gin.WrapF(s.gateway.HTTPReport))
 	s.router.POST("/api/v1/agent/hello", gin.WrapF(s.gateway.HTTPHello))
@@ -160,6 +161,7 @@ func (s *Server) routes() {
 	share.GET("/nodes/:nodeID/history", s.shareNodeHistory)
 	share.GET("/network-quality", s.shareNetworkQuality)
 	share.GET("/network-quality/series", s.shareNetworkQualitySeries)
+	share.GET("/network-quality/targets", s.shareNetworkQualityTargets)
 
 	policies := s.router.Group("/api/v1/admin/alert-policies", privateNoStore(), s.requireSession(true))
 	maintenance := s.router.Group("/api/v1/admin/maintenance-windows", privateNoStore(), s.requireSession(true))
@@ -181,6 +183,7 @@ func (s *Server) routes() {
 	s.router.GET("/api/v1/admin/system/health", privateNoStore(), s.requireSession(true), s.systemHealth)
 	s.router.GET("/api/v1/admin/network-quality", privateNoStore(), s.requireSession(true), s.adminNetworkQuality)
 	s.router.GET("/api/v1/admin/network-quality/series", privateNoStore(), s.requireSession(true), s.adminNetworkQualitySeries)
+	s.router.GET("/api/v1/admin/network-quality/targets", privateNoStore(), s.requireSession(true), s.adminNetworkQualityTargets)
 	s.router.GET("/api/v1/admin/nodes/:nodeID/diagnostics", privateNoStore(), s.requireSession(true), s.nodeDiagnostics)
 	diagnosticExports := s.router.Group("/api/v1/admin/system/diagnostic-exports", privateNoStore(), s.requireSession(true))
 	diagnosticExports.POST("/preview", s.prepareDiagnosticExport)

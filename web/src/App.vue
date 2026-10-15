@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NetworkQualityComparison from './network-quality/NetworkQualityComparison.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { connectRealtime, fetchHistory, fetchNodes } from './api'
 import { DsCard, DsEmptyState, DsLoading, DsTabs } from './design-system'
@@ -7,6 +8,7 @@ import { aggregateNode as aggregate, commonByteUnit, formatBytesInUnit, formatMi
 import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
 import { defaultSiteSettings, normalizeSiteSettings, type HistoryRange, type HistoryResponse, type PublicNode, type RealtimeEvent, type SiteSettings, type ThemeMode } from './types'
 
+const comparisonOpen = ref(false)
 type DisplayMode = 'compact' | 'detailed'
 
 const nodes = ref<PublicNode[]>([])
@@ -307,7 +309,7 @@ onBeforeUnmount(() => {
             </span>
             {{ themeAction }}
           </button>
-          <a class="soft-button admin-link" href="/admin"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M9 3h4v10H9M7 5l3 3-3 3M10 8H2" /></svg></span>后台</a>
+          <button class="soft-button quality-entry" type="button" :disabled="!nodes.length" @click="comparisonOpen = true">网络质量</button><a class="soft-button admin-link" href="/admin"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M9 3h4v10H9M7 5l3 3-3 3M10 8H2" /></svg></span>后台</a>
         </div>
       </div>
     </header>
@@ -420,4 +422,5 @@ onBeforeUnmount(() => {
       <nav v-if="siteSettings.github_url || siteSettings.blog_url || siteSettings.custom_links.length" aria-label="站点链接"><a v-if="siteSettings.github_url" :href="siteSettings.github_url" target="_blank" rel="noopener noreferrer">GitHub</a><a v-if="siteSettings.blog_url" :href="siteSettings.blog_url" target="_blank" rel="noopener noreferrer">博客</a><a v-for="link in siteSettings.custom_links" :key="link.url" :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.label }}</a></nav>
     </footer>
   </div>
+<NetworkQualityComparison v-if="comparisonOpen" :observers="nodes.map(n => ({ id: n.node.id, name: n.node.name }))" api-base="/api/v1/public" @close="comparisonOpen = false" />
 </template>

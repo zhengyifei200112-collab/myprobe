@@ -8,7 +8,8 @@ const props = withDefaults(defineProps<{
   presentation?: 'dialog' | 'sheet'
   closeLabel?: string
   dismissible?: boolean
-}>(), { description: '', presentation: 'dialog', closeLabel: '关闭', dismissible: true })
+  size?: 'default' | 'wide'
+}>(), { description: '', presentation: 'dialog', closeLabel: '关闭', dismissible: true, size: 'default' })
 const emit = defineEmits<{ close: [] }>()
 const panel = ref<HTMLElement>()
 const titleID = useId()
@@ -66,7 +67,7 @@ onBeforeUnmount(() => { previousFocus?.focus(); if (locked) document.body.classL
   <Teleport to="body">
     <Transition name="ds-dialog">
       <div v-if="open" class="ds-dialog__overlay" :class="`ds-dialog__overlay--${presentation}`" @mousedown.self="close" @keydown="keydown">
-        <section ref="panel" class="ds-dialog__panel" :class="`ds-dialog__panel--${presentation}`" role="dialog" aria-modal="true" :aria-labelledby="titleID" :aria-describedby="description ? descriptionID : undefined" tabindex="-1">
+        <section ref="panel" class="ds-dialog__panel" :class="[`ds-dialog__panel--${presentation}`, `ds-dialog__panel--${size}`]" role="dialog" aria-modal="true" :aria-labelledby="titleID" :aria-describedby="description ? descriptionID : undefined" tabindex="-1">
           <header class="ds-dialog__header">
             <div><h2 :id="titleID">{{ title }}</h2><p v-if="description" :id="descriptionID">{{ description }}</p></div>
             <button v-if="dismissible" type="button" class="ds-dialog__close" :aria-label="closeLabel" @click="emit('close')">×</button>
@@ -82,6 +83,7 @@ onBeforeUnmount(() => { previousFocus?.focus(); if (locked) document.body.classL
 <style scoped>
 .ds-dialog__overlay { position: fixed; inset: 0; z-index: var(--z-overlay); padding: var(--space-6); display: grid; place-items: center; overflow: auto; background: var(--overlay); }
 .ds-dialog__panel { width: min(38rem, 100%); max-height: min(52rem, calc(100vh - 3rem)); overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-dialog); background: var(--surface-solid); box-shadow: var(--shadow-dialog); outline: 0; }
+.ds-dialog__panel--wide { width: min(74rem, 100%); max-height: calc(100dvh - 3rem); }
 .ds-dialog__header { padding: var(--space-6) var(--space-6) var(--space-4); display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
 .ds-dialog__header h2 { margin: 0; font-size: var(--font-size-xl); line-height: var(--line-height-tight); }
 .ds-dialog__header p { margin: var(--space-2) 0 0; color: var(--text-secondary); font-size: var(--font-size-sm); }

@@ -27,8 +27,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   generate both summaries and points in one historical scan, and distinguish
   unknown history from retention-resolution clipping. Protocol-unreported
   address families and packet loss stay unavailable. Comparison pages,
-  target discovery and full network capacity acceptance remain under
-  development; Agents are not assumed to retry lost results.
+  target discovery now pages authorized current/retained aliases without target
+  addresses. Public, administrator and protected-share comparison dialogs show
+  up to eight observers, RTT/failure/coverage timelines, range quantiles/jitter,
+  actual availability, timezone-aware custom windows and last completed evening
+  presets. Browser acceptance and full network capacity remain under validation;
+  Agents are not assumed to retry lost results.
 
 - Private node diagnostics separate desired sampling revisions, negotiated Agent
   application acknowledgements and actual persisted HTTP/WebSocket report ingress.
