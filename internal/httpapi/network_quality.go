@@ -69,7 +69,7 @@ func projectNetworkQuality(n store.NetworkQualityNodeStats) qualityNodeDTO {
 		return r
 	}
 	r.AvailableFrom, r.EffectiveStart, r.EffectiveEnd = &s.AvailableFrom, &s.EffectiveStart, &s.EffectiveEnd
-	if s.Availability == "untracked_history" {
+	if s.Availability == "untracked_history" || s.Availability == "resolution_clipped" {
 		return r
 	}
 	r.Counts = qualityCountsDTO{Planned: &s.Planned, Pending: &s.Pending, Success: &s.Success, Failure: &s.Failure, Missing: &s.Missing, NotExecuted: &s.NotExecuted, UnobservedTasks: &s.ObservedMissing}
@@ -158,17 +158,29 @@ func parseNetworkQualityQuery(raw string, now time.Time) (store.NetworkQualityBa
 	return q, tz, nil
 }
 
-func (s *Server) publicNetworkQuality(c *gin.Context) { s.writeNetworkQuality(c, "", false) }
-func (s *Server) adminNetworkQuality(c *gin.Context)  { s.writeNetworkQuality(c, "", true) }
+func (s *Server) publicNetworkQuality(c *gin.Context) { s.writeNetworkQuality(c, "", false, false) }
+func (s *Server) adminNetworkQuality(c *gin.Context)  { s.writeNetworkQuality(c, "", true, false) }
+func (s *Server) publicNetworkQualitySeries(c *gin.Context) {
+	s.writeNetworkQuality(c, "", false, true)
+}
+func (s *Server) adminNetworkQualitySeries(c *gin.Context) { s.writeNetworkQuality(c, "", true, true) }
 func (s *Server) shareNetworkQuality(c *gin.Context) {
 	item, ok := s.requireShare(c)
 	if !ok {
 		return
 	}
-	s.writeNetworkQuality(c, item.ID, false)
+	s.writeNetworkQuality(c, item.ID, false, false)
 }
 
-func (s *Server) writeNetworkQuality(c *gin.Context, share string, admin bool) {
+func (s *Server) shareNetworkQualitySeries(c *gin.Context) {
+	item, ok := s.requireShare(c)
+	if !ok {
+		return
+	}
+	s.writeNetworkQuality(c, item.ID, false, true)
+}
+
+func (s *Server) writeNetworkQuality(c *gin.Context, share string, admin, series bool) {
 	now := time.Now().UTC()
 	q, tz, err := parseNetworkQualityQuery(c.Request.URL.RawQuery, now)
 	if err != nil {
@@ -177,6 +189,7 @@ func (s *Server) writeNetworkQuality(c *gin.Context, share string, admin bool) {
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 	defer cancel()
+	q.Series = series
 	var batch store.NetworkQualityBatch
 	switch {
 	case share != "":
@@ -203,5 +216,17 @@ func (s *Server) writeNetworkQuality(c *gin.Context, share string, admin bool) {
 	for _, n := range batch.Nodes {
 		nodes = append(nodes, projectNetworkQuality(n))
 	}
-	c.JSON(http.StatusOK, gin.H{"version": 1, "aggregation": "range_summary", "direction": "observer_to_target", "target": gin.H{"id": batch.TargetID, "name": batch.TargetName, "kind": batch.Kind}, "address_family": gin.H{"status": "unknown", "reason": "not_reported_by_protocol"}, "packet_loss": gin.H{"value_pct": nil, "status": "unavailable", "reason": "packet_counts_not_reported"}, "requested_start": q.Start.UTC(), "requested_end": q.End.UTC(), "as_of": q.AsOf, "timezone": tz, "nodes": nodes})
+	response := gin.H{"version": 1, "aggregation": "range_summary", "direction": "observer_to_target", "target": gin.H{"id": batch.TargetID, "name": batch.TargetName, "kind": batch.Kind}, "address_family": gin.H{"status": "unknown", "reason": "not_reported_by_protocol"}, "packet_loss": gin.H{"value_pct": nil, "status": "unavailable", "reason": "packet_counts_not_reported"}, "requested_start": q.Start.UTC(), "requested_end": q.End.UTC(), "as_of": q.AsOf, "timezone": tz, "nodes": nodes}
+	if series {
+		items := make([]qualitySeriesNodeDTO, 0, len(batch.Nodes))
+		for i, n := range batch.Nodes {
+			points := make([]qualityPointDTO, 0, len(n.Stats.Points))
+			for _, p := range n.Stats.Points {
+				points = append(points, projectNetworkQualityPoint(p))
+			}
+			items = append(items, qualitySeriesNodeDTO{qualityNodeDTO: nodes[i], Points: points})
+		}
+		response["aggregation"], response["bucket_seconds"], response["point_limit"], response["nodes"] = "time_series", batch.BucketSeconds, store.MaxNetworkQualityPoints, items
+	}
+	c.JSON(http.StatusOK, response)
 }

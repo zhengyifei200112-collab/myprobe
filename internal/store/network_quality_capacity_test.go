@@ -33,6 +33,8 @@ type networkArchiveCapacityEvidence struct {
 	WriterSamples                                                      int
 	WriterP95MS, WriterMaximumMS                                       float64
 	CurrentQuerySamples                                                int
+	YearSeriesMS                                                       float64
+	YearSeriesPoints                                                   int
 	CurrentQueryP95MS                                                  float64
 	YearQueryMS, ThirtyDayQueryMS, RestoreQueryMS                      float64
 	RawRows, MinuteRows, FiveMinuteRows, SummaryPayloadBytes           int64
@@ -366,6 +368,29 @@ func TestNetworkQualityArchiveYearCapacity(t *testing.T) {
 	}
 	evidence.Planned, evidence.Success, evidence.Failure, evidence.Missing, evidence.JitterPairs = got.Planned, got.Success, got.Failure, got.Missing, got.JitterPairs
 	evidence.QuantileMethod, evidence.P50Bounds, evidence.P95Bounds = got.QuantileMethod, got.P50Bounds, got.P95Bounds
+	seriesQuery := q
+	seriesQuery.Series = true
+	started = time.Now()
+	series, err := s.PublicNetworkQuality(ctx, seriesQuery)
+	evidence.YearSeriesMS = float64(time.Since(started)) / float64(time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence.YearSeriesPoints = len(series.Points)
+	if len(series.Points) == 0 || len(series.Points) > MaxNetworkQualityPoints {
+		t.Fatal("year series exceeded point budget")
+	}
+	assertNetworkQualityEquivalent(t, got, series)
+	var pointPlan, pointSuccess, pointFailure, pointMissing uint64
+	for _, point := range series.Points {
+		pointPlan += point.Stats.Planned
+		pointSuccess += point.Stats.Success
+		pointFailure += point.Stats.Failure
+		pointMissing += point.Stats.Missing
+	}
+	if pointPlan != got.Planned || pointSuccess != got.Success || pointFailure != got.Failure || pointMissing != got.Missing {
+		t.Fatal("year points lost or duplicated planned population")
+	}
 	thirty := q
 	thirty.Start = q.End.Add(-30 * 24 * time.Hour)
 	started = time.Now()

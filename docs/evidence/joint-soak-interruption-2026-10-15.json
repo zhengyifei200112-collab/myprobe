@@ -1,0 +1,28 @@
+{
+ "format":"myprobe.joint-soak-interruption.v1",
+ "status":"interrupted_not_accepted",
+ "observed_at":"2026-10-15T13:50:47Z",
+ "runtime_source_commit":"ecfed969bd444a58286006a3a032e2cadadc6602",
+ "measurement_started_at":"2026-10-15T07:47:16.967098625Z",
+ "last_resource_sample_at":"2026-10-15T10:32:10.967603391Z",
+ "last_resource_samples":9895,
+ "sampled_server_unavailability":0,
+ "progress_write_errors":0,
+ "maximum_sample_gap_seconds":1.016126918,
+ "sampled_rss_peak_bytes":68055040,
+ "sampled_wal_peak_bytes":169616312,
+ "authoritative_terminal_evidence":{
+   "original_exec_handle":"63409: Unknown process id",
+   "linux_test_pid":"384 absent; no agentclient-linux.test or server-linux process found",
+   "final_result_file":"absent; only partial resource JSON and log remain",
+   "wsl_boot_id":"307b10b64aa94adfaf436e93181b8341",
+   "wsl_journal_last_entry_utc":"2026-10-15T10:32:38Z",
+   "wsl_journal_messages":["The system will power off now!","System is powering down.","Journal stopped"],
+   "subsequent_wsl_boot":"fresh WSL boot confirmed at inspection",
+   "windows_boot":"unchanged since 2026-10-14; Windows System event read denied to current process"
+ },
+ "cause":"WSL orderly power-off interrupted the environment; initiating actor and trigger unproven",
+ "not_proven":["24-hour stability", "final report/envelope accounting", "drain and convergence", "8/12/16-hour fault/recovery stages", "absence of unobserved data loss"],
+ "handling":"preserve raw partial evidence; do not resume accumulated time as a full run; before a fresh run validate supervision independent of the transient tool session and keep the WSL host session alive; do not change global host power settings",
+ "primary_reference":"https://learn.microsoft.com/en-us/windows/wsl/systemd"
+}

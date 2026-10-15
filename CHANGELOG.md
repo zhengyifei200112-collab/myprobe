@@ -23,8 +23,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   An independent catch-up worker reports private health/export evidence. Public
   quality range-summary APIs now accept at most eight nodes through explicit
   public/share/admin authorization and privacy projections in one read snapshot.
-  Protocol-unreported address families and packet loss stay unavailable. Time
-  series, comparison pages and full network capacity acceptance remain under
+  Companion time-series routes share a UTC grid capped at 2,000 points per node,
+  generate both summaries and points in one historical scan, and distinguish
+  unknown history from retention-resolution clipping. Protocol-unreported
+  address families and packet loss stay unavailable. Comparison pages,
+  target discovery and full network capacity acceptance remain under
   development; Agents are not assumed to retry lost results.
 
 - Private node diagnostics separate desired sampling revisions, negotiated Agent

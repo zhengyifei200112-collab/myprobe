@@ -14,6 +14,7 @@ type NetworkQualityBatchQuery struct {
 	NodeIDs          []string
 	TargetID, Kind   string
 	Start, End, AsOf time.Time
+	Series           bool
 }
 
 type NetworkQualityNodeStats struct {
@@ -24,6 +25,7 @@ type NetworkQualityNodeStats struct {
 type NetworkQualityBatch struct {
 	TargetID, TargetName, Kind string
 	Nodes                      []NetworkQualityNodeStats
+	BucketSeconds              int64
 }
 
 func validQualityID(id string) bool {
@@ -96,7 +98,7 @@ func (s *Store) readNetworkQualityBatch(ctx context.Context, q NetworkQualityBat
 	result.TargetID, result.Kind = q.TargetID, q.Kind
 	for i := range result.Nodes {
 		node := &result.Nodes[i]
-		node.Stats, err = readNetworkQualityTx(ctx, tx, NetworkQualityQuery{NodeID: node.NodeID, TargetID: q.TargetID, Kind: q.Kind, Start: q.Start, End: q.End, AsOf: q.AsOf}, hidden)
+		node.Stats, err = readNetworkQualityTx(ctx, tx, NetworkQualityQuery{NodeID: node.NodeID, TargetID: q.TargetID, Kind: q.Kind, Start: q.Start, End: q.End, AsOf: q.AsOf, Series: q.Series}, hidden)
 		if errors.Is(err, ErrNotFound) {
 			// The node was authorized in this snapshot; only an absent epoch can
 			// produce this status. Do not turn absent plans into perfect coverage.
@@ -105,6 +107,12 @@ func (s *Store) readNetworkQualityBatch(ctx context.Context, q NetworkQualityBat
 		}
 		if err != nil {
 			return NetworkQualityBatch{}, err
+		}
+		if node.Stats.BucketSeconds > 0 {
+			if result.BucketSeconds != 0 && result.BucketSeconds != node.Stats.BucketSeconds {
+				return NetworkQualityBatch{}, ErrNetworkQualityUnavailable
+			}
+			result.BucketSeconds = node.Stats.BucketSeconds
 		}
 	}
 	if err = tx.Commit(); err != nil {

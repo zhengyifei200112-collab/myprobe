@@ -224,66 +224,70 @@ func TestNetworkQualityAPIProjectionAndEightNodeLimit(t *testing.T) {
 }
 
 func TestNetworkQualityAPIAuthAndShareIsolation(t *testing.T) {
-	f := networkQualityAPIFixture(t)
-	ctx := context.Background()
-	query := f.query(f.nodes[0].ID, f.hidden.ID)
-	r := f.get("/api/v1/public/network-quality?"+query, nil)
-	if r.Code != 404 || strings.Contains(r.Body.String(), f.target.Name) {
-		t.Fatal("mixed public batch leaked authorized part", r.Code, r.Body.String())
-	}
-	cookie, _ := loginAdminForShare(t, f.server.Handler())
-	if r = f.get("/api/v1/admin/network-quality?"+query, nil); r.Code != 401 {
-		t.Fatal("anonymous admin accepted", r.Code)
-	}
-	if r = f.get("/api/v1/admin/network-quality?"+query, cookie); r.Code != 200 {
-		t.Fatal("admin hidden comparison rejected", r.Code, r.Body.String())
-	}
-	share, err := f.server.sharing.Create(ctx, "Synthetic comparison share", "synthetic-share-password", []string{f.nodes[0].ID, f.hidden.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	base := "/api/v1/share/" + share.ID
-	if r = f.get(base+"/network-quality?"+query, cookie); r.Code != 401 {
-		t.Fatal("admin cookie substituted for share session", r.Code)
-	}
-	loginShare := func() *http.Cookie {
-		login := httptest.NewRequest(http.MethodPost, base+"/login", bytes.NewBufferString(`{"password":"synthetic-share-password"}`))
-		login.Header.Set("Content-Type", "application/json")
-		reply := httptest.NewRecorder()
-		f.server.Handler().ServeHTTP(reply, login)
-		if reply.Code != 200 || len(reply.Result().Cookies()) != 1 {
-			t.Fatal("share login failed", reply.Code)
-		}
-		return reply.Result().Cookies()[0]
-	}
-	shareCookie := loginShare()
-	if r = f.get(base+"/network-quality?"+query, shareCookie); r.Code != 200 {
-		t.Fatal("explicit private share rejected", r.Code, r.Body.String())
-	}
-	if r = f.get("/api/v1/admin/network-quality?"+query, shareCookie); r.Code != 401 {
-		t.Fatal("share token elevated to admin")
-	}
-	if r = f.get(base+"/network-quality?"+f.query(f.nodes[0].ID, f.nodes[1].ID), shareCookie); r.Code != 404 || strings.Contains(r.Body.String(), f.target.Name) {
-		t.Fatal("share crossed its selected nodes", r.Code)
-	}
-	if _, err = f.db.UpdateChartShare(ctx, share.ID, share.Name, nil, []string{f.nodes[0].ID}, true); err != nil {
-		t.Fatal(err)
-	}
-	if r = f.get(base+"/network-quality?"+query, shareCookie); r.Code != 401 {
-		t.Fatal("scope edit did not revoke prior share session", r.Code)
-	}
-	shareCookie = loginShare()
-	if r = f.get(base+"/network-quality?"+query, shareCookie); r.Code != 404 {
-		t.Fatal("new session accessed removed share node", r.Code)
-	}
-	if r = f.get(base+"/network-quality?"+f.query(f.nodes[0].ID), shareCookie); r.Code != 200 {
-		t.Fatal("new session lost retained share node", r.Code)
-	}
-	if _, err = f.db.UpdateChartShare(ctx, share.ID, share.Name, nil, []string{f.nodes[0].ID}, false); err != nil {
-		t.Fatal(err)
-	}
-	if r = f.get(base+"/network-quality?"+f.query(f.nodes[0].ID), shareCookie); r.Code != 401 {
-		t.Fatal("disabled share session accepted", r.Code)
+	for _, suffix := range []string{"", "/series"} {
+		t.Run("route"+suffix, func(t *testing.T) {
+			f := networkQualityAPIFixture(t)
+			ctx := context.Background()
+			query := f.query(f.nodes[0].ID, f.hidden.ID)
+			r := f.get("/api/v1/public/network-quality"+suffix+"?"+query, nil)
+			if r.Code != 404 || strings.Contains(r.Body.String(), f.target.Name) {
+				t.Fatal("mixed public batch leaked authorized part", r.Code, r.Body.String())
+			}
+			cookie, _ := loginAdminForShare(t, f.server.Handler())
+			if r = f.get("/api/v1/admin/network-quality"+suffix+"?"+query, nil); r.Code != 401 {
+				t.Fatal("anonymous admin accepted", r.Code)
+			}
+			if r = f.get("/api/v1/admin/network-quality"+suffix+"?"+query, cookie); r.Code != 200 {
+				t.Fatal("admin hidden comparison rejected", r.Code, r.Body.String())
+			}
+			share, err := f.server.sharing.Create(ctx, "Synthetic comparison share", "synthetic-share-password", []string{f.nodes[0].ID, f.hidden.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			base := "/api/v1/share/" + share.ID
+			if r = f.get(base+"/network-quality"+suffix+"?"+query, cookie); r.Code != 401 {
+				t.Fatal("admin cookie substituted for share session", r.Code)
+			}
+			loginShare := func() *http.Cookie {
+				login := httptest.NewRequest(http.MethodPost, base+"/login", bytes.NewBufferString(`{"password":"synthetic-share-password"}`))
+				login.Header.Set("Content-Type", "application/json")
+				reply := httptest.NewRecorder()
+				f.server.Handler().ServeHTTP(reply, login)
+				if reply.Code != 200 || len(reply.Result().Cookies()) != 1 {
+					t.Fatal("share login failed", reply.Code)
+				}
+				return reply.Result().Cookies()[0]
+			}
+			shareCookie := loginShare()
+			if r = f.get(base+"/network-quality"+suffix+"?"+query, shareCookie); r.Code != 200 {
+				t.Fatal("explicit private share rejected", r.Code, r.Body.String())
+			}
+			if r = f.get("/api/v1/admin/network-quality"+suffix+"?"+query, shareCookie); r.Code != 401 {
+				t.Fatal("share token elevated to admin")
+			}
+			if r = f.get(base+"/network-quality"+suffix+"?"+f.query(f.nodes[0].ID, f.nodes[1].ID), shareCookie); r.Code != 404 || strings.Contains(r.Body.String(), f.target.Name) {
+				t.Fatal("share crossed its selected nodes", r.Code)
+			}
+			if _, err = f.db.UpdateChartShare(ctx, share.ID, share.Name, nil, []string{f.nodes[0].ID}, true); err != nil {
+				t.Fatal(err)
+			}
+			if r = f.get(base+"/network-quality"+suffix+"?"+query, shareCookie); r.Code != 401 {
+				t.Fatal("scope edit did not revoke prior share session", r.Code)
+			}
+			shareCookie = loginShare()
+			if r = f.get(base+"/network-quality"+suffix+"?"+query, shareCookie); r.Code != 404 {
+				t.Fatal("new session accessed removed share node", r.Code)
+			}
+			if r = f.get(base+"/network-quality"+suffix+"?"+f.query(f.nodes[0].ID), shareCookie); r.Code != 200 {
+				t.Fatal("new session lost retained share node", r.Code)
+			}
+			if _, err = f.db.UpdateChartShare(ctx, share.ID, share.Name, nil, []string{f.nodes[0].ID}, false); err != nil {
+				t.Fatal(err)
+			}
+			if r = f.get(base+"/network-quality"+suffix+"?"+f.query(f.nodes[0].ID), shareCookie); r.Code != 401 {
+				t.Fatal("disabled share session accepted", r.Code)
+			}
+		})
 	}
 }
 
