@@ -18,9 +18,9 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
    const dialog = page.getByRole('dialog', { name: '网络质量对比' }); await dialog.waitFor();
    const compare = dialog.getByRole('button', { name: '比较', exact: true });
    await dialog.locator('.quality-result-heading').waitFor(); await compare.waitFor({ state: 'visible' }); await assertEnabled(compare);
-   for (const box of await dialog.locator('.quality-observers input').all()) if (await box.isChecked()) await box.uncheck();
+   for (const box of await dialog.locator('.quality-observers input[type="checkbox"]').all()) if (await box.isChecked()) await box.uncheck();
    for (const id of ids) await dialog.locator(`input[value="${id}"]`).check();
-   assert.equal(await dialog.locator('.quality-observers input:checked').count(), 8);
+   assert.equal(await dialog.locator('.quality-observers input[type="checkbox"]:checked').count(), 8);
    assert.equal(await dialog.locator(`input[value="${process.env.QA_EMPTY_ID}"]`).isDisabled(), true);
    const before = calls.length; await compare.click(); await dialog.locator('.quality-table tbody tr').nth(7).waitFor(); await assertEnabled(compare);
    assert.equal(calls.length - before, 2, 'one scoped target query and one batched series query');
@@ -55,7 +55,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
     await page.route('**/network-quality/series?**', async route => { if (abort) { abort = false; await route.abort(); } else await route.continue(); });
     await compare.click(); await dialog.getByRole('alert').waitFor(); assert.ok((await dialog.getByRole('alert').textContent()).includes('网络请求未完成')); await assertEnabled(compare);
     await compare.click(); await dialog.locator('.quality-table').waitFor(); await assertEnabled(compare); await page.unroute('**/network-quality/series?**');
-    for (const box of await dialog.locator('.quality-observers input').all()) if (await box.isChecked()) await box.uncheck();
+    for (const box of await dialog.locator('.quality-observers input[type="checkbox"]').all()) if (await box.isChecked()) await box.uncheck();
     await dialog.locator(`input[value="${process.env.QA_EMPTY_ID}"]`).check(); await compare.click();
     await dialog.getByText('所选节点暂无可比较目标，请由管理员配置或分配探测目标。').waitFor();
    }
@@ -76,7 +76,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
   const shareLogin = await context.request.post(`${shareBase}/login`, { data: { password: process.env.QA_SHARE_PASSWORD } }); assert.equal(shareLogin.status(), 200);
   await page.goto(`${base}/share/${process.env.QA_SHARE_ID}`); await page.getByRole('button', { name: '网络质量', exact: true }).click();
   dialog = page.getByRole('dialog', { name: '网络质量对比' }); await dialog.locator('.quality-result-heading').waitFor();
-  assert.equal(await dialog.locator('.quality-observers input').count(), 2);
+  assert.equal(await dialog.locator('.quality-observers input[type="checkbox"]').count(), 2);
   assert.equal(await dialog.locator(`input[value="${process.env.QA_HIDDEN_ID}"]`).count(), 1);
   const forbidden = await context.request.get(`${shareBase}/network-quality/series?node_id=${ids[1]}&target_id=unknown&kind=ping&range=1h`); assert.equal(forbidden.status(), 404);
   evidence.roles.push({ role: 'password_share', observers: 2, selected_private_observer: true, outside_scope_status: 404 }); await context.close();
