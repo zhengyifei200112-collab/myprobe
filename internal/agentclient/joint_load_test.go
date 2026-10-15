@@ -291,7 +291,16 @@ func TestJointRuntimeLoad(t *testing.T) {
 	result.StartedAt = started.UTC()
 	resourceTarget := &jointResourceTarget{}
 	resourceTarget.set(&server, 0)
-	resourceSampler := startJointResourceSampler(ctx, started, time.Second, resourceTarget.read)
+	var publishResources func(jointResourceObservation) error
+	if output := os.Getenv("MYPROBE_TEST_LOAD_OUTPUT"); output != "" {
+		if !filepath.IsAbs(output) {
+			t.Fatal("resource output must be absolute")
+		}
+		publishResources = func(observation jointResourceObservation) error {
+			return writeJointResourceProgress(output, nodes, result.SubscriptionMode, started, observation)
+		}
+	}
+	resourceSampler := startJointResourceSampler(ctx, started, time.Second, resourceTarget.read, publishResources)
 	defer resourceSampler.stop()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -408,6 +417,9 @@ func TestJointRuntimeLoad(t *testing.T) {
 	result.ElapsedSeconds = time.Since(started).Seconds()
 	result.EndedAt = time.Now().UTC()
 	result.ResourceObservation = resourceSampler.stop()
+	if result.ResourceObservation.ProgressWriteErrors != 0 {
+		t.Error("resource progress could not be persisted")
+	}
 	result.APIErrors, result.SampledPeakRSSBytes, result.SampledPeakWALBytes = requestErrors, result.ResourceObservation.PeakRSSBytes, result.ResourceObservation.PeakWALBytes
 	result.ServerCPUMicroseconds = cpuMicros + server.cpuMicros()
 	result.ResourceSampleSeconds = 1

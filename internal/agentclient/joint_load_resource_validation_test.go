@@ -2,6 +2,8 @@ package agentclient
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -44,7 +46,7 @@ func TestJointResourceSamplingContinuesDuringBlockedRequest(t *testing.T) {
 			return jointResourceReading{rss: 100, wal: 200, cpu: 30, serverAvailable: true}
 		}
 		return jointResourceReading{rss: 10, wal: 20, cpu: 10, serverAvailable: reads != 2}
-	})
+	}, nil)
 	defer sampler.stop()
 	select {
 	case <-observed:
@@ -111,4 +113,34 @@ func TestJointResourceTargetRestartAndConcurrentReads(t *testing.T) {
 		target.set(&b, 123)
 	}
 	workers.Wait()
+}
+
+func TestJointResourceProgressReplacementAndFailure(t *testing.T) {
+	root := t.TempDir()
+	started := time.Now()
+	for _, count := range []int{1, 2} {
+		observation := jointResourceObservation{Samples: count, Timeline: []jointResourcePoint{{RSSBytes: int64(count)}}}
+		if err := writeJointResourceProgress(root, 5, "test", started, observation); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "joint-resource-5-test.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var progress struct {
+		Status      string
+		Observation jointResourceObservation
+		Timeline    []jointResourcePoint
+	}
+	if err := json.Unmarshal(raw, &progress); err != nil {
+		t.Fatal(err)
+	}
+	if progress.Status != "observation-only" || progress.Observation.Samples != 2 || len(progress.Timeline) != 1 || progress.Timeline[0].RSSBytes != 2 {
+		t.Fatalf("progress = %+v", progress)
+	}
+	sampler := startJointResourceSampler(context.Background(), started, time.Second, func() jointResourceReading { return jointResourceReading{} }, func(jointResourceObservation) error { return errors.New("injected storage failure") })
+	if result := sampler.stop(); result.ProgressWriteErrors != 2 {
+		t.Fatalf("write failures = %d", result.ProgressWriteErrors)
+	}
 }

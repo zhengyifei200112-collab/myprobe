@@ -2,7 +2,10 @@ package agentclient
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -45,6 +48,7 @@ func (r *jointResourceTarget) read() jointResourceReading {
 }
 
 type jointResourceObservation struct {
+	ProgressWriteErrors                      int
 	Samples, ServerUnavailableSamples        int
 	TargetIntervalSeconds, MaximumGapSeconds float64
 	PeakRSSBytes, PeakWALBytes               int64
@@ -58,7 +62,7 @@ type jointResourceSampler struct {
 	result jointResourceObservation
 }
 
-func startJointResourceSampler(ctx context.Context, started time.Time, interval time.Duration, read func() jointResourceReading) *jointResourceSampler {
+func startJointResourceSampler(ctx context.Context, started time.Time, interval time.Duration, read func() jointResourceReading, publish func(jointResourceObservation) error) *jointResourceSampler {
 	ctx, cancel := context.WithCancel(ctx)
 	s := &jointResourceSampler{cancel: cancel, done: make(chan struct{}), result: jointResourceObservation{TargetIntervalSeconds: interval.Seconds()}}
 	go func() {
@@ -67,11 +71,10 @@ func startJointResourceSampler(ctx context.Context, started time.Time, interval 
 		defer ticker.Stop()
 		var previous, lastTimeline time.Time
 		var lastPoint jointResourcePoint
-		sample := func() {
+		sample := func(final bool) {
 			now := time.Now()
 			r := read()
 			s.mu.Lock()
-			defer s.mu.Unlock()
 			s.result.Samples++
 			if !r.serverAvailable {
 				s.result.ServerUnavailableSamples++
@@ -83,26 +86,64 @@ func startJointResourceSampler(ctx context.Context, started time.Time, interval 
 			s.result.PeakRSSBytes = max(s.result.PeakRSSBytes, r.rss)
 			s.result.PeakWALBytes = max(s.result.PeakWALBytes, r.wal)
 			lastPoint = jointResourcePoint{ElapsedSeconds: now.Sub(started).Seconds(), RSSBytes: r.rss, CPUMicroseconds: r.cpu, SampledPeakWALBytes: s.result.PeakWALBytes}
-			if lastTimeline.IsZero() || now.Sub(lastTimeline) >= 30*time.Second {
+			checkpoint := final || lastTimeline.IsZero() || now.Sub(lastTimeline) >= 30*time.Second
+			if checkpoint {
 				s.result.Timeline = append(s.result.Timeline, lastPoint)
 				lastTimeline = now
 			}
+			observation := s.result
+			observation.Timeline = append([]jointResourcePoint(nil), s.result.Timeline...)
+			s.mu.Unlock()
+			if checkpoint && publish != nil {
+				if err := publish(observation); err != nil {
+					s.mu.Lock()
+					s.result.ProgressWriteErrors++
+					s.mu.Unlock()
+				}
+			}
 		}
-		sample()
+		sample(false)
 		for {
 			select {
 			case <-ctx.Done():
-				sample()
-				s.mu.Lock()
-				s.result.Timeline = append(s.result.Timeline, lastPoint)
-				s.mu.Unlock()
+				sample(true)
 				return
 			case <-ticker.C:
-				sample()
+				sample(false)
 			}
 		}
 	}()
 	return s
+}
+
+func writeJointResourceProgress(output string, nodes int, mode string, started time.Time, observation jointResourceObservation) error {
+	raw, err := json.MarshalIndent(struct {
+		Format                string `json:"format"`
+		Status                string `json:"status"`
+		StartedAt, ObservedAt time.Time
+		Observation           jointResourceObservation
+		Timeline              []jointResourcePoint
+	}{"myprobe.joint-resource-progress.v1", "observation-only", started.UTC(), time.Now().UTC(), observation, observation.Timeline}, "", "  ")
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(output, fmt.Sprintf("joint-resource-%d-%s.json", nodes, mode))
+	file, err := os.OpenFile(path+".tmp", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+	_, writeErr := file.Write(append(raw, '\n'))
+	if writeErr == nil {
+		writeErr = file.Sync()
+	}
+	closeErr := file.Close()
+	if writeErr != nil {
+		return writeErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return os.Rename(path+".tmp", path)
 }
 
 func (s *jointResourceSampler) stop() jointResourceObservation {
