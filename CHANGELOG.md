@@ -9,6 +9,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A Windows launcher can supervise a trusted WSL soak-test script independently
+  of its launching shell, preserving heartbeat, process identities, logs and
+  exit status. It does not restart failed runs or declare test acceptance.
+
 - Internal network schedule epochs preserve effective assignment definitions and
   the known-history boundary from migration 042. Target group expansion is atomic
   with effective assignments and epoch records. Private snapshots retain target

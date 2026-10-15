@@ -1,0 +1,47 @@
+{
+  "format": "myprobe.wsl-soak-regression.v1",
+  "supervisor_sha256": "0e1cfe654432f8b56972e6512184d1f8bd18cb2ea4b0762ce82711fdc1b611d8",
+  "hold_seconds": 90,
+  "heartbeat_count": 90,
+  "launching_shells_exited": true,
+  "mid_run": {
+    "format": "myprobe.wsl-soak-status.v1",
+    "run_id": "0862231f0f914bf9ab5721f42d683918",
+    "state": "running",
+    "supervisor_pid": 43732,
+    "wsl_pid": 25524,
+    "started_at": "2026-10-15T15:09:05.6676882Z",
+    "observed_at": "2026-10-15T15:09:10.7552517Z",
+    "ended_at": null,
+    "exit_code": null,
+    "test_acceptance": "not_evaluated"
+  },
+  "final_status": {
+    "format": "myprobe.wsl-soak-status.v1",
+    "run_id": "0862231f0f914bf9ab5721f42d683918",
+    "state": "exited",
+    "supervisor_pid": 43732,
+    "wsl_pid": 25524,
+    "started_at": "2026-10-15T15:09:05.6676882Z",
+    "observed_at": "2026-10-15T15:10:39.1929934Z",
+    "ended_at": "2026-10-15T15:10:39.1929934Z",
+    "exit_code": 0,
+    "test_acceptance": "not_evaluated"
+  },
+  "nonzero_status": {
+    "format": "myprobe.wsl-soak-status.v1",
+    "run_id": "528c853e25684c65b8431bb67e8a4924",
+    "state": "exited",
+    "supervisor_pid": 36672,
+    "wsl_pid": 42800,
+    "started_at": "2026-10-15T15:09:06.0366893Z",
+    "observed_at": "2026-10-15T15:09:09.1182558Z",
+    "ended_at": "2026-10-15T15:09:09.1182558Z",
+    "exit_code": 31,
+    "test_acceptance": "not_evaluated"
+  },
+  "stdout_bytes": 2097152,
+  "stderr_bytes": 2097152,
+  "existing_directory_rejected": true,
+  "passed": true
+}
