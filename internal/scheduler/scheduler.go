@@ -2,8 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"log/slog"
 	"sync"
@@ -12,23 +10,22 @@ import (
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/agentgateway"
 	"github.com/zhengyifei200112-collab/myprobe/internal/diagnostics"
-	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
 type assignmentStore interface {
-	ListTargetAssignments(context.Context) ([]store.TargetAssignment, error)
+	ExpireNetworkDispatchLeases(context.Context, time.Time) error
+	ListNetworkAssignments(context.Context, time.Time) ([]store.NetworkAssignment, error)
 }
 
 type dispatcher interface {
-	SendTask(context.Context, string, protocol.Task) error
+	DispatchNetwork(context.Context, string, time.Time) error
 }
 
 type Scheduler struct {
 	store         assignmentStore
 	dispatcher    dispatcher
 	logger        *slog.Logger
-	next          map[string]time.Time
 	diagnosticsMu sync.Mutex
 	cycleJob      diagnostics.Job
 	lastCycle     *CycleDiagnostics
@@ -36,7 +33,7 @@ type Scheduler struct {
 }
 
 func New(database assignmentStore, taskDispatcher dispatcher, logger *slog.Logger) *Scheduler {
-	return &Scheduler{store: database, dispatcher: taskDispatcher, logger: logger, next: make(map[string]time.Time)}
+	return &Scheduler{store: database, dispatcher: taskDispatcher, logger: logger}
 }
 
 func (s *Scheduler) Run(ctx context.Context) {
@@ -68,7 +65,11 @@ func (s *Scheduler) dispatch(ctx context.Context, now time.Time) {
 		s.lastCycle = &cycle
 		complete(cycleError)
 	}()
-	assignments, err := s.store.ListTargetAssignments(ctx)
+	if err := s.store.ExpireNetworkDispatchLeases(ctx, now); err != nil {
+		cycleError = err
+		return
+	}
+	assignments, err := s.store.ListNetworkAssignments(ctx, now)
 	if err != nil {
 		cycleError = err
 		if ctx.Err() == nil {
@@ -78,49 +79,51 @@ func (s *Scheduler) dispatch(ctx context.Context, now time.Time) {
 	}
 	cycle.Assignments = len(assignments)
 	cycle.AssignmentsLoaded = true
-	active := make(map[string]struct{}, len(assignments))
+	var workers sync.WaitGroup
+	var cycleMu sync.Mutex
+	jobs := make(chan store.NetworkAssignment)
+	for range 4 {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for assignment := range jobs {
+				err := s.dispatcher.DispatchNetwork(ctx, assignment.EpochID, assignment.ScheduledAt)
+				cycleMu.Lock()
+				switch {
+				case err == nil:
+					cycle.Dispatched++
+				case errors.Is(err, agentgateway.ErrAgentOffline):
+					cycle.Offline++
+				case errors.Is(err, store.ErrNetworkTaskRejected), errors.Is(err, store.ErrNetworkTaskDispatched):
+					cycle.Skipped++
+				default:
+					cycle.Failed++
+					if cycleError == nil {
+						cycleError = err
+					}
+				}
+				cycleMu.Unlock()
+				if err != nil && !errors.Is(err, agentgateway.ErrAgentOffline) && !errors.Is(err, store.ErrNetworkTaskRejected) && !errors.Is(err, store.ErrNetworkTaskDispatched) && ctx.Err() == nil {
+					s.logger.Warn("dispatch latency task failed")
+				}
+			}
+		}()
+	}
 	for _, assignment := range assignments {
-		key := assignment.NodeID + ":" + assignment.Target.ID
-		active[key] = struct{}{}
-		if due, exists := s.next[key]; exists && due.After(now) {
+		if !assignment.Eligible {
 			continue
 		}
+		cycleMu.Lock()
 		cycle.Due++
-		port := 0
-		if assignment.Target.Port != nil {
-			port = *assignment.Target.Port
+		cycleMu.Unlock()
+		select {
+		case jobs <- assignment:
+		case <-ctx.Done():
 		}
-		task := protocol.Task{
-			ID: randomTaskID(), Kind: assignment.Target.Kind, TargetID: assignment.Target.ID,
-			Host: assignment.Target.Host, Port: port, TimeoutMS: assignment.Target.TimeoutMS,
-			ExpiresAt: now.Add(time.Duration(assignment.Target.TimeoutMS)*time.Millisecond + 15*time.Second),
-		}
-		if err := s.dispatcher.SendTask(ctx, assignment.NodeID, task); err != nil {
-			if errors.Is(err, agentgateway.ErrAgentOffline) {
-				cycle.Offline++
-			} else {
-				cycle.Failed++
-				cycleError = err
-			}
-			if !errors.Is(err, agentgateway.ErrAgentOffline) && ctx.Err() == nil {
-				s.logger.Warn("dispatch latency task", "node_id", assignment.NodeID, "target_id", assignment.Target.ID, "error", err)
-			}
-			continue
-		}
-		cycle.Dispatched++
-		s.next[key] = now.Add(time.Duration(assignment.Target.IntervalSeconds) * time.Second)
-	}
-	for key := range s.next {
-		if _, exists := active[key]; !exists {
-			delete(s.next, key)
+		if ctx.Err() != nil {
+			break
 		}
 	}
-}
-
-func randomTaskID() string {
-	buffer := make([]byte, 16)
-	if _, err := rand.Read(buffer); err != nil {
-		panic("crypto/rand unavailable: " + err.Error())
-	}
-	return hex.EncodeToString(buffer)
+	close(jobs)
+	workers.Wait()
 }

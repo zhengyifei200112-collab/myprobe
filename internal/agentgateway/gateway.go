@@ -296,15 +296,25 @@ func (g *Gateway) webSocketVersion(w http.ResponseWriter, r *http.Request, versi
 			if envelope.Type == protocol.TypeTCPingResult {
 				kind = protocol.TaskKindTCPing
 			}
-			if err != nil || result.Validate(time.Now().UTC()) != nil || !g.consumePending(node.ID, kind, result) {
+			if err != nil || result.Validate(time.Now().UTC()) != nil {
 				g.writeProtocolError(ctx, session, "invalid_result", "latency result does not match an active task")
 				continue
 			}
-			if err := g.store.SaveLatencyResult(ctx, node.ID, kind, result); err != nil {
-				g.writeProtocolError(ctx, session, "storage_error", "latency result could not be stored")
+			inserted, err := g.store.AcceptNetworkResult(ctx, node.ID, kind, result, time.Now().UTC())
+			if err != nil {
+				if errors.Is(err, store.ErrNetworkTaskRejected) {
+					g.writeProtocolError(ctx, session, "invalid_result", "latency result does not match an active task")
+				} else {
+					g.writeProtocolError(ctx, session, "storage_error", "latency result could not be stored")
+				}
 				continue
 			}
-			g.publishNode(ctx, node.ID)
+			g.pendingMu.Lock()
+			delete(g.pending, result.TaskID)
+			g.pendingMu.Unlock()
+			if inserted {
+				g.publishNode(ctx, node.ID)
+			}
 			ack, _ := protocol.NewEnvelope(protocol.TypeAcknowledged, envelope.Sequence, protocol.Acknowledgement{Sequence: envelope.Sequence})
 			if err := session.write(ctx, ack); err != nil {
 				return
@@ -402,7 +412,39 @@ func (g *Gateway) SendTask(ctx context.Context, nodeID string, task protocol.Tas
 	if session == nil {
 		return ErrAgentOffline
 	}
-	envelope, err := protocol.NewEnvelope(protocol.TypeTask, 0, task)
+	persisted, err := g.store.RecordManualNetworkTask(ctx, nodeID, task, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	return g.sendNetworkTask(ctx, session, persisted)
+}
+
+// DispatchNetwork resolves and claims the immutable epoch in the Store. No
+// process-local scheduler state authorizes a result or replays an old slot.
+func (g *Gateway) DispatchNetwork(ctx context.Context, epochID string, slot time.Time) error {
+	claimCtx, cancel := context.WithDeadline(ctx, slot.Add(5*time.Second))
+	task, err := g.store.ClaimNetworkTask(claimCtx, epochID, slot, time.Now().UTC())
+	cancel()
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+			return store.ErrNetworkTaskRejected
+		}
+		return err
+	}
+	g.sessionsMu.RLock()
+	session := g.sessions[task.NodeID]
+	g.sessionsMu.RUnlock()
+	if session == nil {
+		if err := g.store.FinishNetworkDispatch(ctx, task, "offline", time.Now().UTC()); err != nil {
+			return err
+		}
+		return ErrAgentOffline
+	}
+	return g.sendNetworkTask(ctx, session, task)
+}
+
+func (g *Gateway) sendNetworkTask(ctx context.Context, session *agentSession, task store.NetworkTask) error {
+	envelope, err := protocol.NewEnvelope(protocol.TypeTask, 0, task.Task)
 	if err != nil {
 		return err
 	}
@@ -412,26 +454,22 @@ func (g *Gateway) SendTask(ctx context.Context, nodeID string, task protocol.Tas
 			delete(g.pending, id)
 		}
 	}
-	g.pending[task.ID] = pendingTask{nodeID: nodeID, targetID: task.TargetID, kind: task.Kind, expires: task.ExpiresAt}
+	g.pending[task.Task.ID] = pendingTask{nodeID: task.NodeID, targetID: task.Task.TargetID, kind: task.Task.Kind, expires: task.Task.ExpiresAt}
 	g.pendingMu.Unlock()
-	if err := session.write(ctx, envelope); err != nil {
+	writeCtx, cancel := context.WithDeadline(ctx, task.DispatchUntil)
+	err = session.write(writeCtx, envelope)
+	cancel()
+	if err != nil {
 		g.pendingMu.Lock()
-		delete(g.pending, task.ID)
+		delete(g.pending, task.Task.ID)
 		g.pendingMu.Unlock()
+		// Use the owning run context for bookkeeping after the write deadline.
+		if recordErr := g.store.FinishNetworkDispatch(ctx, task, "write_error", time.Now().UTC()); recordErr != nil {
+			return recordErr
+		}
 		return err
 	}
-	return nil
-}
-
-func (g *Gateway) consumePending(nodeID, kind string, result protocol.LatencyResult) bool {
-	g.pendingMu.Lock()
-	defer g.pendingMu.Unlock()
-	pending, ok := g.pending[result.TaskID]
-	if !ok || pending.nodeID != nodeID || pending.targetID != result.TargetID || pending.kind != kind || pending.expires.Before(time.Now().UTC()) {
-		return false
-	}
-	delete(g.pending, result.TaskID)
-	return true
+	return g.store.FinishNetworkDispatch(ctx, task, "", time.Now().UTC())
 }
 
 func (g *Gateway) register(nodeID string, session *agentSession) {

@@ -687,11 +687,17 @@ func (s *Store) SaveLatencyResult(ctx context.Context, nodeID, kind string, resu
 	if err := result.Validate(time.Now().UTC()); err != nil {
 		return err
 	}
+	return insertLatencyResult(ctx, s.db, nodeID, kind, result)
+}
+
+func insertLatencyResult(ctx context.Context, q interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}, nodeID, kind string, result protocol.LatencyResult) error {
 	var latency any
 	if result.Success {
 		latency = result.LatencyMS
 	}
-	stored, err := s.db.ExecContext(ctx, `INSERT INTO latency_samples(node_id, target_id, kind, captured_at, success, latency_ms, error_class)
+	stored, err := q.ExecContext(ctx, `INSERT INTO latency_samples(node_id, target_id, kind, captured_at, success, latency_ms, error_class)
 		SELECT ?, t.id, t.kind, ?, ?, ?, ? FROM targets t
 		WHERE t.id = ? AND t.kind = ? AND EXISTS (
 			SELECT 1 FROM node_targets nt WHERE nt.target_id=t.id AND nt.node_id=?
