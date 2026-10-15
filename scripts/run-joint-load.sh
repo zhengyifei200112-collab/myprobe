@@ -18,6 +18,8 @@ script_directory=$(dirname "$(realpath "$0")")
 cd "$script_directory/../internal/agentclient"
 export MYPROBE_TEST_JOINT_LOAD=1 MYPROBE_TEST_LOAD_NETWORK_NAMESPACE=1
 export MYPROBE_TEST_LOAD_SERVER_BINARY="$server_binary"
+# These variables are intentionally expanded by the child namespace shell.
+# shellcheck disable=SC2016
 exec unshare --net sh -eu -c '
     ip link set lo up
     ip addr add 192.0.2.1/32 dev lo

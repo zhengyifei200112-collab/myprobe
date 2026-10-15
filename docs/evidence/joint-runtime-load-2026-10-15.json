@@ -1,0 +1,659 @@
+{
+  "format": "myprobe.joint-load-evidence.v1",
+  "date": "2026-10-15",
+  "base_head": "1abcc03370a5d1b88a4d2ce6a3791b0d7e595617",
+  "fixture_source_matches": "49fc17886eb7be279c8760591d9bc7b5a853f8a7",
+  "environment": {
+    "host_os": "Windows 10 19045",
+    "host_cpu": "Intel Core i5-13490F",
+    "host_logical_processors": 16,
+    "host_visible_memory_bytes": 34138931200,
+    "host_disk": "KIOXIA EXCERIA PLUS G3 SSD",
+    "guest": "WSL Ubuntu-24.04, shared host",
+    "guest_logical_processors": 8,
+    "server_memory_max_bytes": 2147483648,
+    "server_swap_max_bytes": 0,
+    "server_cpu_max": "200000 100000",
+    "server_cpuset": "0-1",
+    "go": "1.26.5",
+    "node": "24.22.0",
+    "playwright": "1.62.1",
+    "browser": "Chrome Headless Shell 151.0.7922.34",
+    "database_location": "Linux temporary filesystem inside WSL virtual disk",
+    "load_generators": "outside the Server cgroup"
+  },
+  "conclusions": {
+    "runtime_paths_and_recovery_passed": true,
+    "dense_history_included": false,
+    "real_24_hours_completed": false,
+    "complete_report_ack_reconciliation": false,
+    "overview_100_nodes_p95_under_500_ms": false
+  },
+  "caveats": [
+    "90-second measurement, current-run-only history; not 30-day/year joint-query or 24-hour acceptance",
+    "report source correlation validates stored content and duplicates; collected-minus-stored is not packet-loss proof",
+    "CPU includes sampled startup and both Server lifetimes; resources/WAL are sampled observations, not instantaneous peaks",
+    "measured runner hash in each raw record predates a comments-only ShellCheck SC2016 annotation; executable shell commands unchanged",
+    "Passed in a raw fixture means paths/correctness/drain assertions passed, not that all roadmap capacity targets passed"
+  ],
+  "results": [
+    {
+      "format": "myprobe.joint-load.v1",
+      "StartedAt": "2026-10-15T00:25:17.729455537Z",
+      "EndedAt": "2026-10-15T00:26:47.734124813Z",
+      "Nodes": 5,
+      "ReportSeconds": 15,
+      "TargetsPerNode": 3,
+      "TargetSeconds": 60,
+      "HTTPServices": 1,
+      "SubscriptionClients": 5,
+      "DurationRequestedSeconds": 90,
+      "ElapsedSeconds": 90.004669176,
+      "MeasurementSeconds": 90.004014375,
+      "RecoveryDrainSeconds": 0.000654601,
+      "RecoveryDrained": true,
+      "OS": "linux",
+      "GoVersion": "go1.26.5",
+      "LogicalCPUs": 8,
+      "HistoryFixture": "current-run-only",
+      "SourceSHA256": {
+        "cmd/server/main.go": "c5c9eee3d757a44173c0b5344d92768416db1dd6ad1ed18ce29038866bd0eca4",
+        "internal/agentclient/client.go": "07f3243608b12c8dc14acec7f02645e9e50639f155abcd3d4d2074496bb02987",
+        "internal/agentclient/joint_load_browser_test.go": "ce571bf9c55c81c5d0ece3bedf7183719d0fab30b0d109f395012b0eaae37597",
+        "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+        "internal/agentclient/joint_load_test.go": "6dd6969f364e28b1d94f5fc63e74e5e50077d9104d90ca92801a42c3a0a6bbf7",
+        "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+        "scripts/joint-load-browser.cjs": "4bc74269f0d3e255f23d2032fe73e995ffa33bfef53a7396143563b425cb34e4",
+        "scripts/run-joint-load.sh": "13c2434248c7cb6fe91e39f44bcd62bfd2e0f27f3342d297a51c767af6bb4bd3"
+      },
+      "ServerBinarySHA256": "3678a1347ff635f09e95140dd0da0ea5f8e304d8775263ad6a6f429d860d7180",
+      "ResourceTimeline": [
+        {
+          "ElapsedSeconds": 1.000983991,
+          "RSSBytes": 26406912,
+          "CPUMicroseconds": 245791,
+          "SampledPeakWALBytes": 510912
+        },
+        {
+          "ElapsedSeconds": 30.000950564,
+          "RSSBytes": 25677824,
+          "CPUMicroseconds": 540943,
+          "SampledPeakWALBytes": 1577992
+        },
+        {
+          "ElapsedSeconds": 60.000590054,
+          "RSSBytes": 23470080,
+          "CPUMicroseconds": 1003070,
+          "SampledPeakWALBytes": 2158912
+        },
+        {
+          "ElapsedSeconds": 90.000603222,
+          "RSSBytes": 23961600,
+          "CPUMicroseconds": 1365280,
+          "SampledPeakWALBytes": 2158912
+        },
+        {
+          "ElapsedSeconds": 90.004669176,
+          "RSSBytes": 24031232,
+          "CPUMicroseconds": 1368763,
+          "SampledPeakWALBytes": 2158912
+        }
+      ],
+      "SubscriptionMode": "playwright-rendered",
+      "RSSObservation": "proc-vmrss-sampled",
+      "CPUObservation": "cgroup-usage-usec",
+      "BrowserPageErrors": 0,
+      "NotificationMode": "real-default-sender-isolated-rfc5737-receiver",
+      "DeliveryAttempts": 10,
+      "ConfigurationsConfirmed": 5,
+      "FinalHealth": {
+        "notification_engine": {
+          "status": "running",
+          "observation_scope": "process",
+          "delivery_configuration": "available",
+          "evaluation": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 3,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:26:32.999591374Z",
+            "last_completed_at": "2026-10-15T00:26:33.004712825Z",
+            "last_success_at": "2026-10-15T00:26:33.004712825Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.005121451
+          }
+        },
+        "notification_queue": {
+          "status": "available",
+          "observed_at": "2026-10-15T00:26:47.733726887Z",
+          "scope": "stored_active_logical_rows",
+          "deliveries": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "aggregates": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "system": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          }
+        },
+        "transport": {
+          "agent_connections": 5,
+          "pending_results": 0,
+          "http_pending_results": 0,
+          "http_expired_results": 0
+        },
+        "browser_subscriptions": 5,
+        "retention": {
+          "job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:26:02.989624728Z",
+            "last_completed_at": "2026-10-15T00:26:02.993493519Z",
+            "last_success_at": "2026-10-15T00:26:02.993493519Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.003868791
+          },
+          "http_catchup_job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:26:03.100515321Z",
+            "last_completed_at": "2026-10-15T00:26:03.101763569Z",
+            "last_success_at": "2026-10-15T00:26:03.101763569Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.001248151
+          }
+        }
+      },
+      "HTTPOutcomes": {
+        "failure:status_mismatch": 10,
+        "success:": 5
+      },
+      "ResourceLimits": {
+        "cpu.max": "200000 100000",
+        "cpuset.cpus.effective": "0-1",
+        "memory.max": "2147483648",
+        "memory.swap.max": "0",
+        "mode": "systemd-cgroup-v2"
+      },
+      "ResourceSampleSeconds": 1,
+      "SampledPeakRSSBytes": 26406912,
+      "SampledPeakWALBytes": 2158912,
+      "ServerCPUMicroseconds": 1368763,
+      "APILatency": {
+        "health": {
+          "count": 90,
+          "P50": 0.795092,
+          "P95": 1.208132,
+          "Max": 1.368977
+        },
+        "history_current_30d_range": {
+          "count": 90,
+          "P50": 0.955728,
+          "P95": 1.496421,
+          "Max": 1.908684
+        },
+        "overview": {
+          "count": 90,
+          "P50": 2.103963,
+          "P95": 3.045174,
+          "Max": 4.453023
+        }
+      },
+      "APIErrors": 0,
+      "CollectedReports": 35,
+      "PersistedReports": 24,
+      "TCPSuccesses": 30,
+      "HTTPResults": 15,
+      "Snapshots": 10,
+      "SubscriptionEvents": 225,
+      "NotificationsFailed": 3,
+      "NotificationsDelivered": 7,
+      "Faults": [
+        "closed all Agent sockets; normal reconnect/backoff remained active",
+        "restarted the same real Server/database; normal Agent and subscription reconnection"
+      ],
+      "Limitations": [
+        "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+        "five real rendered pages run outside the Server resource group",
+        "current-run history does not establish dense 30-day/year query capacity",
+        "collected-minus-persisted includes latest-cache skips and unacknowledged sends; not a packet-loss proof",
+        "one-second resource/WAL sampling can miss instantaneous peaks",
+        "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+        "short runs do not establish 24-hour stability"
+      ],
+      "Passed": true
+    },
+    {
+      "format": "myprobe.joint-load.v1",
+      "StartedAt": "2026-10-15T00:27:17.846814609Z",
+      "EndedAt": "2026-10-15T00:28:47.8645174Z",
+      "Nodes": 50,
+      "ReportSeconds": 15,
+      "TargetsPerNode": 3,
+      "TargetSeconds": 60,
+      "HTTPServices": 1,
+      "SubscriptionClients": 5,
+      "DurationRequestedSeconds": 90,
+      "ElapsedSeconds": 90.017702689,
+      "MeasurementSeconds": 90.016777768,
+      "RecoveryDrainSeconds": 0.000924821,
+      "RecoveryDrained": true,
+      "OS": "linux",
+      "GoVersion": "go1.26.5",
+      "LogicalCPUs": 8,
+      "HistoryFixture": "current-run-only",
+      "SourceSHA256": {
+        "cmd/server/main.go": "c5c9eee3d757a44173c0b5344d92768416db1dd6ad1ed18ce29038866bd0eca4",
+        "internal/agentclient/client.go": "07f3243608b12c8dc14acec7f02645e9e50639f155abcd3d4d2074496bb02987",
+        "internal/agentclient/joint_load_browser_test.go": "ce571bf9c55c81c5d0ece3bedf7183719d0fab30b0d109f395012b0eaae37597",
+        "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+        "internal/agentclient/joint_load_test.go": "6dd6969f364e28b1d94f5fc63e74e5e50077d9104d90ca92801a42c3a0a6bbf7",
+        "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+        "scripts/joint-load-browser.cjs": "4bc74269f0d3e255f23d2032fe73e995ffa33bfef53a7396143563b425cb34e4",
+        "scripts/run-joint-load.sh": "13c2434248c7cb6fe91e39f44bcd62bfd2e0f27f3342d297a51c767af6bb4bd3"
+      },
+      "ServerBinarySHA256": "3678a1347ff635f09e95140dd0da0ea5f8e304d8775263ad6a6f429d860d7180",
+      "ResourceTimeline": [
+        {
+          "ElapsedSeconds": 1.00033049,
+          "RSSBytes": 33259520,
+          "CPUMicroseconds": 1592034,
+          "SampledPeakWALBytes": 4795712
+        },
+        {
+          "ElapsedSeconds": 30.001305993,
+          "RSSBytes": 40226816,
+          "CPUMicroseconds": 2983719,
+          "SampledPeakWALBytes": 5945192
+        },
+        {
+          "ElapsedSeconds": 60.000179713,
+          "RSSBytes": 29790208,
+          "CPUMicroseconds": 5916128,
+          "SampledPeakWALBytes": 5945192
+        },
+        {
+          "ElapsedSeconds": 90.000496816,
+          "RSSBytes": 36896768,
+          "CPUMicroseconds": 7434902,
+          "SampledPeakWALBytes": 5945192
+        },
+        {
+          "ElapsedSeconds": 90.017702689,
+          "RSSBytes": 35127296,
+          "CPUMicroseconds": 7455407,
+          "SampledPeakWALBytes": 5945192
+        }
+      ],
+      "SubscriptionMode": "playwright-rendered",
+      "RSSObservation": "proc-vmrss-sampled",
+      "CPUObservation": "cgroup-usage-usec",
+      "BrowserPageErrors": 0,
+      "NotificationMode": "real-default-sender-isolated-rfc5737-receiver",
+      "DeliveryAttempts": 100,
+      "ConfigurationsConfirmed": 50,
+      "FinalHealth": {
+        "notification_engine": {
+          "status": "running",
+          "observation_scope": "process",
+          "delivery_configuration": "available",
+          "evaluation": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 3,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:28:33.137915245Z",
+            "last_completed_at": "2026-10-15T00:28:33.181374691Z",
+            "last_success_at": "2026-10-15T00:28:33.181374691Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.043459446
+          }
+        },
+        "notification_queue": {
+          "status": "available",
+          "observed_at": "2026-10-15T00:28:47.863962508Z",
+          "scope": "stored_active_logical_rows",
+          "deliveries": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "aggregates": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "system": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          }
+        },
+        "transport": {
+          "agent_connections": 50,
+          "pending_results": 0,
+          "http_pending_results": 0,
+          "http_expired_results": 0
+        },
+        "browser_subscriptions": 5,
+        "retention": {
+          "job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:28:03.126844094Z",
+            "last_completed_at": "2026-10-15T00:28:03.130956752Z",
+            "last_success_at": "2026-10-15T00:28:03.130956752Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.004112557
+          },
+          "http_catchup_job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:28:03.241486113Z",
+            "last_completed_at": "2026-10-15T00:28:03.242412653Z",
+            "last_success_at": "2026-10-15T00:28:03.242412653Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.00092654
+          }
+        }
+      },
+      "HTTPOutcomes": {
+        "failure:status_mismatch": 100,
+        "success:": 50
+      },
+      "ResourceLimits": {
+        "cpu.max": "200000 100000",
+        "cpuset.cpus.effective": "0-1",
+        "memory.max": "2147483648",
+        "memory.swap.max": "0",
+        "mode": "systemd-cgroup-v2"
+      },
+      "ResourceSampleSeconds": 1,
+      "SampledPeakRSSBytes": 42438656,
+      "SampledPeakWALBytes": 5945192,
+      "ServerCPUMicroseconds": 7455407,
+      "APILatency": {
+        "health": {
+          "count": 90,
+          "P50": 0.563906,
+          "P95": 1.12725,
+          "Max": 3.368017
+        },
+        "history_current_30d_range": {
+          "count": 90,
+          "P50": 0.780893,
+          "P95": 1.682881,
+          "Max": 6.783339
+        },
+        "overview": {
+          "count": 90,
+          "P50": 5.861373,
+          "P95": 53.538707,
+          "Max": 315.991113
+        }
+      },
+      "APIErrors": 0,
+      "CollectedReports": 350,
+      "PersistedReports": 260,
+      "TCPSuccesses": 300,
+      "HTTPResults": 150,
+      "Snapshots": 10,
+      "SubscriptionEvents": 2439,
+      "NotificationsFailed": 9,
+      "NotificationsDelivered": 91,
+      "Faults": [
+        "closed all Agent sockets; normal reconnect/backoff remained active",
+        "restarted the same real Server/database; normal Agent and subscription reconnection"
+      ],
+      "Limitations": [
+        "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+        "five real rendered pages run outside the Server resource group",
+        "current-run history does not establish dense 30-day/year query capacity",
+        "collected-minus-persisted includes latest-cache skips and unacknowledged sends; not a packet-loss proof",
+        "one-second resource/WAL sampling can miss instantaneous peaks",
+        "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+        "short runs do not establish 24-hour stability"
+      ],
+      "Passed": true
+    },
+    {
+      "format": "myprobe.joint-load.v1",
+      "StartedAt": "2026-10-15T00:28:52.866172472Z",
+      "EndedAt": "2026-10-15T00:30:22.885222273Z",
+      "Nodes": 100,
+      "ReportSeconds": 15,
+      "TargetsPerNode": 3,
+      "TargetSeconds": 60,
+      "HTTPServices": 1,
+      "SubscriptionClients": 5,
+      "DurationRequestedSeconds": 90,
+      "ElapsedSeconds": 90.019049699,
+      "MeasurementSeconds": 90.018281872,
+      "RecoveryDrainSeconds": 0.000767629,
+      "RecoveryDrained": true,
+      "OS": "linux",
+      "GoVersion": "go1.26.5",
+      "LogicalCPUs": 8,
+      "HistoryFixture": "current-run-only",
+      "SourceSHA256": {
+        "cmd/server/main.go": "c5c9eee3d757a44173c0b5344d92768416db1dd6ad1ed18ce29038866bd0eca4",
+        "internal/agentclient/client.go": "07f3243608b12c8dc14acec7f02645e9e50639f155abcd3d4d2074496bb02987",
+        "internal/agentclient/joint_load_browser_test.go": "ce571bf9c55c81c5d0ece3bedf7183719d0fab30b0d109f395012b0eaae37597",
+        "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+        "internal/agentclient/joint_load_test.go": "6dd6969f364e28b1d94f5fc63e74e5e50077d9104d90ca92801a42c3a0a6bbf7",
+        "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+        "scripts/joint-load-browser.cjs": "4bc74269f0d3e255f23d2032fe73e995ffa33bfef53a7396143563b425cb34e4",
+        "scripts/run-joint-load.sh": "13c2434248c7cb6fe91e39f44bcd62bfd2e0f27f3342d297a51c767af6bb4bd3"
+      },
+      "ServerBinarySHA256": "3678a1347ff635f09e95140dd0da0ea5f8e304d8775263ad6a6f429d860d7180",
+      "ResourceTimeline": [
+        {
+          "ElapsedSeconds": 1.000408684,
+          "RSSBytes": 64086016,
+          "CPUMicroseconds": 5245851,
+          "SampledPeakWALBytes": 5520832
+        },
+        {
+          "ElapsedSeconds": 30.000192904,
+          "RSSBytes": 39530496,
+          "CPUMicroseconds": 9712505,
+          "SampledPeakWALBytes": 6612632
+        },
+        {
+          "ElapsedSeconds": 60.001017074,
+          "RSSBytes": 37949440,
+          "CPUMicroseconds": 19422008,
+          "SampledPeakWALBytes": 6612632
+        },
+        {
+          "ElapsedSeconds": 90.000977565,
+          "RSSBytes": 70828032,
+          "CPUMicroseconds": 23877128,
+          "SampledPeakWALBytes": 11169352
+        },
+        {
+          "ElapsedSeconds": 90.019049699,
+          "RSSBytes": 71671808,
+          "CPUMicroseconds": 23895898,
+          "SampledPeakWALBytes": 11169352
+        }
+      ],
+      "SubscriptionMode": "playwright-rendered",
+      "RSSObservation": "proc-vmrss-sampled",
+      "CPUObservation": "cgroup-usage-usec",
+      "BrowserPageErrors": 0,
+      "NotificationMode": "real-default-sender-isolated-rfc5737-receiver",
+      "DeliveryAttempts": 200,
+      "ConfigurationsConfirmed": 100,
+      "FinalHealth": {
+        "notification_engine": {
+          "status": "running",
+          "observation_scope": "process",
+          "delivery_configuration": "available",
+          "evaluation": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 3,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:30:08.14398543Z",
+            "last_completed_at": "2026-10-15T00:30:08.206034752Z",
+            "last_success_at": "2026-10-15T00:30:08.206034752Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.062049322
+          }
+        },
+        "notification_queue": {
+          "status": "available",
+          "observed_at": "2026-10-15T00:30:22.884816816Z",
+          "scope": "stored_active_logical_rows",
+          "deliveries": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "aggregates": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "system": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          }
+        },
+        "transport": {
+          "agent_connections": 100,
+          "pending_results": 0,
+          "http_pending_results": 0,
+          "http_expired_results": 0
+        },
+        "browser_subscriptions": 5,
+        "retention": {
+          "job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:29:38.133523794Z",
+            "last_completed_at": "2026-10-15T00:29:38.13726846Z",
+            "last_success_at": "2026-10-15T00:29:38.13726846Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.003744666
+          },
+          "http_catchup_job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T00:29:38.245871059Z",
+            "last_completed_at": "2026-10-15T00:29:38.246487963Z",
+            "last_success_at": "2026-10-15T00:29:38.246487963Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.000617004
+          }
+        }
+      },
+      "HTTPOutcomes": {
+        "failure:status_mismatch": 200,
+        "success:": 100
+      },
+      "ResourceLimits": {
+        "cpu.max": "200000 100000",
+        "cpuset.cpus.effective": "0-1",
+        "memory.max": "2147483648",
+        "memory.swap.max": "0",
+        "mode": "systemd-cgroup-v2"
+      },
+      "ResourceSampleSeconds": 1,
+      "SampledPeakRSSBytes": 76918784,
+      "SampledPeakWALBytes": 11169352,
+      "ServerCPUMicroseconds": 23895898,
+      "APILatency": {
+        "health": {
+          "count": 90,
+          "P50": 0.559915,
+          "P95": 1.45095,
+          "Max": 21.030911
+        },
+        "history_current_30d_range": {
+          "count": 90,
+          "P50": 0.856763,
+          "P95": 5.276207,
+          "Max": 22.752339
+        },
+        "overview": {
+          "count": 90,
+          "P50": 15.679679,
+          "P95": 730.060315,
+          "Max": 1255.862823
+        }
+      },
+      "APIErrors": 0,
+      "CollectedReports": 700,
+      "PersistedReports": 587,
+      "TCPSuccesses": 600,
+      "HTTPResults": 300,
+      "Snapshots": 10,
+      "SubscriptionEvents": 5425,
+      "NotificationsFailed": 6,
+      "NotificationsDelivered": 194,
+      "Faults": [
+        "closed all Agent sockets; normal reconnect/backoff remained active",
+        "restarted the same real Server/database; normal Agent and subscription reconnection"
+      ],
+      "Limitations": [
+        "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+        "five real rendered pages run outside the Server resource group",
+        "current-run history does not establish dense 30-day/year query capacity",
+        "collected-minus-persisted includes latest-cache skips and unacknowledged sends; not a packet-loss proof",
+        "one-second resource/WAL sampling can miss instantaneous peaks",
+        "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+        "short runs do not establish 24-hour stability"
+      ],
+      "Passed": true
+    }
+  ]
+}

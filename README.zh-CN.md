@@ -203,11 +203,11 @@ docker compose --env-file .env.agent -f compose.agent.yaml ps
 - Node.js 22 或更高版本
 - npm
 
-安装依赖、构建前端并运行测试：
-
 真实 Server/Agent 联合运行、通知隔离、资源控制和浏览器负载的复现方法见
 [联合运行负载说明](docs/JOINT_RUNTIME_LOAD.md)。短测试和本轮历史不替代稠密历史与
 实际 24 小时容量验收。
+
+安装依赖、构建前端并运行测试：
 
 ```bash
 npm --prefix web ci
