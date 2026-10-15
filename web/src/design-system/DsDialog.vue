@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 
 const props = withDefaults(defineProps<{
   open: boolean
@@ -17,7 +17,7 @@ const descriptionID = useId()
 let previousFocus: HTMLElement | null = null
 let locked = false
 
-const focusable = () => Array.from(panel.value?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])') ?? [])
+const focusable = () => Array.from(panel.value?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex]:not([tabindex="-1"])') ?? []).filter(el => el.getClientRects().length > 0)
 
 function close() {
   if (props.dismissible) emit('close')
@@ -38,6 +38,11 @@ function keydown(event: KeyboardEvent) {
   }
   const first = items[0]
   const last = items[items.length - 1]
+  if (!panel.value?.contains(document.activeElement)) {
+    event.preventDefault()
+    ;(event.shiftKey ? last : first).focus()
+    return
+  }
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault()
     last.focus()
@@ -46,6 +51,16 @@ function keydown(event: KeyboardEvent) {
     first.focus()
   }
 }
+
+function documentKeydown(event: KeyboardEvent) {
+  if (!props.open || !panel.value || event.defaultPrevented) return
+  const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')).filter(el => el.getClientRects().length > 0)
+  if (dialogs.at(-1) !== panel.value) return
+  keydown(event)
+  if (event.defaultPrevented) event.stopPropagation()
+}
+
+onMounted(() => document.addEventListener('keydown', documentKeydown))
 
 watch(() => props.open, async (open) => {
   if (open) {
@@ -60,13 +75,13 @@ watch(() => props.open, async (open) => {
   }
 }, { immediate: true })
 
-onBeforeUnmount(() => { previousFocus?.focus(); if (locked) document.body.classList.remove('has-modal') })
+onBeforeUnmount(() => { document.removeEventListener('keydown', documentKeydown); previousFocus?.focus(); if (locked) document.body.classList.remove('has-modal') })
 </script>
 
 <template>
   <Teleport to="body">
     <Transition name="ds-dialog">
-      <div v-if="open" class="ds-dialog__overlay" :class="`ds-dialog__overlay--${presentation}`" @mousedown.self="close" @keydown="keydown">
+      <div v-if="open" class="ds-dialog__overlay" :class="`ds-dialog__overlay--${presentation}`" @mousedown.self="close">
         <section ref="panel" class="ds-dialog__panel" :class="[`ds-dialog__panel--${presentation}`, `ds-dialog__panel--${size}`]" role="dialog" aria-modal="true" :aria-labelledby="titleID" :aria-describedby="description ? descriptionID : undefined" tabindex="-1">
           <header class="ds-dialog__header">
             <div><h2 :id="titleID">{{ title }}</h2><p v-if="description" :id="descriptionID">{{ description }}</p></div>

@@ -7,6 +7,8 @@ import { customRange, lastEvening, localInput } from './time'
 const props = defineProps<{ observers: QualityObserver[]; apiBase: string }>()
 const emit = defineEmits<{ close: []; expired: [] }>()
 const selected = ref<string[]>(props.observers.slice(0, 2).map(n => n.id))
+const observerSearch = ref('')
+const filteredObservers = computed(() => { const q = observerSearch.value.trim().toLocaleLowerCase(); return props.observers.filter(n => !q || n.name.toLocaleLowerCase().includes(q) || n.id.includes(q)) })
 const targets = ref<QualityTarget[]>([]), selectedTarget = ref(''), nextCursor = ref('')
 const range = ref('1h'), zone = ref(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')
 const customStart = ref(localInput(Date.now() - 3600000, zone.value)), customEnd = ref(localInput(Date.now() - 60000, zone.value))
@@ -28,7 +30,7 @@ function choose(id: string, event: Event) {
   selected.value = checked ? [...selected.value, id] : selected.value.filter(v => v !== id)
   changed(true)
 }
-function firstEight() { selected.value = props.observers.slice(0, 8).map(n => n.id); changed(true) }
+function firstEight() { selected.value = filteredObservers.value.slice(0, 8).map(n => n.id); changed(true) }
 watch(() => props.observers.map(n => n.id).join('\0'), () => {
   const ids = new Set(props.observers.map(n => n.id)), retained = selected.value.filter(id => ids.has(id))
   if (retained.length !== selected.value.length) { selected.value = retained; changed(true) }
@@ -51,7 +53,7 @@ async function moreTargets() {
     const q = nodeQuery(); q.set('cursor', nextCursor.value)
     const page = await qualityRequest<QualityTargetsPage>(props.apiBase, 'targets', q, request.signal)
     if (alive && token === revision) { const seen = new Set(targets.value.map(targetKey)); targets.value.push(...page.targets.filter(t => !seen.has(targetKey(t)))); nextCursor.value = page.next_cursor }
-  } catch (e) { if (alive && token === revision) error.value = e instanceof Error ? e.message : '目标加载失败。' }
+  } catch (e) { if (alive && token === revision && !request.signal.aborted) { error.value = e instanceof TypeError ? '网络请求未完成，请重试。' : e instanceof Error ? e.message : '目标加载失败。'; if (e instanceof QualityRequestError && e.status === 401) emit('expired') } }
   finally { if (alive) moreBusy.value = false }
 }
 async function compare() {
@@ -137,8 +139,9 @@ onBeforeUnmount(() => { alive = false; revision++; controller?.abort(); moreCont
   <DsDialog :open="true" size="wide" title="网络质量对比" description="观测节点 → 探测目标，最多比较 8 个节点。" @close="emit('close')">
     <section class="network-quality">
       <fieldset class="quality-observers"><legend>观测节点（{{ selected.length }}/8）</legend>
-        <div class="quality-node-options"><label v-for="n in observers" :key="n.id"><input type="checkbox" :value="n.id" :checked="selected.includes(n.id)" :disabled="selected.length >= 8 && !selected.includes(n.id)" @change="choose(n.id, $event)"><span>{{ n.name }}</span></label></div>
-        <button type="button" class="soft-button" @click="firstEight">选择前 8 个</button>
+        <input v-model="observerSearch" class="quality-search" type="search" aria-label="搜索观测节点" placeholder="搜索节点名">
+        <div class="quality-node-options"><label v-for="n in filteredObservers" :key="n.id"><input type="checkbox" :value="n.id" :checked="selected.includes(n.id)" :disabled="selected.length >= 8 && !selected.includes(n.id)" @change="choose(n.id, $event)"><span>{{ n.name }}</span></label><span v-if="!filteredObservers.length">没有匹配节点</span></div>
+        <button type="button" class="soft-button" @click="firstEight">选择前 8 个</button> <button type="button" class="soft-button" @click="selected = []; changed(true)">清空选择</button>
       </fieldset>
       <form class="quality-controls" @submit.prevent="compare">
         <label>探测目标<select v-model="selectedTarget" aria-label="探测目标" @change="changed()"><option v-if="!targets.length" value="">{{ busy ? '正在读取目标…' : '暂无目标' }}</option><option v-for="t in targets" :key="targetKey(t)" :value="targetKey(t)">{{ t.name }} · {{ t.kind === 'ping' ? 'ICMP' : 'TCP' }}</option></select></label>
@@ -157,7 +160,7 @@ onBeforeUnmount(() => { alive = false; revision++; controller?.abort(); moreCont
         <p v-if="!hasRTT" class="quality-hint">所选范围没有可信的成功 RTT 样本；空白不代表 0 ms。</p>
         <div ref="chartElement" class="quality-chart" role="img" aria-label="所选节点的平均 RTT、执行失败率和覆盖率时序图"></div>
         <p class="quality-caption">淡红统计时段含至少一次执行失败，不代表整段持续故障。曲线空白表示该点没有可用值；覆盖率与执行失败率分开计算。</p>
-        <div class="quality-table-wrap"><table class="quality-table"><caption>当前范围汇总 · RTT / 抖动单位 ms</caption><thead><tr><th>观测节点</th><th>覆盖率</th><th>执行失败率</th><th>P50</th><th>P95</th><th>抖动</th><th>成功 / 失败 / 缺测</th></tr></thead><tbody><tr v-for="(n, i) in result.nodes" :key="n.node_id"><th scope="row"><i :style="{ background: colors[i] }"></i>{{ i + 1 }}. {{ n.name }}</th><td>{{ number(n.coverage_pct) }}{{ n.coverage_pct === null ? '' : '%' }}</td><td>{{ number(n.execution_failure_pct) }}{{ n.execution_failure_pct === null ? '' : '%' }}</td><td :title="bounds(n.rtt_p50_bounds)">{{ percentile(n.rtt_p50_ms, n.quantile_method) }}</td><td :title="bounds(n.rtt_p95_bounds)">{{ percentile(n.rtt_p95_ms, n.quantile_method) }}</td><td :title="`${number(n.jitter_pairs, 0)} 对计划相邻成功样本`">{{ number(n.jitter_ms) }}</td><td>{{ number(n.counts.success, 0) }} / {{ number(n.counts.failure, 0) }} / {{ number(n.counts.missing, 0) }}</td></tr></tbody></table></div>
+        <div class="quality-table-wrap" tabindex="0" aria-label="范围汇总表，可横向滚动"><table class="quality-table"><caption>当前范围汇总 · RTT / 抖动单位 ms</caption><thead><tr><th>观测节点</th><th>覆盖率</th><th>执行失败率</th><th>P50</th><th>P95</th><th>抖动</th><th>成功 / 失败 / 缺测</th></tr></thead><tbody><tr v-for="(n, i) in result.nodes" :key="n.node_id"><th scope="row"><i :style="{ background: colors[i] }"></i>{{ i + 1 }}. {{ n.name }}</th><td>{{ number(n.coverage_pct) }}{{ n.coverage_pct === null ? '' : '%' }}</td><td>{{ number(n.execution_failure_pct) }}{{ n.execution_failure_pct === null ? '' : '%' }}</td><td :title="bounds(n.rtt_p50_bounds)">{{ percentile(n.rtt_p50_ms, n.quantile_method) }}</td><td :title="bounds(n.rtt_p95_bounds)">{{ percentile(n.rtt_p95_ms, n.quantile_method) }}</td><td :title="`${number(n.jitter_pairs, 0)} 对计划相邻成功样本`">{{ number(n.jitter_ms) }}</td><td>{{ number(n.counts.success, 0) }} / {{ number(n.counts.failure, 0) }} / {{ number(n.counts.missing, 0) }}</td></tr></tbody></table></div>
         <details class="quality-method"><summary>统计口径与实际可用范围</summary><p>覆盖率 = 已执行 / 成熟计划；失败率 = 执行失败 / 已执行。未执行与无回报属于缺测；零分母、未知历史和无样本均显示“—”。≈ 为汇总分位数区间中点，可在表格数值提示中查看上下界。抖动仅连接同一计划中相邻成功的真实 RTT，图表分桶不改变范围抖动。</p><ul><li v-for="n in result.nodes" :key="n.node_id">{{ n.name }}：{{ n.availability === 'no_plan_history' ? '没有保留的计划历史' : `${textTime(n.effective_start)} — ${textTime(n.effective_end)}` }}；成熟计划 {{ number(n.counts.planned, 0) }}，待成熟 {{ number(n.counts.pending, 0) }}，回报未执行 {{ number(n.counts.not_executed, 0) }}，无可信结果任务 {{ number(n.counts.unobserved_tasks, 0) }}。</li></ul><p>观测方向为节点到目标。Agent 没有上报地址族及已发/已收包数，因此不会推算 IPv4/IPv6 或精确 ICMP 丢包率。时刻与时区以本次查询结果为准。</p></details>
       </template>
     </section>
@@ -168,6 +171,7 @@ onBeforeUnmount(() => { alive = false; revision++; controller?.abort(); moreCont
 .network-quality { min-width: 0; color: var(--text); }
 .quality-observers { min-width: 0; margin: 0 0 16px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
 .quality-observers legend { padding-inline: 6px; font-size: 13px; font-weight: 650; }
+.quality-search { box-sizing: border-box; width: 100%; min-height: 36px; margin-bottom: 10px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface-secondary); font: inherit; font-size: 12px; }
 .quality-node-options { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 10px; max-height: 120px; overflow: auto; }
 .quality-node-options label { display: flex; align-items: center; gap: 6px; max-width: 100%; min-height: 30px; font-size: 13px; }
 .quality-node-options span { overflow-wrap: anywhere; }
@@ -195,5 +199,5 @@ onBeforeUnmount(() => { alive = false; revision++; controller?.abort(); moreCont
 .quality-method summary { cursor: pointer; color: var(--text); font-weight: 600; }
 .quality-method li { overflow-wrap: anywhere; }
 @media(max-width: 760px) { .quality-controls { grid-template-columns: 1fr 1fr; }.quality-legend button { max-width: 160px; }.quality-table th:first-child { max-width: 150px; } }
-@media(max-width: 420px) { .quality-controls { grid-template-columns: 1fr; }.quality-node-options { gap: 4px 8px; max-height: 112px; }.quality-table th:first-child { max-width: 120px; }.quality-chart { height: 550px; } }
+@media(max-width: 420px) { .quality-controls { grid-template-columns: 1fr; }.quality-node-options { gap: 4px 8px; max-height: 184px; }.quality-table th:first-child { max-width: 120px; }.quality-chart { height: 550px; } }
 </style>

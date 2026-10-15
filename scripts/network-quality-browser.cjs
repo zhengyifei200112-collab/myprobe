@@ -8,7 +8,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
  let activePage;
  try {
   for (const theme of ['light', 'dark']) for (const width of [360, 768, 1440]) {
-   const context = await browser.newContext({ viewport: { width, height: 1000 }, colorScheme: theme });
+   const context = await browser.newContext({ viewport: { width, height: 1000 }, colorScheme: theme, locale: 'zh-CN' });
    await context.addInitScript(theme => localStorage.setItem('myprobe-theme', theme), theme);
    const page = await context.newPage(); activePage = page; const errors = [], calls = [], series = [];
    page.on('pageerror', e => errors.push(e.message));
