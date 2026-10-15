@@ -130,3 +130,16 @@ and platform identities. Both jobs in
 succeeded. This includes the full baseline and independent year job, not only a
 single unit-test command. The synthetic workload and pacing limits above remain
 unchanged; native success does not complete the larger roadmap gates.
+
+## 一年有界时序，2026-10-15
+
+后继时序源 `74f36d55ffa717a32896615436777e6fe5f03d26` 在相同一年单节点/目标 fixture
+通过独立槽模式、汇总分布和恢复核对。新增一年时序查询生成 1461 点，耗时
+574.65 ms；所有点的计划/成功/失败/缺测总计等于完整范围。范围查询 584.76 ms，
+30 天 149.15 ms，恢复一年 478.16 ms。Go heap 采样最大 21,180,576 字节，包含时序
+结构，不是 Server RSS。原始结果见
+[Windows 时序证据](evidence/network-quality-series-year-windows-2026-10-15.json)。
+这仍是单请求 Store、单合成观测者，不能充当八节点 HTTP/真实页面或完整规模验收。
+
+原 #70 的 24 小时测试已在 WSL 有序关机时中断，未取得最终结果或 24 小时证据；
+详见 [中断记录](evidence/joint-soak-interruption-2026-10-15.json)。不能继续描述它仍在运行。

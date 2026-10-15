@@ -44,3 +44,21 @@ CI 原始资源结果亦保存于证据文件；Go 订阅者和托管硬件的�
 `MYPROBE_TEST_LOAD_NODES=100 MYPROBE_TEST_LOAD_DURATION=24h MYPROBE_TEST_LOAD_TIMEOUT=26h`，
 保留 `year` 历史、对账、真实页面及 systemd 限额。结果须等真实运行结束并核对，
 不能用短时通过或运行中的进度文件替代。
+
+## 2026-10-15：24 小时运行已中断，未通过验收
+
+原 ecfed96 / 100 节点运行在 WSL 有序关机时中断。最后资源样本为
+2026-10-15 10:32:10 UTC（9895 条），旧 WSL boot 的最后 journal 为 10:32:38 UTC；
+其中记录 `The system will power off now!` / `System is powering down.`。
+13:50 UTC 检查时原 PID 384 和 exec 63409 均不存在，WSL 已是新 boot；没有最终结果 JSON。
+Windows 未重启，但当前进程无权读取 Windows System 事件，具体关机发起者/触发原因未证实。
+
+这是约 2 小时 45 分钟的部分观测，不能声明 24 小时、最终序列核对/排空或 8/12/16 小时
+故障阶段通过。保留 [原始资源片段](evidence/joint-resource-100-24h-interrupted-2026-10-15.json)
+及 [中断事实](evidence/joint-soak-interruption-2026-10-15.json)。停止前采样未观察到 Server
+不可用，不等同于整段运行无数据丢失。
+
+后续完整长运行必须使用独立于短暂工具会话的托管并保持宿主 WSL 会话，先验证生命周期，
+再从零测量完整 24 小时。不能拼接旧时长或依赖 systemd 服务自动保持 WSL 存活；
+[微软说明](https://learn.microsoft.com/en-us/windows/wsl/systemd) 明确后者不成立。
+不修改本机全局电源设置，也不把测试环境中断当成已定位的 Server 运行故障。
