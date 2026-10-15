@@ -29,31 +29,36 @@ const sessionCookie = "myprobe_session"
 const githubStateCookie = "myprobe_github_state"
 
 type Server struct {
-	config                config.Config
-	store                 *store.Store
-	auth                  *auth.Service
-	github                *auth.GitHubService
-	gateway               *agentgateway.Gateway
-	hub                   *agentgateway.Hub
-	alerts                *alerts.Service
-	sharing               *sharing.Service
-	router                *gin.Engine
-	handler               http.Handler
-	schedulerHealth       func() any
-	httpSchedulerHealth   func() any
-	alertHealth           func() alerts.EngineDiagnostics
-	buildVersion          string
-	processStartedAt      time.Time
-	backupJob             diagnostics.Job
-	scheduledBackups      *backup.Scheduler
-	retentionWorkerHealth func() diagnostics.LoopSnapshot
-	diagnosticExports     diagnostics.ExportPreviews
+	config                       config.Config
+	store                        *store.Store
+	auth                         *auth.Service
+	github                       *auth.GitHubService
+	gateway                      *agentgateway.Gateway
+	hub                          *agentgateway.Hub
+	alerts                       *alerts.Service
+	sharing                      *sharing.Service
+	router                       *gin.Engine
+	handler                      http.Handler
+	schedulerHealth              func() any
+	httpSchedulerHealth          func() any
+	alertHealth                  func() alerts.EngineDiagnostics
+	buildVersion                 string
+	processStartedAt             time.Time
+	backupJob                    diagnostics.Job
+	scheduledBackups             *backup.Scheduler
+	retentionWorkerHealth        func() diagnostics.LoopSnapshot
+	networkRetentionWorkerHealth func() diagnostics.LoopSnapshot
+	diagnosticExports            diagnostics.ExportPreviews
 }
 
 type Option func(*Server)
 
 func WithRetentionWorkerHealth(snapshot func() diagnostics.LoopSnapshot) Option {
 	return func(s *Server) { s.retentionWorkerHealth = snapshot }
+}
+
+func WithNetworkRetentionWorkerHealth(snapshot func() diagnostics.LoopSnapshot) Option {
+	return func(s *Server) { s.networkRetentionWorkerHealth = snapshot }
 }
 
 func WithAlertHealth(snapshot func() alerts.EngineDiagnostics) Option {

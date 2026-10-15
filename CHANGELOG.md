@@ -16,8 +16,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Migration 043 adds unique planned tasks and transactional result identities;
   bounded dispatch preserves phase across restart and keeps uncertain sends
   distinct. Identical result retries receive ACK without duplicate history.
-  Coverage/statistics, bounded task-history retention and comparison pages remain
-  under development; existing Agents are not assumed to retry lost results.
+  Migration 044 adds bounded atomic raw/minute/five-minute network archival and
+  monotonic retention floors. Internal queries distinguish missing and failed
+  execution, weight successful RTT distributions and preserve jitter boundaries;
+  retained quantiles include histogram error bounds and actual time resolution.
+  An independent catch-up worker reports private health/export evidence. Public
+  quality APIs, comparison pages and large network archive capacity acceptance
+  remain under development; Agents are not assumed to retry lost results.
 
 - Private node diagnostics separate desired sampling revisions, negotiated Agent
   application acknowledgements and actual persisted HTTP/WebSocket report ingress.

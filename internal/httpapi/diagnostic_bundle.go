@@ -193,6 +193,7 @@ func (s *Server) collectDiagnosticBundle(ctx context.Context) diagnosticBundle {
 	}
 	bundle.Jobs["host_retention"] = exportJob(s.store.RetentionDiagnostics())
 	bundle.Jobs["http_retention"] = exportJob(s.store.HTTPRetentionDiagnostics())
+	bundle.Jobs["network_retention"] = exportJob(s.store.NetworkRetentionDiagnostics())
 	bundle.Jobs["manual_backup_generation"] = exportJob(s.backupJob.Snapshot())
 	bundle.Workers["retention"] = diagnosticWorker{Status: "unavailable"}
 	if s.retentionWorkerHealth != nil {
@@ -200,6 +201,11 @@ func (s *Server) collectDiagnosticBundle(ctx context.Context) diagnosticBundle {
 		bundle.Workers["retention"] = diagnosticWorker{Status: exportEnum(r.Status, "never_started", "running", "not_running")}
 	}
 	bundle.Workers["notification"] = diagnosticWorker{Status: "unavailable"}
+	bundle.Workers["network_retention"] = diagnosticWorker{Status: "unavailable"}
+	if s.networkRetentionWorkerHealth != nil {
+		r := s.networkRetentionWorkerHealth()
+		bundle.Workers["network_retention"] = diagnosticWorker{Status: exportEnum(r.Status, "never_started", "running", "not_running")}
+	}
 	if s.alertHealth != nil {
 		r := s.alertHealth()
 		bundle.Jobs["notification_evaluation"] = exportJob(r.Evaluation)
