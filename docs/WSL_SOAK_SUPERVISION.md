@@ -81,6 +81,10 @@ launcher，确认该 shell 确实退出后再检查 Linux 心跳和两个真实�
 5.1 的 Start-Process -Redirect* 会使启动者持有异步流处理，直到 worker 结束；现在把
 supervisor 日志重定向放在 worker 内，启动进程保持独立。使用当前源码 hash 的回归结果
 单独保存，不把早期 PowerShell 7 的通过当作 5.1 的证明。
+最终自动回归已通过 90 条心跳、真实启动 shell 退出、准确 0/31 退出码、双路各 2 MiB
+日志完整及旧目录拒绝；终态前日志已可读取。准确脚本 SHA-256 为
+`0e1cfe654432f8b56972e6512184d1f8bd18cb2ea4b0762ce82711fdc1b611d8`，
+见 [自动回归原始结果](evidence/wsl-soak-regression-2026-10-15.json)。
 
 ```powershell
 ./scripts/test-wsl-soak.ps1 -Distribution Ubuntu-24.04 `
