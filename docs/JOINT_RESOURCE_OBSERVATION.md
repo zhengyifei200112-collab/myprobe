@@ -36,7 +36,9 @@ RSS/WAL 采样最大值 55246848/5582632 B。报告尝试/ACK/入库均 31，126
 源代码、二进制 hash、原始结果和最终进度快照见
 [证据文件](evidence/joint-resource-observation-2026-10-15.json)。本地完整 Go 测试仅
 既有 Windows HostRoot #47 失败，其余包及 vet/build/gofmt/差异检查通过；CGO 关闭。
-准确实现 CI 38696911014 尚在运行，包含这些测试的 Linux race 检查。
+准确实现 CI [38696911014](https://github.com/zhengyifei200112-collab/myprobe/actions/runs/38696911014)
+全部成功，包含资源测试的 Linux race 检查、正式库/Agent、ENOSPC、稠密联合运行、容器与脚本。
+CI 原始资源结果亦保存于证据文件；Go 订阅者和托管硬件的范围与本地真实页面/限额分开。
 
 100 节点 24 小时测试使用同一组最终二进制，附加
 `MYPROBE_TEST_LOAD_NODES=100 MYPROBE_TEST_LOAD_DURATION=24h MYPROBE_TEST_LOAD_TIMEOUT=26h`，

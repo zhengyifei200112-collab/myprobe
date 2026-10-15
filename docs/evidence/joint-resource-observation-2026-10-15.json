@@ -319,5 +319,270 @@
     "Shared WSL host, Server-only cgroup controls, sampled peaks rather than absolute instantaneous peaks.",
     "Resource progress is observation-only and cannot establish the joint test passed."
   ],
-  "ci_status": "Exact-head CI 38696911014 is pending."
+  "ci": {
+    "run_url": "https://github.com/zhengyifei200112-collab/myprobe/actions/runs/38696911014",
+    "head_sha": "ecfed969bd444a58286006a3a032e2cadadc6602",
+    "conclusion": "success",
+    "result": {
+      "ResourceObservation": {
+        "ProgressWriteErrors": 0,
+        "Samples": 94,
+        "ServerUnavailableSamples": 0,
+        "TargetIntervalSeconds": 1,
+        "MaximumGapSeconds": 1.000937796,
+        "PeakRSSBytes": 60579840,
+        "PeakWALBytes": 5990512
+      },
+      "format": "myprobe.joint-load.v1",
+      "StartedAt": "2026-10-15T07:15:59.125796237Z",
+      "EndedAt": "2026-10-15T07:17:31.449575133Z",
+      "Nodes": 5,
+      "ReportSeconds": 15,
+      "TargetsPerNode": 3,
+      "TargetSeconds": 60,
+      "HTTPServices": 1,
+      "SubscriptionClients": 5,
+      "DurationRequestedSeconds": 90,
+      "ElapsedSeconds": 92.323778816,
+      "MeasurementSeconds": 92.322876703,
+      "RecoveryDrainSeconds": 0.000901973,
+      "RecoveryDrained": true,
+      "OS": "linux",
+      "GoVersion": "go1.26.9",
+      "LogicalCPUs": 4,
+      "HistoryFixture": "dense-year",
+      "DenseHistory": {
+        "LastLatencyID": 151440,
+        "Mode": "dense-year",
+        "Anchor": "2026-10-15T07:00:00Z",
+        "SeedFinishedAt": "2026-10-15T07:15:46.528911622Z",
+        "SeedSeconds": 81.630805338,
+        "MetricRows": 201925,
+        "LatencyRows": 151440,
+        "MetricRollupRows": 648000,
+        "TrafficRollupRows": 648000,
+        "LatencyRollupRows": 1944000,
+        "LastMetricID": 201925,
+        "DatabaseBytes": 1480265728,
+        "CounterOffset": 2102464
+      },
+      "SourceSHA256": {
+        "cmd/server/main.go": "c5c9eee3d757a44173c0b5344d92768416db1dd6ad1ed18ce29038866bd0eca4",
+        "internal/agentclient/client.go": "07f3243608b12c8dc14acec7f02645e9e50639f155abcd3d4d2074496bb02987",
+        "internal/agentclient/joint_load_browser_test.go": "8b72a9ad8ccc4382f98126791ecbba00bd3e221c809d0edd3462212e1719f50d",
+        "internal/agentclient/joint_load_history_test.go": "7054885b678d0f3f1495fb8d70f340602aaea4e721e0e6bf48c46a5233929273",
+        "internal/agentclient/joint_load_history_validation_test.go": "39a18fa96169753cc5f960637de1d6ed503d3e6e138e7048ffed3844dfef50b4",
+        "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+        "internal/agentclient/joint_load_reconciliation_test.go": "28bdbca87f16f677f4acbe25dbebbe546508ecdc932c5f4584633435a3c99564",
+        "internal/agentclient/joint_load_reconciliation_validation_test.go": "202b399775c00928a1565184228a519ef5eda5d7d64341c88879ef90ca177b27",
+        "internal/agentclient/joint_load_resource_test.go": "d7a419abf8e3c98949bc82f46d1a4a0af6a9365293bab36e2232f5da22bedd24",
+        "internal/agentclient/joint_load_resource_validation_test.go": "ce562f8022024b8eea3082f75de7fba795a6063c1bb55f230ebf9001474380d0",
+        "internal/agentclient/joint_load_test.go": "49f55cf901a568acab2740d31a40b4d4e165f8c7f4d544a379b6e1dd22bbf75c",
+        "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+        "internal/agentgateway/gateway.go": "af968d7c7ca65275f1beed39d72492184230cba9b99f9b73b0af3f78b230bd82",
+        "internal/store/agent_metadata.go": "7007a06e829cba634f9a271e57ba5b4338b68a66c38c1b8eafa36b4a263c6922",
+        "internal/store/store.go": "1b9f1f89f49bcf510e76fa3ac82ce854aaf607c46988ceff734671d5e1a51f4e",
+        "scripts/joint-load-browser.cjs": "7dc410ee3355da7f4ce8a3e37de52a8594df1239651dde88852dad0caa01a5dc",
+        "scripts/run-joint-load.sh": "9871cbf189ed0f1ad9585356152845d4aee3b6f5fd448562eece029c6ec236b7"
+      },
+      "ServerBinarySHA256": "d8d3206a1f88c9e4d7b631e477ab26154cf82e1470c79adca98994503ace9ef1",
+      "ResourceTimeline": [
+        {
+          "ElapsedSeconds": 2.2483E-05,
+          "RSSBytes": 43352064,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 3188912
+        },
+        {
+          "ElapsedSeconds": 30.000046446,
+          "RSSBytes": 43933696,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 4029392
+        },
+        {
+          "ElapsedSeconds": 60.000090493,
+          "RSSBytes": 47845376,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 5512592
+        },
+        {
+          "ElapsedSeconds": 90.001007192,
+          "RSSBytes": 59985920,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 5990512
+        },
+        {
+          "ElapsedSeconds": 92.323783533,
+          "RSSBytes": 51101696,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 5990512
+        }
+      ],
+      "SubscriptionMode": "go-websocket-consumers",
+      "RSSObservation": "proc-vmrss-sampled",
+      "CPUObservation": "unavailable",
+      "BrowserPageErrors": 0,
+      "BrowserConvergedNodes": 0,
+      "BrowserConvergedPages": 0,
+      "NotificationMode": "real-default-sender-isolated-rfc5737-receiver",
+      "DeliveryAttempts": 10,
+      "ConfigurationsConfirmed": 5,
+      "FinalHealth": {
+        "notification_engine": {
+          "status": "running",
+          "observation_scope": "process",
+          "delivery_configuration": "available",
+          "evaluation": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 2,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T07:17:19.340246133Z",
+            "last_completed_at": "2026-10-15T07:17:19.346264976Z",
+            "last_success_at": "2026-10-15T07:17:19.346264976Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.006018843
+          }
+        },
+        "notification_queue": {
+          "status": "available",
+          "observed_at": "2026-10-15T07:17:31.449150681Z",
+          "scope": "stored_active_logical_rows",
+          "deliveries": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "aggregates": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "system": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          }
+        },
+        "transport": {
+          "agent_connections": 5,
+          "pending_results": 0,
+          "http_pending_results": 0,
+          "http_expired_results": 0
+        },
+        "browser_subscriptions": 5,
+        "retention": {
+          "job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T07:17:04.330715753Z",
+            "last_completed_at": "2026-10-15T07:17:04.339171787Z",
+            "last_success_at": "2026-10-15T07:17:04.339171787Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.008456034
+          },
+          "http_catchup_job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-15T07:17:04.444002252Z",
+            "last_completed_at": "2026-10-15T07:17:04.444665254Z",
+            "last_success_at": "2026-10-15T07:17:04.444665254Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.000663012
+          }
+        }
+      },
+      "HTTPOutcomes": {
+        "failure:status_mismatch": 10,
+        "success:": 5
+      },
+      "ReportAccounting": {
+        "Mode": "test-observer-http-ws-ack-store",
+        "ReportAttempts": 31,
+        "Forwarded": 31,
+        "Acknowledged": 31,
+        "Stored": 31,
+        "StoredWithoutACK": 0,
+        "InterruptedNotStored": 0,
+        "UnexplainedNotStored": 0,
+        "ACKWithoutStored": 0,
+        "UnknownStored": 0,
+        "HashMismatch": 0,
+        "DuplicateStored": 0,
+        "MaxACKDelayMilliseconds": 105.005862,
+        "GeneratedEnvelopes": 146,
+        "ObservedEnvelopes": 146,
+        "UnobservedGeneratedEnvelopes": 0
+      },
+      "ResourceLimits": {
+        "mode": "unrestricted"
+      },
+      "ResourceSampleSeconds": 1,
+      "SampledPeakRSSBytes": 60579840,
+      "SampledPeakWALBytes": 5990512,
+      "ServerCPUMicroseconds": 0,
+      "APILatency": {
+        "health": {
+          "count": 37,
+          "P50": 0.94462,
+          "P95": 1.372317,
+          "Max": 1.614316
+        },
+        "history_dense_1y": {
+          "count": 37,
+          "P50": 1733.190819,
+          "P95": 1790.194172,
+          "Max": 1812.309446
+        },
+        "history_dense_30d": {
+          "count": 37,
+          "P50": 714.21997,
+          "P95": 732.012106,
+          "Max": 740.643248
+        },
+        "overview": {
+          "count": 37,
+          "P50": 1.890876,
+          "P95": 2.55171,
+          "Max": 3.282021
+        }
+      },
+      "APIErrors": 0,
+      "CollectedReports": 40,
+      "PersistedReports": 31,
+      "TCPSuccesses": 45,
+      "HTTPResults": 15,
+      "Snapshots": 10,
+      "SubscriptionEvents": 355,
+      "NotificationsFailed": 5,
+      "NotificationsDelivered": 5,
+      "Faults": [
+        "closed all Agent sockets; normal reconnect/backoff remained active",
+        "restarted the same real Server/database; normal Agent and subscription reconnection"
+      ],
+      "Limitations": [
+        "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+        "five Go WebSocket consumers are not rendered browser sessions",
+        "SQL-generated dense retained year, with real startup retention and live workload; setup is not a live soak",
+        "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports",
+        "one-second resource/WAL sampling can miss instantaneous peaks",
+        "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+        "short runs do not establish 24-hour stability"
+      ],
+      "Passed": true
+    }
+  }
 }
