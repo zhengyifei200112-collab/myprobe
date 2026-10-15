@@ -254,6 +254,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 	var cpuMicros uint64
 	restarted, disconnected := false, false
 	started := time.Now()
+	result.StartedAt = started.UTC()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for time.Since(started) < duration {
@@ -333,11 +334,48 @@ func TestJointRuntimeLoad(t *testing.T) {
 			}
 		}
 	}
+	result.MeasurementSeconds = time.Since(started).Seconds()
+	// Keep the actual clients/pages alive during a separate bounded settling
+	// phase. A successful send is not evidence that the durable backlog drained.
+	drainStarted := time.Now()
+	for !deniedReceiver && time.Since(drainStarted) < 60*time.Second {
+		response, err := httpClient.Get(base + "/api/v1/admin/system/health")
+		if err != nil {
+			t.Error("recovery health request failed")
+			break
+		}
+		var current jointHealth
+		err = json.NewDecoder(response.Body).Decode(&current)
+		response.Body.Close()
+		if response.StatusCode != 200 || err != nil {
+			t.Error("recovery health unavailable")
+			break
+		}
+		result.FinalHealth = current
+		queue := current.Queue
+		if queue.Status == "available" && queue.Deliveries != nil && queue.Aggregates != nil && queue.System != nil && queue.Deliveries.Pending+queue.Deliveries.Inflight+queue.Aggregates.Pending+queue.Aggregates.Inflight+queue.System.Pending+queue.System.Inflight == 0 {
+			result.RecoveryDrained = true
+			break
+		}
+		if rss := server.rssBytes(); rss > peakRSS {
+			peakRSS = rss
+		}
+		if stat, err := os.Stat(databasePath + "-wal"); err == nil && stat.Size() > peakWAL {
+			peakWAL = stat.Size()
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("recovery drain timed out")
+		case <-time.After(time.Second):
+		}
+	}
+	result.RecoveryDrainSeconds = time.Since(drainStarted).Seconds()
 	result.ElapsedSeconds = time.Since(started).Seconds()
 	result.EndedAt = time.Now().UTC()
 	result.APIErrors, result.SampledPeakRSSBytes, result.SampledPeakWALBytes = requestErrors, peakRSS, peakWAL
 	result.ServerCPUMicroseconds = cpuMicros + server.cpuMicros()
 	result.ResourceSampleSeconds = 1
+	result.ResourceTimeline = append(result.ResourceTimeline, jointResourcePoint{ElapsedSeconds: result.ElapsedSeconds, RSSBytes: server.rssBytes(), CPUMicroseconds: result.ServerCPUMicroseconds, SampledPeakWALBytes: peakWAL})
 	result.APILatency = make(map[string]jointLatency)
 	for name, values := range measurements {
 		result.APILatency[name] = jointDistribution(values)
@@ -442,6 +480,9 @@ func TestJointRuntimeLoad(t *testing.T) {
 	if deniedReceiver {
 		notificationsOK = result.NotificationsFailed == 0 && result.NotificationsDelivered == 0 && result.DeliveryAttempts > 0
 	}
+	if !deniedReceiver && !result.RecoveryDrained {
+		t.Error("notification backlog did not drain within 60 seconds")
+	}
 	if result.APIErrors > 0 || result.Snapshots < 5 || result.SubscriptionEvents == 0 || !notificationsOK || !disconnected || !restarted || result.BrowserPageErrors > 0 {
 		t.Error("joint runtime did not complete all request, subscription and notification paths")
 	}
@@ -536,6 +577,8 @@ type jointLoadResult struct {
 	StartedAt, EndedAt                                                                                                                        time.Time
 	Nodes, ReportSeconds, TargetsPerNode, TargetSeconds, HTTPServices, SubscriptionClients                                                    int
 	DurationRequestedSeconds, ElapsedSeconds                                                                                                  float64
+	MeasurementSeconds, RecoveryDrainSeconds                                                                                                  float64
+	RecoveryDrained                                                                                                                           bool
 	OS, GoVersion                                                                                                                             string
 	LogicalCPUs                                                                                                                               int
 	HistoryFixture                                                                                                                            string
