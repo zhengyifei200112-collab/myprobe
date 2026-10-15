@@ -207,6 +207,9 @@ docker compose --env-file .env.agent -f compose.agent.yaml ps
 [联合运行负载说明](docs/JOINT_RUNTIME_LOAD.md)。短测试和本轮历史不替代稠密历史与
 实际 24 小时容量验收。
 
+实时节点更新采用单节点公开查询，保留原有脱敏及隐藏规则；完整快照仍返回完整列表。
+[单节点发布复测](docs/NODE_PUBLICATION_CAPACITY.md) 记录 100 节点短测的改善及剩余门槛。
+
 安装依赖、构建前端并运行测试：
 
 ```bash

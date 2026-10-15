@@ -21,7 +21,17 @@ func (s *Store) SaveAgentMetadata(ctx context.Context, nodeID string, hello prot
 }
 
 func (s *Store) agentMetadata(ctx context.Context) (map[string]AgentMetadata, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT node_id,hostname,operating_system,platform,platform_version,kernel_version,architecture,agent_version,capabilities_json,updated_at FROM node_agent_metadata`)
+	return s.readAgentMetadata(ctx, nil)
+}
+
+func (s *Store) readAgentMetadata(ctx context.Context, nodeID *string) (map[string]AgentMetadata, error) {
+	query := `SELECT node_id,hostname,operating_system,platform,platform_version,kernel_version,architecture,agent_version,capabilities_json,updated_at FROM node_agent_metadata`
+	var args []any
+	if nodeID != nil {
+		query += " WHERE node_id = ?"
+		args = append(args, *nodeID)
+	}
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

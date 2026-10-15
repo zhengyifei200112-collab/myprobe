@@ -110,6 +110,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Live node updates read only the visible node being published, avoiding repeated
+  whole-dashboard assembly for every report or latency result. Shared projection
+  preserves public masking, metadata omission, traffic and visibility semantics;
+  full snapshots and API lists stay complete, with no schema or protocol change.
+
 - Committed service-alert imports replay their original result through a read-only
   point lookup instead of waiting for unrelated management writers. New requests
   still recheck inside the original atomic transaction; receipt retention, caps,
