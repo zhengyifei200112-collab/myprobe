@@ -18,6 +18,9 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
    const dialog = page.getByRole('dialog', { name: '网络质量对比' }); await dialog.waitFor();
    const compare = dialog.getByRole('button', { name: '比较', exact: true });
    await dialog.locator('.quality-result-heading').waitFor(); await compare.waitFor({ state: 'visible' }); await assertEnabled(compare);
+   const search = dialog.getByLabel('搜索观测节点', { exact: true }), searchCalls = calls.length;
+   await search.fill('观测节点 01'); assert.equal(await dialog.locator('.quality-observers input[type="checkbox"]').count(), 1); await search.fill('');
+   assert.equal(calls.length, searchCalls, 'local observer search does not query');
    for (const box of await dialog.locator('.quality-observers input[type="checkbox"]').all()) if (await box.isChecked()) await box.uncheck();
    for (const id of ids) await dialog.locator(`input[value="${id}"]`).check();
    assert.equal(await dialog.locator('.quality-observers input[type="checkbox"]:checked').count(), 8);
@@ -47,6 +50,10 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
    await dialog.locator('.quality-table-wrap').scrollIntoViewIfNeeded();
    await page.screenshot({ path: path.join(output, `table-${theme}-${width}.png`) });
    if (width === 1440 && theme === 'light') {
+    await dialog.getByLabel('探测目标', { exact: true }).selectOption({ label: 'IPv6 配置目标 · TCP' }); await compare.click(); await dialog.locator('.quality-table').waitFor(); await assertEnabled(compare);
+    const unsupported = series.at(-1).nodes.find(n => n.node_id === ids[0]);
+    assert.equal(unsupported.counts.success, 0); assert.equal(unsupported.counts.failure, 0); assert.ok(unsupported.counts.not_executed > 0); assert.equal(unsupported.execution_failure_pct, null); assert.equal(unsupported.rtt_mean_ms, null);
+    evidence.ipv6_case = { synthetic_configured_observer: true, unsupported_is_not_execution_failure: true, exact_packet_loss_unavailable: true, actual_ipv6_network_execution: false };
     await dialog.getByLabel('时间范围', { exact: true }).selectOption('peak'); await compare.click(); await dialog.locator('.quality-table').waitFor(); await assertEnabled(compare);
     const peak = series.at(-1); assert.equal(Date.parse(peak.requested_end) - Date.parse(peak.requested_start), 4 * 3600000);
     assert.ok(Date.parse(peak.requested_end) <= Date.parse(peak.as_of));
@@ -59,6 +66,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
     await dialog.locator(`input[value="${process.env.QA_EMPTY_ID}"]`).check(); await compare.click();
     await dialog.getByText('所选节点暂无可比较目标，请由管理员配置或分配探测目标。').waitFor();
    }
+   await page.keyboard.press('Tab'); assert.equal(await dialog.evaluate(el => el.contains(document.activeElement)), true, 'focus stays in modal after async work');
    await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'hidden' });
    assert.equal(await page.getByRole('button', { name: '网络质量', exact: true }).evaluate(el => el === document.activeElement), true, 'focus returns to entry');
    assert.deepEqual(errors, []);

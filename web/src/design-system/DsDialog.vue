@@ -99,6 +99,7 @@ onBeforeUnmount(() => { document.removeEventListener('keydown', documentKeydown)
 .ds-dialog__overlay { position: fixed; inset: 0; z-index: var(--z-overlay); padding: var(--space-6); display: grid; place-items: center; overflow: auto; background: var(--overlay); }
 .ds-dialog__panel { width: min(38rem, 100%); max-height: min(52rem, calc(100vh - 3rem)); overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-dialog); background: var(--surface-solid); box-shadow: var(--shadow-dialog); outline: 0; }
 .ds-dialog__panel--wide { width: min(74rem, 100%); max-height: calc(100dvh - 3rem); }
+.ds-dialog__panel--wide .ds-dialog__header { position: sticky; top: 0; z-index: 3; background: var(--surface-solid); border-bottom: 1px solid var(--border); }
 .ds-dialog__header { padding: var(--space-6) var(--space-6) var(--space-4); display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
 .ds-dialog__header h2 { margin: 0; font-size: var(--font-size-xl); line-height: var(--line-height-tight); }
 .ds-dialog__header p { margin: var(--space-2) 0 0; color: var(--text-secondary); font-size: var(--font-size-sm); }

@@ -137,3 +137,56 @@ jobs:
           MYPROBE_TEST_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
           MYPROBE_TEST_NETWORK_ARCHIVE_OUTPUT: ${{ runner.temp }}/network-archive-capacity.json
         run: go test ./internal/store -run '^TestNetworkQualityArchiveYearCapacity$' -timeout 12m -count=1 -v
+
+  network-comparison-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact comparison source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build exact embedded frontend
+        run: |
+          npm --prefix web ci
+          npm --prefix web run build
+          git diff --exit-code -- internal/webui/dist
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: go.sum
+
+      - name: Install pinned browser fixture runtime
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/myprobe-browsers
+        run: |
+          npm install --prefix "${RUNNER_TEMP}/myprobe-browser" --no-save playwright@1.62.1
+          node "${RUNNER_TEMP}/myprobe-browser/node_modules/playwright/cli.js" install --with-deps --only-shell chromium
+
+      - name: Verify real scoped comparison and six theme and viewport flows
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/myprobe-browser/node_modules/playwright
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/myprobe-browsers
+          MYPROBE_TEST_NETWORK_QUALITY_BROWSER: '1'
+          MYPROBE_TEST_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          QA_ARTIFACT_DIR: ${{ runner.temp }}/myprobe-network-comparison
+        run: go test ./internal/httpapi -run '^TestNetworkQualityLiveComparisonBrowser$' -timeout 8m -count=1 -v
+
+      - name: Preserve synthetic comparison screenshots and result
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: network-comparison-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/myprobe-network-comparison
+          if-no-files-found: ignore
+          retention-days: 7

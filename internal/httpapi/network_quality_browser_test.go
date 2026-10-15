@@ -92,6 +92,13 @@ func TestNetworkQualityLiveComparisonBrowser(t *testing.T) {
 			if i%13 == 1 {
 				class = "unsupported"
 			}
+			if kind == "tcping" && a.NodeID == f.nodes[0].ID {
+				for _, target := range targets {
+					if target.ID == a.TargetID && target.Host == "2001:db8::53" {
+						class = "unsupported"
+					}
+				}
+			}
 			rtt := float64(10+j*2) + float64(i%20)/2
 			if class != "" {
 				rtt = 0
