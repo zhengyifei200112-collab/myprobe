@@ -136,6 +136,7 @@ func (s *Server) routes() {
 	public.GET("/settings", s.publicSettings)
 	public.GET("/nodes", s.publicNodes)
 	public.GET("/nodes/:nodeID/history", s.publicNodeHistory)
+	public.GET("/network-quality", privateNoStore(), s.publicNetworkQuality)
 
 	s.router.POST("/api/v1/agent/report", gin.WrapF(s.gateway.HTTPReport))
 	s.router.POST("/api/v1/agent/hello", gin.WrapF(s.gateway.HTTPHello))
@@ -156,6 +157,7 @@ func (s *Server) routes() {
 	share.POST("/logout", s.shareLogout)
 	share.GET("/nodes", s.shareNodes)
 	share.GET("/nodes/:nodeID/history", s.shareNodeHistory)
+	share.GET("/network-quality", s.shareNetworkQuality)
 
 	policies := s.router.Group("/api/v1/admin/alert-policies", privateNoStore(), s.requireSession(true))
 	maintenance := s.router.Group("/api/v1/admin/maintenance-windows", privateNoStore(), s.requireSession(true))
@@ -175,6 +177,7 @@ func (s *Server) routes() {
 	policies.DELETE("/:policyID", s.deleteAlertPolicy)
 	// Set cache policy before authentication so rejected diagnostics are private too.
 	s.router.GET("/api/v1/admin/system/health", privateNoStore(), s.requireSession(true), s.systemHealth)
+	s.router.GET("/api/v1/admin/network-quality", privateNoStore(), s.requireSession(true), s.adminNetworkQuality)
 	s.router.GET("/api/v1/admin/nodes/:nodeID/diagnostics", privateNoStore(), s.requireSession(true), s.nodeDiagnostics)
 	diagnosticExports := s.router.Group("/api/v1/admin/system/diagnostic-exports", privateNoStore(), s.requireSession(true))
 	diagnosticExports.POST("/preview", s.prepareDiagnosticExport)

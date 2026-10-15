@@ -21,8 +21,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   execution, weight successful RTT distributions and preserve jitter boundaries;
   retained quantiles include histogram error bounds and actual time resolution.
   An independent catch-up worker reports private health/export evidence. Public
-  quality APIs, comparison pages and large network archive capacity acceptance
-  remain under development; Agents are not assumed to retry lost results.
+  quality range-summary APIs now accept at most eight nodes through explicit
+  public/share/admin authorization and privacy projections in one read snapshot.
+  Protocol-unreported address families and packet loss stay unavailable. Time
+  series, comparison pages and full network capacity acceptance remain under
+  development; Agents are not assumed to retry lost results.
 
 - Private node diagnostics separate desired sampling revisions, negotiated Agent
   application acknowledgements and actual persisted HTTP/WebSocket report ingress.
