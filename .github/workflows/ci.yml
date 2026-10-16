@@ -179,6 +179,8 @@ jobs:
           go test ./...
           go vet ./...
           go build ./cmd/...
+          go test -race ./internal/releasecheck -count=1
+          go test -race ./internal/httpapi -run '^TestReleaseStatusAdminContract$' -count=1
           go test -race ./internal/agentclient -run '^TestJointResource' -count=1
           go test -race ./internal/agentclient -run '^TestJointBackup' -count=1
           go test -race ./internal/store ./internal/scheduler ./internal/agentgateway -run '^TestNetwork' -count=1
@@ -352,6 +354,15 @@ jobs:
           MYPROBE_TEST_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
           QA_ARTIFACT_DIR: ${{ runner.temp }}/myprobe-network-comparison
         run: go test ./internal/httpapi -run '^TestNetwork(QualityLiveComparison|DefinitionLive)Browser$' -timeout 8m -count=1 -v
+
+      - name: Verify private release awareness and six theme and viewport flows
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/myprobe-browser/node_modules/playwright
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/myprobe-browsers
+          MYPROBE_TEST_RELEASE_BROWSER: '1'
+          MYPROBE_TEST_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          QA_ARTIFACT_DIR: ${{ runner.temp }}/myprobe-network-comparison
+        run: go test ./internal/httpapi -run '^TestReleaseAwarenessLiveBrowser$' -timeout 4m -count=1 -v
 
       - name: Preserve synthetic comparison screenshots and result
         if: always()

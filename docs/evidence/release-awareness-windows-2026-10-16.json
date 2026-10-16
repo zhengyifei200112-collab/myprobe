@@ -1,0 +1,86 @@
+{
+  "format": "myprobe.release-awareness-browser.v1",
+  "source_commit": "working-tree",
+  "browser": "155.0.4283.45",
+  "backend": "actual Cookie/CSRF/Gin/Store/checker/embedded assets; owned upstream transport",
+  "views": [
+    {
+      "theme": "light",
+      "width": 360,
+      "actual_csrf_check": true,
+      "shared_cached_result": true,
+      "cache_reread_during_cooldown": true,
+      "node_selection": true,
+      "unknown_version": true,
+      "cooldown": true,
+      "overflow": false,
+      "page_errors": 0
+    },
+    {
+      "theme": "light",
+      "width": 768,
+      "actual_csrf_check": false,
+      "shared_cached_result": true,
+      "cache_reread_during_cooldown": true,
+      "node_selection": true,
+      "unknown_version": true,
+      "cooldown": true,
+      "overflow": false,
+      "page_errors": 0
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "actual_csrf_check": false,
+      "shared_cached_result": true,
+      "cache_reread_during_cooldown": true,
+      "node_selection": true,
+      "unknown_version": true,
+      "cooldown": true,
+      "overflow": false,
+      "page_errors": 0
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "actual_csrf_check": false,
+      "shared_cached_result": true,
+      "cache_reread_during_cooldown": true,
+      "node_selection": true,
+      "unknown_version": true,
+      "cooldown": true,
+      "overflow": false,
+      "page_errors": 0
+    },
+    {
+      "theme": "dark",
+      "width": 768,
+      "actual_csrf_check": false,
+      "shared_cached_result": true,
+      "cache_reread_during_cooldown": true,
+      "node_selection": true,
+      "unknown_version": true,
+      "cooldown": true,
+      "overflow": false,
+      "page_errors": 0
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "actual_csrf_check": false,
+      "shared_cached_result": true,
+      "cache_reread_during_cooldown": true,
+      "node_selection": true,
+      "unknown_version": true,
+      "cooldown": true,
+      "overflow": false,
+      "page_errors": 0
+    }
+  ],
+  "synthetic_fault_checks": [
+    "expired cache hides up-to-date",
+    "503 clears data",
+    "retry",
+    "401 clears private panel"
+  ]
+}

@@ -224,8 +224,9 @@ go test ./cmd/server -run '^TestLiveSystemHealthMainBrowser$' -v -count=1
 
 The sampling confirmation and report-ingress follow-up is documented separately
 in [AGENT_RUNTIME_EVIDENCE.md](AGENT_RUNTIME_EVIDENCE.md), including optional capability
-warnings and pinned v0.2.1 binary compatibility. Upstream version discovery/automatic
-upgrades, full diagnostic-export acceptance, full scheduled-backup/failover acceptance and full-system capacity/
+warnings and pinned v0.2.1 binary compatibility. Upstream stable-version awareness
+is now covered by [RELEASE_AWARENESS.md](RELEASE_AWARENESS.md); automatic upgrade
+execution is not provided. Full diagnostic-export acceptance, full scheduled-backup/failover acceptance and full-system capacity/
 24-hour operation remain separate roadmap work. This integration and local
 checks do not establish complete SYS-01–03 or M5 acceptance. The original health
 branch's CI references above are historical evidence, not latest integration CI.

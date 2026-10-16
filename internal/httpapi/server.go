@@ -20,6 +20,7 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/backup"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
 	"github.com/zhengyifei200112-collab/myprobe/internal/diagnostics"
+	"github.com/zhengyifei200112-collab/myprobe/internal/releasecheck"
 	"github.com/zhengyifei200112-collab/myprobe/internal/sharing"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 	"github.com/zhengyifei200112-collab/myprobe/internal/webui"
@@ -49,9 +50,14 @@ type Server struct {
 	retentionWorkerHealth        func() diagnostics.LoopSnapshot
 	networkRetentionWorkerHealth func() diagnostics.LoopSnapshot
 	diagnosticExports            diagnostics.ExportPreviews
+	releases                     *releasecheck.Checker
 }
 
 type Option func(*Server)
+
+func WithReleaseChecker(checker *releasecheck.Checker) Option {
+	return func(s *Server) { s.releases = checker }
+}
 
 func WithRetentionWorkerHealth(snapshot func() diagnostics.LoopSnapshot) Option {
 	return func(s *Server) { s.retentionWorkerHealth = snapshot }
@@ -181,6 +187,8 @@ func (s *Server) routes() {
 	policies.DELETE("/:policyID", s.deleteAlertPolicy)
 	// Set cache policy before authentication so rejected diagnostics are private too.
 	s.router.GET("/api/v1/admin/system/health", privateNoStore(), s.requireSession(true), s.systemHealth)
+	s.router.GET("/api/v1/admin/system/releases", privateNoStore(), s.requireSession(true), s.releaseStatus)
+	s.router.POST("/api/v1/admin/system/releases/check", privateNoStore(), s.requireSession(true), s.releaseStatus)
 	s.router.GET("/api/v1/admin/network-quality", privateNoStore(), s.requireSession(true), s.adminNetworkQuality)
 	s.router.GET("/api/v1/admin/network-quality/series", privateNoStore(), s.requireSession(true), s.adminNetworkQualitySeries)
 	s.router.GET("/api/v1/admin/network-quality/targets", privateNoStore(), s.requireSession(true), s.adminNetworkQualityTargets)

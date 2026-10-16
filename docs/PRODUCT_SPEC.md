@@ -11,6 +11,14 @@
 
 ## Feature parity matrix
 
+Private System Health now includes official stable-release awareness for the
+Server and selected Agent's last advertised version, with explicit unknown,
+stale and unavailable states. Daily automatic checks can be disabled; manual
+checks share a bounded cached request and cooldown. Version ordering never
+asserts protocol incompatibility or capability support. Fixed official upgrade
+instructions and eligible Linux installer commands are advisory only; no remote
+update execution is added. See [release awareness](RELEASE_AWARENESS.md).
+
 The network evidence work package now persists requested family/packet options in
 migration 045 and configuration v3. Private target controls expose those requested
 settings; omitted fields on a legacy rename preserve the existing definition.

@@ -4,6 +4,14 @@ MyProbe 提供一键安装、Docker、Release 二进制和源码构建四种受�
 生产环境建议固定版本，并始终把 Server 放在支持 WebSocket Upgrade 的 HTTPS 反向
 代理之后。
 
+管理端“系统健康 → 版本与升级”提供官方稳定版提醒、Server 与所选 Agent 最近声明
+版本的比较，以及升级说明。版本差异不代表协议不兼容。Server 默认启动时及每 24
+小时访问固定的公开 GitHub Release API，不发送本机版本、节点资料或应用凭据；
+可设置 `MYPROBE_RELEASE_CHECKS_AUTO=false` 并重启关闭自动检查，仍可手动检查。
+容器部署须将该变量传入 Server 容器。检查有冷却与缓存时效，来源不可用时不宣称
+“已是最新”。页面仅给出手动升级参考，不执行远程更新。详见
+[版本提醒约定](RELEASE_AWARENESS.md)。
+
 ## 方式选择
 
 | 方式 | 适用场景 | 升级方式 |
