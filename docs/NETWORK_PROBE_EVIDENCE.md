@@ -66,8 +66,15 @@ job 已通过；后继 c0d9fb3 包括真实无路由反例，仍按准确 head �
 Intel CI：真实自有 IPv4/IPv6 TCP、各两包 ICMP、三包任务经过 Agent/Gateway/Store/ACK，
 以及忙状态保留未知和 race 回归。原生门槛禁止把 IPv6 跳过计为通过；JSON 事件验证器
 要求九个具体子项完成及两族实际计数输出，并绑定实际 OS/架构、Go 版本和准确源码。
-原生 CI 通过之前仍不得宣称 Darwin 已验收；Linux 隔离静默/无路由实验不能冒充 macOS
-同等故障覆盖。
+实现提交 `a6caea519fedc1328f98ce428fa15b9bbf1f2913` 的
+[CI 38947898587](https://github.com/zhengyifei200112-collab/myprobe/actions/runs/38947898587)
+中，两项 Darwin 原生 job 均已成功，包含上述实际链路和独立 race 执行。Apple Silicon
+使用 macOS 15.7.9 / Go 1.26.8，Intel 使用 macOS 15.7.9 / Go 1.26.7；每个平台九项
+必要子测试全部通过，IPv4/IPv6 均实际 sent=2/received=2，调度链路断言实际三包。
+原始结构化结果见 [ARM64](evidence/network-probe-darwin-arm64-2026-10-17.json) 与
+[Intel](evidence/network-probe-darwin-amd64-2026-10-17.json)，事件摘要和源文件 hash
+已在下载后复核。该记录绑定实现提交，不代替后继提交的全套 CI；Linux 隔离静默/
+无路由实验不能冒充 macOS 同等故障覆盖，仍不据此宣布整项网络或发布验收完成。
 
 核对 [Apple ping6 源码](https://github.com/apple-oss-distributions/network_cmds/blob/main/ping6.tproj/ping6.c)
 发现 `-W` 表示旧式 FQDN/节点查询，并非 IPv4 `ping` 的毫秒等待参数。IPv6 命令因此
