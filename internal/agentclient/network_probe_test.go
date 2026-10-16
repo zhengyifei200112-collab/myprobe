@@ -115,6 +115,8 @@ func TestNetworkProbePingEvidenceNeverInventsPacketsOrRTT(t *testing.T) {
 		{"output cap", "", check.Unobserved, "internal", errEvidenceOutputLimit, false},
 		{"zero sent", "0 packets transmitted, 0 received, 100% packet loss\n", check.Unobserved, "no_packets_sent", errors.New("tool failed"), false},
 		{"contradictory summary", strings.Replace(linuxPartial, "5 packets transmitted, 2 received", "0 packets transmitted, 0 received", 1), check.Unobserved, "internal", nil, false},
+		{"local sends failed despite attempted count", "ping: sendmsg: Network is unreachable\n5 packets transmitted, 0 received, 100% packet loss\n", check.Unobserved, "send_error", errors.New("tool failed"), false},
+		{"local error in partial success invalidates sent count", "ping: sendmsg: Network is unreachable\n" + linuxPartial, check.Success, "", errors.New("partial send failed"), false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			executor := defaultNetworkProbeExecutor()
@@ -154,6 +156,11 @@ func TestNetworkProbeWindowsPacketSummaryRequiresEchoReplies(t *testing.T) {
 	stats := parsePingEvidence("Reply from 192.0.2.1: Destination host unreachable.\nPackets: Sent = 1, Received = 1, Lost = 0 (0% loss),\n", "windows", 1)
 	if stats.packets != nil || stats.rtt != nil || stats.transmitted != 1 {
 		t.Fatal("unreachable response became an ICMP Echo Reply")
+	}
+	for _, text := range []string{"PING: transmit failed. General failure.", "PING: 传输失败。常规故障。"} {
+		if !localPingSendError(text) {
+			t.Fatal("local Windows failure could become exact packet loss")
+		}
 	}
 	for _, text := range []string{linuxPartial + linuxPartial, strings.Replace(linuxPartial, "2 received", "6 received", 1)} {
 		if parsePingEvidence(text, "linux", 5).packets != nil {
@@ -248,4 +255,17 @@ func TestNetworkProbeNativeSilentTarget(t *testing.T) {
 		t.Fatalf("silent-target evidence = %+v", result)
 	}
 	t.Logf("native=%s family=%s sent=%d received=%d outcome=%s", runtime.GOOS, result.AddressFamily, result.Packets.Sent, result.Packets.Received, result.Outcome)
+}
+
+func TestNetworkProbeNativeNoRoute(t *testing.T) {
+	if os.Getenv("MYPROBE_TEST_NETWORK_EVIDENCE_LOSS") != "1" {
+		t.Skip("requires owned namespace with no route to the second fixture address")
+	}
+	task := networkFixtureTask(v1.TaskKindPing, check.FamilyIPv4, "192.0.2.54")
+	task.PacketCount = 2
+	result := defaultNetworkProbeExecutor().execute(context.Background(), task)
+	if result.ValidateAgainst(task, time.Now()) != nil || result.Outcome != check.Unobserved || result.ErrorClass != "send_error" || result.Packets != nil || result.AddressFamily != check.FamilyUnknown {
+		t.Fatalf("no-route must not claim transmitted packets or target failure: %+v", result)
+	}
+	t.Logf("native=%s no_route_outcome=%s class=%s packet_evidence=unavailable", runtime.GOOS, result.Outcome, result.ErrorClass)
 }

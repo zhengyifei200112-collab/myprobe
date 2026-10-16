@@ -136,7 +136,13 @@ func (e networkProbeExecutor) execute(parent context.Context, task check.Task) (
 	}
 	if stats.rtt != nil && stats.echoReplies > 0 {
 		result.Outcome, result.ErrorClass, result.AddressFamily, result.RTTMS = check.Success, "", family, stats.rtt
-		result.Packets = stats.packets
+		if !localPingSendError(text) {
+			result.Packets = stats.packets
+		}
+		return
+	}
+	if localPingSendError(text) {
+		result.ErrorClass = "send_error"
 		return
 	}
 	if stats.transmitted > 0 {

@@ -127,7 +127,7 @@ func (r Result) Validate(now time.Time) error {
 			return ErrInvalid
 		}
 		switch r.ErrorClass {
-		case "unsupported", "busy", "dns", "invalid_task", "cancelled", "no_address", "no_packets_sent", "internal":
+		case "unsupported", "busy", "dns", "invalid_task", "cancelled", "no_address", "no_packets_sent", "send_error", "internal":
 		default:
 			return ErrInvalid
 		}

@@ -39,6 +39,9 @@ RemoteAddr；不再次隐式解析或退回另一个地址族。ICMP 只调用�
 只信任完整、唯一、计数关系有效的工具摘要。Windows 的 Received 可能包含 Destination
 Unreachable，因此还要求实际带 time/时间 的 Echo Reply 数与摘要一致；否则计数不可用。
 Windows 英文、简体中文（含 GBK）有解析回归，其他无法可靠识别的格式明确不可用。
+sendmsg/sendto/本地 transmit failed 等发送错误会使工具的 attempted/sent 摘要不再是
+可信的实际发包计数。没有回包时记未观测 send_error；有可信 RTT 时可以保留成功结果，
+但包数仍为 null，不能把本机没发出去的请求报成目标丢包。
 工具平均 RTT 的量化精度保留，例如 Windows 回环平均 0 ms 是工具量化结果，不能解释为
 物理零时延；空数据的 null 与这个实际观测值始终不同。
 

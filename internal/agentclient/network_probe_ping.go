@@ -72,3 +72,13 @@ func unsupportedPingText(text string) bool {
 	}
 	return false
 }
+
+func localPingSendError(text string) bool {
+	lower := strings.ToLower(text)
+	for _, value := range []string{"sendmsg:", "sendto:", "ping: connect:", "ping6: connect:", "transmit failed", "general failure", "传输失败", "常规故障"} {
+		if strings.Contains(lower, value) {
+			return true
+		}
+	}
+	return false
+}
