@@ -55,6 +55,11 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
    await dialog.locator('.quality-table-wrap').scrollIntoViewIfNeeded();
    await page.screenshot({ path: path.join(output, `table-${theme}-${width}.png`) });
    await dialog.locator('.quality-packets').first().scrollIntoViewIfNeeded();
+   await dialog.locator('.quality-table-wrap').evaluate(el => {
+    const row = el.querySelector('tbody tr'), cell = row.querySelector('.quality-packets'), pinned = row.querySelector('th');
+    // Native scrollIntoView does not account for the sticky observer column.
+    el.scrollLeft += cell.getBoundingClientRect().left - pinned.getBoundingClientRect().right;
+   });
    await page.screenshot({ path: path.join(output, `packet-evidence-${theme}-${width}.png`) });
    if (width === 1440 && theme === 'light') {
     await dialog.getByLabel('探测目标', { exact: true }).selectOption({ label: 'IPv6 配置目标 · TCP' }); await compare.click(); await dialog.locator('.quality-table').waitFor(); await assertEnabled(compare);

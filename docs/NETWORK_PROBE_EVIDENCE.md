@@ -131,6 +131,29 @@ sent=3/received=3；Linux 由原生 CI 检验，不能由 Windows 结果替代�
 Gin/Store/嵌入资源，混合新旧记录显示部分观测，旧记录仍未知；公开/管理/密码分享分别
 验证范围及字段白名单。原始本地记录见 [传输证据](evidence/network-probe-transport-2026-10-16.json)。
 本地完整 Go 仍仅已有 Windows HostRoot #47 失败；CGO 关闭，race 以准确源 CI 为准。
+实际实现 `49334ad7ec5cde20079c62a25d7facd8980006bd` 的
+[CI 38835498392](https://github.com/zhengyifei200112-collab/myprobe/actions/runs/38835498392)
+四个 job 已全部成功：完整/race/升级恢复/联合运行/容器/安装检查、原生网络及隔离故障、
+年归档容量、真实六视图。完整步骤见 [CI 元数据](evidence/network-probe-transport-ci-2026-10-16.json)。
+后继文档或测试提交仍检查自己的准确 head，不继承这份历史通过状态。
+
+冻结同一实现的五节点稠密一年历史联合短测已通过：91.285 秒测量、29/29/29 条报告
+发送/ACK/入库，全部封套核对差异为零，通知排空，五个真实页面均收敛到五节点，无页面
+错误。Server 实际 CPU 200%/CPU 0—1/2 GiB/swap 0；93 次资源采样，最大间隔 1.006 秒，
+不可读取样本 0，峰值 RSS 58,212,352 B、WAL 4,635,032 B，一年历史 P95 1387.39 ms。
+完整原始结果见 [联合短测](evidence/network-probe-joint-five-browser-2026-10-16.json)。
+这不等于八节点整年网络比较或 24 小时验收。
+
+准备时两次包装器配置失败已保留：TMPDIR 0755 导致浏览器共享内存权限错误，未进入
+测量；修正后又因输出并非已存在目录，使资源进度写入失败 4 次，最终 Passed=false，见
+[输出失败记录](evidence/network-probe-joint-output-failure-2026-10-16.json)。它们不计入
+成功时长。成功运行从零开始，资源落盘零错误，没有放宽断言或改浏览器渲染模式。
+
+2026-10-16 01:45:47 UTC 已启动同一冻结源码的全新 100 节点/一年历史/五个真实页面
+24 小时测试，run_id=33f0ac7640b24344884853e74a010a71。启动快照仍在造数阶段，没有
+正式测量起点或通过结果。源码归档、二进制、runner、supervisor hash 和限制见
+[启动证据](evidence/network-probe-soak-launch-2026-10-16.json)。造数不计时，不自动重启，
+不复用旧中断测试；最终仍须核对完整计数、故障阶段、排空、页面及资源结果。
 五条原有 npm advisories 及图表体积提示仍单独登记。所有者批准合并/发布、最终容量及
 最终整合源 24 小时门槛继续保留，旧中断长稳不能复用。
 
