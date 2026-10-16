@@ -1,0 +1,30 @@
+{
+  "format": "myprobe.soak-observation-native-evidence.v1",
+  "date": "2026-10-17",
+  "source": "working-tree; exact source hashes below",
+  "powershell": "5.1.19041.6456",
+  "source_sha256": {
+    "scripts/start-wsl-soak.ps1": "5246ee9819942763ae62b96b180133305194d7f4bb569e864d5169cd6f244ea5",
+    "scripts/observe-wsl-soak.ps1": "e940ef05648d91b19dfe8a72760c2a09ed5a85648b69bbb3b7384d5e464782b9",
+    "scripts/lib/wsl-soak-observation.ps1": "d1a277ae0c173c07ae323308e020ca874a892abb076ced8b1fcc2eec8c3a785d",
+    "scripts/test-wsl-soak.ps1": "59a337eb1b9afd7da7afb3adb73ad314360011915fa11cbfd3c558de6a7c53ca",
+    "scripts/test-wsl-soak-observation.ps1": "c8d4ee27e324ea8bea9d9539a751272e9d38ce4d7478e5d84544d473b3ccb865"
+  },
+  "pure_checks": 24,
+  "hold_seconds": 12,
+  "heartbeat_count": 12,
+  "launching_shells_exited": true,
+  "live_state": "handles_live",
+  "live_supervisor_identity": "verified",
+  "live_client_identity": "verified",
+  "final_state": "exited_recorded",
+  "final_exit": 0,
+  "fast_exit": 31,
+  "stdout_bytes": 2097152,
+  "stderr_bytes": 2097152,
+  "existing_directory_rejected": true,
+  "observer_did_not_modify_terminal_record": true,
+  "all_acceptance_fields": "not_evaluated",
+  "passed": true,
+  "scope": "synthetic 12-second lifecycle only; not 24-hour acceptance"
+}

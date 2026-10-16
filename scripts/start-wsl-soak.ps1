@@ -101,6 +101,8 @@ if ($manifest.format -ne 'myprobe.wsl-soak-launch.v1') { throw 'Unsupported run 
 $status = [ordered]@{
     format = 'myprobe.wsl-soak-status.v1'; run_id = $manifest.run_id
     state = 'starting'; supervisor_pid = $PID; wsl_pid = $null
+    supervisor_process_started_at = (Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o')
+    wsl_process_started_at = $null
     started_at = [DateTime]::UtcNow.ToString('o'); observed_at = [DateTime]::UtcNow.ToString('o')
     ended_at = $null; exit_code = $null; test_acceptance = 'not_evaluated'
 }
@@ -127,6 +129,9 @@ try {
     $stderrFile = [IO.FileStream]::new((Join-Path $directory 'wsl.stderr.log'), [IO.FileMode]::CreateNew,
         [IO.FileAccess]::Write, [IO.FileShare]::Read, 1, [IO.FileOptions]::Asynchronous)
     if (-not $child.Start()) { throw 'WSL client did not start.' }
+    # A very fast failure can exit before StartTime is readable. Preserve its
+    # actual exit code; missing identity must not turn it into supervision failure.
+    try { $status.wsl_process_started_at = $child.StartTime.ToUniversalTime().ToString('o') } catch { }
     # Copy both pipes concurrently without PowerShell event callbacks/runspaces,
     # preventing a full stdout or stderr pipe from blocking the Linux process.
     $stdoutCopy = $child.StandardOutput.BaseStream.CopyToAsync($stdoutFile)

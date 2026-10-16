@@ -9,6 +9,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A read-only Windows soak observer distinguishes verified current process
+  identities from stale running records, reused PIDs, missing handles and host
+  restarts. New launchers retain process creation times; legacy records remain
+  conservative. It never starts WSL, mutates a run, retries a test or infers test
+  acceptance from an exit code.
+
 - Private System Health compares official stable releases with the Server and the
   selected Agent's last advertised software version. Checks have a five-second
   bound, shared cache, manual cooldown and explicit unknown/stale/unavailable

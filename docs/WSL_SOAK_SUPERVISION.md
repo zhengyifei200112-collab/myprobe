@@ -42,6 +42,31 @@ supervisor/WSL PID、started_at、ended_at 和真实 WSL 退出码。
 Get-Content -LiteralPath 'D:/test-results/joint-soak-new-run/status.json' -Raw | ConvertFrom-Json
 ```
 
+这只是历史记录，不能单独证明当前存活。使用只读原生观察命令核对当前进程：
+
+```powershell
+./scripts/observe-wsl-soak.ps1 -OutputDirectory 'D:/test-results/joint-soak-new-run'
+```
+
+观察命令不调用 WSL、不运行或停止任务、不修改原文件，不显示命令行、环境或凭据。
+新 launcher 记录 supervisor/WSL 创建时间；观察端结合当前 CIM 的 PID、名称、创建
+时间及客户端父进程核对身份。PID 被复用、旧记录缺少身份时间或访问失败时不报存活。
+宿主启动时间晚于未终止的运行记录时报告 interrupted；任一或全部监督句柄缺失时，
+不从 Windows 句柄推断孤立 Linux 任务的最终结果。两个身份核对成功但心跳过期报告 handles_live_observation_stale，不从
+过期心跳单独推断进程死亡。终止记录的退出码保留为 exited_recorded，0 也不表示
+测试验收。旧 v1 记录保持可读；只对已取得证据的状态做结论，不迁移或覆盖旧记录。
+
+读取限制为每份 JSON 64 KiB；只对瞬时文件访问错误短暂重读，JSON/运行 ID 不一致
+直接拒绝。`scripts/test-wsl-soak-observation.ps1` 可在 Windows PowerShell 5.1 下
+验证状态边界，不启动 WSL；`test-wsl-soak.ps1` 的显式短夹具另外验证真实生命周期。
+
+2026-10-17 本地原生 Windows PowerShell 5.1：24 项状态/文件边界通过；真实 WSL
+12 秒夹具验证启动 shell 退出后身份核对、带引号路径、持续心跳、退出码 0/31、双路
+各 2 MiB 输出和旧目录拒绝，观察命令未修改终止状态。短夹具现已结束。筛选后的
+[原始证据](evidence/soak-observation-native-2026-10-17.json) 绑定被测脚本 SHA-256，
+不包含本机路径或命令行。这不是 24 小时验收，也不能弥补已中断的百节点长测。
+Windows CI 跑纯状态与文件边界；真实 WSL 生命周期仅由上述本地显式夹具证明。
+
 - launching / starting：托管启动中，没有实际测试就绪的证据。
 - running：Windows WSL 客户端尚未退出；不意味着 Server、页面或测试断言通过。
 - exited：客户端退出，exit_code 为其实际退出码。非零就是失败，不重试。

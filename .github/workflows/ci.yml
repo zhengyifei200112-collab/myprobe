@@ -9,6 +9,18 @@ permissions:
   contents: read
 
 jobs:
+  soak-observation-windows:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out observation source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify read-only state evaluation in Windows PowerShell 5.1
+        shell: powershell
+        run: ./scripts/test-wsl-soak-observation.ps1
+
   online-backup-load:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
