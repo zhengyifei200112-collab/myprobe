@@ -83,3 +83,20 @@ Get-Volume 独立确认。物理主机同时运行另一份 WSL 百节点测试�
 
 全仓本地 Go 仍仅已有 #47 Windows HostRoot 用例失败，其余包、vet/build/gofmt/diff
 通过。本工作不修改运行代码、归档格式、schema、API 或前端，因此没有新增发布迁移。
+
+## Linux 准确实现 CI
+
+实现 bee5834 的 CI 38863944534 中，独立 `encrypted-backup-capacity` job 已通过两档；
+下载证据时整个 workflow 仍在运行，不能据此声称所有检查通过。Go 1.26.9、AMD EPYC
+9V45、4 逻辑 CPU、可见内存 16,766,414,848 B，未施加 Server 的 2 CPU/2 GiB 限制。
+两档有效库、归档与报告数和本地相同，各自完整还原和拒绝场景均通过。生成秒数
+5.710 / 22.745、采样 RSS 60,940,288 / 84,656,128 B；恢复秒数 5.332 / 16.231、
+RSS 85,250,048 / 81,088,512 B，资源读取错误为零。原始数据见
+[Linux 证据](evidence/backup-capacity-linux-2026-10-16.json)。不同宿主耗时不能直接当作
+性能提升/回退结论。后继文档提交仍核对自己的准确 CI。
+
+随后已核对实现 `bee5834aadd37c1dc7a9b9965746aa89e1281a1b` 的
+[CI 38863944534](https://github.com/zhengyifei200112-collab/myprobe/actions/runs/38863944534)
+五个 job 全成功：大库加密容量、完整/race/升级恢复/联合运行/容器/安装、原生网络及
+隔离故障、年归档、六视图。完整步骤见 [准确源 CI](evidence/backup-capacity-ci-2026-10-16.json)。
+草稿 #79 基于 #78，未合并/发布；上述实现结果不代表后继文档 head 自动通过。

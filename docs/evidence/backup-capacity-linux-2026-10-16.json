@@ -1,0 +1,166 @@
+{
+  "format": "myprobe.encrypted-backup-linux-evidence.v1",
+  "source_commit": "bee5834aadd37c1dc7a9b9965746aa89e1281a1b",
+  "workflow_run": 38863944534,
+  "job": "encrypted-backup-capacity",
+  "job_conclusion": "success",
+  "full_run_status": "still in progress when downloaded; do not infer all checks passed",
+  "observations": [
+    {
+      "Format": "myprobe.encrypted-backup-capacity.v1",
+      "SourceCommit": "bee5834aadd37c1dc7a9b9965746aa89e1281a1b",
+      "OS": "linux",
+      "GoVersion": "go1.26.9",
+      "CPUModel": "AMD EPYC 9V45 96-Core Processor",
+      "Filesystem": "ext2/ext3",
+      "HostLoadContext": "Standalone CI job; host isolation and resource caps are not asserted",
+      "LogicalCPUs": 4,
+      "VisibleMemoryBytes": 16766414848,
+      "FreeBytesAtStart": 91284692992,
+      "SourceSHA256": {
+        "internal/backup/archive.go": "0eaa6c5549bba065fcef2b9961579d787e2859eff74e78724691675d8e7bcd57",
+        "internal/backup/capacity_fixture_test.go": "8753faae756b2beb8435a6e7ddeeaec5cae25de4d48fcd13cde497f47bbdeb79",
+        "internal/backup/capacity_test.go": "92f0afbf122d74f79c8cac85d545850c5d26711c38ac7f085e815a0389728ff3",
+        "internal/backup/repository.go": "d9b99b083d07907a2c8b31f32f37fbf626dbcd779784a88f2315a9f39cb2aded",
+        "internal/store/backup.go": "d66d815d67dfed7fbb7b455d4084246ac935a502ec300929a2720f7abbf108b8"
+      },
+      "RequestedMiB": 256,
+      "SourceBytes": 285020160,
+      "Artifact": {
+        "version": 1,
+        "owner_id": "6b0956a87ddf0b28ca7de21c5e28bbe2",
+        "id": "16aad6b2382203074e061e83b38c2bef",
+        "file_name": "myprobe-backup-20261016T065536Z-16aad6b2382203074e061e83b38c2bef.mpb",
+        "started_at": "2026-10-16T06:55:36.141850192Z",
+        "completed_at": "2026-10-16T06:55:41.738082186Z",
+        "bytes": 284280194,
+        "sha256": "4b0463b4dbb4e83e608fca1b0d76f6456887e4db6462177bda3143807d02edde",
+        "archive_verified": true,
+        "recovery_verified": true,
+        "recovery_verified_at": "2026-10-16T06:55:47.097746221Z",
+        "recovery_evidence": {
+          "nodes": 1,
+          "users": 1,
+          "reports": 31915,
+          "channels": 1
+        }
+      },
+      "Phases": [
+        {
+          "Phase": "seed",
+          "WallSeconds": 3.86433268,
+          "CPUSeconds": 1.999221,
+          "SampledPeakRSSBytes": 28864512,
+          "SampledPeakLogicalFileBytes": 291715032,
+          "Samples": 78,
+          "ReadErrors": 0,
+          "MaximumSampleGapSeconds": 0.050790394
+        },
+        {
+          "Phase": "generate",
+          "WallSeconds": 5.709682875,
+          "CPUSeconds": 1.62535,
+          "SampledPeakRSSBytes": 60940288,
+          "SampledPeakLogicalFileBytes": 1137883864,
+          "Samples": 115,
+          "ReadErrors": 0,
+          "MaximumSampleGapSeconds": 0.050998243
+        },
+        {
+          "Phase": "recover",
+          "WallSeconds": 5.332016638,
+          "CPUSeconds": 2.288154,
+          "SampledPeakRSSBytes": 85250048,
+          "SampledPeakLogicalFileBytes": 853614262,
+          "Samples": 107,
+          "ReadErrors": 0,
+          "MaximumSampleGapSeconds": 0.050826509
+        }
+      ],
+      "Limitations": [
+        "synthetic valid reports; quiet single-node database, not live Server load",
+        "50ms child RSS and logical-file samples can miss peaks; file sizes count directory entries including hardlinks, not allocated disk blocks",
+        "each stage has a fresh process; stage time includes startup",
+        "same-host local recovery, not cross-machine failover or the full 24-hour gate"
+      ]
+    },
+    {
+      "Format": "myprobe.encrypted-backup-capacity.v1",
+      "SourceCommit": "bee5834aadd37c1dc7a9b9965746aa89e1281a1b",
+      "OS": "linux",
+      "GoVersion": "go1.26.9",
+      "CPUModel": "AMD EPYC 9V45 96-Core Processor",
+      "Filesystem": "ext2/ext3",
+      "HostLoadContext": "Standalone CI job; host isolation and resource caps are not asserted",
+      "LogicalCPUs": 4,
+      "VisibleMemoryBytes": 16766414848,
+      "FreeBytesAtStart": 91284656128,
+      "SourceSHA256": {
+        "internal/backup/archive.go": "0eaa6c5549bba065fcef2b9961579d787e2859eff74e78724691675d8e7bcd57",
+        "internal/backup/capacity_fixture_test.go": "8753faae756b2beb8435a6e7ddeeaec5cae25de4d48fcd13cde497f47bbdeb79",
+        "internal/backup/capacity_test.go": "92f0afbf122d74f79c8cac85d545850c5d26711c38ac7f085e815a0389728ff3",
+        "internal/backup/repository.go": "d9b99b083d07907a2c8b31f32f37fbf626dbcd779784a88f2315a9f39cb2aded",
+        "internal/store/backup.go": "d66d815d67dfed7fbb7b455d4084246ac935a502ec300929a2720f7abbf108b8"
+      },
+      "RequestedMiB": 1024,
+      "SourceBytes": 1137704960,
+      "Artifact": {
+        "version": 1,
+        "owner_id": "2e3d1fc2bd0e38fcc2e247a655dc7d6b",
+        "id": "8a1454d6cbb4cfa912180676eca2e370",
+        "file_name": "myprobe-backup-20261016T065601Z-8a1454d6cbb4cfa912180676eca2e370.mpb",
+        "started_at": "2026-10-16T06:56:01.490439088Z",
+        "completed_at": "2026-10-16T06:56:23.959094301Z",
+        "bytes": 1134597342,
+        "sha256": "f7e0db4ac1960d093d7c6cf4f89b8bc4bf841e2c5209f8500e5eb43a3218e8fd",
+        "archive_verified": true,
+        "recovery_verified": true,
+        "recovery_verified_at": "2026-10-16T06:56:40.355002386Z",
+        "recovery_evidence": {
+          "nodes": 1,
+          "users": 1,
+          "reports": 127660,
+          "channels": 1
+        }
+      },
+      "Phases": [
+        {
+          "Phase": "seed",
+          "WallSeconds": 14.241300339,
+          "CPUSeconds": 7.240903,
+          "SampledPeakRSSBytes": 29130752,
+          "SampledPeakLogicalFileBytes": 1142990808,
+          "Samples": 285,
+          "ReadErrors": 0,
+          "MaximumSampleGapSeconds": 0.05063241
+        },
+        {
+          "Phase": "generate",
+          "WallSeconds": 22.744605243,
+          "CPUSeconds": 6.058341,
+          "SampledPeakRSSBytes": 84656128,
+          "SampledPeakLogicalFileBytes": 4541487670,
+          "Samples": 455,
+          "ReadErrors": 0,
+          "MaximumSampleGapSeconds": 0.051082718
+        },
+        {
+          "Phase": "recover",
+          "WallSeconds": 16.231387537,
+          "CPUSeconds": 8.086001,
+          "SampledPeakRSSBytes": 81088512,
+          "SampledPeakLogicalFileBytes": 3406917142,
+          "Samples": 325,
+          "ReadErrors": 0,
+          "MaximumSampleGapSeconds": 0.050802446
+        }
+      ],
+      "Limitations": [
+        "synthetic valid reports; quiet single-node database, not live Server load",
+        "50ms child RSS and logical-file samples can miss peaks; file sizes count directory entries including hardlinks, not allocated disk blocks",
+        "each stage has a fresh process; stage time includes startup",
+        "same-host local recovery, not cross-machine failover or the full 24-hour gate"
+      ]
+    }
+  ]
+}
