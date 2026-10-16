@@ -62,7 +62,18 @@ Linux 自有命名空间禁用 Echo Reply 时实际 sent=3/received=0，为执�
 原始按源代码区分的日志投影、二进制/源文件 hash、最初超发失败与修复见
 [原生证据](evidence/network-probe-native-2026-10-16.json)。准确源 831831a 的独立原生 CI
 job 已通过；后继 c0d9fb3 包括真实无路由反例，仍按准确 head 检查完整 CI。
-Darwin 只有参数/格式覆盖，未声称实际平台验收。
+此前 Darwin 只有参数/格式覆盖，未声称实际平台验收。现在增加 macOS 15 原生 ARM64/
+Intel CI：真实自有 IPv4/IPv6 TCP、各两包 ICMP、三包任务经过 Agent/Gateway/Store/ACK，
+以及忙状态保留未知和 race 回归。原生门槛禁止把 IPv6 跳过计为通过；JSON 事件验证器
+要求九个具体子项完成及两族实际计数输出，并绑定实际 OS/架构、Go 版本和准确源码。
+原生 CI 通过之前仍不得宣称 Darwin 已验收；Linux 隔离静默/无路由实验不能冒充 macOS
+同等故障覆盖。
+
+核对 [Apple ping6 源码](https://github.com/apple-oss-distributions/network_cmds/blob/main/ping6.tproj/ping6.c)
+发现 `-W` 表示旧式 FQDN/节点查询，并非 IPv4 `ping` 的毫秒等待参数。IPv6 命令因此
+移除该选项，保留固定包数/间隔和共享总 deadline；IPv4 毫秒响应等待不变。没有完整
+摘要或被 deadline 打断时，计数继续为空，不伪造已发/已收或丢包率。此平台参数修复
+未进入冻结 63b6528 的甲骨文长测，不能自动继承其最终源验收。
 
 ## 必须完成的纵向接入
 

@@ -170,6 +170,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- macOS IPv6 ICMP uses bounded Echo Requests without treating BSD `ping6 -W`
+  (an FQDN/node-information option) as the IPv4 response wait. The shared task
+  deadline still bounds completion; interrupted summaries retain unknown counts.
+  Native IPv4/IPv6 TCP, two-packet ICMP and scheduled three-packet Agent/Store/ACK
+  gates are added for Apple Silicon and Intel macOS, with skips excluded from
+  acceptance and source-bound evidence artifacts.
+
 - Live node updates read only the visible node being published, avoiding repeated
   whole-dashboard assembly for every report or latency result. Shared projection
   preserves public masking, metadata omission, traffic and visibility semantics;
