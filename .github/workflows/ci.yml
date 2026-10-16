@@ -431,7 +431,7 @@ jobs:
           QA_ARTIFACT_DIR: ${{ runner.temp }}/myprobe-network-comparison
         run: go test ./internal/httpapi -run '^TestReleaseAwarenessLiveBrowser$' -timeout 4m -count=1 -v
 
-      - name: Verify quantity persistence with an actual disposable Server
+      - name: Verify quantity persistence and dashboard discovery with disposable Server assets
         env:
           PLAYWRIGHT_MODULE: ${{ runner.temp }}/myprobe-browser/node_modules/playwright
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/myprobe-browsers

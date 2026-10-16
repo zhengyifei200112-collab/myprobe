@@ -54,7 +54,11 @@ Playwright Chromium；PLAYWRIGHT_BROWSERS_PATH 可指定独立缓存。
 
 保留的范围策略契约另跑六组明暗/宽度，覆盖恢复窗口、未覆盖的编辑、版本冲突、
 删除确认、规则跳转至所属策略及应用失败提示。它使用合成 API 响应，与前面的真实
-Server 持久化证据分别解释。CI 在既有浏览器 job 中运行两套验证并保留筛选后结果。
+Server 持久化证据分别解释。CI 在既有浏览器 job 中运行并保留筛选后结果。
+
+首页整合后，同一运行器还执行独立的 100 节点发现/表格夹具，输出至 discovery/，
+并将其结果摘要加入 manifest。该夹具使用合成公开 API/WebSocket，完整范围见
+[首页验证说明](DASHBOARD_DISCOVERY_VALIDATION.md)；它不扩大量级表单的真实后端证明范围。
 
 ## 当前证据与范围
 

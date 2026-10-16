@@ -22,6 +22,7 @@ const { once } = require('node:events');
   const sourceHashes = {};
   for (const name of ['web/src/AdminApp.vue', 'web/src/forms/units.ts', 'web/src/forms/units.test.ts', 'web/src/forms/QuantityInput.vue', 'web/src/notification-center/NotificationCenter.vue', 'web/src/notification-center/PolicyManager.vue', 'web/src/public-dashboard/metrics.ts', 'scripts/form_units_browser_test.cjs', 'scripts/alert-policies-ui.cjs', 'scripts/run-form-units-qa.cjs']) sourceHashes[name] = await hash(path.join(repo, name));
   const assetHashes = {};
+  for (const name of ['web/src/App.vue', 'web/src/public-dashboard/PublicNodeCard.vue', 'web/src/public-dashboard/PublicNodeTable.vue', 'web/src/public-dashboard/discovery.ts', 'web/src/public-dashboard/discovery.test.ts', 'web/src/public-dashboard/discovery.css', 'scripts/dashboard_browser_test.cjs']) sourceHashes[name] = await hash(path.join(repo, name));
   for (const name of ['index.html', ...(await fs.readdir(path.join(repo, 'internal/webui/dist/assets'))).map(name => 'assets/' + name)]) assetHashes[name] = await hash(path.join(repo, 'internal/webui/dist', name));
   const binaryHash = await hash(binary);
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'myprobe-form-units-'));
@@ -54,15 +55,18 @@ const { once } = require('node:events');
       await new Promise(resolve => setTimeout(resolve, 50));
     }
     assert.ok(ready, 'Disposable Server readiness deadline');
-    for (const script of ['form_units_browser_test.cjs', 'alert-policies-ui.cjs']) {
+    await fs.mkdir(path.join(output, 'discovery'), { mode: 0o700 });
+    for (const script of ['form_units_browser_test.cjs', 'alert-policies-ui.cjs', 'dashboard_browser_test.cjs']) {
+      const scriptOutput = script === 'form_units_browser_test.cjs' ? output : path.join(output, script === 'alert-policies-ui.cjs' ? 'policy-contract' : 'discovery');
       const child = spawn(process.execPath, [path.join(__dirname, script)], {
-        env: { ...env, UI_BASE_URL: base, MYPROBE_QA_URL: base, MYPROBE_QA_PASSWORD: password, QA_OUTPUT_DIR: script === 'form_units_browser_test.cjs' ? output : path.join(output, 'policy-contract') },
+        env: { ...env, UI_BASE_URL: base, MYPROBE_QA_URL: base, MYPROBE_QA_PASSWORD: password, QA_OUTPUT_DIR: scriptOutput },
         stdio: 'inherit', windowsHide: true, timeout: 240000,
       });
       const [code, signal] = await once(child, 'exit');
       assert.equal(code, 0, `Browser fixture ${script} failed (${signal || code})`);
     }
-    await fs.writeFile(path.join(output, 'run-manifest.json'), JSON.stringify({ format: 'myprobe.form-units-native-run.v1', source_commit: sourceCommit, source_dirty: sourceDirty, server_sha256: binaryHash, source_sha256: sourceHashes, assets_sha256: assetHashes, browser_result_sha256: await hash(path.join(output, 'result.json')), policy_contract_passed: true }, null, 2), { mode: 0o600, flag: 'wx' });
+    assert.equal(JSON.parse(await fs.readFile(path.join(output, 'discovery/result.json'), 'utf8')).passed, true);
+    await fs.writeFile(path.join(output, 'run-manifest.json'), JSON.stringify({ format: 'myprobe.form-units-native-run.v1', source_commit: sourceCommit, source_dirty: sourceDirty, server_sha256: binaryHash, source_sha256: sourceHashes, assets_sha256: assetHashes, browser_result_sha256: await hash(path.join(output, 'result.json')), discovery_result_sha256: await hash(path.join(output, 'discovery/result.json')), policy_contract_passed: true }, null, 2), { mode: 0o600, flag: 'wx' });
   } finally {
     if (server.pid && server.exitCode === null) server.kill();
     await exited;
