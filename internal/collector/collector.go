@@ -44,6 +44,14 @@ func New(config Config) *Collector {
 
 func (c *Collector) UpdateConfig(config Config) {
 	c.mu.Lock()
+	// Omitted configuration fields preserve local selections. An explicit empty
+	// slice resets the selection to automatic discovery.
+	if config.Interfaces == nil {
+		config.Interfaces = c.config.Interfaces
+	}
+	if config.Mounts == nil {
+		config.Mounts = c.config.Mounts
+	}
 	hostRoot := c.config.HostRoot
 	c.config = normalizedConfig(config)
 	c.config.HostRoot = hostRoot
