@@ -15,6 +15,7 @@ $directory = [IO.Path]::GetFullPath($OutputDirectory)
 $null = New-Item -ItemType Directory -Path $directory
 $utf8 = New-Object Text.UTF8Encoding($false)
 $launcher = Join-Path $PSScriptRoot 'start-wsl-soak.ps1'
+$observer = Join-Path $PSScriptRoot 'observe-wsl-soak.ps1'
 $windowsPowerShell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
 
 function Assert-True([bool]$Condition, [string]$Message) {
@@ -76,6 +77,8 @@ do {
         Assert-True ($null -ne (Get-Process -Id $status.supervisor_pid -ErrorAction SilentlyContinue)) 'Supervisor disappeared.'
         Assert-True ($null -ne (Get-Process -Id $status.wsl_pid -ErrorAction SilentlyContinue)) 'WSL client disappeared.'
         $midRun = $status
+        $liveObservation = (& $observer -OutputDirectory $holdRun) | ConvertFrom-Json
+        Assert-True ($liveObservation.state -eq 'handles_live' -and $liveObservation.test_acceptance -eq 'not_evaluated') 'Native process identities were not verified.'
     }
     Assert-True ($status.state -ne 'supervisor_failed') 'Supervisor failed; inspect its logs.'
     if ($status.state -eq 'exited') { break }
@@ -88,6 +91,12 @@ Assert-True (@($lines | Where-Object { $_ -like 'heartbeat=*' }).Count -eq $Hold
 Assert-True ($lines[-1] -eq "completed=$HoldSeconds") 'Final log not complete at terminal status.'
 $failed = Read-Status $burstRun
 Assert-True ($failed.state -eq 'exited' -and $failed.exit_code -eq 31) 'Fast nonzero exit was lost.'
+$terminalHash = (Get-FileHash -LiteralPath (Join-Path $holdRun 'status.json')).Hash
+$terminalObservation = (& $observer -OutputDirectory $holdRun) | ConvertFrom-Json
+$failedObservation = (& $observer -OutputDirectory $burstRun) | ConvertFrom-Json
+Assert-True ($terminalObservation.state -eq 'exited_recorded' -and $terminalObservation.exit_code -eq 0 -and $terminalObservation.test_acceptance -eq 'not_evaluated') 'Observer inferred acceptance from zero exit.'
+Assert-True ($failedObservation.state -eq 'exited_recorded' -and $failedObservation.exit_code -eq 31) 'Observer lost nonzero exit.'
+Assert-True ($terminalHash -eq (Get-FileHash -LiteralPath (Join-Path $holdRun 'status.json')).Hash) 'Observer modified terminal status.'
 $stdoutBytes = (Get-Item -LiteralPath (Join-Path $burstRun 'wsl.stdout.log')).Length
 $stderrBytes = (Get-Item -LiteralPath (Join-Path $burstRun 'wsl.stderr.log')).Length
 Assert-True ($stdoutBytes -eq 2097152 -and $stderrBytes -eq 2097152) 'Concurrent pipe output was truncated.'
@@ -103,6 +112,7 @@ $result = [ordered]@{
     launching_shells_exited = $true; mid_run = $midRun; final_status = $status
     nonzero_status = $failed; stdout_bytes = $stdoutBytes; stderr_bytes = $stderrBytes
     existing_directory_rejected = $true; passed = $true
+    live_observation = $liveObservation; terminal_observation = $terminalObservation; failed_observation = $failedObservation
 }
 [IO.File]::WriteAllText((Join-Path $directory 'result.json'), ($result | ConvertTo-Json -Depth 8), $utf8)
 $result | ConvertTo-Json -Depth 8
