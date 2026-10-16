@@ -38,10 +38,14 @@ let csrf='';
   for(const [currency,amount,minor]of[['JPY','499',499],['KWD','4.999',4999],['USD','0',0],['USD','4.99',499]]){
    await editNode();await page.getByLabel('货币',{exact:true}).fill(currency);await page.getByLabel('价格（金额）').fill(amount);await saveNode();saved=await readNode();assert.equal(saved.price_minor,minor);assert.equal(saved.currency,currency);assert.equal(saved.expires_at,expiry);
   }
+  saved=await readNode();await json(await context.request.patch('/api/v1/admin/nodes/'+node.id,{headers:headers(),data:{...saved,currency:''}}),'seed legacy missing currency');
+  await page.reload();await editNode();assert.equal(await page.getByLabel('价格（原始最小单位）').inputValue(),'499');await saveNode();
+  saved=await readNode();assert.equal(saved.currency,'');assert.equal(saved.price_minor,499);
+  await editNode();await page.getByLabel('货币',{exact:true}).fill('USD');assert.equal(await page.getByLabel('价格（金额）').inputValue(),'4.99');await saveNode();
   await editNode();await page.getByLabel('货币',{exact:true}).fill('JPY');
   assert.equal(await page.getByLabel('价格（金额）').evaluate(e=>e.checkValidity()),false);
   await page.getByRole('alert').filter({hasText:'精度超出最小单位，请调整数值。'}).waitFor();
-  await page.getByRole('button',{name:'保存节点',exact:true}).click();
+  assert.equal(await page.getByRole('button',{name:'保存节点',exact:true}).isDisabled(),true);
   saved=await readNode();assert.equal(saved.currency,'USD');assert.equal(saved.price_minor,499);
   await page.getByLabel('货币',{exact:true}).fill('USD');await saveNode();
   await editNode();await views('node',page.getByLabel('价格（金额）'));await page.getByRole('button',{name:'取消',exact:true}).last().click();
