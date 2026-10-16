@@ -205,17 +205,17 @@ func evidencePingCommand(goos string, address netip.Addr, count int, remaining t
 		if address.Is6() {
 			program = "ping6"
 		}
-		return program, []string{"-n", "-c", strconv.Itoa(count), "-i", "0.25", "-W", strconv.Itoa(ms), address.String()}, nil
+		responseMS := max(1, ms-(count-1)*check.PacketIntervalMS-100)
+		return program, []string{"-n", "-c", strconv.Itoa(count), "-i", "0.25", "-W", strconv.Itoa(responseMS), address.String()}, nil
 	}
 	if goos != "linux" {
 		return "", nil, errEvidenceUnsupported
 	}
-	args := []string{family, "-n", "-c", strconv.Itoa(count), "-i", "0.25", "-W", strconv.FormatFloat(float64(max(1, ms-100))/1000, 'f', 3, 64)}
-	// Leave time for the tool to write its settled packet summary before the
-	// total context deadline. Shorter budgets remain bounded by CommandContext.
-	if seconds := (ms - 100) / 1000; seconds >= 1 {
-		args = append(args, "-w", strconv.Itoa(seconds))
-	}
+	// Do not combine iputils -c with -w: with a deadline it may keep sending
+	// until COUNT replies (not COUNT transmissions), exceeding the packet cap.
+	// Reserve the packet train and summary time from the last reply's wait.
+	responseMS := max(1, ms-(count-1)*check.PacketIntervalMS-100)
+	args := []string{family, "-n", "-c", strconv.Itoa(count), "-i", "0.25", "-W", strconv.FormatFloat(float64(responseMS)/1000, 'f', 3, 64)}
 	return "ping", append(args, address.String()), nil
 }
 

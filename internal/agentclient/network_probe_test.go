@@ -202,6 +202,13 @@ func TestNetworkProbeCommandFamilyIsExplicitAndNoShell(t *testing.T) {
 			if goos != "darwin" && args[0] != map[bool]string{true: "-4", false: "-6"}[netip.MustParseAddr(address).Is4()] {
 				t.Fatal("family flag missing")
 			}
+			if goos == "linux" {
+				for _, value := range args {
+					if value == "-w" {
+						t.Fatal("iputils deadline can send past the requested count when replies are absent")
+					}
+				}
+			}
 		}
 	}
 	if _, _, err := evidencePingCommand("unknown", netip.MustParseAddr("192.0.2.53"), 1, time.Second); err == nil {
