@@ -35,7 +35,7 @@ SQLite 验证。不是把应该保留的记录作为“正常清理”任意容�
 
 ## 有界 Linux CI
 
-独立 online-backup-load job 绑定准确 head。五节点/一年稠密历史/三分钟/五真实 Chromium
+独立 online-backup-load job 固定 Ubuntu 24.04 并绑定准确 head。五节点/一年稠密历史/三分钟/五真实 Chromium
 页面，正式 Server 受 CPUQuota=200%、CPU 0—1、MemoryMax=2 GiB、swap=0 约束；Agent、
 观察器、浏览器、接收端在组外，不能声称宿主整体只有 2 GiB。测试保持正常 SSRF 防护，
 接收端只在自有网络命名空间配置合成地址，不能访问其他基础设施。
@@ -69,3 +69,28 @@ sh scripts/run-joint-load.sh /absolute/agentclient.test /absolute/server
 Passed=false 保留，早返回导致 ACK 计数未被计算，不能把原始零值解释为没有 ACK。
 修正精确边界规格并增加回归后，新的完整三分钟运行通过，不拼接失败时长。源码 hash、
 正反两次原始结果见 [本地记录](evidence/online-backup-windows-2026-10-16.json)。
+
+## Linux 有界场景结果
+
+实现 c4d3555 的 CI 38868668040，online-backup-load job 及其独立验收步骤已通过；
+下载时整个 workflow 仍在进行，不能由单 job 推断全部检查通过。Go 1.26.9，实际
+CPU 200%/CPU 0—1/2 GiB/swap 0。181.880 秒测量，五个真实页面各收敛到五节点，
+页面/API 错误零；报告发送/ACK/入库 66/66/66，全部核对差异为零，通知排空。
+
+归档 1,376,978,666 B，恢复 201,620 条报告，保证保留下界 201,580。备份/恢复有
+18/10 条区间内提交 ACK，均涉及五节点；重启保留同一已验证归档。183 次资源采样，
+进度写入错误零，最大间隔 1.0011 秒，RSS 峰值 79,388,672 B、WAL 6,027,592 B。
+计划重启时有一次 Server 不可读取样本，不能描述为零不可用。
+
+概览 p95 6.206 ms、30 天历史 p95 1808.897 ms，通过现行门槛。一年历史 p95
+5793.023 ms、最大 ACK 延迟 2169.582 ms 仍如实记录；这里没有将一年查询设为两秒
+门槛，也不据此声称所有请求都低延迟。完整原始结果见
+[Linux 记录](evidence/online-backup-linux-2026-10-16.json)。后继固定 runner 和文档提交
+仍需检查各自准确 head。无合并、发布或百节点在线备份结论。
+
+随后已核对实现 `c4d355547a3f81bcb4fb77027b3ba9dc4c9538f1` 的
+[CI 38868668040](https://github.com/zhengyifei200112-collab/myprobe/actions/runs/38868668040)
+六个 job 全成功：受限在线备份、静止大库、完整/race/升级恢复/联合运行/容器/安装、
+原生网络及隔离故障、年归档、六视图。见 [完整步骤](evidence/online-backup-ci-2026-10-16.json)。
+后继仅将新在线 job 固定 Ubuntu 24.04，避免即将变动的 ubuntu-latest 改写平台基线；
+负载和验收条件不降低，后继 head 仍独立检查。
