@@ -156,6 +156,8 @@ type TrafficHistoryPoint struct {
 }
 
 type Target struct {
+	AddressFamily   string    `json:"address_family"`
+	PacketCount     int       `json:"packet_count"`
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
 	Kind            string    `json:"kind"`
@@ -170,6 +172,8 @@ type Target struct {
 }
 
 type CreateTargetParams struct {
+	AddressFamily   string
+	PacketCount     int
 	Name            string
 	Kind            string
 	Host            string
@@ -179,6 +183,8 @@ type CreateTargetParams struct {
 }
 
 type UpdateTargetParams struct {
+	AddressFamily   string
+	PacketCount     *int
 	Name            string
 	Kind            string
 	Host            string

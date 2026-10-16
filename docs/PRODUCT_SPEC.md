@@ -11,6 +11,16 @@
 
 ## Feature parity matrix
 
+The network evidence work package now persists requested family/packet options in
+migration 045 and configuration v3. Private target controls expose those requested
+settings; omitted fields on a legacy rename preserve the existing definition.
+An unsupported Agent connection is explicitly skipped without sending a task in
+another family. Native Windows/Linux IPv4/IPv6 and isolated silence/no-route tests
+validate the executor, but live evidence negotiation/receipt, retained metrics
+and the final comparison presentation remain in development. Public family and
+packet-loss values stay unavailable until backed by admitted evidence. See
+[network probe evidence](NETWORK_PROBE_EVIDENCE.md).
+
 Network quality comparison is available in the public dashboard, administrator UI
 and authenticated shares. Scoped target discovery and one batched response compare
 up to eight observers using aligned RTT, execution-failure and coverage timelines,

@@ -13,7 +13,7 @@ import (
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 )
 
-const ConfigSnapshotVersion = 2
+const ConfigSnapshotVersion = 3
 
 var portableID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
@@ -52,6 +52,8 @@ type ConfigNode struct {
 }
 
 type ConfigTarget struct {
+	AddressFamily   string `json:"address_family,omitempty"`
+	PacketCount     int    `json:"packet_count,omitempty"`
 	ID              string `json:"id"`
 	Name            string `json:"name"`
 	Kind            string `json:"kind"`
@@ -117,7 +119,7 @@ func (s *Store) ExportConfig(ctx context.Context, now time.Time) (ConfigSnapshot
 		snapshot.Nodes = append(snapshot.Nodes, ConfigNode{ID: item.ID, Name: item.Name, SortOrder: item.SortOrder, Hidden: item.Hidden, Tags: item.Tags, CountryCode: item.CountryCode, Currency: item.Currency, PriceMinor: item.PriceMinor, BillingCycle: item.BillingCycle, ExpiresAt: item.ExpiresAt, TrafficResetDay: item.TrafficResetDay, UseSinceBoot: item.UseSinceBoot, LatencyMode: item.LatencyMode, CustomHTML: item.CustomHTML, CustomBadges: item.CustomBadges, CustomLinks: item.CustomLinks, CollectionSeconds: item.CollectionSeconds, ReportSeconds: item.ReportSeconds})
 	}
 	for _, item := range targets {
-		snapshot.Targets = append(snapshot.Targets, ConfigTarget{ID: item.ID, Name: item.Name, Kind: item.Kind, Host: item.Host, Port: item.Port, IntervalSeconds: item.IntervalSeconds, TimeoutMS: item.TimeoutMS, Enabled: item.Enabled, SortOrder: item.SortOrder})
+		snapshot.Targets = append(snapshot.Targets, ConfigTarget{ID: item.ID, Name: item.Name, Kind: item.Kind, Host: item.Host, Port: item.Port, IntervalSeconds: item.IntervalSeconds, TimeoutMS: item.TimeoutMS, Enabled: item.Enabled, SortOrder: item.SortOrder, AddressFamily: item.AddressFamily, PacketCount: item.PacketCount})
 	}
 	for _, item := range groups {
 		snapshot.TargetGroups = append(snapshot.TargetGroups, ConfigTargetGroup{ID: item.ID, Name: item.Name, Kind: item.Kind})
@@ -174,7 +176,8 @@ func (s *Store) ImportConfig(ctx context.Context, snapshot ConfigSnapshot, dryRu
 		if err != nil {
 			return result, err
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO targets(id,name,kind,host,port,interval_seconds,timeout_ms,enabled,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,kind=excluded.kind,host=excluded.host,port=excluded.port,interval_seconds=excluded.interval_seconds,timeout_ms=excluded.timeout_ms,enabled=excluded.enabled,sort_order=excluded.sort_order,updated_at=excluded.updated_at`, item.ID, strings.TrimSpace(item.Name), item.Kind, strings.TrimSpace(item.Host), item.Port, item.IntervalSeconds, item.TimeoutMS, item.Enabled, item.SortOrder, now, now)
+		family, packets := networkDefinition(item.Kind, item.AddressFamily, item.PacketCount)
+		_, err = tx.ExecContext(ctx, `INSERT INTO targets(id,name,kind,host,port,interval_seconds,timeout_ms,enabled,sort_order,created_at,updated_at,address_family,packet_count) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,kind=excluded.kind,host=excluded.host,port=excluded.port,interval_seconds=excluded.interval_seconds,timeout_ms=excluded.timeout_ms,enabled=excluded.enabled,sort_order=excluded.sort_order,updated_at=excluded.updated_at,address_family=excluded.address_family,packet_count=excluded.packet_count`, item.ID, strings.TrimSpace(item.Name), item.Kind, strings.TrimSpace(item.Host), item.Port, item.IntervalSeconds, item.TimeoutMS, item.Enabled, item.SortOrder, now, now, family, packets)
 		if err != nil {
 			return result, fmt.Errorf("import target %s: %w", item.ID, err)
 		}
@@ -272,7 +275,7 @@ func (s *Store) ImportConfig(ctx context.Context, snapshot ConfigSnapshot, dryRu
 }
 
 func validateConfigSnapshot(snapshot ConfigSnapshot) error {
-	if snapshot.Version != 1 && snapshot.Version != ConfigSnapshotVersion {
+	if snapshot.Version != 1 && snapshot.Version != 2 && snapshot.Version != ConfigSnapshotVersion {
 		return fmt.Errorf("unsupported config version %d", snapshot.Version)
 	}
 	if snapshot.Version == 1 && len(snapshot.HTTPServices) > 0 {
@@ -326,7 +329,11 @@ func validateConfigSnapshot(snapshot ConfigSnapshot) error {
 			port = *item.Port
 		}
 		task := protocol.Task{ID: "validation", TargetID: item.ID, Kind: item.Kind, Host: strings.TrimSpace(item.Host), Port: port, TimeoutMS: item.TimeoutMS, ExpiresAt: time.Now().UTC().Add(time.Minute)}
-		if strings.TrimSpace(item.Name) == "" || item.IntervalSeconds < 5 || item.IntervalSeconds > 86400 || task.Validate(time.Now().UTC()) != nil {
+		family, packets := networkDefinition(item.Kind, item.AddressFamily, item.PacketCount)
+		if snapshot.Version < 3 && (family != "auto" || item.Kind == protocol.TaskKindPing && packets != 1) {
+			return fmt.Errorf("network probe options require config version 3")
+		}
+		if strings.TrimSpace(item.Name) == "" || item.IntervalSeconds < 5 || item.IntervalSeconds > 86400 || !validNetworkDefinition(task, family, packets) {
 			return fmt.Errorf("invalid target %s", item.ID)
 		}
 	}

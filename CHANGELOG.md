@@ -9,6 +9,15 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Network probe evidence is in development: migration 045 freezes requested
+  address family and packet count in target/epoch/task definitions; configuration
+  v3 round-trips them while legacy v1/v2 imports retain auto/single-packet meaning.
+  Administrator settings distinguish requested options from actual observations.
+  Unsupported legacy sessions are skipped with explicit server provenance, never
+  downgraded to a different family or used to invent an Agent sample/ACK. Strict
+  negotiated contracts and bounded native IPv4/IPv6 executors have real platform
+  tests; live evidence transport and retained public metrics remain unfinished.
+
 - A Windows launcher can supervise a trusted WSL soak-test script independently
   of its launching shell, preserving heartbeat, process identities, logs and
   exit status. It does not restart failed runs or declare test acceptance.

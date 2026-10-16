@@ -145,21 +145,48 @@ func (s *Store) RotateAgentToken(ctx context.Context, nodeID string) (string, er
 }
 
 func (s *Store) UpdateTarget(ctx context.Context, id string, p UpdateTargetParams) (Target, error) {
+	tx, err := s.networkWrite(ctx)
+	if err != nil {
+		return Target{}, err
+	}
+	defer tx.Rollback()
+	// Legacy callers omit these fields. Preserve an explicit family/count on a
+	// rename rather than silently downgrading a configured probe to auto/one.
+	var previousFamily, previousKind string
+	var packets int
+	if err := tx.QueryRowContext(ctx, `SELECT address_family,packet_count,kind FROM targets WHERE id=?`, id).Scan(&previousFamily, &packets, &previousKind); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Target{}, ErrNotFound
+		}
+		return Target{}, err
+	}
+	if p.AddressFamily == "" {
+		p.AddressFamily = previousFamily
+	}
+	if p.Kind != previousKind {
+		_, packets = networkDefinition(p.Kind, "", 0)
+	}
+	if p.PacketCount != nil {
+		packets = *p.PacketCount
+	}
 	port := 0
 	if p.Port != nil {
 		port = *p.Port
 	}
 	task := protocol.Task{ID: "validation", TargetID: id, Kind: p.Kind, Host: strings.TrimSpace(p.Host), Port: port, TimeoutMS: p.TimeoutMS, ExpiresAt: time.Now().UTC().Add(time.Minute)}
-	if strings.TrimSpace(p.Name) == "" || p.IntervalSeconds < 5 || p.IntervalSeconds > 86400 || task.Validate(time.Now().UTC()) != nil {
+	if strings.TrimSpace(p.Name) == "" || p.IntervalSeconds < 5 || p.IntervalSeconds > 86400 || !validNetworkDefinition(task, p.AddressFamily, packets) {
 		return Target{}, errors.New("invalid target configuration")
 	}
-	result, err := s.db.ExecContext(ctx, `UPDATE targets SET name=?,kind=?,host=?,port=?,interval_seconds=?,timeout_ms=?,enabled=?,sort_order=?,updated_at=? WHERE id=?`, strings.TrimSpace(p.Name), p.Kind, strings.TrimSpace(p.Host), p.Port, p.IntervalSeconds, p.TimeoutMS, p.Enabled, p.SortOrder, nowText(), id)
+	result, err := tx.ExecContext(ctx, `UPDATE targets SET name=?,kind=?,host=?,port=?,interval_seconds=?,timeout_ms=?,enabled=?,sort_order=?,updated_at=?,address_family=?,packet_count=? WHERE id=?`, strings.TrimSpace(p.Name), p.Kind, strings.TrimSpace(p.Host), p.Port, p.IntervalSeconds, p.TimeoutMS, p.Enabled, p.SortOrder, nowText(), p.AddressFamily, packets, id)
 	if err != nil {
 		return Target{}, err
 	}
 	count, _ := result.RowsAffected()
 	if count == 0 {
 		return Target{}, ErrNotFound
+	}
+	if err := tx.Commit(); err != nil {
+		return Target{}, err
 	}
 	items, err := s.ListTargets(ctx)
 	if err != nil {

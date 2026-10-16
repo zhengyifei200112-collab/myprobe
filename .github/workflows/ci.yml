@@ -211,7 +211,7 @@ jobs:
           MYPROBE_TEST_NETWORK_QUALITY_BROWSER: '1'
           MYPROBE_TEST_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
           QA_ARTIFACT_DIR: ${{ runner.temp }}/myprobe-network-comparison
-        run: go test ./internal/httpapi -run '^TestNetworkQualityLiveComparisonBrowser$' -timeout 8m -count=1 -v
+        run: go test ./internal/httpapi -run '^TestNetwork(QualityLiveComparison|DefinitionLive)Browser$' -timeout 8m -count=1 -v
 
       - name: Preserve synthetic comparison screenshots and result
         if: always()

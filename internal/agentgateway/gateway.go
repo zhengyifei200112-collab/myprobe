@@ -16,6 +16,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/httpcheck"
+	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/networkcheck"
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 	protocolv2 "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v2"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
@@ -54,6 +55,7 @@ func New(database *store.Store, hub *Hub) *Gateway {
 var ErrAgentOffline = errors.New("agent is offline")
 
 type agentSession struct {
+	networkAllowed bool
 	configAllowed  bool
 	epoch          string
 	configMu       sync.Mutex
@@ -204,6 +206,7 @@ func (g *Gateway) webSocketVersion(w http.ResponseWriter, r *http.Request, versi
 		welcome.Version = protocolv2.Version
 	}
 	session := &agentSession{connection: connection, version: version, httpAllowed: protocolv2.AllowsHTTP(capabilities), httpPending: make(map[string]time.Time)}
+	session.networkAllowed = version == protocolv2.Version && protocolv2.AllowsNetwork(capabilities)
 	session.configAllowed = version == protocolv2.Version && protocolv2.AllowsConfiguration(capabilities)
 	// Publish the session while holding its writer lock. A scheduler can discover
 	// it immediately, but its first task cannot overtake the welcome frame.
@@ -444,6 +447,12 @@ func (g *Gateway) DispatchNetwork(ctx context.Context, epochID string, slot time
 }
 
 func (g *Gateway) sendNetworkTask(ctx context.Context, session *agentSession, task store.NetworkTask) error {
+	if !session.networkAllowed && (task.AddressFamily != "" && task.AddressFamily != networkcheck.FamilyAuto || task.PacketCount > 1) {
+		if err := g.store.RecordUnsupportedNetworkDispatch(ctx, task, time.Now().UTC()); err != nil {
+			return err
+		}
+		return store.ErrNetworkTaskRejected
+	}
 	envelope, err := protocol.NewEnvelope(protocol.TypeTask, 0, task.Task)
 	if err != nil {
 		return err
