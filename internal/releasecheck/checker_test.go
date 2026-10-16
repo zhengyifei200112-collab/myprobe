@@ -236,3 +236,30 @@ func TestFreshnessWithoutFailureAndLifetimeBound(t *testing.T) {
 		t.Fatal("shutdown did not cancel check")
 	}
 }
+
+func TestRedirectNotFollowedAndUnconditional304NotRevalidated(t *testing.T) {
+	calls := 0
+	c := New(context.Background(), false, transportFunc(func(*http.Request) (*http.Response, error) {
+		calls++
+		return fixtureResponse(302, "", http.Header{"Location": {"https://untrusted.invalid/redirect"}}), nil
+	}))
+	c.now = fixedTime
+	if s := c.Refresh(context.Background()); s.ErrorCode != "upstream_unavailable" || calls != 1 {
+		t.Fatalf("redirect followed: snapshot=%+v calls=%d", s, calls)
+	}
+	now := fixedTime()
+	calls = 0
+	c = New(context.Background(), false, transportFunc(func(*http.Request) (*http.Response, error) {
+		calls++
+		if calls == 1 {
+			return fixtureResponse(200, stableBody, http.Header{"Etag": {strings.Repeat("x", 257)}}), nil
+		}
+		return fixtureResponse(304, "", nil), nil
+	}))
+	c.now = func() time.Time { return now }
+	c.Refresh(context.Background())
+	now = now.Add(MinimumInterval)
+	if s := c.Refresh(context.Background()); s.Status != "stale" || s.ErrorCode != "invalid_response" || !s.LastSuccessAt.Equal(fixedTime()) {
+		t.Fatalf("unconditional 304 revalidated: %+v", s)
+	}
+}

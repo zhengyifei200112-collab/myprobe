@@ -185,6 +185,9 @@ func (c *Checker) request(ctx context.Context, etag string) (*Release, string, s
 	}
 	defer response.Body.Close()
 	if response.StatusCode == http.StatusNotModified {
+		if etag == "" {
+			return nil, "", "invalid_response", time.Time{}
+		}
 		return nil, "", "", time.Time{}
 	}
 	if response.StatusCode == http.StatusForbidden || response.StatusCode == http.StatusTooManyRequests {
