@@ -79,8 +79,10 @@ configuration. The gateway acknowledgement test runs against both single edits a
 real batches, verifying new revision/nonce issuance, application acknowledgement,
 stale/invalid acknowledgement rejection and persisted confirmation. Released v1 and
 HTTP fallback behavior remain covered by existing compatibility tests. Store tests
-ensure repeated/older samples update liveness without duplicating history or
-overwriting newer measurements; actual ingress evidence remains transactional.
+ensure exact replays update liveness without duplicating history, while distinct
+late samples remain in history without overwriting newer metrics or traffic
+anchors. Conflicting payloads at one capture time refuse acceptance. Actual
+ingress evidence remains transactional.
 Concurrent duplicate reports insert one sample, and injected ingress failure rolls
 back the duplicate's liveness write and retains the previous actual transport.
 
