@@ -17,6 +17,15 @@ import (
 )
 
 func TestNegotiatedSamplingAcknowledgementAndLiveRevision(t *testing.T) {
+	testSamplingWriteAndAcknowledgement(t, false)
+}
+
+func TestBatchSamplingAcknowledgementAndLiveRevision(t *testing.T) {
+	testSamplingWriteAndAcknowledgement(t, true)
+}
+
+func testSamplingWriteAndAcknowledgement(t *testing.T, batch bool) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "sampling.db"))
@@ -76,8 +85,23 @@ func TestNegotiatedSamplingAcknowledgementAndLiveRevision(t *testing.T) {
 		t.Fatal("invalid application acknowledgement created proof")
 	}
 	ack(first, v1.TypeAcknowledged)
-	if _, err := db.UpdateNode(ctx, node.ID, store.UpdateNodeParams{Name: node.Name, CollectionSeconds: 2, ReportSeconds: 3, LatencyMode: v1.TaskKindPing}); err != nil {
-		t.Fatal(err)
+	if batch {
+		user, err := db.CreateUser(ctx, "synthetic batch administrator", "fixture-hash")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collection, report := 2, 3
+		preview, err := db.PreviewNodeBatch(ctx, user.ID, store.NodeBatchRequest{NodeIDs: []string{node.ID}, CollectionSeconds: &collection, ReportSeconds: &report}, time.Now().UTC())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ApplyNodeBatch(ctx, user.ID, preview.ID, "synthetic-batch-sampling", time.Now().UTC()); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		if _, err := db.UpdateNode(ctx, node.ID, store.UpdateNodeParams{Name: node.Name, CollectionSeconds: 2, ReportSeconds: 3, LatencyMode: v1.TaskKindPing}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	ack(first, v1.TypeError)
 	if err := wsjson.Read(ctx, connection, &frame); err != nil {

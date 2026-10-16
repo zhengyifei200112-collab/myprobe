@@ -22,14 +22,14 @@ func TestPublicIPIsStoredPreciselyAndReturnedMasked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, test := range []struct {
+	for index, test := range []struct {
 		address string
 		masked  string
 	}{
 		{address: "203.0.113.42", masked: "203.0.••.••"},
 		{address: "2001:db8:abcd:1234::8", masked: "2001:db8:abcd:••••"},
 	} {
-		report := protocol.Report{CapturedAt: time.Now().UTC(), PublicIP: test.address}
+		report := protocol.Report{CapturedAt: time.Now().UTC().Add(time.Duration(index) * time.Second), PublicIP: test.address}
 		if err := database.SaveReport(ctx, node.ID, report); err != nil {
 			t.Fatal(err)
 		}

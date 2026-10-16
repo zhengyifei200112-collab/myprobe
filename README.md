@@ -60,6 +60,20 @@ theme-safe structured badges, validated external links, and server-sanitized adv
 HTML. The feature-by-feature implementation and evidence matrix is maintained in the
 product specification.
 
+## Batch node configuration
+
+The node administration page supports selecting up to 100 nodes across pages,
+previewing tag, visibility, interval or target-assignment changes, and applying the
+whole batch atomically. Conflicts require a fresh preview; retrying an uncertain
+request reuses its result. Target assignment offers explicit add/remove/replace.
+
+Upgrade Agents to apply collection and report intervals independently. Saving a
+batch records desired settings. Mutually negotiated v2 config_apply.v1 peers use
+the current refresh/acknowledgement mechanism; HTTP fallback, offline and released
+v1 peers retain their existing compatibility and diagnostic states. See
+[`docs/NODE_BATCH_MANAGEMENT.md`](docs/NODE_BATCH_MANAGEMENT.md) for limits,
+validation and migration details.
+
 ## Deployment
 
 For Linux hosts with systemd, the one-click installer is the recommended path. It

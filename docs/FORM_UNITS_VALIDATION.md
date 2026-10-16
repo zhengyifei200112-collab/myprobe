@@ -58,7 +58,7 @@ Server 持久化证据分别解释。CI 在既有浏览器 job 中运行并保�
 
 首页整合后，同一运行器还执行独立的 100 节点发现/表格夹具，输出至 discovery/，
 并将其结果摘要加入 manifest。该夹具使用合成公开 API/WebSocket，完整范围见
-[首页验证说明](DASHBOARD_DISCOVERY_VALIDATION.md)；它不扩大量级表单的真实后端证明范围。
+[首页验证说明](DASHBOARD_DISCOVERY_VALIDATION.md)；它不扩大单位表单的真实后端证明范围。
 
 ## 当前证据与范围
 

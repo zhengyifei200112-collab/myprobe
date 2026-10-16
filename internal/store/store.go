@@ -107,6 +107,12 @@ func (s *Store) Migrate(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		if entry.Name() == "046_node_batches.sql" {
+			if err = prepareNodeBatchMigration(ctx, tx); err != nil {
+				tx.Rollback()
+				return fmt.Errorf("prepare node batch migration: %w", err)
+			}
+		}
 		if _, err = tx.ExecContext(ctx, string(body)); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("apply migration %s: %w", entry.Name(), err)
@@ -294,6 +300,29 @@ func (s *Store) saveReport(ctx context.Context, nodeID string, report protocol.R
 		return err
 	}
 	defer tx.Rollback()
+	// Reserve the writer before reading the latest measurement. Cached/retried
+	// reports prove transport liveness, but cannot rewind metrics or traffic.
+	observed := time.Now().UTC()
+	if _, err = tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", formatTime(observed), formatTime(observed), nodeID); err != nil {
+		return err
+	}
+	var previous string
+	err = tx.QueryRowContext(ctx, "SELECT captured_at FROM metric_latest WHERE node_id=?", nodeID).Scan(&previous)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if err == nil {
+		at, parseErr := parseTime(previous)
+		if parseErr != nil {
+			return parseErr
+		}
+		if !report.CapturedAt.After(at) {
+			if err := recordReportIngress(ctx, tx, nodeID, report.CapturedAt, observed, source); err != nil {
+				return err
+			}
+			return tx.Commit()
+		}
+	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO metric_latest(node_id, captured_at, report_json) VALUES(?, ?, ?)
 		ON CONFLICT(node_id) DO UPDATE SET captured_at = excluded.captured_at, report_json = excluded.report_json`,
 		nodeID, formatTime(report.CapturedAt), string(raw))
@@ -306,10 +335,6 @@ func (s *Store) saveReport(ctx context.Context, nodeID string, report protocol.R
 		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, nodeID, formatTime(report.CapturedAt), report.CPU.UsagePercent,
 		report.Memory.UsedBytes, report.Memory.TotalBytes, diskUsed, diskTotal, rxRate, txRate, rxTotal, txTotal, string(raw))
 	if err != nil {
-		return err
-	}
-	observed := time.Now().UTC()
-	if _, err = tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", formatTime(observed), formatTime(observed), nodeID); err != nil {
 		return err
 	}
 	if err = s.updateTrafficState(ctx, tx, nodeID, report.CapturedAt, rxTotal, txTotal); err != nil {

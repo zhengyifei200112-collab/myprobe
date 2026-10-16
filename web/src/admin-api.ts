@@ -254,7 +254,7 @@ export const createMaintenanceWindow = (preview: MaintenancePreview, requestID: 
 export const cancelMaintenanceWindow = (id: string, revision: number) => request<{ window_id: string; revision: number; canceled_at: string; replayed: boolean }>(`/api/v1/admin/maintenance-windows/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: JSON.stringify({ revision }) })
 
 export class AdminAPIError extends Error {
-  constructor(message: string, public status: number, public code?: string) { super(message) }
+  constructor(message: string, public status: number, public code?: string, public conflictNodeIDs: string[] = []) { super(message) }
 }
 export function notificationReadError(value: unknown, subject: string): string {
   if (value instanceof AdminAPIError) {
@@ -376,8 +376,8 @@ async function request<T>(path: string, options: RequestInit = {}, decode?: (tex
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && csrfToken) headers.set('X-CSRF-Token', csrfToken)
   const response = await fetch(path, { ...options, headers, credentials: 'same-origin', cache: 'no-store' })
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({})) as { error?: string; code?: string }
-    throw new AdminAPIError(payload.error || `请求失败（${response.status}）`, response.status, payload.code)
+    const payload = await response.json().catch(() => ({})) as { error?: string; code?: string; conflict_node_ids?: string[] }
+    throw new AdminAPIError(payload.error || `请求失败（${response.status}）`, response.status, payload.code, payload.conflict_node_ids || [])
   }
   if (response.status === 204) return undefined as T
   if (decode) return decode(await response.text())
@@ -630,3 +630,20 @@ export interface CertificateReminder {
   delivery_status: string; observation_stale: boolean; resolution_reason?: string; created_at: string
 }
 export const loadCertificateReminders = (id: string, before = 0) => request<{ reminders: CertificateReminder[]; next_before: number }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/certificate-reminders?limit=25&before=${before}`)
+export interface NodeBatchRequest {
+  node_ids: string[]
+  add_tags?: string[]
+  remove_tags?: string[]
+  hidden?: boolean
+  collection_seconds?: number
+  report_seconds?: number
+  targets?: { mode: 'add' | 'remove' | 'replace'; ids: string[] }
+}
+export interface BatchNodeState { tags: string[]; hidden: boolean; collection_seconds: number; report_seconds: number; target_ids: string[] }
+export interface NodeBatchPreview {
+  id: string; expires_at: string
+  nodes: Array<{ node_id: string; name: string; revision: number; changed: boolean; before: BatchNodeState; after: BatchNodeState }>
+}
+export interface NodeBatchResult { preview_id: string; applied_at: string; changed_ids: string[]; unchanged_ids: string[] }
+export const previewNodeBatch = (payload: NodeBatchRequest) => request<NodeBatchPreview>('/api/v1/admin/nodes/batch/preview', { method: 'POST', body: JSON.stringify(payload) })
+export const applyNodeBatch = (previewID: string, key: string) => request<NodeBatchResult>('/api/v1/admin/nodes/batch/apply', { method: 'POST', body: JSON.stringify({ preview_id: previewID, idempotency_key: key }) })

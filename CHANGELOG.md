@@ -7,6 +7,15 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Batch sampling updates reuse negotiated v2 configuration and application
+  acknowledgements. Partial interface/mount settings preserve the omitted local
+  selection. Management saves confirm desired configuration persistence.
+- Cached or delayed metric reports refresh last contact without duplicating history
+  or moving the latest metrics and traffic counters backwards.
+
+
 ### Added
 
 - Integrated quantity editors preserve integer minor-unit prices, legacy billing
@@ -483,6 +492,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   small screens, and throttled live ordering that pauses during list interaction.
 - Distinct waiting, interrupted-report and stale-data states, public attention
   reasons, and filtered totals that exclude stale samples from live rates.
+- Transactional node batch configuration previews with ownership, ten-minute
+  expiry, revision conflicts, persistent idempotency and atomic audit recording.
+- Administrative batch selection across pages for tags, visibility, sampling
+  configuration and additive/removal/replacement probe-target assignment.
 
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
