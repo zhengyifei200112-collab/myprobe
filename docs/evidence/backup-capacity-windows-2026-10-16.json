@@ -1,0 +1,181 @@
+{
+  "format": "myprobe.encrypted-backup-local-evidence.v1",
+  "captured_at": "2026-10-16T06:53:49.6361263Z",
+  "source_label": "working-tree-encrypted-backup-capacity",
+  "parent_commit": "b889acf7d5fa1734c6619e9dc9d188b9aeb275ae",
+  "volume_type": "NTFS",
+  "disk_model": "KIOXIA-EXCERIA PLUS G3 SSD",
+  "disk_bus": "NVMe",
+  "known_concurrent_workloads": [
+    "Frozen 49334ad supervised 100-node WSL dense-year runtime on the same physical host",
+    "Full local Go test suite ran concurrently with part of this measurement"
+  ],
+  "raw_filesystem_field": "gopsutil UsageStat.Fstype empty on this Windows host; volume type independently read using Get-Volume",
+  "local_validation": {
+    "full_go": "only inherited TestDiskUsagePathUsesHostRootForAbsoluteMounts (#47) fails",
+    "vet": "passed",
+    "build": "passed",
+    "gofmt": "passed",
+    "diff": "passed",
+    "local_race": "not run; CGO disabled",
+    "no_frontend_changes": true
+  },
+  "observations": [
+    {
+      "Format": "myprobe.encrypted-backup-capacity.v1",
+      "SourceCommit": "working-tree",
+      "OS": "windows",
+      "GoVersion": "go1.26.5",
+      "CPUModel": "13th Gen Intel(R) Core(TM) i5-13490F",
+      "Filesystem": "",
+      "HostLoadContext": "Separate supervised 100-node WSL runtime shares this physical host; not isolated",
+      "LogicalCPUs": 16,
+      "VisibleMemoryBytes": 34138931200,
+      "FreeBytesAtStart": 359543783424,
+      "SourceSHA256": {
+        "internal/backup/archive.go": "0eaa6c5549bba065fcef2b9961579d787e2859eff74e78724691675d8e7bcd57",
+        "internal/backup/capacity_fixture_test.go": "8753faae756b2beb8435a6e7ddeeaec5cae25de4d48fcd13cde497f47bbdeb79",
+        "internal/backup/capacity_test.go": "92f0afbf122d74f79c8cac85d545850c5d26711c38ac7f085e815a0389728ff3",
+        "internal/backup/repository.go": "d9b99b083d07907a2c8b31f32f37fbf626dbcd779784a88f2315a9f39cb2aded",
+        "internal/store/backup.go": "d66d815d67dfed7fbb7b455d4084246ac935a502ec300929a2720f7abbf108b8"
+      },
+      "RequestedMiB": 256,
+      "SourceBytes": 285020160,
+      "Artifact": {
+        "version": 1,
+        "owner_id": "89c5b2bb70fdda58821a1f0638cb72f0",
+        "id": "473062d6a19deeda1ddacab430f68c8d",
+        "file_name": "myprobe-backup-20261016T065046Z-473062d6a19deeda1ddacab430f68c8d.mpb",
+        "started_at": "2026-10-16T06:50:46.7813676Z",
+        "completed_at": "2026-10-16T06:50:49.0545819Z",
+        "bytes": 284280194,
+        "sha256": "073012e2d1b1f040d0b5d991cf25c4597a1c4a819df8715dd74742525251d3ee",
+        "archive_verified": true,
+        "recovery_verified": true,
+        "recovery_verified_at": "2026-10-16T06:50:52.3971769Z",
+        "recovery_evidence": {
+          "nodes": 1,
+          "users": 1,
+          "reports": 31915,
+          "channels": 1
+        }
+      },
+      "Phases": [
+        {
+          "Phase": "seed",
+          "WallSeconds": 2.6600392,
+          "CPUSeconds": 2.96875,
+          "SampledPeakRSSBytes": 27312128,
+          "SampledPeakLogicalFileBytes": 288024536,
+          "Samples": 53,
+          "ReadErrors": 0,
+          "MaximumSampleGapSeconds": 0.0510273
+        },
+        {
+          "Phase": "generate",
+          "WallSeconds": 2.4286405,
+          "CPUSeconds": 2.234375,
+          "SampledPeakRSSBytes": 89788416,
+          "SampledPeakLogicalFileBytes": 1137883864,
+          "Samples": 48,
+          "ReadErrors": 0,
+          "MaximumSampleGapSeconds": 0.0506838
+        },
+        {
+          "Phase": "recover",
+          "WallSeconds": 3.304066,
+          "CPUSeconds": 3.75,
+          "SampledPeakRSSBytes": 83181568,
+          "SampledPeakLogicalFileBytes": 853614254,
+          "Samples": 66,
+          "ReadErrors": 0,
+          "MaximumSampleGapSeconds": 0.0507081
+        }
+      ],
+      "Limitations": [
+        "synthetic valid reports; quiet single-node database, not live Server load",
+        "50ms child RSS and logical-file samples can miss peaks; file sizes count directory entries including hardlinks, not allocated disk blocks",
+        "each stage has a fresh process; stage time includes startup",
+        "same-host local recovery, not cross-machine failover or the full 24-hour gate"
+      ]
+    },
+    {
+      "Format": "myprobe.encrypted-backup-capacity.v1",
+      "SourceCommit": "working-tree",
+      "OS": "windows",
+      "GoVersion": "go1.26.5",
+      "CPUModel": "13th Gen Intel(R) Core(TM) i5-13490F",
+      "Filesystem": "",
+      "HostLoadContext": "Separate supervised 100-node WSL runtime shares this physical host; not isolated",
+      "LogicalCPUs": 16,
+      "VisibleMemoryBytes": 34138931200,
+      "FreeBytesAtStart": 359543681024,
+      "SourceSHA256": {
+        "internal/backup/archive.go": "0eaa6c5549bba065fcef2b9961579d787e2859eff74e78724691675d8e7bcd57",
+        "internal/backup/capacity_fixture_test.go": "8753faae756b2beb8435a6e7ddeeaec5cae25de4d48fcd13cde497f47bbdeb79",
+        "internal/backup/capacity_test.go": "92f0afbf122d74f79c8cac85d545850c5d26711c38ac7f085e815a0389728ff3",
+        "internal/backup/repository.go": "d9b99b083d07907a2c8b31f32f37fbf626dbcd779784a88f2315a9f39cb2aded",
+        "internal/store/backup.go": "d66d815d67dfed7fbb7b455d4084246ac935a502ec300929a2720f7abbf108b8"
+      },
+      "RequestedMiB": 1024,
+      "SourceBytes": 1137704960,
+      "Artifact": {
+        "version": 1,
+        "owner_id": "00213cee89c57e49fd83e1ab5b7064b7",
+        "id": "c55d87a87e10460ab479e02d9ba68557",
+        "file_name": "myprobe-backup-20261016T065104Z-c55d87a87e10460ab479e02d9ba68557.mpb",
+        "started_at": "2026-10-16T06:51:04.7943392Z",
+        "completed_at": "2026-10-16T06:51:14.2960243Z",
+        "bytes": 1134597342,
+        "sha256": "bd62bebc33e4e8485f8f039d2839d6cfc13aa12dec67c504f38d712e5b2c9192",
+        "archive_verified": true,
+        "recovery_verified": true,
+        "recovery_verified_at": "2026-10-16T06:51:25.5085927Z",
+        "recovery_evidence": {
+          "nodes": 1,
+          "users": 1,
+          "reports": 127660,
+          "channels": 1
+        }
+      },
+      "Phases": [
+        {
+          "Phase": "seed",
+          "WallSeconds": 12.2207442,
+          "CPUSeconds": 11.890625,
+          "SampledPeakRSSBytes": 27947008,
+          "SampledPeakLogicalFileBytes": 1142990808,
+          "Samples": 244,
+          "ReadErrors": 0,
+          "MaximumSampleGapSeconds": 0.0601767
+        },
+        {
+          "Phase": "generate",
+          "WallSeconds": 9.8766613,
+          "CPUSeconds": 9.859375,
+          "SampledPeakRSSBytes": 90632192,
+          "SampledPeakLogicalFileBytes": 4541488179,
+          "Samples": 196,
+          "ReadErrors": 0,
+          "MaximumSampleGapSeconds": 0.1132192
+        },
+        {
+          "Phase": "recover",
+          "WallSeconds": 11.0208547,
+          "CPUSeconds": 13.234375,
+          "SampledPeakRSSBytes": 84025344,
+          "SampledPeakLogicalFileBytes": 3406917134,
+          "Samples": 220,
+          "ReadErrors": 0,
+          "MaximumSampleGapSeconds": 0.0525981
+        }
+      ],
+      "Limitations": [
+        "synthetic valid reports; quiet single-node database, not live Server load",
+        "50ms child RSS and logical-file samples can miss peaks; file sizes count directory entries including hardlinks, not allocated disk blocks",
+        "each stage has a fresh process; stage time includes startup",
+        "same-host local recovery, not cross-machine failover or the full 24-hour gate"
+      ]
+    }
+  ]
+}
