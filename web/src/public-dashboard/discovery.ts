@@ -76,12 +76,21 @@ function numericValue(item: PublicNode, query: DiscoveryQuery): number | undefin
   return Number.isFinite(value) ? value : undefined
 }
 export function sortNodes(items: PublicNode[], query: DiscoveryQuery): PublicNode[] {
+	// Match SQLite's stored-order tie break; explicit name sorting still uses
+	// the presentation locale. UTF-8 comparison also handles non-BMP names.
+	const encoder = new TextEncoder()
+	const storedNames = query.sort === 'default' ? new Map(items.map(item => [item.node.id, encoder.encode(item.node.name)])) : undefined
+	function storedNameOrder(a: PublicNode, b: PublicNode) {
+		const av = storedNames!.get(a.node.id)!, bv = storedNames!.get(b.node.id)!
+		for (let i = 0; i < Math.min(av.length, bv.length); i++) if (av[i] !== bv[i]) return av[i]! - bv[i]!
+		return av.length - bv.length
+	}
   return [...items].sort((a, b) => {
     if (query.sort === 'name') return a.node.name.localeCompare(b.node.name, 'zh-CN', { numeric: true }) || a.node.id.localeCompare(b.node.id)
     const av = numericValue(a, query), bv = numericValue(b, query)
     if (av === undefined && bv !== undefined) return 1
     if (bv === undefined && av !== undefined) return -1
     const difference = av === undefined || bv === undefined ? 0 : av - bv
-    return (['cpu', 'memory', 'latency'].includes(query.sort) ? -difference : difference) || a.node.id.localeCompare(b.node.id)
+    return (['cpu', 'memory', 'latency'].includes(query.sort) ? -difference : difference) || (storedNames ? storedNameOrder(a, b) : 0) || a.node.id.localeCompare(b.node.id)
   })
 }

@@ -496,6 +496,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   expiry, revision conflicts, persistent idempotency and atomic audit recording.
 - Administrative batch selection across pages for tags, visibility, sampling
   configuration and additive/removal/replacement probe-target assignment.
+- Accessible node ordering with up/down controls, Alt+arrow shortcuts, position
+  announcements and explicit cancel/save. Complete-list saves reject stale order
+  changes, commit ordering and audit atomically, and safely replay lost responses.
+
 
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and

@@ -16,7 +16,7 @@ import (
 func (s *Store) ListNodes(ctx context.Context) ([]Node, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT id, name, sort_order, hidden, tags_json, country_code, currency,
 		price_minor, billing_cycle, expires_at, traffic_reset_day, use_since_boot, latency_mode, custom_html, custom_badges_json, custom_links_json,
-		collection_seconds, report_seconds, created_at, updated_at, last_seen_at FROM nodes ORDER BY sort_order, name`)
+		collection_seconds, report_seconds, created_at, updated_at, last_seen_at FROM nodes ORDER BY sort_order, name, id`)
 	if err != nil {
 		return nil, err
 	}

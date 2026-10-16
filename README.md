@@ -74,6 +74,14 @@ v1 peers retain their existing compatibility and diagnostic states. See
 [`docs/NODE_BATCH_MANAGEMENT.md`](docs/NODE_BATCH_MANAGEMENT.md) for limits,
 validation and migration details.
 
+## Node ordering
+
+In node administration, choose **Adjust node order** to move nodes with the up/down
+buttons or Alt+arrow shortcuts, then save once. Cancel leaves the stored order
+unchanged. A concurrent node/order change requires reloading the list. Existing
+integer sorting remains supported; see [`docs/NODE_ORDERING.md`](docs/NODE_ORDERING.md)
+for the API contract, limits and validation.
+
 ## Deployment
 
 For Linux hosts with systemd, the one-click installer is the recommended path. It

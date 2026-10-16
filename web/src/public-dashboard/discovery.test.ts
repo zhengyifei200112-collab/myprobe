@@ -53,3 +53,10 @@ test('URL overrides local preferences, preserves unrelated parameters and valida
   assert.ok(url.includes('unrelated=1')); assert.ok(url.endsWith('#anchor'))
   assert.equal(readQuery(new URL(url, 'https://example.test').search).q, '東京 &')
 })
+
+test('configured-order ties match stored UTF-8 names while live metric ties retain IDs', () => {
+  const names = ['🚀', '\ue000', '北京', 'z', 'A', 'A']
+  const nodes = names.map((name, index) => { const item = fixture(String(index)); item.node.name = name; return item })
+  assert.deepEqual(sortNodes(nodes, defaults).map(item => item.node.id), ['4','5','3','2','1','0'])
+  assert.deepEqual(sortNodes(nodes, { ...defaults, sort: 'cpu' }).map(item => item.node.id), ['0','1','2','3','4','5'])
+})

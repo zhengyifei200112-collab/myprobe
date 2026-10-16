@@ -12,7 +12,7 @@ const { once } = require('node:events');
   const binary = path.resolve(process.argv[2] || '');
   const output = path.resolve(process.argv[3] || '');
   const profile = process.argv[4] || 'forms';
-  assert.ok(['forms', 'node-batches'].includes(profile), 'Unknown QA profile');
+  assert.ok(['forms', 'node-batches', 'node-order'].includes(profile), 'Unknown QA profile');
   assert.ok(process.argv[2] && process.argv[3], 'Usage: node run-form-units-qa.cjs /server /existing-empty-output');
   assert.ok((await fs.stat(binary)).isFile());
   assert.ok((await fs.stat(output)).isDirectory());
@@ -24,6 +24,7 @@ const { once } = require('node:events');
   const sourceHashes = {};
   for (const name of ['web/src/AdminApp.vue', 'web/src/forms/units.ts', 'web/src/forms/units.test.ts', 'web/src/forms/QuantityInput.vue', 'web/src/notification-center/NotificationCenter.vue', 'web/src/notification-center/PolicyManager.vue', 'web/src/public-dashboard/metrics.ts', 'scripts/form_units_browser_test.cjs', 'scripts/alert-policies-ui.cjs', 'scripts/run-form-units-qa.cjs']) sourceHashes[name] = await hash(path.join(repo, name));
   const assetHashes = {};
+  for (const name of ['web/src/NodeOrderManager.vue','scripts/node_order_browser_test.cjs','internal/store/node_order.go','internal/store/admin.go','internal/httpapi/node_order.go']) sourceHashes[name] = await hash(path.join(repo,name));
   for (const name of ['web/src/NodeBatchManager.vue', 'web/src/admin-api.ts', 'internal/store/node_batch.go', 'internal/store/node_batch_migration.go', 'internal/store/migrations/046_node_batches.sql', 'internal/store/store.go', 'internal/agentgateway/hub.go', 'internal/agentgateway/gateway.go', 'internal/httpapi/node_batch.go', 'internal/httpapi/server.go', 'scripts/node_batch_browser_test.cjs']) sourceHashes[name] = await hash(path.join(repo, name));
   for (const name of ['web/src/App.vue', 'web/src/public-dashboard/PublicNodeCard.vue', 'web/src/public-dashboard/PublicNodeTable.vue', 'web/src/public-dashboard/discovery.ts', 'web/src/public-dashboard/discovery.test.ts', 'web/src/public-dashboard/discovery.css', 'scripts/dashboard_browser_test.cjs']) sourceHashes[name] = await hash(path.join(repo, name));
   for (const name of ['index.html', ...(await fs.readdir(path.join(repo, 'internal/webui/dist/assets'))).map(name => 'assets/' + name)]) assetHashes[name] = await hash(path.join(repo, 'internal/webui/dist', name));
@@ -59,9 +60,9 @@ const { once } = require('node:events');
     }
     assert.ok(ready, 'Disposable Server readiness deadline');
     if (profile === 'forms') await fs.mkdir(path.join(output, 'discovery'), { mode: 0o700 });
-    const scripts = profile === 'forms' ? ['form_units_browser_test.cjs', 'alert-policies-ui.cjs', 'dashboard_browser_test.cjs'] : ['node_batch_browser_test.cjs'];
+    const scripts = profile === 'forms' ? ['form_units_browser_test.cjs', 'alert-policies-ui.cjs', 'dashboard_browser_test.cjs'] : [profile === 'node-batches' ? 'node_batch_browser_test.cjs' : 'node_order_browser_test.cjs'];
     for (const script of scripts) {
-      const scriptOutput = ['form_units_browser_test.cjs', 'node_batch_browser_test.cjs'].includes(script) ? output : path.join(output, script === 'alert-policies-ui.cjs' ? 'policy-contract' : 'discovery');
+      const scriptOutput = ['form_units_browser_test.cjs', 'node_batch_browser_test.cjs', 'node_order_browser_test.cjs'].includes(script) ? output : path.join(output, script === 'alert-policies-ui.cjs' ? 'policy-contract' : 'discovery');
       const child = spawn(process.execPath, [path.join(__dirname, script)], {
         env: { ...env, UI_BASE_URL: base, MYPROBE_QA_URL: base, MYPROBE_QA_PASSWORD: password, QA_OUTPUT_DIR: scriptOutput, MYPROBE_TEST_URL: base, MYPROBE_TEST_PASSWORD: password, MYPROBE_TEST_OUTPUT: scriptOutput },
         stdio: 'inherit', windowsHide: true, timeout: 240000,
@@ -71,7 +72,7 @@ const { once } = require('node:events');
     }
     assert.equal(JSON.parse(await fs.readFile(path.join(output, 'result.json'), 'utf8')).passed, true);
     const additional = profile === 'forms' ? { discovery_result_sha256: await hash(path.join(output, 'discovery/result.json')), policy_contract_passed: true } : {};
-    await fs.writeFile(path.join(output, 'run-manifest.json'), JSON.stringify({ format: profile === 'forms' ? 'myprobe.form-units-native-run.v1' : 'myprobe.node-batch-native-run.v1', source_commit: sourceCommit, source_dirty: sourceDirty, server_sha256: binaryHash, source_sha256: sourceHashes, assets_sha256: assetHashes, browser_result_sha256: await hash(path.join(output, 'result.json')), ...additional }, null, 2), { mode: 0o600, flag: 'wx' });
+    await fs.writeFile(path.join(output, 'run-manifest.json'), JSON.stringify({ format: profile === 'forms' ? 'myprobe.form-units-native-run.v1' : profile === 'node-batches' ? 'myprobe.node-batch-native-run.v1' : 'myprobe.node-order-native-run.v1', source_commit: sourceCommit, source_dirty: sourceDirty, server_sha256: binaryHash, source_sha256: sourceHashes, assets_sha256: assetHashes, browser_result_sha256: await hash(path.join(output, 'result.json')), ...additional }, null, 2), { mode: 0o600, flag: 'wx' });
   } finally {
     if (server.pid && server.exitCode === null) server.kill();
     await exited;
