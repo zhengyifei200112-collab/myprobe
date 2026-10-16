@@ -65,15 +65,18 @@ func TestJointRuntimeLoad(t *testing.T) {
 	if withBackup && (duration < 3*time.Minute || duration > 15*time.Minute || os.Getenv("MYPROBE_TEST_LOAD_HISTORY") != "year" || os.Getenv("MYPROBE_TEST_LOAD_RECONCILE") != "1") {
 		t.Fatal("live backup requires 3..15 minutes, dense year history and report reconciliation")
 	}
-	setupBudget := time.Duration(0)
+	setupBudget := 5 * time.Minute
+	withHistory := false
 	if mode := os.Getenv("MYPROBE_TEST_LOAD_HISTORY"); mode != "" {
 		if mode != "year" {
 			t.Fatal("unsupported joint history mode")
 		}
-		setupBudget = time.Hour
+		setupBudget = 2 * time.Hour
+		withHistory = true
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), duration+3*time.Minute+setupBudget)
-	defer cancel()
+	budget := newJointLoadBudget(setupBudget, duration, 3*time.Minute)
+	defer budget.stop()
+	ctx := budget.Context
 	root := t.TempDir()
 	databasePath := filepath.Join(root, "joint.db")
 	binary := os.Getenv("MYPROBE_TEST_LOAD_SERVER_BINARY")
@@ -180,7 +183,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	var history jointHistorySeed
-	if setupBudget > 0 {
+	if withHistory {
 		history = seedJointHistory(t, ctx, databasePath, db, ids)
 		for i := range fixtures {
 			fixtures[i].source.counterOffset = history.CounterOffset
@@ -269,7 +272,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 		result.Limitations[3] = "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports"
 	}
 	result.SourceSHA256 = make(map[string]string)
-	for _, path := range []string{"cmd/server/main.go", "internal/agentclient/client.go", "internal/agentclient/sampling.go", "internal/agentgateway/gateway.go", "internal/store/store.go", "internal/store/agent_metadata.go", "internal/agentclient/joint_load_test.go", "internal/agentclient/joint_load_backup_test.go", "internal/agentclient/joint_load_history_test.go", "internal/agentclient/joint_load_history_validation_test.go", "internal/agentclient/joint_load_process_test.go", "internal/agentclient/joint_load_resource_test.go", "internal/agentclient/joint_load_resource_validation_test.go", "internal/agentclient/joint_load_browser_test.go", "internal/agentclient/joint_load_reconciliation_test.go", "internal/agentclient/joint_load_reconciliation_validation_test.go", "internal/backup/repository.go", "internal/backup/scheduler.go", "internal/backup/archive.go", "scripts/joint-load-browser.cjs", "scripts/run-joint-load.sh"} {
+	for _, path := range []string{"cmd/server/main.go", "internal/agentclient/client.go", "internal/agentclient/sampling.go", "internal/agentgateway/gateway.go", "internal/store/store.go", "internal/store/agent_metadata.go", "internal/agentclient/joint_load_test.go", "internal/agentclient/joint_load_budget_test.go", "internal/agentclient/joint_load_budget_validation_test.go", "internal/agentclient/joint_load_backup_test.go", "internal/agentclient/joint_load_history_test.go", "internal/agentclient/joint_load_history_validation_test.go", "internal/agentclient/joint_load_process_test.go", "internal/agentclient/joint_load_resource_test.go", "internal/agentclient/joint_load_resource_validation_test.go", "internal/agentclient/joint_load_browser_test.go", "internal/agentclient/joint_load_reconciliation_test.go", "internal/agentclient/joint_load_reconciliation_validation_test.go", "internal/backup/repository.go", "internal/backup/scheduler.go", "internal/backup/archive.go", "scripts/joint-load-browser.cjs", "scripts/run-joint-load.sh"} {
 		raw, err := os.ReadFile(filepath.Join("../..", filepath.FromSlash(path)))
 		if err != nil {
 			t.Fatal("load fixture source unavailable for provenance")
@@ -308,8 +311,15 @@ func TestJointRuntimeLoad(t *testing.T) {
 	var requestErrors int
 	var cpuMicros uint64
 	restarted, disconnected := false, false
-	started := time.Now()
+	started, err := budget.startMeasurement()
+	if err != nil {
+		t.Fatal(err)
+	}
 	result.StartedAt = started.UTC()
+	result.PreparationStartedAt = budget.preparationStarted.UTC()
+	result.PreparationSeconds = started.Sub(budget.preparationStarted).Seconds()
+	result.PreparationBudgetSeconds = setupBudget.Seconds()
+	result.MeasurementDeadlineAt = started.Add(duration + 3*time.Minute).UTC()
 	resourceTarget := &jointResourceTarget{}
 	resourceTarget.set(&server, 0)
 	var publishResources func(jointResourceObservation) error
@@ -328,7 +338,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 	for time.Since(started) < duration {
 		select {
 		case <-ctx.Done():
-			t.Fatal("joint load timed out")
+			t.Fatal("joint load timed out:", context.Cause(ctx))
 		case <-ticker.C:
 		}
 		elapsed := time.Since(started)
@@ -717,6 +727,8 @@ func jointDistribution(values []float64) jointLatency {
 }
 
 type jointLoadResult struct {
+	PreparationStartedAt, MeasurementDeadlineAt                                                                                               time.Time
+	PreparationSeconds, PreparationBudgetSeconds                                                                                              float64
 	LiveBackup                                                                                                                                *jointBackupEvidence `json:",omitempty"`
 	ResourceObservation                                                                                                                       jointResourceObservation
 	Format                                                                                                                                    string `json:"format"`

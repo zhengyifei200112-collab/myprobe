@@ -19,6 +19,8 @@
 以及相邻累计流量的精确差值。请求范围的部分起始桶及实时尾部不应用固定历史值断言。
 另有自动化反例测试，要求缺层、缺目标、缺桶、重复桶和错误数值被拒绝。
 
+准备耗时与正式时长使用独立预算，具体字段和外层超时要求见[联合运行](JOINT_RUNTIME_LOAD.md)。
+
 本提交的请求是串行执行：一秒定时器仅给出最短调度节奏，查询合计超过一秒时会减少
 实际请求次数。RSS/WAL 也在同一循环采样，`ResourceSampleSeconds=1` 是定时器设置，
 不能解释为实际固定一秒间隔。慢查询和 Server 重启会延长间隔；这里只报告采样最大值。
@@ -32,7 +34,7 @@
 ```sh
 export MYPROBE_TEST_LOAD_HISTORY=year
 export MYPROBE_TEST_LOAD_NODES=5 # 随后单独运行 50、100
-export MYPROBE_TEST_LOAD_TIMEOUT=70m
+export MYPROBE_TEST_LOAD_TIMEOUT=3h
 export MYPROBE_TEST_LOAD_RECONCILE=1
 export MYPROBE_TEST_LOAD_BROWSER=1
 export MYPROBE_TEST_LOAD_SYSTEMD=1

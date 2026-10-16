@@ -170,6 +170,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Joint load validation separates bounded preparation from the full requested
+  measurement duration, retaining child processes across the phase transition.
+  Evidence records preparation time and the measurement/finalization deadline;
+  slow history generation cannot silently consume a 24-hour observation budget.
 - macOS IPv6 ICMP uses bounded Echo Requests without treating BSD `ping6 -W`
   (an FQDN/node-information option) as the IPv4 response wait. The shared task
   deadline still bounds completion; interrupted summaries retain unknown counts.
