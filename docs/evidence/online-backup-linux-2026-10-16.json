@@ -1,0 +1,369 @@
+{
+  "format": "myprobe.online-backup-linux.v1",
+  "source_commit": "c4d355547a3f81bcb4fb77027b3ba9dc4c9538f1",
+  "workflow_run": 38868668040,
+  "job_id": 116867322052,
+  "job_conclusion": "success",
+  "acceptance_step": "Verify bounded online backup acceptance passed",
+  "full_run_when_downloaded": "in progress; separate exact-head confirmation required",
+  "result": {
+    "LiveBackup": {
+      "BackupWindowStart": "2026-10-16T07:42:52.848912756Z",
+      "RecoveryWindowStart": "2026-10-16T07:43:30.747218278Z",
+      "GuaranteedRetainedSeedReports": 201580,
+      "RequestedAt": "2026-10-16T07:42:52.847919196Z",
+      "ArchiveCompletedAt": "2026-10-16T07:43:26.347332177Z",
+      "RecoveryCompletedAt": "2026-10-16T07:43:43.161995833Z",
+      "ArchiveBytes": 1376978666,
+      "Recovered": {
+        "nodes": 5,
+        "users": 1,
+        "reports": 201620,
+        "channels": 1
+      },
+      "BackupACKs": 18,
+      "BackupACKNodes": 5,
+      "RecoveryACKs": 10,
+      "RecoveryACKNodes": 5,
+      "CompletionPreservedAfterRestart": true
+    },
+    "ResourceObservation": {
+      "ProgressWriteErrors": 0,
+      "Samples": 183,
+      "ServerUnavailableSamples": 1,
+      "TargetIntervalSeconds": 1,
+      "MaximumGapSeconds": 1.001094303,
+      "PeakRSSBytes": 79388672,
+      "PeakWALBytes": 6027592
+    },
+    "format": "myprobe.joint-load.v1",
+    "StartedAt": "2026-10-16T07:42:42.402879853Z",
+    "EndedAt": "2026-10-16T07:45:44.284028425Z",
+    "Nodes": 5,
+    "ReportSeconds": 15,
+    "TargetsPerNode": 3,
+    "TargetSeconds": 60,
+    "HTTPServices": 1,
+    "SubscriptionClients": 5,
+    "DurationRequestedSeconds": 180,
+    "ElapsedSeconds": 181.881148472,
+    "MeasurementSeconds": 181.879856961,
+    "RecoveryDrainSeconds": 0.001291231,
+    "RecoveryDrained": true,
+    "OS": "linux",
+    "GoVersion": "go1.26.9",
+    "LogicalCPUs": 4,
+    "HistoryFixture": "dense-year",
+    "DenseHistory": {
+      "LastLatencyID": 151845,
+      "Mode": "dense-year",
+      "Anchor": "2026-10-16T07:00:00Z",
+      "SeedFinishedAt": "2026-10-16T07:42:24.526798235Z",
+      "SeedSeconds": 53.722528102,
+      "MetricRows": 202455,
+      "LatencyRows": 151845,
+      "MetricRollupRows": 648000,
+      "TrafficRollupRows": 648000,
+      "LatencyRollupRows": 1944000,
+      "LastMetricID": 202455,
+      "DatabaseBytes": 1476124672,
+      "CounterOffset": 2102570
+    },
+    "SourceSHA256": {
+      "cmd/server/main.go": "cba53b0e9e604e059ec18d67227076b6b4fa973f0dd3de34d235f4160a670019",
+      "internal/agentclient/client.go": "2d6ed1a9ff9e002b40c448a0d0a60d7c0b6b8cb96f611ca4fe710260077f2443",
+      "internal/agentclient/joint_load_backup_test.go": "e96f10a29dbb0ac191c065234ee0ebfa36f1606f1e18116373ff9971810c500c",
+      "internal/agentclient/joint_load_browser_test.go": "8b72a9ad8ccc4382f98126791ecbba00bd3e221c809d0edd3462212e1719f50d",
+      "internal/agentclient/joint_load_history_test.go": "7054885b678d0f3f1495fb8d70f340602aaea4e721e0e6bf48c46a5233929273",
+      "internal/agentclient/joint_load_history_validation_test.go": "39a18fa96169753cc5f960637de1d6ed503d3e6e138e7048ffed3844dfef50b4",
+      "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+      "internal/agentclient/joint_load_reconciliation_test.go": "28bdbca87f16f677f4acbe25dbebbe546508ecdc932c5f4584633435a3c99564",
+      "internal/agentclient/joint_load_reconciliation_validation_test.go": "202b399775c00928a1565184228a519ef5eda5d7d64341c88879ef90ca177b27",
+      "internal/agentclient/joint_load_resource_test.go": "d7a419abf8e3c98949bc82f46d1a4a0af6a9365293bab36e2232f5da22bedd24",
+      "internal/agentclient/joint_load_resource_validation_test.go": "ce562f8022024b8eea3082f75de7fba795a6063c1bb55f230ebf9001474380d0",
+      "internal/agentclient/joint_load_test.go": "1f996d128e527ae50e8276502d9ed38a9949c64ba98dc118317e9ce4d140e9c2",
+      "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+      "internal/agentgateway/gateway.go": "744588a3db31e0546ca2cf44321a99b1aaab6a9ef1e3502e61930eeff2f5ebfb",
+      "internal/backup/archive.go": "0eaa6c5549bba065fcef2b9961579d787e2859eff74e78724691675d8e7bcd57",
+      "internal/backup/repository.go": "d9b99b083d07907a2c8b31f32f37fbf626dbcd779784a88f2315a9f39cb2aded",
+      "internal/backup/scheduler.go": "179062980492d23aaae0f0279a5c5383e5385c7966a9ab346cfce0cde5062c10",
+      "internal/store/agent_metadata.go": "7007a06e829cba634f9a271e57ba5b4338b68a66c38c1b8eafa36b4a263c6922",
+      "internal/store/store.go": "5d37e40258314af24f2b5c8ff29414732d56bc871729bd2ef2b718e9144c226c",
+      "scripts/joint-load-browser.cjs": "7dc410ee3355da7f4ce8a3e37de52a8594df1239651dde88852dad0caa01a5dc",
+      "scripts/run-joint-load.sh": "9871cbf189ed0f1ad9585356152845d4aee3b6f5fd448562eece029c6ec236b7"
+    },
+    "ServerBinarySHA256": "2a0e71e1571b41a8f9ef9242fe53c542685848dd3d8fdaea0796ff4bfa932014",
+    "ResourceTimeline": [
+      {
+        "ElapsedSeconds": 3.1809E-05,
+        "RSSBytes": 35680256,
+        "CPUMicroseconds": 16527958,
+        "SampledPeakWALBytes": 4597952
+      },
+      {
+        "ElapsedSeconds": 30.000607616,
+        "RSSBytes": 63660032,
+        "CPUMicroseconds": 56219806,
+        "SampledPeakWALBytes": 4597952
+      },
+      {
+        "ElapsedSeconds": 61.000873598,
+        "RSSBytes": 46919680,
+        "CPUMicroseconds": 103175757,
+        "SampledPeakWALBytes": 4816312
+      },
+      {
+        "ElapsedSeconds": 91.000880481,
+        "RSSBytes": 46645248,
+        "CPUMicroseconds": 133956221,
+        "SampledPeakWALBytes": 4857512
+      },
+      {
+        "ElapsedSeconds": 122.001096608,
+        "RSSBytes": 58773504,
+        "CPUMicroseconds": 165688167,
+        "SampledPeakWALBytes": 4857512
+      },
+      {
+        "ElapsedSeconds": 153.000123674,
+        "RSSBytes": 49721344,
+        "CPUMicroseconds": 197364724,
+        "SampledPeakWALBytes": 4857512
+      },
+      {
+        "ElapsedSeconds": 181.881151408,
+        "RSSBytes": 59809792,
+        "CPUMicroseconds": 226925867,
+        "SampledPeakWALBytes": 6027592
+      }
+    ],
+    "SubscriptionMode": "playwright-rendered",
+    "RSSObservation": "proc-vmrss-sampled",
+    "CPUObservation": "cgroup-usage-usec",
+    "BrowserPageErrors": 0,
+    "BrowserConvergedNodes": 5,
+    "BrowserConvergedPages": 5,
+    "NotificationMode": "real-default-sender-isolated-rfc5737-receiver",
+    "DeliveryAttempts": 20,
+    "ConfigurationsConfirmed": 5,
+    "FinalHealth": {
+      "notification_engine": {
+        "status": "running",
+        "observation_scope": "process",
+        "delivery_configuration": "available",
+        "evaluation": {
+          "state": "success",
+          "active_runs": 0,
+          "completed_runs": 6,
+          "failed_runs": 0,
+          "cancelled_runs": 0,
+          "last_started_at": "2026-10-16T07:45:30.536086733Z",
+          "last_completed_at": "2026-10-16T07:45:30.541162684Z",
+          "last_success_at": "2026-10-16T07:45:30.541162684Z",
+          "last_result": "success",
+          "last_duration_seconds": 0.005075971
+        }
+      },
+      "notification_queue": {
+        "status": "available",
+        "observed_at": "2026-10-16T07:45:44.283277764Z",
+        "scope": "stored_active_logical_rows",
+        "deliveries": {
+          "pending": 0,
+          "pending_due_by_time": 0,
+          "pending_future": 0,
+          "inflight": 0,
+          "expired_leases": 0
+        },
+        "aggregates": {
+          "pending": 0,
+          "pending_due_by_time": 0,
+          "pending_future": 0,
+          "inflight": 0,
+          "expired_leases": 0
+        },
+        "system": {
+          "pending": 0,
+          "pending_due_by_time": 0,
+          "pending_future": 0,
+          "inflight": 0,
+          "expired_leases": 0
+        }
+      },
+      "transport": {
+        "agent_connections": 5,
+        "pending_results": 0,
+        "http_pending_results": 0,
+        "http_expired_results": 0
+      },
+      "browser_subscriptions": 5,
+      "retention": {
+        "job": {
+          "state": "success",
+          "active_runs": 0,
+          "completed_runs": 1,
+          "failed_runs": 0,
+          "cancelled_runs": 0,
+          "last_started_at": "2026-10-16T07:44:15.523801408Z",
+          "last_completed_at": "2026-10-16T07:44:15.535341779Z",
+          "last_success_at": "2026-10-16T07:44:15.535341779Z",
+          "last_result": "success",
+          "last_duration_seconds": 0.011540361
+        },
+        "http_catchup_job": {
+          "state": "success",
+          "active_runs": 0,
+          "completed_runs": 1,
+          "failed_runs": 0,
+          "cancelled_runs": 0,
+          "last_started_at": "2026-10-16T07:44:15.645278278Z",
+          "last_completed_at": "2026-10-16T07:44:15.645654932Z",
+          "last_success_at": "2026-10-16T07:44:15.645654932Z",
+          "last_result": "success",
+          "last_duration_seconds": 0.000376654
+        }
+      }
+    },
+    "HTTPOutcomes": {
+      "failure:status_mismatch": 20,
+      "success:": 10
+    },
+    "ReportAccounting": {
+      "Mode": "test-observer-http-ws-ack-store",
+      "ReportAttempts": 66,
+      "Forwarded": 66,
+      "Acknowledged": 66,
+      "Stored": 66,
+      "StoredWithoutACK": 0,
+      "InterruptedNotStored": 0,
+      "UnexplainedNotStored": 0,
+      "ACKWithoutStored": 0,
+      "UnknownStored": 0,
+      "HashMismatch": 0,
+      "DuplicateStored": 0,
+      "MaxACKDelayMilliseconds": 2169.581935,
+      "GeneratedEnvelopes": 211,
+      "ObservedEnvelopes": 211,
+      "UnobservedGeneratedEnvelopes": 0
+    },
+    "ResourceLimits": {
+      "cpu.max": "200000 100000",
+      "cpuset.cpus.effective": "0-1",
+      "memory.max": "2147483648",
+      "memory.swap.max": "0",
+      "mode": "systemd-cgroup-v2"
+    },
+    "ResourceSampleSeconds": 1,
+    "SampledPeakRSSBytes": 79388672,
+    "SampledPeakWALBytes": 6027592,
+    "ServerCPUMicroseconds": 226925878,
+    "APILatency": {
+      "health": {
+        "count": 49,
+        "P50": 1.006539,
+        "P95": 1.781926,
+        "Max": 2.955134
+      },
+      "history_dense_1y": {
+        "count": 49,
+        "P50": 2235.807684,
+        "P95": 5793.023311,
+        "Max": 6287.655315
+      },
+      "history_dense_30d": {
+        "count": 49,
+        "P50": 917.344175,
+        "P95": 1808.89661,
+        "Max": 3094.656738
+      },
+      "overview": {
+        "count": 49,
+        "P50": 2.219679,
+        "P95": 6.205817,
+        "Max": 12.520541
+      }
+    },
+    "APIErrors": 0,
+    "CollectedReports": 80,
+    "PersistedReports": 66,
+    "TCPSuccesses": 45,
+    "HTTPResults": 30,
+    "Snapshots": 10,
+    "SubscriptionEvents": 555,
+    "NotificationsFailed": 5,
+    "NotificationsDelivered": 15,
+    "Faults": [
+      "closed all Agent sockets; normal reconnect/backoff remained active",
+      "restarted the same real Server/database; normal Agent and subscription reconnection"
+    ],
+    "Limitations": [
+      "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+      "five real rendered pages run outside the Server resource group",
+      "SQL-generated dense retained year, with real startup retention and live workload; setup is not a live soak",
+      "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports",
+      "one-second resource/WAL sampling can miss instantaneous peaks",
+      "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+      "short runs do not establish 24-hour stability"
+    ],
+    "Passed": true
+  },
+  "resource_progress": {
+    "format": "myprobe.joint-resource-progress.v1",
+    "status": "observation-only",
+    "StartedAt": "2026-10-16T07:42:42.402879853Z",
+    "ObservedAt": "2026-10-16T07:45:44.28418632Z",
+    "Observation": {
+      "ProgressWriteErrors": 0,
+      "Samples": 183,
+      "ServerUnavailableSamples": 1,
+      "TargetIntervalSeconds": 1,
+      "MaximumGapSeconds": 1.001094303,
+      "PeakRSSBytes": 79388672,
+      "PeakWALBytes": 6027592
+    },
+    "Timeline": [
+      {
+        "ElapsedSeconds": 3.1809E-05,
+        "RSSBytes": 35680256,
+        "CPUMicroseconds": 16527958,
+        "SampledPeakWALBytes": 4597952
+      },
+      {
+        "ElapsedSeconds": 30.000607616,
+        "RSSBytes": 63660032,
+        "CPUMicroseconds": 56219806,
+        "SampledPeakWALBytes": 4597952
+      },
+      {
+        "ElapsedSeconds": 61.000873598,
+        "RSSBytes": 46919680,
+        "CPUMicroseconds": 103175757,
+        "SampledPeakWALBytes": 4816312
+      },
+      {
+        "ElapsedSeconds": 91.000880481,
+        "RSSBytes": 46645248,
+        "CPUMicroseconds": 133956221,
+        "SampledPeakWALBytes": 4857512
+      },
+      {
+        "ElapsedSeconds": 122.001096608,
+        "RSSBytes": 58773504,
+        "CPUMicroseconds": 165688167,
+        "SampledPeakWALBytes": 4857512
+      },
+      {
+        "ElapsedSeconds": 153.000123674,
+        "RSSBytes": 49721344,
+        "CPUMicroseconds": 197364724,
+        "SampledPeakWALBytes": 4857512
+      },
+      {
+        "ElapsedSeconds": 181.881151408,
+        "RSSBytes": 59809792,
+        "CPUMicroseconds": 226925867,
+        "SampledPeakWALBytes": 6027592
+      }
+    ]
+  }
+}

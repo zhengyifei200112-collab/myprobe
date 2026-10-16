@@ -1,0 +1,619 @@
+{
+  "format": "myprobe.online-backup-windows.v1",
+  "source_label": "working-tree-online-backup",
+  "parent_commit": "36d83abd6acaa09681b8ab8057e6e80595a95731",
+  "captured_at": "2026-10-16T07:38:13.8219777Z",
+  "cpu_model": "13th Gen Intel(R) Core(TM) i5-13490F",
+  "logical_cpus": 16,
+  "known_concurrent_workload": "Independent frozen 49334ad 100-node WSL soak on the same physical host",
+  "scope": "Windows functional smoke, denied receiver, protocol subscriptions, unrestricted Server; not Linux bounded acceptance",
+  "validation": {
+    "targeted": "passed",
+    "vet": "passed",
+    "build": "passed",
+    "gofmt": "passed",
+    "diff": "passed",
+    "full_local_go": "only inherited Windows HostRoot #47 fails",
+    "local_race": "not run; CGO disabled"
+  },
+  "positive": {
+    "LiveBackup": {
+      "BackupWindowStart": "2026-10-16T07:34:14.3968856Z",
+      "RecoveryWindowStart": "2026-10-16T07:34:30.7800565Z",
+      "GuaranteedRetainedSeedReports": 201590,
+      "RequestedAt": "2026-10-16T07:34:14.3963553Z",
+      "ArchiveCompletedAt": "2026-10-16T07:34:27.9553711Z",
+      "RecoveryCompletedAt": "2026-10-16T07:34:36.5004318Z",
+      "ArchiveBytes": 1376978666,
+      "Recovered": {
+        "nodes": 5,
+        "users": 1,
+        "reports": 201629,
+        "channels": 1
+      },
+      "BackupACKs": 10,
+      "BackupACKNodes": 5,
+      "RecoveryACKs": 9,
+      "RecoveryACKNodes": 5,
+      "CompletionPreservedAfterRestart": true
+    },
+    "ResourceObservation": {
+      "ProgressWriteErrors": 0,
+      "Samples": 183,
+      "ServerUnavailableSamples": 183,
+      "TargetIntervalSeconds": 1,
+      "MaximumGapSeconds": 1.0009583,
+      "PeakRSSBytes": 0,
+      "PeakWALBytes": 7411912
+    },
+    "format": "myprobe.joint-load.v1",
+    "StartedAt": "2026-10-16T07:34:03.1181201Z",
+    "EndedAt": "2026-10-16T07:37:05.0910325Z",
+    "Nodes": 5,
+    "ReportSeconds": 15,
+    "TargetsPerNode": 3,
+    "TargetSeconds": 60,
+    "HTTPServices": 1,
+    "SubscriptionClients": 5,
+    "DurationRequestedSeconds": 180,
+    "ElapsedSeconds": 181.9729124,
+    "MeasurementSeconds": 181.9729124,
+    "RecoveryDrainSeconds": 0,
+    "RecoveryDrained": false,
+    "OS": "windows",
+    "GoVersion": "go1.26.5",
+    "LogicalCPUs": 16,
+    "HistoryFixture": "dense-year",
+    "DenseHistory": {
+      "LastLatencyID": 151710,
+      "Mode": "dense-year",
+      "Anchor": "2026-10-16T07:00:00Z",
+      "SeedFinishedAt": "2026-10-16T07:33:52.3254939Z",
+      "SeedSeconds": 34.0841625,
+      "MetricRows": 202285,
+      "LatencyRows": 151710,
+      "MetricRollupRows": 648000,
+      "TrafficRollupRows": 648000,
+      "LatencyRollupRows": 1944000,
+      "LastMetricID": 202285,
+      "DatabaseBytes": 1476390912,
+      "CounterOffset": 2102536
+    },
+    "SourceSHA256": {
+      "cmd/server/main.go": "cba53b0e9e604e059ec18d67227076b6b4fa973f0dd3de34d235f4160a670019",
+      "internal/agentclient/client.go": "2d6ed1a9ff9e002b40c448a0d0a60d7c0b6b8cb96f611ca4fe710260077f2443",
+      "internal/agentclient/joint_load_backup_test.go": "e96f10a29dbb0ac191c065234ee0ebfa36f1606f1e18116373ff9971810c500c",
+      "internal/agentclient/joint_load_browser_test.go": "8b72a9ad8ccc4382f98126791ecbba00bd3e221c809d0edd3462212e1719f50d",
+      "internal/agentclient/joint_load_history_test.go": "7054885b678d0f3f1495fb8d70f340602aaea4e721e0e6bf48c46a5233929273",
+      "internal/agentclient/joint_load_history_validation_test.go": "39a18fa96169753cc5f960637de1d6ed503d3e6e138e7048ffed3844dfef50b4",
+      "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+      "internal/agentclient/joint_load_reconciliation_test.go": "28bdbca87f16f677f4acbe25dbebbe546508ecdc932c5f4584633435a3c99564",
+      "internal/agentclient/joint_load_reconciliation_validation_test.go": "202b399775c00928a1565184228a519ef5eda5d7d64341c88879ef90ca177b27",
+      "internal/agentclient/joint_load_resource_test.go": "d7a419abf8e3c98949bc82f46d1a4a0af6a9365293bab36e2232f5da22bedd24",
+      "internal/agentclient/joint_load_resource_validation_test.go": "ce562f8022024b8eea3082f75de7fba795a6063c1bb55f230ebf9001474380d0",
+      "internal/agentclient/joint_load_test.go": "1f996d128e527ae50e8276502d9ed38a9949c64ba98dc118317e9ce4d140e9c2",
+      "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+      "internal/agentgateway/gateway.go": "744588a3db31e0546ca2cf44321a99b1aaab6a9ef1e3502e61930eeff2f5ebfb",
+      "internal/backup/archive.go": "0eaa6c5549bba065fcef2b9961579d787e2859eff74e78724691675d8e7bcd57",
+      "internal/backup/repository.go": "d9b99b083d07907a2c8b31f32f37fbf626dbcd779784a88f2315a9f39cb2aded",
+      "internal/backup/scheduler.go": "179062980492d23aaae0f0279a5c5383e5385c7966a9ab346cfce0cde5062c10",
+      "internal/store/agent_metadata.go": "7007a06e829cba634f9a271e57ba5b4338b68a66c38c1b8eafa36b4a263c6922",
+      "internal/store/store.go": "5d37e40258314af24f2b5c8ff29414732d56bc871729bd2ef2b718e9144c226c",
+      "scripts/joint-load-browser.cjs": "7dc410ee3355da7f4ce8a3e37de52a8594df1239651dde88852dad0caa01a5dc",
+      "scripts/run-joint-load.sh": "9871cbf189ed0f1ad9585356152845d4aee3b6f5fd448562eece029c6ec236b7"
+    },
+    "ServerBinarySHA256": "b98a7cb42fd63486d403c876c13411f46db8c8f09fca570989d93bcb78ac9cc9",
+    "ResourceTimeline": [
+      {
+        "ElapsedSeconds": 0,
+        "RSSBytes": 0,
+        "CPUMicroseconds": 0,
+        "SampledPeakWALBytes": 4128272
+      },
+      {
+        "ElapsedSeconds": 30.0002905,
+        "RSSBytes": 0,
+        "CPUMicroseconds": 0,
+        "SampledPeakWALBytes": 4128272
+      },
+      {
+        "ElapsedSeconds": 60.0005081,
+        "RSSBytes": 0,
+        "CPUMicroseconds": 0,
+        "SampledPeakWALBytes": 4128272
+      },
+      {
+        "ElapsedSeconds": 91.0004551,
+        "RSSBytes": 0,
+        "CPUMicroseconds": 0,
+        "SampledPeakWALBytes": 5903992
+      },
+      {
+        "ElapsedSeconds": 122.0006593,
+        "RSSBytes": 0,
+        "CPUMicroseconds": 0,
+        "SampledPeakWALBytes": 7411912
+      },
+      {
+        "ElapsedSeconds": 153.0002546,
+        "RSSBytes": 0,
+        "CPUMicroseconds": 0,
+        "SampledPeakWALBytes": 7411912
+      },
+      {
+        "ElapsedSeconds": 181.9729124,
+        "RSSBytes": 0,
+        "CPUMicroseconds": 0,
+        "SampledPeakWALBytes": 7411912
+      }
+    ],
+    "SubscriptionMode": "go-websocket-consumers",
+    "RSSObservation": "unavailable",
+    "CPUObservation": "unavailable",
+    "BrowserPageErrors": 0,
+    "BrowserConvergedNodes": 0,
+    "BrowserConvergedPages": 0,
+    "NotificationMode": "loopback-policy-denied",
+    "DeliveryAttempts": 20,
+    "ConfigurationsConfirmed": 5,
+    "FinalHealth": {
+      "notification_engine": {
+        "status": "running",
+        "observation_scope": "process",
+        "delivery_configuration": "available",
+        "evaluation": {
+          "state": "success",
+          "active_runs": 0,
+          "completed_runs": 6,
+          "failed_runs": 0,
+          "cancelled_runs": 0,
+          "last_started_at": "2026-10-16T07:36:49.4510993Z",
+          "last_completed_at": "2026-10-16T07:36:49.4530995Z",
+          "last_success_at": "2026-10-16T07:36:49.4530995Z",
+          "last_result": "success",
+          "last_duration_seconds": 0.0020002
+        }
+      },
+      "notification_queue": {
+        "status": "available",
+        "observed_at": "2026-10-16T07:37:03.7229769Z",
+        "scope": "stored_active_logical_rows",
+        "deliveries": {
+          "pending": 5,
+          "pending_due_by_time": 0,
+          "pending_future": 5,
+          "inflight": 0,
+          "expired_leases": 0,
+          "oldest_pending_available_ms": 1792136332108
+        },
+        "aggregates": {
+          "pending": 0,
+          "pending_due_by_time": 0,
+          "pending_future": 0,
+          "inflight": 0,
+          "expired_leases": 0
+        },
+        "system": {
+          "pending": 0,
+          "pending_due_by_time": 0,
+          "pending_future": 0,
+          "inflight": 0,
+          "expired_leases": 0
+        }
+      },
+      "transport": {
+        "agent_connections": 5,
+        "pending_results": 0,
+        "http_pending_results": 0,
+        "http_expired_results": 0
+      },
+      "browser_subscriptions": 5,
+      "retention": {
+        "job": {
+          "state": "success",
+          "active_runs": 0,
+          "completed_runs": 1,
+          "failed_runs": 0,
+          "cancelled_runs": 0,
+          "last_started_at": "2026-10-16T07:35:34.4115173Z",
+          "last_completed_at": "2026-10-16T07:35:34.4378749Z",
+          "last_success_at": "2026-10-16T07:35:34.4378749Z",
+          "last_result": "success",
+          "last_duration_seconds": 0.0263576
+        },
+        "http_catchup_job": {
+          "state": "success",
+          "active_runs": 0,
+          "completed_runs": 1,
+          "failed_runs": 0,
+          "cancelled_runs": 0,
+          "last_started_at": "2026-10-16T07:35:34.5548861Z",
+          "last_completed_at": "2026-10-16T07:35:34.555981Z",
+          "last_success_at": "2026-10-16T07:35:34.555981Z",
+          "last_result": "success",
+          "last_duration_seconds": 0.0010949
+        }
+      }
+    },
+    "HTTPOutcomes": {
+      "failure:status_mismatch": 20,
+      "success:": 10
+    },
+    "ReportAccounting": {
+      "Mode": "test-observer-http-ws-ack-store",
+      "ReportAttempts": 67,
+      "Forwarded": 67,
+      "Acknowledged": 67,
+      "Stored": 67,
+      "StoredWithoutACK": 0,
+      "InterruptedNotStored": 0,
+      "UnexplainedNotStored": 0,
+      "ACKWithoutStored": 0,
+      "UnknownStored": 0,
+      "HashMismatch": 0,
+      "DuplicateStored": 0,
+      "MaxACKDelayMilliseconds": 11.6081,
+      "GeneratedEnvelopes": 212,
+      "ObservedEnvelopes": 212,
+      "UnobservedGeneratedEnvelopes": 0
+    },
+    "ResourceLimits": {
+      "mode": "unrestricted"
+    },
+    "ResourceSampleSeconds": 1,
+    "SampledPeakRSSBytes": 0,
+    "SampledPeakWALBytes": 7411912,
+    "ServerCPUMicroseconds": 0,
+    "APILatency": {
+      "health": {
+        "count": 85,
+        "P50": 1.013,
+        "P95": 1.2649,
+        "Max": 1.7219
+      },
+      "history_dense_1y": {
+        "count": 85,
+        "P50": 1406.9027,
+        "P95": 1753.6271,
+        "Max": 2019.1076
+      },
+      "history_dense_30d": {
+        "count": 85,
+        "P50": 627.7211,
+        "P95": 760.3811,
+        "Max": 886.9457
+      },
+      "overview": {
+        "count": 85,
+        "P50": 1.3977,
+        "P95": 2.2619,
+        "Max": 3.7547
+      }
+    },
+    "APIErrors": 0,
+    "CollectedReports": 80,
+    "PersistedReports": 67,
+    "TCPSuccesses": 45,
+    "HTTPResults": 30,
+    "Snapshots": 10,
+    "SubscriptionEvents": 535,
+    "NotificationsFailed": 0,
+    "NotificationsDelivered": 0,
+    "Faults": [
+      "closed all Agent sockets; normal reconnect/backoff remained active",
+      "restarted the same real Server/database; normal Agent and subscription reconnection"
+    ],
+    "Limitations": [
+      "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+      "five Go WebSocket consumers are not rendered browser sessions",
+      "SQL-generated dense retained year, with real startup retention and live workload; setup is not a live soak",
+      "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports",
+      "one-second resource/WAL sampling can miss instantaneous peaks",
+      "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+      "short runs do not establish 24-hour stability",
+      "denied-receiver mode verifies refusal only, not provider outage/recovery"
+    ],
+    "Passed": true
+  },
+  "negative": {
+    "reason": "Fixture incorrectly required pre-retention row count; corrected exact retained-grid invariant",
+    "acceptance": false,
+    "ack_counter_note": "Counters were not calculated after early population failure; raw zeros are unavailable, not proof of no ACK",
+    "result": {
+      "LiveBackup": {
+        "RequestedAt": "2026-10-16T07:17:14.5313414Z",
+        "ArchiveCompletedAt": "2026-10-16T07:17:28.2086274Z",
+        "RecoveryCompletedAt": "2026-10-16T07:17:37.0305997Z",
+        "ArchiveBytes": 1376958186,
+        "Recovered": {
+          "nodes": 5,
+          "users": 1,
+          "reports": 201628,
+          "channels": 1
+        },
+        "BackupACKs": 0,
+        "BackupACKNodes": 0,
+        "RecoveryACKs": 0,
+        "RecoveryACKNodes": 0,
+        "CompletionPreservedAfterRestart": true
+      },
+      "ResourceObservation": {
+        "ProgressWriteErrors": 0,
+        "Samples": 183,
+        "ServerUnavailableSamples": 183,
+        "TargetIntervalSeconds": 1,
+        "MaximumGapSeconds": 1.0010564,
+        "PeakRSSBytes": 0,
+        "PeakWALBytes": 9982792
+      },
+      "format": "myprobe.joint-load.v1",
+      "StartedAt": "2026-10-16T07:17:03.4106461Z",
+      "EndedAt": "2026-10-16T07:20:04.9739439Z",
+      "Nodes": 5,
+      "ReportSeconds": 15,
+      "TargetsPerNode": 3,
+      "TargetSeconds": 60,
+      "HTTPServices": 1,
+      "SubscriptionClients": 5,
+      "DurationRequestedSeconds": 180,
+      "ElapsedSeconds": 181.5632978,
+      "MeasurementSeconds": 181.5632978,
+      "RecoveryDrainSeconds": 0,
+      "RecoveryDrained": false,
+      "OS": "windows",
+      "GoVersion": "go1.26.5",
+      "LogicalCPUs": 16,
+      "HistoryFixture": "dense-year",
+      "DenseHistory": {
+        "LastLatencyID": 151455,
+        "Mode": "dense-year",
+        "Anchor": "2026-10-16T07:00:00Z",
+        "SeedFinishedAt": "2026-10-16T07:16:52.6568177Z",
+        "SeedSeconds": 33.5573428,
+        "MetricRows": 201945,
+        "LatencyRows": 151455,
+        "MetricRollupRows": 648000,
+        "TrafficRollupRows": 648000,
+        "LatencyRollupRows": 1944000,
+        "LastMetricID": 201945,
+        "DatabaseBytes": 1474105344,
+        "CounterOffset": 2102468
+      },
+      "SourceSHA256": {
+        "cmd/server/main.go": "cba53b0e9e604e059ec18d67227076b6b4fa973f0dd3de34d235f4160a670019",
+        "internal/agentclient/client.go": "2d6ed1a9ff9e002b40c448a0d0a60d7c0b6b8cb96f611ca4fe710260077f2443",
+        "internal/agentclient/joint_load_backup_test.go": "19dd996eb51843ed487a6504dc4cac3d24ab8138a7623f3172b0d83d9562da80",
+        "internal/agentclient/joint_load_browser_test.go": "8b72a9ad8ccc4382f98126791ecbba00bd3e221c809d0edd3462212e1719f50d",
+        "internal/agentclient/joint_load_history_test.go": "7054885b678d0f3f1495fb8d70f340602aaea4e721e0e6bf48c46a5233929273",
+        "internal/agentclient/joint_load_history_validation_test.go": "39a18fa96169753cc5f960637de1d6ed503d3e6e138e7048ffed3844dfef50b4",
+        "internal/agentclient/joint_load_process_test.go": "fdb670a41b3a9441f6f573a996c3cde22bbb9082ca9efc7e565b31b52464750e",
+        "internal/agentclient/joint_load_reconciliation_test.go": "28bdbca87f16f677f4acbe25dbebbe546508ecdc932c5f4584633435a3c99564",
+        "internal/agentclient/joint_load_reconciliation_validation_test.go": "202b399775c00928a1565184228a519ef5eda5d7d64341c88879ef90ca177b27",
+        "internal/agentclient/joint_load_resource_test.go": "d7a419abf8e3c98949bc82f46d1a4a0af6a9365293bab36e2232f5da22bedd24",
+        "internal/agentclient/joint_load_resource_validation_test.go": "ce562f8022024b8eea3082f75de7fba795a6063c1bb55f230ebf9001474380d0",
+        "internal/agentclient/joint_load_test.go": "9a5ce906d9a872d33d3fc816db73d9ee33d14f173cbb89551db59b5d5eb07bb7",
+        "internal/agentclient/sampling.go": "911bc9a10c123b06523613ca1c93fcc21f7536a842e8520f7c6ced1c315ed7fd",
+        "internal/agentgateway/gateway.go": "744588a3db31e0546ca2cf44321a99b1aaab6a9ef1e3502e61930eeff2f5ebfb",
+        "internal/backup/archive.go": "0eaa6c5549bba065fcef2b9961579d787e2859eff74e78724691675d8e7bcd57",
+        "internal/backup/repository.go": "d9b99b083d07907a2c8b31f32f37fbf626dbcd779784a88f2315a9f39cb2aded",
+        "internal/backup/scheduler.go": "179062980492d23aaae0f0279a5c5383e5385c7966a9ab346cfce0cde5062c10",
+        "internal/store/agent_metadata.go": "7007a06e829cba634f9a271e57ba5b4338b68a66c38c1b8eafa36b4a263c6922",
+        "internal/store/store.go": "5d37e40258314af24f2b5c8ff29414732d56bc871729bd2ef2b718e9144c226c",
+        "scripts/joint-load-browser.cjs": "7dc410ee3355da7f4ce8a3e37de52a8594df1239651dde88852dad0caa01a5dc",
+        "scripts/run-joint-load.sh": "9871cbf189ed0f1ad9585356152845d4aee3b6f5fd448562eece029c6ec236b7"
+      },
+      "ServerBinarySHA256": "b98a7cb42fd63486d403c876c13411f46db8c8f09fca570989d93bcb78ac9cc9",
+      "ResourceTimeline": [
+        {
+          "ElapsedSeconds": 5.51E-05,
+          "RSSBytes": 0,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 3456712
+        },
+        {
+          "ElapsedSeconds": 30.0002659,
+          "RSSBytes": 0,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 6184152
+        },
+        {
+          "ElapsedSeconds": 60.0002667,
+          "RSSBytes": 0,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 7284192
+        },
+        {
+          "ElapsedSeconds": 90.000585,
+          "RSSBytes": 0,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 9319472
+        },
+        {
+          "ElapsedSeconds": 121.0003545,
+          "RSSBytes": 0,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 9982792
+        },
+        {
+          "ElapsedSeconds": 151.0009332,
+          "RSSBytes": 0,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 9982792
+        },
+        {
+          "ElapsedSeconds": 181.5632978,
+          "RSSBytes": 0,
+          "CPUMicroseconds": 0,
+          "SampledPeakWALBytes": 9982792
+        }
+      ],
+      "SubscriptionMode": "go-websocket-consumers",
+      "RSSObservation": "unavailable",
+      "CPUObservation": "unavailable",
+      "BrowserPageErrors": 0,
+      "BrowserConvergedNodes": 0,
+      "BrowserConvergedPages": 0,
+      "NotificationMode": "loopback-policy-denied",
+      "DeliveryAttempts": 20,
+      "ConfigurationsConfirmed": 5,
+      "FinalHealth": {
+        "notification_engine": {
+          "status": "running",
+          "observation_scope": "process",
+          "delivery_configuration": "available",
+          "evaluation": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 6,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-16T07:19:49.5778326Z",
+            "last_completed_at": "2026-10-16T07:19:49.5816443Z",
+            "last_success_at": "2026-10-16T07:19:49.5816443Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.0038117
+          }
+        },
+        "notification_queue": {
+          "status": "available",
+          "observed_at": "2026-10-16T07:20:03.4287703Z",
+          "scope": "stored_active_logical_rows",
+          "deliveries": {
+            "pending": 5,
+            "pending_due_by_time": 0,
+            "pending_future": 5,
+            "inflight": 0,
+            "expired_leases": 0,
+            "oldest_pending_available_ms": 1792135314339
+          },
+          "aggregates": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          },
+          "system": {
+            "pending": 0,
+            "pending_due_by_time": 0,
+            "pending_future": 0,
+            "inflight": 0,
+            "expired_leases": 0
+          }
+        },
+        "transport": {
+          "agent_connections": 5,
+          "pending_results": 0,
+          "http_pending_results": 0,
+          "http_expired_results": 0
+        },
+        "browser_subscriptions": 5,
+        "retention": {
+          "job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-16T07:18:34.5421715Z",
+            "last_completed_at": "2026-10-16T07:18:34.5659314Z",
+            "last_success_at": "2026-10-16T07:18:34.5659314Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.0237599
+          },
+          "http_catchup_job": {
+            "state": "success",
+            "active_runs": 0,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "cancelled_runs": 0,
+            "last_started_at": "2026-10-16T07:18:34.6796752Z",
+            "last_completed_at": "2026-10-16T07:18:34.6809297Z",
+            "last_success_at": "2026-10-16T07:18:34.6809297Z",
+            "last_result": "success",
+            "last_duration_seconds": 0.0012545
+          }
+        }
+      },
+      "HTTPOutcomes": {
+        "failure:status_mismatch": 20,
+        "success:": 10
+      },
+      "ReportAccounting": {
+        "Mode": "test-observer-http-ws-ack-store",
+        "ReportAttempts": 71,
+        "Forwarded": 71,
+        "Acknowledged": 71,
+        "Stored": 71,
+        "StoredWithoutACK": 0,
+        "InterruptedNotStored": 0,
+        "UnexplainedNotStored": 0,
+        "ACKWithoutStored": 0,
+        "UnknownStored": 0,
+        "HashMismatch": 0,
+        "DuplicateStored": 0,
+        "MaxACKDelayMilliseconds": 24.2955,
+        "GeneratedEnvelopes": 216,
+        "ObservedEnvelopes": 216,
+        "UnobservedGeneratedEnvelopes": 0
+      },
+      "ResourceLimits": {
+        "mode": "unrestricted"
+      },
+      "ResourceSampleSeconds": 1,
+      "SampledPeakRSSBytes": 0,
+      "SampledPeakWALBytes": 9982792,
+      "ServerCPUMicroseconds": 0,
+      "APILatency": {
+        "health": {
+          "count": 85,
+          "P50": 0.9198,
+          "P95": 1.1897,
+          "Max": 1.6064
+        },
+        "history_dense_1y": {
+          "count": 85,
+          "P50": 1393.5477,
+          "P95": 1700.9422,
+          "Max": 1862.2481
+        },
+        "history_dense_30d": {
+          "count": 85,
+          "P50": 626.0596,
+          "P95": 844.6951,
+          "Max": 886.7729
+        },
+        "overview": {
+          "count": 85,
+          "P50": 1.3895,
+          "P95": 2.1654,
+          "Max": 7.2484
+        }
+      },
+      "APIErrors": 0,
+      "CollectedReports": 80,
+      "PersistedReports": 71,
+      "TCPSuccesses": 45,
+      "HTTPResults": 30,
+      "Snapshots": 10,
+      "SubscriptionEvents": 555,
+      "NotificationsFailed": 0,
+      "NotificationsDelivered": 0,
+      "Faults": [
+        "closed all Agent sockets; normal reconnect/backoff remained active",
+        "restarted the same real Server/database; normal Agent and subscription reconnection"
+      ],
+      "Limitations": [
+        "synthetic host metrics; actual Client.Run and TCP/HTTP executors",
+        "five Go WebSocket consumers are not rendered browser sessions",
+        "SQL-generated dense retained year, with real startup retention and live workload; setup is not a live soak",
+        "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports",
+        "one-second resource/WAL sampling can miss instantaneous peaks",
+        "shared host/WSL limits do not establish a dedicated 2-vCPU SSD deployment",
+        "short runs do not establish 24-hour stability",
+        "denied-receiver mode verifies refusal only, not provider outage/recovery"
+      ],
+      "Passed": false
+    }
+  }
+}
