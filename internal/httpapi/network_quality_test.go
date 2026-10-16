@@ -167,8 +167,10 @@ func TestNetworkQualityAPIProjectionAndEightNodeLimit(t *testing.T) {
 		t.Fatal("batch did not return eight nodes")
 	}
 	for _, node := range nodes {
-		exactKeys(node, "node_id name availability available_from effective_start effective_end granularity_seconds counts coverage_pct execution_failure_pct rtt_mean_ms rtt_min_ms rtt_max_ms rtt_p50_ms rtt_p95_ms rtt_p50_bounds rtt_p95_bounds quantile_method jitter_ms jitter_pairs failure_causes not_executed_causes unobserved_task_causes")
+		exactKeys(node, "node_id name availability available_from effective_start effective_end granularity_seconds counts coverage_pct execution_failure_pct rtt_mean_ms rtt_min_ms rtt_max_ms rtt_p50_ms rtt_p95_ms rtt_p50_bounds rtt_p95_bounds quantile_method jitter_ms jitter_pairs failure_causes not_executed_causes unobserved_task_causes address_family packet_loss")
 		n := node.(map[string]any)
+		exactKeys(n["address_family"], "status reason ipv4_tasks ipv6_tasks unknown_tasks")
+		exactKeys(n["packet_loss"], "value_pct status reason measured_tasks unknown_tasks sent received")
 		exactKeys(n["counts"], "planned pending success failure missing not_executed unobserved_tasks")
 		c := n["counts"].(map[string]any)
 		if c["success"] != float64(3) || c["failure"] != float64(1) || c["not_executed"] != float64(1) || c["unobserved_tasks"] != float64(1) || n["execution_failure_pct"] != float64(25) || n["rtt_p50_ms"] != float64(22) || n["rtt_p95_ms"] != float64(25) || n["jitter_ms"] != float64(3) || n["jitter_pairs"] != float64(1) {

@@ -28,7 +28,12 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
    const before = calls.length; await compare.click(); await dialog.locator('.quality-table tbody tr').nth(7).waitFor(); await assertEnabled(compare);
    assert.equal(calls.length - before, 2, 'one scoped target query and one batched series query');
    const data = series.at(-1); assert.equal(data.nodes.length, 8); assert.equal(data.aggregation, 'time_series');
-   assert.equal(data.address_family.status, 'unknown'); assert.equal(data.packet_loss.value_pct, null);
+   assert.equal(data.address_family.status, 'per_node'); assert.equal(data.packet_loss.value_pct, null);
+   const proof = data.nodes.find(n => n.node_id === ids[0]);
+   assert.equal(proof.address_family.status, 'partial'); assert.equal(proof.address_family.ipv4_tasks, 1); assert.equal(proof.address_family.ipv6_tasks, 1);
+   assert.equal(proof.packet_loss.status, 'partial'); assert.equal(proof.packet_loss.value_pct, 50); assert.equal(proof.packet_loss.sent, 2); assert.equal(proof.packet_loss.received, 1);
+   assert.ok((await dialog.locator('.quality-table tbody tr').first().locator('.quality-packets').textContent()).includes('部分观测'));
+   assert.ok(data.nodes.slice(1).every(n => n.address_family.status === 'unknown' && n.packet_loss.value_pct === null));
    assert.ok(data.nodes.every(n => n.points.length > 0 && n.points.length <= 2000));
    assert.equal(await page.getByText('隐藏观测节点', { exact: true }).count(), 0);
    assert.equal(await dialog.locator('.quality-chart canvas').count(), 1);
@@ -49,6 +54,13 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
    await page.screenshot({ path: path.join(output, `public-${theme}-${width}.png`) });
    await dialog.locator('.quality-table-wrap').scrollIntoViewIfNeeded();
    await page.screenshot({ path: path.join(output, `table-${theme}-${width}.png`) });
+   await dialog.locator('.quality-packets').first().scrollIntoViewIfNeeded();
+   await dialog.locator('.quality-table-wrap').evaluate(el => {
+    const row = el.querySelector('tbody tr'), cell = row.querySelector('.quality-packets'), pinned = row.querySelector('th');
+    // Native scrollIntoView does not account for the sticky observer column.
+    el.scrollLeft += cell.getBoundingClientRect().left - pinned.getBoundingClientRect().right;
+   });
+   await page.screenshot({ path: path.join(output, `packet-evidence-${theme}-${width}.png`) });
    if (width === 1440 && theme === 'light') {
     await dialog.getByLabel('探测目标', { exact: true }).selectOption({ label: 'IPv6 配置目标 · TCP' }); await compare.click(); await dialog.locator('.quality-table').waitFor(); await assertEnabled(compare);
     const unsupported = series.at(-1).nodes.find(n => n.node_id === ids[0]);
@@ -79,7 +91,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
    await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'hidden' });
    assert.equal(await page.getByRole('button', { name: '网络质量', exact: true }).evaluate(el => el === document.activeElement), true, 'focus returns to entry');
    assert.deepEqual(errors, []);
-   evidence.views.push({ theme, width, nodes: 8, api_mode: 'time_series', requests_per_explicit_node_change: 2, canvas: true, unknown_family: true, packet_loss_unavailable: true, errors: [] });
+   evidence.views.push({ theme, width, nodes: 8, api_mode: 'time_series', requests_per_explicit_node_change: 2, canvas: true, mixed_legacy_and_native_evidence: true, partial_packet_loss_pct: 50, unknown_history_preserved: true, errors: [] });
    await context.close();
   }
   // Authentication roles use the same real backend; no payload interception.

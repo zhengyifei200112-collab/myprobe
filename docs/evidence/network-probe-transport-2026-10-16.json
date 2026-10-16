@@ -1,0 +1,203 @@
+{
+  "format": "myprobe.network-probe-transport-local.v1",
+  "captured_at": "2026-10-16T01:30:20.6872935Z",
+  "source_label": "working-tree-network-transport",
+  "parent_commit": "cb84e4a4cc348e8a5bf838d5d385ff6dd4aae7f6",
+  "source_hashes": {
+    "cmd/server/main.go": "cba53b0e9e604e059ec18d67227076b6b4fa973f0dd3de34d235f4160a670019",
+    "internal/agentclient/network_tasks.go": "d78c0f86c22167af511ebc1eefab3244ff0c2059ad310ec0b06605ca8e74c161",
+    "internal/agentclient/network_evidence_e2e_test.go": "8b509880caeee79f09312244f03fdd40b7a741a984c8966be87e55b7c57b601e",
+    "internal/agentgateway/network_evidence.go": "397672555afe473539ee49c3b266e82b27f136994f47afe4d89df9d101b277bf",
+    "internal/store/network_result_evidence.go": "b0b0cc1231fcd62a3253e3e1ee27ed89b39d2ec3b96300815ef7be24b49cde78",
+    "internal/store/network_quality_rows.go": "cc6b701d823a162ebe543f3acc59581396b54ccd738f910f49d6f451bfe1320a",
+    "internal/networkquality/segment_codec.go": "62e0d034d68da9800647df2a52a8ac7de429dce21b3a6fdeb4a333fa572a487e",
+    "internal/networkquality/evidence.go": "7f15b14136d08b678b284db4d5a38c9054f9eedd03779abb3bf35e6326c197f8",
+    "internal/httpapi/network_quality_evidence.go": "d9350bf6acf67b813518d699d901d6eea2a4216cd168d26c6736e91847b680c3",
+    "web/src/network-quality/NetworkQualityComparison.vue": "4c2f046ee00bd0f63e5e491dc9a92da4293a849a7c416e6951bd65451fc26aa3"
+  },
+  "checks": {
+    "npm_ci": "passed; inherited 1 moderate/4 high advisories",
+    "frontend_build": "passed; inherited chart chunk warning",
+    "gofmt": "passed",
+    "vet": "passed",
+    "build": "passed",
+    "full_go": "only inherited TestDiskUsagePathUsesHostRootForAbsoluteMounts (#47) fails",
+    "local_race": "not run; CGO_ENABLED=0",
+    "exact_head_ci": "not inherited from parent; inspect Actions for resulting commit"
+  },
+  "windows_scheduled_native_log": "=== RUN   TestNetworkProbeThroughActualAgentAndGateway\r\n=== RUN   TestNetworkProbeThroughActualAgentAndGateway/tcp4\r\n=== RUN   TestNetworkProbeThroughActualAgentAndGateway/tcp6\r\n=== RUN   TestNetworkProbeThroughActualAgentAndGateway/bounded_busy\r\n=== RUN   TestNetworkProbeThroughActualAgentAndGateway/icmp4_three_packets\r\n=== RUN   TestNetworkProbeThroughActualAgentAndGateway/icmp6_three_packets\r\n--- PASS: TestNetworkProbeThroughActualAgentAndGateway (8.99s)\r\n    --- PASS: TestNetworkProbeThroughActualAgentAndGateway/tcp4 (0.97s)\r\n    --- PASS: TestNetworkProbeThroughActualAgentAndGateway/tcp6 (1.00s)\r\n    --- PASS: TestNetworkProbeThroughActualAgentAndGateway/bounded_busy (0.99s)\r\n    --- PASS: TestNetworkProbeThroughActualAgentAndGateway/icmp4_three_packets (3.03s)\r\n    --- PASS: TestNetworkProbeThroughActualAgentAndGateway/icmp6_three_packets (3.00s)\r\nPASS\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/agentclient\t9.665s\r\n",
+  "full_go_log": "ok  \tgithub.com/zhengyifei200112-collab/myprobe/cmd/agent\t0.937s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/cmd/server\t11.618s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/agentclient\t12.320s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/agentgateway\t6.302s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/alertpolicy\t0.199s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/alerts\t7.303s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/auth\t0.612s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/backup\t6.007s\r\n--- FAIL: TestDiskUsagePathUsesHostRootForAbsoluteMounts (0.00s)\r\n    network_test.go:26: diskUsagePath() = \"\\\\var\\\\lib\", want \"\\\\host\\\\var\\\\lib\"\r\nFAIL\r\nFAIL\tgithub.com/zhengyifei200112-collab/myprobe/internal/collector\t0.256s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/config\t0.199s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/diagnostics\t0.225s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/httpapi\t13.998s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/httpprobe\t0.496s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/networkquality\t0.220s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/notificationjson\t0.264s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/notificationlink\t0.238s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/protocol/httpcheck\t0.278s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/protocol/networkcheck\t0.159s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/protocol/v1\t0.170s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/protocol/v2\t0.170s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/sanitize\t0.166s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/scheduler\t0.273s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/servicehealth\t0.152s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/sharing\t1.129s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/store\t22.229s\r\nok  \tgithub.com/zhengyifei200112-collab/myprobe/internal/webui\t1.574s\r\nFAIL\r\n",
+  "comparison_browser": {
+    "format": "myprobe.network-comparison-browser.v1",
+    "source_commit": "working-tree-network-transport",
+    "browser_version": "155.0.4283.45",
+    "started_at": "2026-10-16T01:29:51.263Z",
+    "transport": "real Gin/Store APIs and built embedded assets; synthetic persisted task history; one intentional network abort for failure UI",
+    "views": [
+      {
+        "theme": "light",
+        "width": 360,
+        "nodes": 8,
+        "api_mode": "time_series",
+        "requests_per_explicit_node_change": 2,
+        "canvas": true,
+        "mixed_legacy_and_native_evidence": true,
+        "partial_packet_loss_pct": 50,
+        "unknown_history_preserved": true,
+        "errors": []
+      },
+      {
+        "theme": "light",
+        "width": 768,
+        "nodes": 8,
+        "api_mode": "time_series",
+        "requests_per_explicit_node_change": 2,
+        "canvas": true,
+        "mixed_legacy_and_native_evidence": true,
+        "partial_packet_loss_pct": 50,
+        "unknown_history_preserved": true,
+        "errors": []
+      },
+      {
+        "theme": "light",
+        "width": 1440,
+        "nodes": 8,
+        "api_mode": "time_series",
+        "requests_per_explicit_node_change": 2,
+        "canvas": true,
+        "mixed_legacy_and_native_evidence": true,
+        "partial_packet_loss_pct": 50,
+        "unknown_history_preserved": true,
+        "errors": []
+      },
+      {
+        "theme": "dark",
+        "width": 360,
+        "nodes": 8,
+        "api_mode": "time_series",
+        "requests_per_explicit_node_change": 2,
+        "canvas": true,
+        "mixed_legacy_and_native_evidence": true,
+        "partial_packet_loss_pct": 50,
+        "unknown_history_preserved": true,
+        "errors": []
+      },
+      {
+        "theme": "dark",
+        "width": 768,
+        "nodes": 8,
+        "api_mode": "time_series",
+        "requests_per_explicit_node_change": 2,
+        "canvas": true,
+        "mixed_legacy_and_native_evidence": true,
+        "partial_packet_loss_pct": 50,
+        "unknown_history_preserved": true,
+        "errors": []
+      },
+      {
+        "theme": "dark",
+        "width": 1440,
+        "nodes": 8,
+        "api_mode": "time_series",
+        "requests_per_explicit_node_change": 2,
+        "canvas": true,
+        "mixed_legacy_and_native_evidence": true,
+        "partial_packet_loss_pct": 50,
+        "unknown_history_preserved": true,
+        "errors": []
+      }
+    ],
+    "roles": [
+      {
+        "role": "administrator",
+        "hidden_observer_selectable": true
+      },
+      {
+        "role": "password_share",
+        "observers": 2,
+        "selected_private_observer": true,
+        "outside_scope_status": 404
+      }
+    ],
+    "ipv6_case": {
+      "synthetic_configured_observer": true,
+      "unsupported_is_not_execution_failure": true,
+      "exact_packet_loss_unavailable": true,
+      "actual_ipv6_network_execution": false
+    }
+  },
+  "settings_browser": {
+    "format": "myprobe.network-definition-browser.v1",
+    "source_commit": "working-tree-network-transport",
+    "browser": "155.0.4283.45",
+    "backend": "actual Gin/Store/embedded assets; no intercepted APIs",
+    "views": [
+      {
+        "theme": "light",
+        "width": 360,
+        "create_family": "ipv6",
+        "packets": 3,
+        "edit_retained": true,
+        "legacy_edit_retained": true,
+        "export_version": 3,
+        "errors": []
+      },
+      {
+        "theme": "light",
+        "width": 768,
+        "create_family": "ipv6",
+        "packets": 3,
+        "edit_retained": true,
+        "legacy_edit_retained": true,
+        "export_version": 3,
+        "errors": []
+      },
+      {
+        "theme": "light",
+        "width": 1440,
+        "create_family": "ipv6",
+        "packets": 3,
+        "edit_retained": true,
+        "legacy_edit_retained": true,
+        "export_version": 3,
+        "errors": []
+      },
+      {
+        "theme": "dark",
+        "width": 360,
+        "create_family": "ipv6",
+        "packets": 3,
+        "edit_retained": true,
+        "legacy_edit_retained": true,
+        "export_version": 3,
+        "errors": []
+      },
+      {
+        "theme": "dark",
+        "width": 768,
+        "create_family": "ipv6",
+        "packets": 3,
+        "edit_retained": true,
+        "legacy_edit_retained": true,
+        "export_version": 3,
+        "errors": []
+      },
+      {
+        "theme": "dark",
+        "width": 1440,
+        "create_family": "ipv6",
+        "packets": 3,
+        "edit_retained": true,
+        "legacy_edit_retained": true,
+        "export_version": 3,
+        "errors": []
+      }
+    ]
+  },
+  "limitations": [
+    "No new Agent persistent result retry queue",
+    "Darwin native platform not validated",
+    "No final integrated 24-hour result; prior soak interrupted",
+    "No merge, deployment or release"
+  ]
+}

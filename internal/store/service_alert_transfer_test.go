@@ -281,8 +281,8 @@ func TestServiceAlertTransferStrictMappingsParametersAndConcurrentRequests(t *te
 	// Existing v1/v2 definition imports remain unchanged and never import settings.
 	source, v, _, _, _ := serviceAlertFixture(t)
 	config, err := source.ExportConfig(ctx, time.Now())
-	if err != nil || config.Version != 2 {
-		t.Fatal("v2 config")
+	if err != nil || config.Version != ConfigSnapshotVersion {
+		t.Fatal("current config export")
 	}
 	for _, version := range []int{1, 2} {
 		candidate := config

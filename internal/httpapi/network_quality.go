@@ -36,6 +36,8 @@ func projectQualityBounds(b *quality.Bounds) *qualityBoundsDTO {
 }
 
 type qualityNodeDTO struct {
+	AddressFamily        qualityFamilyDTO  `json:"address_family"`
+	PacketLoss           qualityPacketDTO  `json:"packet_loss"`
 	NodeID               string            `json:"node_id"`
 	Name                 string            `json:"name"`
 	Availability         string            `json:"availability"`
@@ -61,10 +63,11 @@ type qualityNodeDTO struct {
 	UnobservedTaskCauses map[string]uint64 `json:"unobserved_task_causes"`
 }
 
-func projectNetworkQuality(n store.NetworkQualityNodeStats) qualityNodeDTO {
+func projectNetworkQuality(n store.NetworkQualityNodeStats, kind string) qualityNodeDTO {
 	s := n.Stats
 	r := qualityNodeDTO{NodeID: n.NodeID, Name: n.Name, Availability: s.Availability, GranularitySeconds: s.GranularitySeconds, QuantileMethod: s.QuantileMethod,
 		Coverage: s.Coverage, FailureRate: s.FailureRate, RTTMean: s.RTTMean, RTTMin: s.RTTMin, RTTMax: s.RTTMax, P50: s.P50, P95: s.P95, P50Bounds: projectQualityBounds(s.P50Bounds), P95Bounds: projectQualityBounds(s.P95Bounds), Jitter: s.Jitter}
+	r.AddressFamily, r.PacketLoss = projectQualityEvidence(s, kind)
 	if s.Availability == "no_plan_history" {
 		return r
 	}
@@ -76,10 +79,13 @@ func projectNetworkQuality(n store.NetworkQualityNodeStats) qualityNodeDTO {
 	r.JitterPairs = &s.JitterPairs
 	r.FailureCauses, r.NotExecutedCauses, r.UnobservedTaskCauses = map[string]uint64{}, map[string]uint64{}, map[string]uint64{}
 	for i, name := range quality.CauseNames {
-		switch {
-		case i < 4:
+		if i >= quality.LegacyCauseCount && s.Totals.Causes[i] == 0 {
+			continue
+		}
+		switch quality.CauseOutcome(i) {
+		case quality.Failure:
 			r.FailureCauses[name] = s.Totals.Causes[i]
-		case i < 7:
+		case quality.NotExecuted:
 			r.NotExecutedCauses[name] = s.Totals.Causes[i]
 		default:
 			r.UnobservedTaskCauses[name] = s.Totals.Causes[i]
@@ -214,15 +220,29 @@ func (s *Server) writeNetworkQuality(c *gin.Context, share string, admin, series
 	}
 	nodes := make([]qualityNodeDTO, 0, len(batch.Nodes))
 	for _, n := range batch.Nodes {
-		nodes = append(nodes, projectNetworkQuality(n))
+		nodes = append(nodes, projectNetworkQuality(n, batch.Kind))
 	}
 	response := gin.H{"version": 1, "aggregation": "range_summary", "direction": "observer_to_target", "target": gin.H{"id": batch.TargetID, "name": batch.TargetName, "kind": batch.Kind}, "address_family": gin.H{"status": "unknown", "reason": "not_reported_by_protocol"}, "packet_loss": gin.H{"value_pct": nil, "status": "unavailable", "reason": "packet_counts_not_reported"}, "requested_start": q.Start.UTC(), "requested_end": q.End.UTC(), "as_of": q.AsOf, "timezone": tz, "nodes": nodes}
+	// The envelope only indicates whether node-specific evidence exists. Never
+	// average percentages or combine observers with different effective windows.
+	for _, n := range batch.Nodes {
+		e := n.Stats.Totals.Evidence
+		if e.IPv4+e.IPv6 > 0 {
+			response["address_family"] = gin.H{"status": "per_node", "reason": "see_node_evidence"}
+		}
+		if e.PacketSuccess+e.PacketFailure > 0 {
+			response["packet_loss"] = gin.H{"value_pct": nil, "status": "per_node", "reason": "see_node_evidence"}
+		}
+	}
+	if batch.Kind == "tcping" {
+		response["packet_loss"] = gin.H{"value_pct": nil, "status": "not_applicable", "reason": "tcp_connect_probe"}
+	}
 	if series {
 		items := make([]qualitySeriesNodeDTO, 0, len(batch.Nodes))
 		for i, n := range batch.Nodes {
 			points := make([]qualityPointDTO, 0, len(n.Stats.Points))
 			for _, p := range n.Stats.Points {
-				points = append(points, projectNetworkQualityPoint(p))
+				points = append(points, projectNetworkQualityPoint(p, batch.Kind))
 			}
 			items = append(items, qualitySeriesNodeDTO{qualityNodeDTO: nodes[i], Points: points})
 		}

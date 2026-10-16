@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { DsDialog } from '../design-system'
-import { QualityRequestError, qualityRequest, targetKey, type QualityObserver, type QualityResponse, type QualityTargetsPage, type QualityTarget, type QualityBounds } from './api'
+import { QualityRequestError, qualityRequest, targetKey, type QualityObserver, type QualityResponse, type QualityTargetsPage, type QualityTarget, type QualityBounds, type QualityFamily, type QualityPacketLoss } from './api'
 import { customRange, lastEvening, localInput } from './time'
 
 const props = defineProps<{ observers: QualityObserver[]; apiBase: string }>()
@@ -20,6 +20,22 @@ let alive = true, revision = 0, controller: AbortController | undefined, moreCon
 let resizeObserver: ResizeObserver | undefined, themeObserver: MutationObserver | undefined
 const hasRTT = computed(() => result.value?.nodes.some(n => n.points.some(p => p.rtt_mean_ms !== null)))
 const targetLabel = computed(() => result.value ? `${result.value.target.name} · ${result.value.target.kind === 'ping' ? 'ICMP 探测' : 'TCP 连接'}` : '')
+function familyLabel(f: QualityFamily) {
+  if (f.ipv4_tasks === null) return '—'
+  if (f.status === 'unknown') return f.reason === 'no_executions' ? '无执行样本' : '未上报'
+  const counts = `IPv4 ${f.ipv4_tasks} / IPv6 ${f.ipv6_tasks}`
+  return f.status === 'partial' ? `${counts}；未知 ${f.unknown_tasks}` : counts
+}
+function packetLabel(p: QualityPacketLoss) {
+  if (p.status === 'not_applicable') return '不适用（TCP）'
+  if (p.value_pct === null) return p.reason === 'no_executions' ? '无执行样本' : '不可用'
+  return `${number(p.value_pct)}%${p.status === 'partial' ? '（部分观测）' : ''}`
+}
+function packetDetail(p: QualityPacketLoss) {
+  if (p.measured_tasks === null) return ''
+  if (p.sent === null) return `有计数 ${p.measured_tasks} 次 / 未知 ${p.unknown_tasks} 次`
+  return `回包 ${p.received} / 已发 ${p.sent}；有计数 ${p.measured_tasks} 次 / 未知 ${p.unknown_tasks} 次`
+}
 function changed(nodes = false) {
   revision++; controller?.abort(); moreController?.abort(); busy.value = false; result.value = undefined; chart?.dispose(); chart = undefined; error.value = ''; dirty.value = true
   if (nodes) targetsDirty.value = true
@@ -121,7 +137,7 @@ async function render() {
       if (!Number.isFinite(at)) return ''
       return `${textTime(new Date(at).toISOString(), data.timezone)}\n${visible.map(n => {
         const p = n.points[index]
-        return `${n.name.slice(0, 17)}\n RTT ${number(p?.rtt_mean_ms)} ms  失败 ${number(p?.execution_failure_pct)}%  覆盖 ${number(p?.coverage_pct)}%`
+        return `${n.name.slice(0, 17)}\n RTT ${number(p?.rtt_mean_ms)} ms  失败 ${number(p?.execution_failure_pct)}%  覆盖 ${number(p?.coverage_pct)}%${p ? `\n ${familyLabel(p.address_family)} · 包丢失 ${packetLabel(p.packet_loss)}` : ''}`
       }).join('\n')}`
     } }, series,
   }, { notMerge: true })
@@ -155,13 +171,14 @@ onBeforeUnmount(() => { alive = false; revision++; controller?.abort(); moreCont
       <p v-if="error" class="quality-error" role="alert">{{ error }}</p><p v-if="notice" class="quality-hint" role="status">{{ notice }}</p>
       <p v-if="busy" class="quality-hint" role="status" aria-live="polite">正在读取所选节点的网络质量…</p>
       <template v-if="result">
-        <header class="quality-result-heading"><h3>观测节点 → {{ targetLabel }}</h3><p>{{ textTime(result.requested_start) }} — {{ textTime(result.requested_end) }} · {{ result.timezone }}</p><p>每 {{ number(result.bucket_seconds / 60) }} 分钟一个统计点 · 地址族未上报 · 精确丢包率不可用</p></header>
+        <header class="quality-result-heading"><h3>观测节点 → {{ targetLabel }}</h3><p>{{ textTime(result.requested_start) }} — {{ textTime(result.requested_end) }} · {{ result.timezone }}</p><p>每 {{ number(result.bucket_seconds / 60) }} 分钟一个统计点 · 观测地址族与包丢失率见节点汇总；旧记录保留未知</p></header>
         <div class="quality-legend" aria-label="图表节点图例"><button v-for="(n, i) in result.nodes" :key="n.node_id" type="button" :title="n.name" :aria-pressed="!hidden.includes(n.node_id)" @click="toggle(n.node_id)"><i :style="{ background: colors[i] }"></i>{{ i + 1 }}. {{ n.name }}</button></div>
         <p v-if="!hasRTT" class="quality-hint">所选范围没有可信的成功 RTT 样本；空白不代表 0 ms。</p>
         <div ref="chartElement" class="quality-chart" role="img" aria-label="所选节点的平均 RTT、执行失败率和覆盖率时序图"></div>
         <p class="quality-caption">淡红统计时段含至少一次执行失败，不代表整段持续故障。曲线空白表示该点没有可用值；覆盖率与执行失败率分开计算。</p>
-        <div class="quality-table-wrap" tabindex="0" aria-label="范围汇总表，可横向滚动"><table class="quality-table"><caption>当前范围汇总 · RTT / 抖动单位 ms</caption><thead><tr><th>观测节点</th><th>覆盖率</th><th>执行失败率</th><th>P50</th><th>P95</th><th>抖动</th><th>成功 / 失败 / 缺测</th></tr></thead><tbody><tr v-for="(n, i) in result.nodes" :key="n.node_id"><th scope="row"><i :style="{ background: colors[i] }"></i>{{ i + 1 }}. {{ n.name }}</th><td>{{ number(n.coverage_pct) }}{{ n.coverage_pct === null ? '' : '%' }}</td><td>{{ number(n.execution_failure_pct) }}{{ n.execution_failure_pct === null ? '' : '%' }}</td><td :title="bounds(n.rtt_p50_bounds)">{{ percentile(n.rtt_p50_ms, n.quantile_method) }}</td><td :title="bounds(n.rtt_p95_bounds)">{{ percentile(n.rtt_p95_ms, n.quantile_method) }}</td><td :title="`${number(n.jitter_pairs, 0)} 对计划相邻成功样本`">{{ number(n.jitter_ms) }}</td><td>{{ number(n.counts.success, 0) }} / {{ number(n.counts.failure, 0) }} / {{ number(n.counts.missing, 0) }}</td></tr></tbody></table></div>
-        <details class="quality-method"><summary>统计口径与实际可用范围</summary><p>覆盖率 = 已执行 / 成熟计划；失败率 = 执行失败 / 已执行。未执行与无回报属于缺测；零分母、未知历史和无样本均显示“—”。≈ 为汇总分位数区间中点，可在表格数值提示中查看上下界。抖动仅连接同一计划中相邻成功的真实 RTT，图表分桶不改变范围抖动。</p><ul><li v-for="n in result.nodes" :key="n.node_id">{{ n.name }}：{{ n.availability === 'no_plan_history' ? '没有保留的计划历史' : `${textTime(n.effective_start)} — ${textTime(n.effective_end)}` }}；成熟计划 {{ number(n.counts.planned, 0) }}，待成熟 {{ number(n.counts.pending, 0) }}，回报未执行 {{ number(n.counts.not_executed, 0) }}，无可信结果任务 {{ number(n.counts.unobserved_tasks, 0) }}。</li></ul><p>观测方向为节点到目标。Agent 没有上报地址族及已发/已收包数，因此不会推算 IPv4/IPv6 或精确 ICMP 丢包率。时刻与时区以本次查询结果为准。</p></details>
+        <div class="quality-table-wrap" tabindex="0" aria-label="范围汇总表，可横向滚动"><table class="quality-table"><caption>当前范围汇总 · RTT / 抖动单位 ms</caption><thead><tr><th>观测节点</th><th>覆盖率</th><th>执行失败率</th><th>观测地址族（任务数）</th><th>ICMP 包丢失率</th><th>P50</th><th>P95</th><th>抖动</th><th>成功 / 失败 / 缺测</th></tr></thead><tbody><tr v-for="(n, i) in result.nodes" :key="n.node_id"><th scope="row"><i :style="{ background: colors[i] }"></i>{{ i + 1 }}. {{ n.name }}</th><td>{{ number(n.coverage_pct) }}{{ n.coverage_pct === null ? '' : '%' }}</td><td>{{ number(n.execution_failure_pct) }}{{ n.execution_failure_pct === null ? '' : '%' }}</td><td class="quality-family">{{ familyLabel(n.address_family) }}</td><td class="quality-packets">{{ packetLabel(n.packet_loss) }}<small>{{ packetDetail(n.packet_loss) }}</small></td><td :title="bounds(n.rtt_p50_bounds)">{{ percentile(n.rtt_p50_ms, n.quantile_method) }}</td><td :title="bounds(n.rtt_p95_bounds)">{{ percentile(n.rtt_p95_ms, n.quantile_method) }}</td><td :title="`${number(n.jitter_pairs, 0)} 对计划相邻成功样本`">{{ number(n.jitter_ms) }}</td><td>{{ number(n.counts.success, 0) }} / {{ number(n.counts.failure, 0) }} / {{ number(n.counts.missing, 0) }}</td></tr></tbody></table></div>
+        <p class="quality-caption">包丢失率 =（已发 − 回包）/ 已发，仅统计具有可信计数的 ICMP 任务，按实际包数加权。“部分观测”不代表全范围精确丢包率；未知任务不补成零，TCP 连接不适用。</p>
+        <details class="quality-method"><summary>统计口径与实际可用范围</summary><p>覆盖率 = 已执行 / 成熟计划；失败率 = 执行失败 / 已执行。确认未执行（调度能力不支持或 Agent 回报未执行）与无回报属于缺测；零分母、未知历史和无样本均显示“—”。≈ 为汇总分位数区间中点，可在表格数值提示中查看上下界。抖动仅连接同一计划中相邻成功的真实 RTT，图表分桶不改变范围抖动。</p><ul><li v-for="n in result.nodes" :key="n.node_id">{{ n.name }}：{{ n.availability === 'no_plan_history' ? '没有保留的计划历史' : `${textTime(n.effective_start)} — ${textTime(n.effective_end)}` }}；成熟计划 {{ number(n.counts.planned, 0) }}，待成熟 {{ number(n.counts.pending, 0) }}，确认未执行 {{ number(n.counts.not_executed, 0) }}，无可信结果任务 {{ number(n.counts.unobserved_tasks, 0) }}。</li></ul><p>观测方向为节点到目标。Agent 没有上报地址族及已发/已收包数，因此不会推算 IPv4/IPv6 或精确 ICMP 丢包率。时刻与时区以本次查询结果为准。</p></details>
       </template>
     </section>
   </DsDialog>
@@ -194,6 +211,8 @@ onBeforeUnmount(() => { alive = false; revision++; controller?.abort(); moreCont
 .quality-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 12px; text-align: right; }
 .quality-table caption { padding: 12px; text-align: left; color: var(--text-secondary); }
 .quality-table th, .quality-table td { padding: 10px 12px; border-top: 1px solid var(--border); white-space: nowrap; }
+.quality-table td.quality-packets { min-width: 140px; max-width: 160px; white-space: normal; }
+.quality-packets small { display: block; margin-top: 4px; color: var(--text-secondary); font-size: 11px; }
 .quality-table th:first-child { position: sticky; left: 0; z-index: 1; text-align: left; max-width: 220px; overflow: hidden; text-overflow: ellipsis; background: var(--surface-solid); }
 .quality-method { margin-top: 16px; color: var(--text-secondary); font-size: 12px; line-height: 1.8; }
 .quality-method summary { cursor: pointer; color: var(--text); font-weight: 600; }

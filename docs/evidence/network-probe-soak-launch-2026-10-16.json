@@ -1,0 +1,50 @@
+{
+  "format": "myprobe.network-probe-soak-launch.v1",
+  "source_commit": "49334ad7ec5cde20079c62a25d7facd8980006bd",
+  "exact_source_ci": 38835498392,
+  "source_archive_sha256": "2922d3d1d8ca4e3ea39535a1f9533b41cb107bbacf29dee784d6d1461f54b829",
+  "server_sha256": "cf41b85fde2ae5874cfa762739fce9d5c976e5c0443174cd3c7e507ed3e8407a",
+  "test_sha256": "c8e6fcea488734f66d51171e67442a4c1da430074f5e097d750f2adf91851555",
+  "runner_sha256": "f280b1e21f7f046b833d384588230f5751b0380f7aa12495010250f2fd41b45f",
+  "supervisor_sha256": "0e1cfe654432f8b56972e6512184d1f8bd18cb2ea4b0762ce82711fdc1b611d8",
+  "short_run_passed_file": "network-probe-joint-five-browser-2026-10-16.json",
+  "preflight_failures": [
+    {
+      "phase": "before_measurement",
+      "reason": "Custom TMPDIR 0755 denied Chromium dropped-privilege shared memory",
+      "acceptance": false
+    },
+    {
+      "phase": "output_and_resource_progress",
+      "reason": "Output was a nonexistent file-shaped path, but contract requires an existing directory",
+      "progress_write_errors": 4,
+      "acceptance": false,
+      "file": "network-probe-joint-output-failure-2026-10-16.json"
+    }
+  ],
+  "run_id": "33f0ac7640b24344884853e74a010a71",
+  "launched_at": "2026-10-16T01:45:47.1927403Z",
+  "observed_at": "2026-10-16T01:46:27.3153507Z",
+  "process_state": "running",
+  "phase": "setup; no confirmed measurement start at launch",
+  "nodes": 100,
+  "duration_requested_seconds": 86400,
+  "requested_history": "dense-year",
+  "browser_pages": 5,
+  "reconciliation": true,
+  "requested_server_limits": {
+    "cpu_quota_percent": 200,
+    "cpus": "0-1",
+    "memory_max_bytes": 2147483648,
+    "swap_max_bytes": 0
+  },
+  "acceptance": "not_evaluated",
+  "automatic_restart": false,
+  "previous_interrupted_soak_reused": false,
+  "limitations": [
+    "Launch status is not test acceptance",
+    "Setup time is excluded from 24-hour measurement",
+    "Host/WSL interruption remains possible; no automatic restart",
+    "Full roadmap and owner merge/release gates remain open"
+  ]
+}

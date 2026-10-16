@@ -9,6 +9,22 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Mutually negotiated `network_probe.v1` now connects bounded native IPv4/IPv6
+  TCP/ICMP execution to durable, connection-fenced task receipts. ACK follows
+  atomic storage; identical replays do not insert twice and conflicting or stale
+  results are rejected. Migration 045 freezes requested
+  address family and packet count in target/epoch/task definitions; configuration
+  v3 round-trips them while legacy v1/v2 imports retain auto/single-packet meaning.
+  Administrator settings distinguish requested options from actual observations.
+  Unsupported legacy sessions are skipped with explicit server provenance, never
+  downgraded to a different family or used to invent an Agent sample/ACK. Strict
+  negotiated contracts and bounded native IPv4/IPv6 executors have real platform
+  tests. Versioned NQS2 archives retain observed family and weighted packet
+  counts while reading NQS1 history as unknown. Public/admin/share comparison
+  shows per-node and per-point evidence coverage, partial ICMP loss and TCP
+  inapplicability without exposing addresses. Final integrated capacity and
+  24-hour acceptance remain open; this draft is not a release.
+
 - A Windows launcher can supervise a trusted WSL soak-test script independently
   of its launching shell, preserving heartbeat, process identities, logs and
   exit status. It does not restart failed runs or declare test acceptance.

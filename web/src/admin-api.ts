@@ -4,6 +4,8 @@ import type { DiagnosticMetadata, DiagnosticPreview } from './diagnostic-api'
 export type { SiteSettings } from './types'
 
 export interface AdminTarget {
+	address_family?: 'auto' | 'ipv4' | 'ipv6'
+	packet_count?: number
   id: string
   name: string
   kind: 'ping' | 'tcping'

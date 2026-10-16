@@ -16,12 +16,14 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/httpcheck"
+	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/networkcheck"
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 	protocolv2 "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v2"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
 type Gateway struct {
+	networkEnabled atomic.Bool
 	httpEnabled    atomic.Bool
 	store          *store.Store
 	hub            *Hub
@@ -52,8 +54,10 @@ func New(database *store.Store, hub *Hub) *Gateway {
 }
 
 var ErrAgentOffline = errors.New("agent is offline")
+var ErrNetworkUnavailable = errors.New("network execution is unavailable on this session")
 
 type agentSession struct {
+	networkAllowed bool
 	configAllowed  bool
 	epoch          string
 	configMu       sync.Mutex
@@ -196,6 +200,9 @@ func (g *Gateway) webSocketVersion(w http.ResponseWriter, r *http.Request, versi
 	if version == protocolv2.Version {
 		payload, _ := protocol.DecodePayload[protocol.Welcome](welcome)
 		offered := []string{protocolv2.ConfigurationCapability}
+		if g.networkEnabled.Load() {
+			offered = append(offered, networkcheck.Capability)
+		}
 		if g.httpEnabled.Load() {
 			offered = append(offered, httpcheck.Capability)
 		}
@@ -204,6 +211,7 @@ func (g *Gateway) webSocketVersion(w http.ResponseWriter, r *http.Request, versi
 		welcome.Version = protocolv2.Version
 	}
 	session := &agentSession{connection: connection, version: version, httpAllowed: protocolv2.AllowsHTTP(capabilities), httpPending: make(map[string]time.Time)}
+	session.networkAllowed = version == protocolv2.Version && protocolv2.AllowsNetwork(capabilities)
 	session.configAllowed = version == protocolv2.Version && protocolv2.AllowsConfiguration(capabilities)
 	// Publish the session while holding its writer lock. A scheduler can discover
 	// it immediately, but its first task cannot overtake the welcome frame.
@@ -288,6 +296,31 @@ func (g *Gateway) webSocketVersion(w http.ResponseWriter, r *http.Request, versi
 		case protocol.TypeHeartbeat:
 			ack, _ := protocol.NewEnvelope(protocol.TypeAcknowledged, envelope.Sequence, protocol.Acknowledgement{Sequence: envelope.Sequence})
 			if err := session.write(ctx, ack); err != nil {
+				return
+			}
+		case protocolv2.TypeNetworkResult:
+			result, err := networkcheck.DecodeResult(envelope.Payload, time.Now().UTC())
+			if err != nil || !session.networkAllowed {
+				g.writeProtocolError(ctx, session, "invalid_result", "network result was not negotiated or is invalid")
+				continue
+			}
+			inserted, err := g.saveNetworkProbeResult(ctx, session, node.ID, result)
+			if err != nil {
+				if errors.Is(err, store.ErrNetworkTaskRejected) || errors.Is(err, ErrNetworkUnavailable) {
+					g.writeProtocolError(ctx, session, "invalid_result", "network result does not match an active task")
+				} else {
+					g.writeProtocolError(ctx, session, "storage_error", "network result could not be stored")
+				}
+				continue
+			}
+			g.pendingMu.Lock()
+			delete(g.pending, result.TaskID)
+			g.pendingMu.Unlock()
+			if inserted {
+				g.publishNode(ctx, node.ID)
+			}
+			ack, _ := protocol.NewEnvelope(protocol.TypeAcknowledged, envelope.Sequence, protocol.Acknowledgement{Sequence: envelope.Sequence})
+			if err = session.write(ctx, ack); err != nil {
 				return
 			}
 		case protocol.TypePingResult, protocol.TypeTCPingResult:
@@ -444,7 +477,24 @@ func (g *Gateway) DispatchNetwork(ctx context.Context, epochID string, slot time
 }
 
 func (g *Gateway) sendNetworkTask(ctx context.Context, session *agentSession, task store.NetworkTask) error {
+	if !session.networkAllowed && (task.AddressFamily != "" && task.AddressFamily != networkcheck.FamilyAuto || task.PacketCount > 1) {
+		if err := g.store.RecordUnsupportedNetworkDispatch(ctx, task, time.Now().UTC()); err != nil {
+			return err
+		}
+		return store.ErrNetworkTaskRejected
+	}
 	envelope, err := protocol.NewEnvelope(protocol.TypeTask, 0, task.Task)
+	if session.networkAllowed {
+		probe := task.ProbeTask()
+		if probe.Validate(time.Now().UTC()) != nil {
+			return store.ErrNetworkTaskRejected
+		}
+		if err := g.store.RequireNetworkEvidence(ctx, task, session.epoch); err != nil {
+			return err
+		}
+		wire, wireErr := protocolv2.NewEnvelope(protocolv2.TypeNetworkTask, 0, probe)
+		envelope, err = protocol.Envelope(wire), wireErr
+	}
 	if err != nil {
 		return err
 	}
