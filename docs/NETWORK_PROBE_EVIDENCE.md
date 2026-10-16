@@ -54,9 +54,14 @@ sendmsg/sendto/本地 transmit failed 等发送错误会使工具的 attempted/s
 只报告工具真实完整计数，不补足未发包，也不把未发包计入丢包。中断、截断、矛盾摘要或
 无法解析的 RTT 都不能变成成功/失败的虚构精度。收到回应但没有可信 RTT 时为未观测。
 
-当前 Windows 实际自有 IPv4/IPv6 TCP 及 ICMP 各两包都通过，ICMP 均得到 sent=2/received=2，
-原生工具 RTT 平均值为 0 ms。Linux 原生及隔离丢包测试由独立 CI job 运行；准确结果需按
-提交核对，不能由解析样本文本测试推定。Darwin 只有参数/格式覆盖，未声称实际平台验收。
+当前 Windows 与 Linux 实际自有 IPv4/IPv6 TCP 及 ICMP 各两包都通过，ICMP 均得到
+sent=2/received=2。Windows 原生工具 RTT 平均值为 0 ms；Linux 该次约 0.016/0.017 ms。
+Linux 自有命名空间禁用 Echo Reply 时实际 sent=3/received=0，为执行失败；另一个没有
+路由的合成地址为未观测 send_error、包数不可用，不能报 100% 目标丢包。
+原始按源代码区分的日志投影、二进制/源文件 hash、最初超发失败与修复见
+[原生证据](evidence/network-probe-native-2026-10-16.json)。准确源 831831a 的独立原生 CI
+job 已通过；后继 c0d9fb3 包括真实无路由反例，仍按准确 head 检查完整 CI。
+Darwin 只有参数/格式覆盖，未声称实际平台验收。
 
 ## 必须完成的纵向接入
 
