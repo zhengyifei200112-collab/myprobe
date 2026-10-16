@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test": "node --experimental-strip-types --test src/forms/*.test.ts",
     "build": "node scripts/notification-links-test.cjs && node scripts/network-quality-time-test.cjs && vue-tsc --noEmit && vite build",
     "typecheck": "vue-tsc --noEmit"
   },

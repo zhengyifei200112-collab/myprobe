@@ -229,6 +229,7 @@ jobs:
       - name: Build embedded frontend
         run: |
           npm --prefix web ci
+          npm --prefix web test
           npm --prefix web run build
           git diff --exit-code -- internal/webui/dist
 
@@ -429,6 +430,15 @@ jobs:
           MYPROBE_TEST_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
           QA_ARTIFACT_DIR: ${{ runner.temp }}/myprobe-network-comparison
         run: go test ./internal/httpapi -run '^TestReleaseAwarenessLiveBrowser$' -timeout 4m -count=1 -v
+
+      - name: Verify quantity persistence with an actual disposable Server
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/myprobe-browser/node_modules/playwright
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/myprobe-browsers
+        run: |
+          mkdir -m 700 "${RUNNER_TEMP}/myprobe-network-comparison/form-units"
+          go build -o "${RUNNER_TEMP}/myprobe-form-units-server" ./cmd/server
+          node scripts/run-form-units-qa.cjs "${RUNNER_TEMP}/myprobe-form-units-server" "${RUNNER_TEMP}/myprobe-network-comparison/form-units"
 
       - name: Preserve synthetic comparison screenshots and result
         if: always()

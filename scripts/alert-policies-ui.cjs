@@ -4,8 +4,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 (async () => {
-  const output = await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'myprobe-policies-ui-'));
-  const browser = await chromium.launch({channel:'msedge',headless:true});
+  const output = process.env.QA_OUTPUT_DIR || await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'myprobe-policies-ui-'));
+  if (process.env.QA_OUTPUT_DIR) await fs.mkdir(output, {mode:0o700});
+  const channel=process.env.BROWSER_CHANNEL || (process.platform==='win32'?'msedge':undefined);
+  const browser = await chromium.launch({...channel?{channel}:{},headless:true});
   try {
     for (const theme of ['light','dark']) for (const width of [360,768,1440]) {
       const page = await browser.newPage({viewport:{width,height:1000},colorScheme:theme});
@@ -44,7 +46,7 @@ const path = require('node:path');
       await page.getByLabel('标签（每行一个）',{exact:true}).fill('prod\nlinux');
       await page.getByRole('combobox',{name:/^通知通道/}).selectOption('channel');
       await page.getByLabel('恢复持续时间与触发一致',{exact:true}).uncheck();
-      await page.getByLabel('恢复持续时间（秒）',{exact:true}).fill('0');
+      await page.getByLabel('恢复持续时间',{exact:true}).fill('0');
       await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'form overflow');
       await page.screenshot({path:path.join(output,`${theme}-${width}-form.png`),fullPage:true});
@@ -61,7 +63,7 @@ const path = require('node:path');
       await page.getByRole('button',{name:'编辑策略',exact:true}).click();
       assert.equal(await page.getByLabel('标签（每行一个）',{exact:true}).inputValue(),'prod\nlinux');
       assert.equal(await page.getByLabel('恢复持续时间与触发一致',{exact:true}).isChecked(),false);
-      assert.equal(await page.getByLabel('恢复持续时间（秒）',{exact:true}).inputValue(),'0');
+      assert.equal(await page.getByLabel('恢复持续时间',{exact:true}).inputValue(),'0');
       await page.getByLabel('策略名称',{exact:true}).fill('未覆盖的修改');conflict=true;
       await page.getByRole('button',{name:'保存范围策略',exact:true}).click();
       await page.getByRole('alert').getByText('配置版本冲突，请重新读取').waitFor();

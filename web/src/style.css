@@ -370,3 +370,7 @@ main { width: min(1440px, 100%); margin: auto; padding: 24px clamp(16px, 3vw, 32
 @media (max-width: 900px) { .share-chart-grid { grid-template-columns: 1fr; }.share-chart-grid .full { grid-column: auto; } }
 @media (max-width: 680px) { .admin-tabs button { padding-inline: 4px; font-size: 10px; }.event-list article { grid-template-columns: auto minmax(0, 1fr); }.event-list time { grid-column: 2; }.event-list p { white-space: normal; }.share-controls { align-items: stretch; flex-direction: column; }.share-controls label { justify-content: space-between; }.share-controls select { min-width: 0; flex: 1; }.share-controls .range-switch { width: 100%; }.share-main { padding-top: 24px; }.share-chart-grid .chart-canvas { height: 260px; } }
 @media (max-width: 680px) { .audit-main { grid-template-columns: auto minmax(0, 1fr); }.audit-main time { grid-column: 2; }.audit-list details { margin-left: 0; } }
+
+/* Keep the expanded quantity editor inside the viewport, with internal scrolling. */
+.edit-dialog { max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain; }
+@media (max-width: 680px) { .edit-dialog { max-height: calc(100dvh - 20px); } }
