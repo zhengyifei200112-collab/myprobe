@@ -12,8 +12,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Batch sampling updates reuse negotiated v2 configuration and application
   acknowledgements. Partial interface/mount settings preserve the omitted local
   selection. Management saves confirm desired configuration persistence.
-- Cached or delayed metric reports refresh last contact without duplicating history
-  or moving the latest metrics and traffic counters backwards.
+- Exact metric replays refresh last contact without duplicating history. Distinct
+  late samples remain durable without moving latest metrics/traffic backwards;
+  conflicting payloads at one capture time are rejected.
 
 
 ### Added
