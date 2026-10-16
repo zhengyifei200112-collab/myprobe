@@ -5,6 +5,8 @@ import type { AlertKind, AlertPolicy, AlertPolicyDecision, AlertPolicyInput, Ale
 import { createAlertPolicy, deleteAlertPolicy, loadAlertPolicies, loadAlertPolicy, loadEffectiveAlertPolicies, updateAlertPolicy } from '../admin-api'
 import { DsConfirmDialog } from '../design-system'
 import PolicyTransfer from './PolicyTransfer.vue'
+import QuantityInput from '../forms/QuantityInput.vue'
+import { bandwidthUnits, trafficUnits, timeUnits } from '../forms/units'
 const props = defineProps<{ nodes: NodeMetadata[]; channels: NotificationChannel[]; initialPolicyId?: string }>()
 const items = ref<AlertPolicy[]>([]), cursor = ref(''), busy = ref(false), error = ref(''), loaded = ref(false), execution = ref(false)
 const editing = ref(false), deleting = ref<AlertPolicy | null>(null), nodeID = ref(''), decisions = ref<AlertPolicyDecision[] | null>(null)
@@ -106,13 +108,15 @@ onMounted(async () => {
         <template v-if="form.scope === 'tags'"><label>标签（每行一个）<textarea v-model="form.tags" required rows="3" /></label><label>标签匹配方式<select v-model="form.tagMode"><option value="all">包含全部标签</option><option value="any">包含任意标签</option></select></label></template>
         <label>通知通道<select v-model="form.channel" required><option value="" disabled>选择通道</option><option v-for="c in channels" :key="c.id" :value="c.id">{{ c.name }}{{ c.enabled ? '' : '（已停用）' }}</option></select></label>
         <label>告警类型<select v-model="form.kind"><option v-for="(label, kind) in kinds" :key="kind" :value="kind">{{ label }}</option></select></label>
-        <label>{{ thresholdLabel }}<input v-model.number="form.threshold" type="number" min="0" step="any" required></label>
-        <label>持续时间（秒）<input v-model.number="form.duration" type="number" min="0" max="2592000" step="1" required></label>
+        <QuantityInput v-if="form.kind === 'bandwidth' || form.kind === 'cycle_traffic' || form.kind === 'offline'" :key="form.kind" :model-value="form.threshold" @update:model-value="form.threshold = $event ?? 0" :units="form.kind === 'bandwidth' ? bandwidthUnits : form.kind === 'cycle_traffic' ? trafficUnits : timeUnits" :label="form.kind === 'bandwidth' ? '带宽阈值' : form.kind === 'cycle_traffic' ? '流量阈值' : '离线阈值'" :min="form.kind === 'offline' ? 15 : 1" :max="form.kind === 'offline' ? 86400 : Number.MAX_SAFE_INTEGER" />
+        <label v-else>{{ thresholdLabel }}<input v-model.number="form.threshold" type="number" min="0" step="any" required></label>
+        <QuantityInput :model-value="form.duration" @update:model-value="form.duration = $event ?? 0" :units="timeUnits" label="持续时间" :max="2592000" />
         <label class="check"><input v-model="form.recoveryMatches" type="checkbox">恢复持续时间与触发一致</label>
-        <label v-if="!form.recoveryMatches">恢复持续时间（秒）<input v-model.number="form.recovery" type="number" min="0" max="2592000" step="1" required></label>
-        <label>重复提醒（秒，0 使用冷却间隔）<input v-model.number="form.repeat" type="number" min="0" max="2592000" step="1" required></label>
-        <label>聚合等待（秒）<input v-model.number="form.aggregation" type="number" min="0" max="300" step="1" required aria-describedby="aggregation-help"><small id="aggregation-help">0 为立即逐事件发送；5–300 秒为聚合。新策略默认额外等待 30 秒，同策略、通道和通知类型每组最多 10 个事件；后续事件不会延长窗口。</small></label>
-        <label>冷却间隔（秒）<input v-model.number="form.cooldown" type="number" min="30" max="2592000" step="1" required></label>
+        <QuantityInput v-if="!form.recoveryMatches" :model-value="form.recovery" @update:model-value="form.recovery = $event ?? 0" :units="timeUnits" label="恢复持续时间" :max="2592000" />
+        <QuantityInput :model-value="form.repeat" @update:model-value="form.repeat = $event ?? 0" :units="timeUnits" label="重复提醒（0 使用冷却间隔）" :max="2592000" />
+        <QuantityInput :model-value="form.aggregation" @update:model-value="form.aggregation = $event ?? 0" :units="timeUnits" label="聚合等待" :max="300" described-by="aggregation-help" />
+        <small id="aggregation-help">0 为立即逐事件发送；5–300 秒为聚合。新策略默认额外等待 30 秒，同策略、通道和通知类型每组最多 10 个事件；后续事件不会延长窗口。</small>
+        <QuantityInput :model-value="form.cooldown" @update:model-value="form.cooldown = $event ?? 0" :units="timeUnits" label="冷却间隔" :min="30" :max="2592000" />
         <label class="check"><input v-model="form.enabled" type="checkbox">启用此策略配置</label>
         <div class="form-actions"><button type="submit">保存范围策略</button><button type="button" @click="editing = false">取消编辑</button></div>
       </fieldset>

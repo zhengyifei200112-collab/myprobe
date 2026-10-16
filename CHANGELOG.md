@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Integrated quantity editors preserve integer minor-unit prices, legacy billing
+  cycles and unchanged expiry timestamps. Currency, bandwidth, traffic and time
+  units are explicit in current node and alert-policy forms.
+  Existing prices with missing currency remain editable and preserve raw minor
+  units until an operator selects a valid currency.
 - A read-only Windows soak observer distinguishes verified current process
   identities from stale running records, reused PIDs, missing handles and host
   restarts. New launchers retain process creation times; legacy records remain
