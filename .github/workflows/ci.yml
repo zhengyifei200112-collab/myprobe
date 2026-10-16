@@ -9,6 +9,42 @@ permissions:
   contents: read
 
 jobs:
+  encrypted-backup-capacity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact backup source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: go.sum
+
+      - name: Verify encrypted large database snapshots and recovery
+        env:
+          CGO_ENABLED: '0'
+          MYPROBE_TEST_BACKUP_CAPACITY: '1'
+          MYPROBE_TEST_BACKUP_CAPACITY_MIB: '256,1024'
+          MYPROBE_TEST_BACKUP_CAPACITY_OUTPUT: ${{ runner.temp }}/myprobe-backup-capacity
+          MYPROBE_TEST_BACKUP_CAPACITY_HOST_CONTEXT: 'Standalone CI job; host isolation and resource caps are not asserted'
+          MYPROBE_TEST_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          mkdir -p "$MYPROBE_TEST_BACKUP_CAPACITY_OUTPUT"
+          go test ./internal/backup -run '^TestEncryptedBackupCapacity$' -timeout 15m -count=1 -v
+
+      - name: Preserve aggregate capacity evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: encrypted-backup-capacity-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/myprobe-backup-capacity
+          if-no-files-found: ignore
+          retention-days: 7
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
