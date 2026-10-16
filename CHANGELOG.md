@@ -9,6 +9,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Private System Health compares official stable releases with the Server and the
+  selected Agent's last advertised software version. Checks have a five-second
+  bound, shared cache, manual cooldown and explicit unknown/stale/unavailable
+  states. Daily automatic checks can be disabled with
+  `MYPROBE_RELEASE_CHECKS_AUTO=false`. Official upgrade links and eligible Linux
+  installer command references never execute updates or imply protocol
+  incompatibility. No public fields, schema or Agent protocol changes.
+
 - Mutually negotiated `network_probe.v1` now connects bounded native IPv4/IPv6
   TCP/ICMP execution to durable, connection-fenced task receipts. ACK follows
   atomic storage; identical replays do not insert twice and conflicting or stale

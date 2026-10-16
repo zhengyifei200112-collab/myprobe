@@ -384,6 +384,7 @@ async function request<T>(path: string, options: RequestInit = {}, decode?: (tex
   return response.json() as Promise<T>
 }
 
+export const loadReleaseStatus = (nodeID: string, check: boolean, signal?: AbortSignal) => request<import('./release-api').ReleaseStatus>(`/api/v1/admin/system/releases${check ? '/check' : ''}${nodeID ? `?node_id=${encodeURIComponent(nodeID)}` : ''}`, { method: check ? 'POST' : 'GET', signal })
 export const loadBackupStatus = (signal?: AbortSignal) => request<BackupStatus>('/api/v1/admin/maintenance/backup-schedule', { signal })
 export const prepareDiagnosticExport = (signal?: AbortSignal) => request<DiagnosticPreview>('/api/v1/admin/system/diagnostic-exports/preview', { method: 'POST', body: '{}', signal })
 export async function downloadDiagnosticExport(metadata: DiagnosticMetadata, signal?: AbortSignal): Promise<Blob> {

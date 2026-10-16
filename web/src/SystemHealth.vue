@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import DiagnosticExport from './DiagnosticExport.vue'
+import ReleaseAwareness from './ReleaseAwareness.vue'
 
 interface Job { state: string; last_success_at?: string; last_completed_at?: string; failed_runs: number; completed_runs: number }
 interface Queue { pending: number; pending_due_by_time: number; pending_future: number; inflight: number; expired_leases: number; aggregate_members?: number; collecting?: number; oldest_pending_available_ms?: number }
@@ -131,6 +132,7 @@ onUnmounted(() => { generation++; controller?.abort(); nodeGeneration++; nodeCon
       <p class="health-note">手动备份生成成功仅表示加密文件已生成；客户端保存未知。定时备份与隔离恢复演练的逐份结果可在“设置 → 迁移与备份”中查看。</p>
     </template>
     <DiagnosticExport v-if="!authRejected" @unauthorized="data = null; nodeData = null; authRejected = true; emit('unauthorized')" />
+    <ReleaseAwareness :node-id="selectedNode" :server-os="data?.server.os" @unauthorized="authRejected = true; emit('unauthorized')" />
     <section class="admin-panel" aria-labelledby="node-health-title" :aria-busy="nodeBusy">
       <h2 id="node-health-title">节点诊断</h2>
       <div class="health-heading"><label for="diagnostic-node">选择节点</label><select id="diagnostic-node" v-model="selectedNode"><option value="">请选择节点</option><option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option></select><button class="soft-button" :disabled="!selectedNode || nodeBusy" @click="loadNode">刷新节点诊断</button></div>
