@@ -9,6 +9,47 @@ permissions:
   contents: read
 
 jobs:
+  network-probe-darwin:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: amd64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact native source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up native Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: go.sum
+      - name: Verify native loopback execution and durable receipt
+        env:
+          MYPROBE_TEST_NETWORK_EVIDENCE_NATIVE: '1'
+          EXPECTED_SOURCE: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/darwin-network"
+          python3 scripts/native-network-evidence-test.py
+          go test ./internal/agentclient -run '^TestNetworkProbe' -count=1 -timeout 2m -json | tee "${RUNNER_TEMP}/darwin-network/events.jsonl"
+          python3 scripts/native-network-evidence.py "${RUNNER_TEMP}/darwin-network/events.jsonl" "${RUNNER_TEMP}/darwin-network/result.json" --source "$EXPECTED_SOURCE" --arch '${{ matrix.arch }}'
+          go test -race ./internal/agentclient -run '^TestNetworkProbe' -count=1 -timeout 3m
+      - name: Preserve synthetic native events and source-bound evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: darwin-network-${{ matrix.arch }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/darwin-network
+          if-no-files-found: ignore
+          retention-days: 7
+
   soak-observation-windows:
     runs-on: windows-latest
     timeout-minutes: 5
@@ -191,6 +232,7 @@ jobs:
           go test ./...
           go vet ./...
           go build ./cmd/...
+          python3 scripts/native-network-evidence-test.py
           go test -race ./internal/releasecheck -count=1
           go test -race ./internal/httpapi -run '^TestReleaseStatusAdminContract$' -count=1
           go test -race ./internal/agentclient -run '^TestJointResource' -count=1

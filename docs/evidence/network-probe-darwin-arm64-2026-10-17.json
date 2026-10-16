@@ -1,0 +1,40 @@
+{
+  "passed_tests": [
+    "TestNetworkProbeNativeICMPEvidence/ipv4",
+    "TestNetworkProbeNativeICMPEvidence/ipv6",
+    "TestNetworkProbeRealTCPAddressFamilies/tcp4",
+    "TestNetworkProbeRealTCPAddressFamilies/tcp6",
+    "TestNetworkProbeThroughActualAgentAndGateway/bounded_busy",
+    "TestNetworkProbeThroughActualAgentAndGateway/icmp4_three_packets",
+    "TestNetworkProbeThroughActualAgentAndGateway/icmp6_three_packets",
+    "TestNetworkProbeThroughActualAgentAndGateway/tcp4",
+    "TestNetworkProbeThroughActualAgentAndGateway/tcp6"
+  ],
+  "loopback_icmp": {
+    "ipv4": {
+      "sent": 2,
+      "received": 2,
+      "rtt_ms": 0.115
+    },
+    "ipv6": {
+      "sent": 2,
+      "received": 2,
+      "rtt_ms": 0.082
+    }
+  },
+  "scheduled_icmp_packets_verified_by_actual_agent_store_tests": 3,
+  "format": "myprobe.darwin-network-native.v1",
+  "source_commit": "a6caea519fedc1328f98ce428fa15b9bbf1f2913",
+  "os": "darwin",
+  "arch": "arm64",
+  "os_version": "15.7.9",
+  "go": "go version go1.26.8 darwin/arm64",
+  "events_sha256": "ef5b719239264470248829d91cffcf82345c10972f20c9b5f188b2d8fc81fc7b",
+  "scope": "owned IPv4/IPv6 loopback TCP/ICMP and actual Agent/Gateway/Store/ACK; no external hosts or silence/no-route proof",
+  "source_sha256": {
+    "internal/agentclient/network_probe.go": "ff34803080fc49245ff1e17c4618f0aacce943f4f6357f42a71b7b7a6c0854e4",
+    "internal/agentclient/network_probe_ping.go": "52e0f6817c62f1f493fe66f46ccf0f94f9841db3bb18ec04212d6e761663ce44",
+    "internal/agentclient/network_probe_test.go": "f74f65f4d6ec8865126ee4dbb982234a1c356a941722946683e6a30efd6d6ab7",
+    "internal/agentclient/network_evidence_e2e_test.go": "bc7ee3e6b24bf0a2342ce8becf65f463c00b28850cc8ccb13f67ba438729f6d6"
+  }
+}

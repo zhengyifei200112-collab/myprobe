@@ -40,7 +40,7 @@ func TestNetworkProbeThroughActualAgentAndGateway(t *testing.T) {
 				kind, packets = v1.TaskKindTCPing, 0
 				listener, err := net.Listen(tc.network, net.JoinHostPort(tc.host, "0"))
 				if err != nil {
-					if tc.network == "tcp6" {
+					if tc.network == "tcp6" && os.Getenv("MYPROBE_TEST_NETWORK_EVIDENCE_NATIVE") != "1" {
 						t.Skip("IPv6 loopback listener unavailable:", err)
 					}
 					t.Fatal(err)

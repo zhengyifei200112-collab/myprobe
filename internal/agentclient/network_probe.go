@@ -207,12 +207,14 @@ func evidencePingCommand(goos string, address netip.Addr, count int, remaining t
 		return "ping", []string{family, "-n", strconv.Itoa(count), "-w", strconv.Itoa(ms), address.String()}, nil
 	}
 	if goos == "darwin" {
-		program := "ping"
 		if address.Is6() {
-			program = "ping6"
+			// BSD ping6 -W is a node-information/FQDN query, not the IPv4
+			// ping response timeout. Keep Echo Requests and let the shared
+			// context bound completion when no complete summary is available.
+			return "ping6", []string{"-n", "-c", strconv.Itoa(count), "-i", "0.25", address.String()}, nil
 		}
 		responseMS := max(1, ms-(count-1)*check.PacketIntervalMS-100)
-		return program, []string{"-n", "-c", strconv.Itoa(count), "-i", "0.25", "-W", strconv.Itoa(responseMS), address.String()}, nil
+		return "ping", []string{"-n", "-c", strconv.Itoa(count), "-i", "0.25", "-W", strconv.Itoa(responseMS), address.String()}, nil
 	}
 	if goos != "linux" {
 		return "", nil, errEvidenceUnsupported
