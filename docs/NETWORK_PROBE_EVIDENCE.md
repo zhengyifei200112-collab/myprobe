@@ -2,7 +2,8 @@
 
 此分支继续后续开发文档第 7 节，不把协议类型或函数测试当作完整交付。
 当前增加 `network_probe.v1` 的严格协议类型及 v2 外层消息；尚未向实际连接提供该能力。
-执行器、任务/epoch 持久化、归档统计、API、目标配置/导入导出、真实页面与运行验收仍须接通。
+有界执行器已实现并开始实测；任务/epoch 持久化、归档统计、API、目标配置/导入导出、
+真实页面与运行验收仍须接通。
 
 ## 协议与执行口径
 
@@ -27,6 +28,27 @@ Linux iputils 的地址族/包数/间隔语义见
 [ping 手册](https://man7.org/linux/man-pages/man8/ping.8.html)，Windows 的地址族和包数见
 [Microsoft ping](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/ping)。
 各平台工具/权限与真实网络测试必须分开记录；无法可靠解析时明确不可用，不伪造精度。
+
+## 已实现的执行器及验证边界
+
+执行器先在总 deadline 内按所选 family 解析，TCP 只连接一个已解析字面地址并核对真正的
+RemoteAddr；不再次隐式解析或退回另一个地址族。ICMP 只调用固定 ping/ping6 与参数，
+不经过 shell，捕获输出最多 32 KiB，同时排空 stdout/stderr，终止/清理也有上限。
+权限/工具/地址族不支持与 DNS 分别为未观测。没有可信 RTT 时不使用整个程序耗时替代。
+
+只信任完整、唯一、计数关系有效的工具摘要。Windows 的 Received 可能包含 Destination
+Unreachable，因此还要求实际带 time/时间 的 Echo Reply 数与摘要一致；否则计数不可用。
+Windows 英文、简体中文（含 GBK）有解析回归，其他无法可靠识别的格式明确不可用。
+工具平均 RTT 的量化精度保留，例如 Windows 回环平均 0 ms 是工具量化结果，不能解释为
+物理零时延；空数据的 null 与这个实际观测值始终不同。
+
+每任务包数是请求上限；总 timeout 或平台发送节奏可能使实际已发包数少于上限。
+只报告工具真实完整计数，不补足未发包，也不把未发包计入丢包。中断、截断、矛盾摘要或
+无法解析的 RTT 都不能变成成功/失败的虚构精度。收到回应但没有可信 RTT 时为未观测。
+
+当前 Windows 实际自有 IPv4/IPv6 TCP 及 ICMP 各两包都通过，ICMP 均得到 sent=2/received=2，
+原生工具 RTT 平均值为 0 ms。Linux 原生及隔离丢包测试由独立 CI job 运行；准确结果需按
+提交核对，不能由解析样本文本测试推定。Darwin 只有参数/格式覆盖，未声称实际平台验收。
 
 ## 必须完成的纵向接入
 
