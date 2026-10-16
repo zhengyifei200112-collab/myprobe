@@ -43,7 +43,7 @@ function Get-WSLSoakObservation($Manifest, $Status, $SupervisorLookup, $ClientLo
         recorded_observed_at = $observed.ToString('o')
         state = 'observation_unavailable'; reason = 'process_identity_unavailable'
         supervisor = $supervisor; wsl_client = $client
-        host_restart_observed = ($null -ne $boot -and $boot -gt $started)
+        host_restart_observed = ($null -ne $boot -and $boot -le $Now.AddSeconds(5) -and $boot -gt $started)
         exit_code = $null; test_acceptance = 'not_evaluated'
     }
     if ($recordedState -eq 'exited') {

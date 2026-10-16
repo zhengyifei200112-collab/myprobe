@@ -60,7 +60,7 @@ Get-Content -LiteralPath 'D:/test-results/joint-soak-new-run/status.json' -Raw |
 直接拒绝。`scripts/test-wsl-soak-observation.ps1` 可在 Windows PowerShell 5.1 下
 验证状态边界，不启动 WSL；`test-wsl-soak.ps1` 的显式短夹具另外验证真实生命周期。
 
-2026-10-17 本地原生 Windows PowerShell 5.1：24 项状态/文件边界通过；真实 WSL
+2026-10-17 本地原生 Windows PowerShell 5.1：25 项状态/文件边界通过；真实 WSL
 12 秒夹具验证启动 shell 退出后身份核对、带引号路径、持续心跳、退出码 0/31、双路
 各 2 MiB 输出和旧目录拒绝，观察命令未修改终止状态。短夹具现已结束。筛选后的
 [原始证据](evidence/soak-observation-native-2026-10-17.json) 绑定被测脚本 SHA-256，

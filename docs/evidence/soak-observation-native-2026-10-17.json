@@ -6,11 +6,11 @@
   "source_sha256": {
     "scripts/start-wsl-soak.ps1": "5246ee9819942763ae62b96b180133305194d7f4bb569e864d5169cd6f244ea5",
     "scripts/observe-wsl-soak.ps1": "e940ef05648d91b19dfe8a72760c2a09ed5a85648b69bbb3b7384d5e464782b9",
-    "scripts/lib/wsl-soak-observation.ps1": "d1a277ae0c173c07ae323308e020ca874a892abb076ced8b1fcc2eec8c3a785d",
+    "scripts/lib/wsl-soak-observation.ps1": "780ccf02732909a92a00f535c3e222eecbc6e9dc5c2a6f30a648cb76a44e14ec",
     "scripts/test-wsl-soak.ps1": "59a337eb1b9afd7da7afb3adb73ad314360011915fa11cbfd3c558de6a7c53ca",
-    "scripts/test-wsl-soak-observation.ps1": "c8d4ee27e324ea8bea9d9539a751272e9d38ce4d7478e5d84544d473b3ccb865"
+    "scripts/test-wsl-soak-observation.ps1": "83567684ad8fb79e23f2886e7eff3127a1296ca083003cd9b71ee64ef25b6ca6"
   },
-  "pure_checks": 24,
+  "pure_checks": 25,
   "hold_seconds": 12,
   "heartbeat_count": 12,
   "launching_shells_exited": true,

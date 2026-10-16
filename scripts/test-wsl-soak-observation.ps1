@@ -48,6 +48,9 @@ $record = New-Status; $record.observed_at = $now.AddSeconds(-30).ToString('o')
 Assert-State $record $supervisor $client $null 'handles_live' 'process_identity_and_parent_verified'
 $record = New-Status; $record.state = 'exited'; $record.exit_code = 0; $record.ended_at = $now.AddSeconds(-1).ToString('o')
 Assert-State $record $missing $missing $now.AddSeconds(-1) 'exited_recorded' 'recorded_client_exit_only'
+$terminalClock = Get-WSLSoakObservation $manifest $record $missing $missing $now.AddMinutes(1) $now
+if ($terminalClock.host_restart_observed) { throw 'A future boot timestamp asserted a restart.' }
+$checks++
 $record.exit_code = 31
 Assert-State $record $missing $missing $null 'exited_recorded' 'recorded_client_exit_only'
 foreach ($kind in @('mismatched_run','invalid_pid','invalid_exit','invalid_time','invalid_start')) {
