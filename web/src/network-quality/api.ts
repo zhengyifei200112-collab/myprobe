@@ -3,11 +3,14 @@ export interface QualityObserver { id: string; name: string }
 export interface QualityTarget { id: string; name: string; kind: ProbeKind }
 export interface QualityCounts { planned: number | null; pending: number | null; success: number | null; failure: number | null; missing: number | null; not_executed: number | null; unobserved_tasks: number | null }
 export interface QualityBounds { lower_ms: number; upper_ms: number }
+export interface QualityFamily { status: 'unknown' | 'partial' | 'mixed' | 'ipv4' | 'ipv6'; reason?: string; ipv4_tasks: number | null; ipv6_tasks: number | null; unknown_tasks: number | null }
+export interface QualityPacketLoss { value_pct: number | null; status: 'available' | 'partial' | 'unavailable' | 'not_applicable'; reason?: string; measured_tasks: number | null; unknown_tasks: number | null; sent: number | null; received: number | null }
 export interface QualityPoint {
   time: string; end: string; effective_start: string | null; effective_end: string | null; availability: string; counts: QualityCounts
   coverage_pct: number | null; execution_failure_pct: number | null
   rtt_mean_ms: number | null; rtt_min_ms: number | null; rtt_max_ms: number | null; rtt_p50_ms: number | null; rtt_p95_ms: number | null
   rtt_p50_bounds: QualityBounds | null; rtt_p95_bounds: QualityBounds | null; quantile_method: string
+  address_family: QualityFamily; packet_loss: QualityPacketLoss
 }
 export interface QualityNode extends Omit<QualityPoint, 'time' | 'end'> {
   node_id: string; name: string; available_from: string | null; granularity_seconds: number; jitter_ms: number | null; jitter_pairs: number | null; points: QualityPoint[]
@@ -15,7 +18,7 @@ export interface QualityNode extends Omit<QualityPoint, 'time' | 'end'> {
 export interface QualityResponse {
   version: number; aggregation: 'time_series'; direction: 'observer_to_target'; target: QualityTarget
   requested_start: string; requested_end: string; as_of: string; timezone: string; bucket_seconds: number; point_limit: number; nodes: QualityNode[]
-  address_family: { status: 'unknown'; reason: string }; packet_loss: { value_pct: null; status: 'unavailable'; reason: string }
+  address_family: { status: 'unknown' | 'per_node'; reason: string }; packet_loss: { value_pct: null; status: 'unavailable' | 'per_node' | 'not_applicable'; reason: string }
 }
 export interface QualityTargetsPage { targets: QualityTarget[]; next_cursor: string; page_size: number; observed_at: string }
 

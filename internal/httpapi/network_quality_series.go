@@ -14,6 +14,8 @@ type qualitySeriesNodeDTO struct {
 // Point jitter is intentionally absent: the range result preserves adjacency
 // across graph buckets, while a point's independent sequence stops at its edge.
 type qualityPointDTO struct {
+	AddressFamily  qualityFamilyDTO  `json:"address_family"`
+	PacketLoss     qualityPacketDTO  `json:"packet_loss"`
 	Time           time.Time         `json:"time"`
 	End            time.Time         `json:"end"`
 	Availability   string            `json:"availability"`
@@ -32,9 +34,10 @@ type qualityPointDTO struct {
 	QuantileMethod string            `json:"quantile_method"`
 }
 
-func projectNetworkQualityPoint(p store.NetworkQualityPoint) qualityPointDTO {
-	s := projectNetworkQuality(store.NetworkQualityNodeStats{Stats: p.Stats})
+func projectNetworkQualityPoint(p store.NetworkQualityPoint, kind string) qualityPointDTO {
+	s := projectNetworkQuality(store.NetworkQualityNodeStats{Stats: p.Stats}, kind)
 	r := qualityPointDTO{Time: p.Time, End: p.End, Availability: s.Availability, Counts: s.Counts, Coverage: s.Coverage, FailureRate: s.FailureRate, RTTMean: s.RTTMean, RTTMin: s.RTTMin, RTTMax: s.RTTMax, P50: s.P50, P95: s.P95, P50Bounds: s.P50Bounds, P95Bounds: s.P95Bounds, QuantileMethod: s.QuantileMethod}
+	r.AddressFamily, r.PacketLoss = s.AddressFamily, s.PacketLoss
 	if p.Stats.Availability != "untracked_history" && p.Stats.Availability != "resolution_clipped" {
 		r.EffectiveStart, r.EffectiveEnd = s.EffectiveStart, s.EffectiveEnd
 	}

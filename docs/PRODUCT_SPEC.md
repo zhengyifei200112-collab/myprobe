@@ -16,9 +16,11 @@ migration 045 and configuration v3. Private target controls expose those request
 settings; omitted fields on a legacy rename preserve the existing definition.
 An unsupported Agent connection is explicitly skipped without sending a task in
 another family. Native Windows/Linux IPv4/IPv6 and isolated silence/no-route tests
-validate the executor, but live evidence negotiation/receipt, retained metrics
-and the final comparison presentation remain in development. Public family and
-packet-loss values stay unavailable until backed by admitted evidence. See
+validate the executor. Negotiated live execution, atomic connection-fenced
+receipts, backward-compatible NQS2 retention and comparison evidence are now
+connected. Per-node and per-point observed family/count coverage remains unknown
+for legacy data; incomplete ICMP coverage is labelled partial and TCP loss is
+inapplicable. Final integrated capacity and 24-hour acceptance remain open. See
 [network probe evidence](NETWORK_PROBE_EVIDENCE.md).
 
 Network quality comparison is available in the public dashboard, administrator UI
@@ -26,8 +28,8 @@ and authenticated shares. Scoped target discovery and one batched response compa
 up to eight observers using aligned RTT, execution-failure and coverage timelines,
 range quantiles/jitter, actual history bounds and explicit time zones. Real-backend
 browser checks cover both themes at 360/768/1440 px. Unreported address families and
-packet counts remain unavailable; real IPv6 execution and final integrated capacity
-and long-soak acceptance remain open. See [network quality UI](NETWORK_QUALITY_UI.md).
+packet counts remain unavailable; final integrated capacity, broader platform
+coverage and long-soak acceptance remain open. See [network quality UI](NETWORK_QUALITY_UI.md).
 
 Scoped alert-policy inheritance (ALT-02) is in development. Its internal resolver
 and revisioned persistence support global, tag and explicit-node scopes, conflict

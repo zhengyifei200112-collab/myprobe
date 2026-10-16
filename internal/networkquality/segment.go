@@ -11,9 +11,25 @@ const (
 	Unobserved  Outcome = "unobserved"
 )
 
-var CauseNames = [...]string{"timeout", "dns", "refused", "unreachable", "busy", "unsupported", "invalid_task", "offline", "write_error", "dispatch_unknown", "missing"}
+const LegacyCauseCount = 11
+
+var CauseNames = [...]string{"timeout", "dns", "refused", "unreachable", "busy", "unsupported", "invalid_task", "offline", "write_error", "dispatch_unknown", "missing", "dns", "cancelled", "no_address", "no_packets_sent", "send_error", "internal"}
+
+func CauseOutcome(index int) Outcome {
+	if index < 0 || index >= len(CauseNames) {
+		return ""
+	}
+	if index < 4 {
+		return Failure
+	}
+	if index < 7 || index >= LegacyCauseCount {
+		return NotExecuted
+	}
+	return Unobserved
+}
 
 type Totals struct {
+	Evidence                                            EvidenceTotals
 	Observed, Success, Failure, NotExecuted, Unobserved uint64
 	RTTSum, RTTMin, RTTMax                              float64
 	JitterSum                                           float64
@@ -47,7 +63,7 @@ func NewSegment(epoch string, anchor, interval int64) (Segment, error) {
 func causeIndex(outcome Outcome, reason string) int {
 	for i, name := range CauseNames {
 		if name == reason {
-			if (outcome == Failure && i < 4) || (outcome == NotExecuted && i >= 4 && i < 7) || (outcome == Unobserved && i >= 7) {
+			if CauseOutcome(i) == outcome {
 				return i
 			}
 		}
@@ -142,6 +158,10 @@ func (t *Totals) Merge(other Totals) error {
 	if ^uint64(0)-t.Observed < other.Observed {
 		return ErrInvalid
 	}
+	combined := t.Evidence
+	if err := combined.merge(other.Evidence); err != nil {
+		return err
+	}
 	if err := t.Histogram.Merge(other.Histogram); err != nil {
 		return err
 	}
@@ -164,6 +184,7 @@ func (t *Totals) Merge(other Totals) error {
 	for i, count := range other.Causes {
 		t.Causes[i] += count
 	}
+	t.Evidence = combined
 	return nil
 }
 
@@ -182,18 +203,21 @@ func (s Segment) Validate() error {
 	if sum != t.Observed || t.Histogram.Count() != t.Success {
 		return ErrInvalid
 	}
-	for _, group := range []struct {
-		start, end int
-		expected   uint64
-	}{{0, 4, t.Failure}, {4, 7, t.NotExecuted}, {7, len(CauseNames), t.Unobserved}} {
+	if t.Evidence.validate(t.Success, t.Failure) != nil {
+		return ErrInvalid
+	}
+	for outcome, expected := range map[Outcome]uint64{Failure: t.Failure, NotExecuted: t.NotExecuted, Unobserved: t.Unobserved} {
 		var count uint64
-		for _, value := range t.Causes[group.start:group.end] {
+		for index, value := range t.Causes {
+			if CauseOutcome(index) != outcome {
+				continue
+			}
 			if ^uint64(0)-count < value {
 				return ErrInvalid
 			}
 			count += value
 		}
-		if count != group.expected {
+		if count != expected {
 			return ErrInvalid
 		}
 	}

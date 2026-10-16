@@ -20,6 +20,18 @@ only total duration, not DNS/TCP/TLS phase timing or resolved addresses. See
 [service diagnostics](SERVICE_DIAGNOSTICS.md) for the protected history/navigation
 contract and Server-only migration 036. No new public or Agent fields are required.
 
+The independent `network_probe.v1` v2 capability negotiates `network_task` and
+`network_result` for typed Ping/TCP probes. The current Server enables this after
+schema initialization; both Hello and Welcome must explicitly agree. Requested
+family and packet limits are immutable task inputs, while result family/counts
+are actual optional evidence. No resolved address or tool output is returned.
+v1 remains unchanged; unsupported advanced profiles are recorded as a Server
+dispatch decision without executing in a different family. Result admission is
+fenced by the current authenticated connection generation; ACK follows the
+atomic receipt/sample commit. The Agent currently has no new durable result retry
+queue. See [network evidence](NETWORK_PROBE_EVIDENCE.md) for exact contracts,
+timeouts, packet semantics, idempotency and native test limitations.
+
 ## Transport
 
 - Primary: `GET /api/v1/agent/ws` using WebSocket.
