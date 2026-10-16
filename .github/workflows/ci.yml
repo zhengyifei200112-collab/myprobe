@@ -192,12 +192,23 @@ jobs:
           mkdir -p "$MYPROBE_TEST_BACKUP_CAPACITY_OUTPUT"
           go test ./internal/backup -run '^TestEncryptedBackupCapacity$' -timeout 15m -count=1 -v
 
+      - name: Verify portable archive and production staged restore locally
+        env:
+          MYPROBE_TEST_BACKUP_PORTABILITY: roundtrip
+          MYPROBE_TEST_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          MYPROBE_TEST_BACKUP_PORTABILITY_OUTPUT: ${{ runner.temp }}/myprobe-backup-portability
+        run: |
+          mkdir -m 700 "$MYPROBE_TEST_BACKUP_PORTABILITY_OUTPUT"
+          go test ./internal/backup -run '^Test(EncryptedBackupPortability|PortableBackupProducerIdentity)$' -count=1 -timeout 3m -v
+
       - name: Preserve aggregate capacity evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: encrypted-backup-capacity-${{ github.event.pull_request.head.sha || github.sha }}
-          path: ${{ runner.temp }}/myprobe-backup-capacity
+          path: |
+            ${{ runner.temp }}/myprobe-backup-capacity
+            ${{ runner.temp }}/myprobe-backup-portability
           if-no-files-found: ignore
           retention-days: 7
 

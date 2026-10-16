@@ -23,8 +23,9 @@ import (
 const capacityPassphrase = "synthetic-large-backup-passphrase"
 const capacityApplicationKey = "synthetic-capacity-application-key-never-production"
 
-// Contains a disposable token, so it stays in the private t.TempDir and is never
-// copied into evidence output, logs or uploaded CI artifacts.
+// Contains a disposable token. Capacity runs keep it in t.TempDir; portability
+// exports it only in the explicit private transfer bundle. Never copy it into
+// public evidence, logs or uploaded CI artifacts.
 type backupCapacityControl struct {
 	NodeID, AgentToken                                   string
 	Rows, SourceBytes                                    int64
@@ -230,32 +231,7 @@ func recoverBackupCapacity(t *testing.T, root string) {
 		if err := verify.VerifyRecoveryChannels(ctx, recovered); err != nil {
 			return err
 		}
-		node, err := recovered.AuthenticateAgent(ctx, c.AgentToken)
-		if err != nil || node.ID != c.NodeID {
-			return fmt.Errorf("restored authentication differs")
-		}
-		state, err := recovered.ReadRecoveredState(ctx)
-		if err != nil || state.Nodes != 1 || state.Users != 1 || state.Channels != 1 || state.Reports != c.Rows {
-			return fmt.Errorf("restored snapshot population differs: %v", err)
-		}
-		inspection, err := sql.Open("sqlite", recovered.DatabasePath())
-		if err != nil {
-			return err
-		}
-		defer inspection.Close()
-		metrics, rows, err := capacityRowsDigest(ctx, inspection, `SELECT captured_at,report_json FROM metric_samples ORDER BY id`)
-		if err != nil || metrics != c.MetricDigest || rows != c.Rows {
-			return fmt.Errorf("restored report bytes differ: %v", err)
-		}
-		ledger, rows, err := capacityRowsDigest(ctx, inspection, `SELECT request_id,request_digest||result_json FROM service_alert_imports ORDER BY request_id`)
-		if err != nil || ledger != c.LedgerDigest || rows != 1 {
-			return fmt.Errorf("restored permanent receipt differs: %v", err)
-		}
-		replay, err := recovered.ApplyServiceAlertImport(ctx, c.RequestID, c.Bundle, c.Mapping, c.PreviewDigest)
-		if err != nil || !replay.Replayed || replay.Created != 1 {
-			return fmt.Errorf("restored permanent replay failed: %v", err)
-		}
-		return nil
+		return verifyBackupCapacityState(ctx, recovered, c)
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -267,4 +243,33 @@ func recoverBackupCapacity(t *testing.T, root string) {
 	if err = os.WriteFile(filepath.Join(root, "artifact.json"), raw, 0600); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func verifyBackupCapacityState(ctx context.Context, recovered *store.Store, c backupCapacityControl) error {
+	node, err := recovered.AuthenticateAgent(ctx, c.AgentToken)
+	if err != nil || node.ID != c.NodeID {
+		return fmt.Errorf("restored authentication differs")
+	}
+	state, err := recovered.ReadRecoveredState(ctx)
+	if err != nil || state.Nodes != 1 || state.Users != 1 || state.Channels != 1 || state.Reports != c.Rows {
+		return fmt.Errorf("restored snapshot population differs: %v", err)
+	}
+	inspection, err := sql.Open("sqlite", recovered.DatabasePath())
+	if err != nil {
+		return err
+	}
+	defer inspection.Close()
+	metrics, rows, err := capacityRowsDigest(ctx, inspection, `SELECT captured_at,report_json FROM metric_samples ORDER BY id`)
+	if err != nil || metrics != c.MetricDigest || rows != c.Rows {
+		return fmt.Errorf("restored report bytes differ: %v", err)
+	}
+	ledger, rows, err := capacityRowsDigest(ctx, inspection, `SELECT request_id,request_digest||result_json FROM service_alert_imports ORDER BY request_id`)
+	if err != nil || ledger != c.LedgerDigest || rows != 1 {
+		return fmt.Errorf("restored permanent receipt differs: %v", err)
+	}
+	replay, err := recovered.ApplyServiceAlertImport(ctx, c.RequestID, c.Bundle, c.Mapping, c.PreviewDigest)
+	if err != nil || !replay.Replayed || replay.Created != 1 {
+		return fmt.Errorf("restored permanent replay failed: %v", err)
+	}
+	return nil
 }
