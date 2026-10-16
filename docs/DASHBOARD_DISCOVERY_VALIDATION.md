@@ -30,9 +30,10 @@ live network-comparison tests remain separate required gates.
 
 ## Coverage and evidence
 
-- Nine frontend tests cover quantity math plus discovery intersections, seven-day
+- Ten frontend tests cover quantity math plus discovery intersections, seven-day
   expiry boundaries, waiting/interrupted/stale distinctions, missing values,
-  stable ID ties, target isolation, and URL precedence over local preferences.
+  stable metric ID ties, stored-name/default-order ties (including non-BMP names),
+  target isolation, and URL precedence over local preferences.
 - Dashboard browser checks cover search/tag/status intersections, zero results
   and reset, reload/target sorting, five-second reordering, pointer and keyboard
   holds, keyboard history entry/focus return, current network-comparison entry,

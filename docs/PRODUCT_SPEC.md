@@ -145,7 +145,8 @@ this does not complete full-system capacity or the 24-hour acceptance.
 | Chart sharing | Group-scoped password protected chart views | Authentication and rate-limit tests | Implemented |
 | Node administration | Register, edit, order, hide, delete, rotate token, generate one-click Agent install command | Admin API and browser clipboard verification | Implemented |
 | Batch administration | Owned previews, atomic configuration updates, revision conflicts, replayable retries and cross-page selection | Store/API/Agent regressions and `scripts/node_batch_browser_test.cjs`; see `NODE_BATCH_MANAGEMENT.md` | Implemented |
-| Agent intervals | Independent collection/report timers; welcome, live WebSocket and HTTP configuration; cached sample deduplication | Agent/gateway/store configuration tests; requires upgraded Agent | Implemented |
+| Agent intervals | Independent collection/report timers; negotiated v2 configuration/application acknowledgements; cached sample deduplication | Agent/gateway/store configuration tests; released v1/HTTP retain compatibility | Implemented |
+| Node ordering | Keyboard up/down and Alt+arrow movement, cancel/save, atomic conflict detection and replay | Store/API order tests and `scripts/node_order_browser_test.cjs`; see `NODE_ORDERING.md` | Implemented |
 | Target administration | Ping/TCPing target CRUD and assignment from target/node editors | API and scheduler tests | Implemented |
 | Notifications | Encrypted Webhook, Telegram, Discord, and SMTP channels with rules, templates, recovery delivery, cooldowns, and history | Mock receiver and alert-state tests | Implemented |
 | Alerts | Offline/recovery, CPU, memory, disk, latency, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Implemented |
@@ -168,7 +169,9 @@ are explicit public display heuristics, not administrator alert policy disclosur
 Waiting nodes do not count as interrupted reports or healthy resource samples.
 
 Sort by configured order, name, CPU, memory, a selected latency target, or expiry.
-Missing/stale numeric values sort last and ties use node IDs. Dynamic ranks refresh
+Missing/stale numeric values sort last and live metric ties use node IDs. Configured
+order ties follow stored UTF-8 name order then ID, matching the administrator list.
+Dynamic ranks refresh
 every five seconds and pause while a pointer, keyboard focus or history dialog is
 using the list. Filter changes apply immediately; metrics continue updating.
 

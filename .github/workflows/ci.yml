@@ -448,6 +448,14 @@ jobs:
           mkdir -m 700 "${RUNNER_TEMP}/myprobe-network-comparison/node-batches"
           node scripts/run-form-units-qa.cjs "${RUNNER_TEMP}/myprobe-form-units-server" "${RUNNER_TEMP}/myprobe-network-comparison/node-batches" node-batches
 
+      - name: Verify accessible atomic node ordering with a fresh database
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/myprobe-browser/node_modules/playwright
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/myprobe-browsers
+        run: |
+          mkdir -m 700 "${RUNNER_TEMP}/myprobe-network-comparison/node-order"
+          node scripts/run-form-units-qa.cjs "${RUNNER_TEMP}/myprobe-form-units-server" "${RUNNER_TEMP}/myprobe-network-comparison/node-order" node-order
+
       - name: Preserve synthetic comparison screenshots and result
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

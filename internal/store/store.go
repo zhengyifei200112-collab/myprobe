@@ -392,7 +392,7 @@ func (s *Store) listPublicNodes(ctx context.Context, now time.Time, nodeID *stri
 		query += " AND n.id = ?"
 		args = append(args, *nodeID)
 	}
-	query += " ORDER BY n.sort_order, n.name"
+	query += " ORDER BY n.sort_order, n.name, n.id"
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
