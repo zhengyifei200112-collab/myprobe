@@ -25,6 +25,9 @@ and cooldown; there is no database migration. A failed check, cache older than
 48 hours, or clock regression makes comparison unavailable. The browser also
 ages displayed cached information while the page stays open. It does not poll
 the upstream or automatically refresh the selected node.
+The separate “刷新版本状态” action rereads only the local cache even during
+cooldown, including when a startup check or another administrator's check has
+completed since the last read.
 
 Agent evidence is the most recently persisted hello and its receipt time, which
 may predate the current connection. No handshake/version remains unknown. The

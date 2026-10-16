@@ -29,6 +29,10 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
         assert.ok(response.request().headers()['x-csrf-token']);
       }
       await panel.getByText('v1.2.3 · 发布说明', { exact: true }).waitFor();
+      const reread = page.waitForResponse(r => new URL(r.url()).pathname === '/api/v1/admin/system/releases' && r.request().method() === 'GET');
+      await panel.getByRole('button', { name: '刷新版本状态', exact: true }).click();
+      assert.equal((await reread).status(), 200);
+      await panel.getByText('v1.2.3 · 发布说明', { exact: true }).waitFor();
       assert.ok(await check.isDisabled());
       assert.match(await panel.innerText(), /v1.2.1 · 有新稳定版可用/);
       assert.match(await panel.innerText(), /已关闭，可手动检查/);
@@ -48,7 +52,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
       await panel.screenshot({ path: path.join(output, `${theme}-${width}.png`) });
       assert.deepEqual(errors, []);
-      evidence.views.push({ theme, width, actual_csrf_check: evidence.views.length === 0, shared_cached_result: true, node_selection: true, unknown_version: true, cooldown: true, overflow: false, page_errors: 0 });
+      evidence.views.push({ theme, width, actual_csrf_check: evidence.views.length === 0, shared_cached_result: true, cache_reread_during_cooldown: true, node_selection: true, unknown_version: true, cooldown: true, overflow: false, page_errors: 0 });
       if (theme === 'light' && width === 360) {
         // Explicit response faults for display boundaries; these do not replace
         // the actual upstream/cache/auth contract tests in Go.

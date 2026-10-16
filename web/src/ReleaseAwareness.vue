@@ -54,7 +54,7 @@ watch(() => props.nodeId, () => { void load() }, { immediate: true })
 
 <template>
   <section v-if="!rejected" class="admin-panel release-awareness" aria-labelledby="release-title" :aria-busy="busy">
-    <div class="release-heading"><h2 id="release-title">版本与升级</h2><button class="soft-button" :disabled="busy || cooldown > 0" @click="load(true)">{{ busy ? '正在检查…' : '检查官方稳定版' }}</button></div>
+    <div class="release-heading"><h2 id="release-title">版本与升级</h2><div class="release-actions"><button class="soft-button" :disabled="busy" @click="load()">刷新版本状态</button><button class="soft-button" :disabled="busy || cooldown > 0" @click="load(true)">{{ busy ? '正在读取…' : '检查官方稳定版' }}</button></div></div>
     <p v-if="busy" role="status">正在读取版本信息…</p>
     <p v-if="error" role="alert">{{ error }} <button class="soft-button" @click="load()">重试读取</button></p>
     <template v-if="data">
@@ -80,6 +80,7 @@ watch(() => props.nodeId, () => { void load() }, { immediate: true })
 <style scoped>
 .release-awareness { padding: 20px; min-width: 0; }
 .release-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.release-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .release-awareness h2 { font-size: 17px; margin: 0; }.release-awareness h3 { font-size: 15px; }
 .release-awareness dl { display: grid; grid-template-columns: minmax(80px,1fr) minmax(0,2fr); gap: 12px; font-size: 14px; }
 .release-awareness dt,.release-note { color: var(--muted); }.release-awareness dd { margin: 0; text-align: right; }
