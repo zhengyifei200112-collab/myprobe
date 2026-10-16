@@ -61,6 +61,10 @@ func TestJointRuntimeLoad(t *testing.T) {
 			t.Fatal("load duration must be 90s to 48h")
 		}
 	}
+	withBackup := os.Getenv("MYPROBE_TEST_LOAD_BACKUP") == "1"
+	if withBackup && (duration < 3*time.Minute || duration > 15*time.Minute || os.Getenv("MYPROBE_TEST_LOAD_HISTORY") != "year" || os.Getenv("MYPROBE_TEST_LOAD_RECONCILE") != "1") {
+		t.Fatal("live backup requires 3..15 minutes, dense year history and report reconciliation")
+	}
 	setupBudget := time.Duration(0)
 	if mode := os.Getenv("MYPROBE_TEST_LOAD_HISTORY"); mode != "" {
 		if mode != "year" {
@@ -186,6 +190,13 @@ func TestJointRuntimeLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	server := jointServer{binary: binary, database: databasePath, env: []string{"MYPROBE_LISTEN=" + address, "MYPROBE_DATABASE=" + databasePath, "MYPROBE_ADMIN_USERNAME=load-admin", "MYPROBE_ADMIN_PASSWORD=" + password, "MYPROBE_ENCRYPTION_KEY=" + key, "MYPROBE_HTTP_PROBES_ENABLED=true", "MYPROBE_SESSION_HOURS=48", "MYPROBE_NOTIFICATION_ORIGIN=" + base}}
+	if withBackup {
+		env, err := prepareJointBackup(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		server.env = append(server.env, env)
+	}
 	server.start(t, ctx, base)
 	defer server.stop()
 	jar, _ := cookiejar.New(nil)
@@ -195,10 +206,20 @@ func TestJointRuntimeLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _ = io.Copy(io.Discard, login.Body)
+	var session struct {
+		CSRFToken string `json:"csrf_token"`
+	}
+	loginErr := json.NewDecoder(io.LimitReader(login.Body, 64<<10)).Decode(&session)
 	login.Body.Close()
-	if login.StatusCode != 200 {
+	if login.StatusCode != 200 || loginErr != nil || session.CSRFToken == "" {
 		t.Fatalf("fixture login status %d", login.StatusCode)
+	}
+	var liveBackup *jointBackupController
+	if withBackup {
+		liveBackup, err = newJointBackupController(ctx, httpClient, base, session.CSRFToken, root, channel.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	if history.Mode != "" {
 		checkJointHistoryNodes(t, httpClient, base, ids, history.Anchor)
@@ -248,7 +269,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 		result.Limitations[3] = "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports"
 	}
 	result.SourceSHA256 = make(map[string]string)
-	for _, path := range []string{"cmd/server/main.go", "internal/agentclient/client.go", "internal/agentclient/sampling.go", "internal/agentgateway/gateway.go", "internal/store/store.go", "internal/store/agent_metadata.go", "internal/agentclient/joint_load_test.go", "internal/agentclient/joint_load_history_test.go", "internal/agentclient/joint_load_history_validation_test.go", "internal/agentclient/joint_load_process_test.go", "internal/agentclient/joint_load_resource_test.go", "internal/agentclient/joint_load_resource_validation_test.go", "internal/agentclient/joint_load_browser_test.go", "internal/agentclient/joint_load_reconciliation_test.go", "internal/agentclient/joint_load_reconciliation_validation_test.go", "scripts/joint-load-browser.cjs", "scripts/run-joint-load.sh"} {
+	for _, path := range []string{"cmd/server/main.go", "internal/agentclient/client.go", "internal/agentclient/sampling.go", "internal/agentgateway/gateway.go", "internal/store/store.go", "internal/store/agent_metadata.go", "internal/agentclient/joint_load_test.go", "internal/agentclient/joint_load_backup_test.go", "internal/agentclient/joint_load_history_test.go", "internal/agentclient/joint_load_history_validation_test.go", "internal/agentclient/joint_load_process_test.go", "internal/agentclient/joint_load_resource_test.go", "internal/agentclient/joint_load_resource_validation_test.go", "internal/agentclient/joint_load_browser_test.go", "internal/agentclient/joint_load_reconciliation_test.go", "internal/agentclient/joint_load_reconciliation_validation_test.go", "internal/backup/repository.go", "internal/backup/scheduler.go", "internal/backup/archive.go", "scripts/joint-load-browser.cjs", "scripts/run-joint-load.sh"} {
 		raw, err := os.ReadFile(filepath.Join("../..", filepath.FromSlash(path)))
 		if err != nil {
 			t.Fatal("load fixture source unavailable for provenance")
@@ -311,6 +332,22 @@ func TestJointRuntimeLoad(t *testing.T) {
 		case <-ticker.C:
 		}
 		elapsed := time.Since(started)
+		if liveBackup != nil {
+			if err := liveBackup.tick(ctx, elapsed, func(ctx context.Context) error {
+				for i := range fixtures {
+					report, err := fixtures[i].source.Collect(ctx)
+					if err != nil {
+						return err
+					}
+					if err = fixtures[i].client.sendReport(ctx, report); err != nil {
+						return err
+					}
+				}
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
 		if failedNotices.Load() > 0 && elapsed > 20*time.Second {
 			allowDelivery.Store(true)
 		}
@@ -321,13 +358,16 @@ func TestJointRuntimeLoad(t *testing.T) {
 			disconnected = true
 			result.Faults = append(result.Faults, "closed all Agent sockets; normal reconnect/backoff remained active")
 		}
-		if !restarted && elapsed > duration/2 && (deniedReceiver || deliveredNotices.Load() > 0) {
+		if !restarted && elapsed > duration/2 && (deniedReceiver || deliveredNotices.Load() > 0) && liveBackup.readyForRestart() {
 			cpuMicros += server.cpuMicros()
 			resourceTarget.set(nil, cpuMicros)
 			server.stop()
 			server.start(t, ctx, base)
 			resourceTarget.set(&server, cpuMicros)
 			restarted = true
+			if liveBackup != nil {
+				liveBackup.restarted = true
+			}
 			result.Faults = append(result.Faults, "restarted the same real Server/database; normal Agent and subscription reconnection")
 		}
 		if elapsed > duration*2/3 {
@@ -424,6 +464,17 @@ func TestJointRuntimeLoad(t *testing.T) {
 	result.ServerCPUMicroseconds = cpuMicros + server.cpuMicros()
 	result.ResourceSampleSeconds = 1
 	result.ResourceTimeline = result.ResourceObservation.Timeline
+	if liveBackup != nil {
+		minimum, err := minimumRetainedJointSeedReports(history, nodes, liveBackup.evidence.ArchiveCompletedAt, store.DefaultRetentionPolicy().Raw)
+		if err != nil {
+			t.Error(err)
+		}
+		evidence, err := liveBackup.finish(reportObserver, nodes, minimum)
+		result.LiveBackup = &evidence
+		if err != nil {
+			t.Error(err)
+		}
+	}
 	result.APILatency = make(map[string]jointLatency)
 	for name, values := range measurements {
 		result.APILatency[name] = jointDistribution(values)
@@ -666,6 +717,7 @@ func jointDistribution(values []float64) jointLatency {
 }
 
 type jointLoadResult struct {
+	LiveBackup                                                                                                                                *jointBackupEvidence `json:",omitempty"`
 	ResourceObservation                                                                                                                       jointResourceObservation
 	Format                                                                                                                                    string `json:"format"`
 	StartedAt, EndedAt                                                                                                                        time.Time

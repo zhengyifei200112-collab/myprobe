@@ -9,6 +9,109 @@ permissions:
   contents: read
 
 jobs:
+  online-backup-load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact online backup source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build exact embedded frontend
+        run: |
+          npm --prefix web ci
+          npm --prefix web run build
+          git diff --exit-code -- internal/webui/dist
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: go.sum
+
+      - name: Install pinned browser fixture runtime
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/myprobe-backup-browsers
+        run: |
+          npm install --prefix "${RUNNER_TEMP}/myprobe-backup-browser" --no-save playwright@1.62.1
+          node "${RUNNER_TEMP}/myprobe-backup-browser/node_modules/playwright/cli.js" install --with-deps --only-shell chromium
+
+      - name: Verify bounded online backup with dense year and real pages
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          mkdir -p "${RUNNER_TEMP}/myprobe-online-backup-private"
+          chmod 700 "${RUNNER_TEMP}/myprobe-online-backup-private"
+          go build -o "${RUNNER_TEMP}/myprobe-online-backup-server" ./cmd/server
+          go test -c ./internal/agentclient -o "${RUNNER_TEMP}/myprobe-online-backup.test"
+          sudo env PATH="$PATH" \
+            PLAYWRIGHT_MODULE="${RUNNER_TEMP}/myprobe-backup-browser/node_modules/playwright" \
+            PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/myprobe-backup-browsers" \
+            MYPROBE_TEST_LOAD_DURATION=3m MYPROBE_TEST_LOAD_NODES=5 \
+            MYPROBE_TEST_LOAD_HISTORY=year MYPROBE_TEST_LOAD_SYSTEMD=1 \
+            MYPROBE_TEST_LOAD_RECONCILE=1 MYPROBE_TEST_LOAD_BROWSER=1 \
+            MYPROBE_TEST_LOAD_BACKUP=1 MYPROBE_TEST_LOAD_TIMEOUT=12m \
+            MYPROBE_TEST_LOAD_OUTPUT="${RUNNER_TEMP}/myprobe-online-backup-private" \
+            sh scripts/run-joint-load.sh "${RUNNER_TEMP}/myprobe-online-backup.test" "${RUNNER_TEMP}/myprobe-online-backup-server"
+
+      - name: Collect aggregate evidence only
+        if: always()
+        run: |
+          mkdir -p "${RUNNER_TEMP}/myprobe-online-backup-evidence"
+          for name in joint-load-5-linux-playwright-rendered.json joint-resource-5-playwright-rendered.json; do
+            if sudo test -f "${RUNNER_TEMP}/myprobe-online-backup-private/$name"; then
+              sudo install -m 600 -o "$(id -u)" -g "$(id -g)" \
+                "${RUNNER_TEMP}/myprobe-online-backup-private/$name" "${RUNNER_TEMP}/myprobe-online-backup-evidence/$name"
+            fi
+          done
+
+      - name: Preserve aggregate online backup results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: online-backup-load-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/myprobe-online-backup-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Verify bounded online backup acceptance
+        env:
+          EVIDENCE_DIR: ${{ runner.temp }}/myprobe-online-backup-evidence
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          root = pathlib.Path(os.environ['EVIDENCE_DIR'])
+          value = json.loads((root / 'joint-load-5-linux-playwright-rendered.json').read_text())
+          assert value['Passed'] and value['RecoveryDrained']
+          assert value['BrowserConvergedPages'] == 5 and value['BrowserConvergedNodes'] == 5
+          assert value['BrowserPageErrors'] == 0 and value['APIErrors'] == 0
+          limits = value['ResourceLimits']
+          assert limits['mode'] == 'systemd-cgroup-v2'
+          assert limits['cpu.max'] == '200000 100000' and limits['cpuset.cpus.effective'] == '0-1'
+          assert limits['memory.max'] == '2147483648' and limits['memory.swap.max'] == '0'
+          assert 0 < value['SampledPeakRSSBytes'] < 700 * 1024 * 1024
+          assert value['ResourceObservation']['ProgressWriteErrors'] == 0
+          assert value['APILatency']['overview']['P95'] < 500
+          assert value['APILatency']['history_dense_30d']['P95'] < 2000
+          proof = value['LiveBackup']
+          assert proof['ArchiveBytes'] >= 1024 * 1024 * 1024
+          assert proof['BackupACKs'] > 0 and proof['RecoveryACKs'] > 0
+          assert proof['CompletionPreservedAfterRestart']
+          accounting = value['ReportAccounting']
+          for key in ['UnexplainedNotStored', 'ACKWithoutStored', 'UnknownStored', 'HashMismatch', 'DuplicateStored']:
+              assert accounting[key] == 0, key
+          print('Bounded online backup acceptance passed for ' + os.environ['SOURCE_COMMIT'])
+          PY
+
   encrypted-backup-capacity:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -77,6 +180,7 @@ jobs:
           go vet ./...
           go build ./cmd/...
           go test -race ./internal/agentclient -run '^TestJointResource' -count=1
+          go test -race ./internal/agentclient -run '^TestJointBackup' -count=1
           go test -race ./internal/store ./internal/scheduler ./internal/agentgateway -run '^TestNetwork' -count=1
           go test -race ./internal/httpapi -run '^TestNetworkQuality' -count=1
           go test -race ./internal/networkquality -count=1
