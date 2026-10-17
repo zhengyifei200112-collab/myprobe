@@ -75,6 +75,11 @@ func TestJointStartupPrivateCaptureBoundaries(t *testing.T) {
 	if err := os.Mkdir(public, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// The test runner may correctly use umask 077. Make this negative fixture
+	// explicitly shared instead of depending on the caller's default umask.
+	if err := os.Chmod(public, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := openJointProcessLog(public); err == nil {
 		t.Fatal("accepted group/other readable output")
 	}
@@ -122,6 +127,28 @@ func TestJointStartupPrivateCaptureBoundaries(t *testing.T) {
 	}
 	if err := capture.recordStartup("ready", 0, false, nil); err == nil {
 		t.Fatal("startup evidence was overwritten")
+	}
+	failed, err := openJointProcessLog(private)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An unavailable output must be counted without breaking the child's pipe.
+	if err := failed.file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := failed.Write([]byte(sentinel)); err != nil || n != len(sentinel) {
+		t.Fatal("unavailable capture returned a pipe error")
+	}
+	failed.close()
+	if err := failed.recordStartup("process_exited", 0, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = os.ReadFile(failed.file.Name() + ".startup.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, &summary); err != nil || summary.LogWriteErrors == 0 || summary.DiscardedBytes != int64(len(sentinel)) || summary.LogBytes != 0 {
+		t.Fatal("unavailable capture was not recorded truthfully")
 	}
 }
 
