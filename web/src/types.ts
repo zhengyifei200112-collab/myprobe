@@ -90,6 +90,24 @@ export interface LatestLatency {
 export type HistoryRange = '1h' | '12h' | '1d' | '3d' | '7d' | '30d' | '1y'
 export type HistorySelection = HistoryRange | { start: string; end: string }
 
+export interface NodeEvent {
+  id: string
+  time: string
+  kind: string
+  incident_id?: string
+  approximate: boolean
+}
+
+export interface NodeTimeline {
+  events: NodeEvent[]
+  start: string
+  end: string
+  next_cursor?: string
+  observation_start?: string
+  observations_truncated: boolean
+  gap_threshold_seconds: number
+}
+
 export interface HistoryResponse {
   range: HistoryRange | 'custom'
   start: string

@@ -1,7 +1,14 @@
-# Node detail routes and bounded history (DETAIL-01)
+# Node detail routes, history and timeline (DETAIL-01 / DETAIL-02)
 
 Status: integrated on the current #90 stack, preserving #51's original history.
 Current-head CI and review are required before delivery. No release claim.
+
+## Node event timeline (2026-10-17)
+
+The current branch adds DETAIL-02 after the #91 foundation described below.
+See [the timeline contract](NODE_TIMELINE.md) for sources, pagination, privacy,
+observation limits, migration 047 and rollback. The earlier statements about no
+timeline or no migration describe the independent DETAIL-01 foundation only.
 
 ## Current integration validation (2026-10-17)
 

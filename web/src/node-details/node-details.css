@@ -18,5 +18,12 @@
 .detail-empty { text-align: center; padding: 48px 12px; color: var(--muted); }
 .detail-error { margin-top: 20px; }
 .detail-error button { margin-right: 12px; }
+.detail-timeline { margin: 20px 0; }
+.detail-event-list { list-style: none; padding: 0; margin: 16px 0; max-height: 420px; overflow-y: auto; }
+.detail-event-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--border); }
+.detail-event-list li > div:first-child { display: grid; gap: 6px; min-width: 0; }
+.detail-event-list time { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.detail-event-actions { display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+@media (max-width: 480px) { .detail-event-list li { align-items: start; flex-direction: column; } }
 @media (max-width: 800px) { .detail-charts { grid-template-columns: 1fr; } .detail-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 480px) { .node-detail-page { padding: 16px; } .detail-card { padding: 16px; } .detail-header { gap: 8px; } .detail-header > span { display: none; } .detail-overview { gap: 8px; } .detail-overview strong { font-size: 15px; } }

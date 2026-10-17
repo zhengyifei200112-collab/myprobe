@@ -116,13 +116,13 @@ func TestAdminNodeDetailsRequireSessionAndIncludeHiddenHistory(t *testing.T) {
 		return response
 	}
 	base := "/api/v1/admin/nodes/" + node.ID
-	for _, suffix := range []string{"", "/history?range=1h"} {
+	for _, suffix := range []string{"", "/history?range=1h", "/events?range=1h"} {
 		if response := get(base+suffix, nil); response.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated detail: %d %s", response.Code, response.Body.String())
 		}
 	}
 	cookie, _ := loginAdminForShare(t, handler)
-	for _, suffix := range []string{"", "/history?range=1h"} {
+	for _, suffix := range []string{"", "/history?range=1h", "/events?range=1h"} {
 		response := get(base+suffix, cookie)
 		if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "no-store" {
 			t.Fatalf("admin detail: %d %s", response.Code, response.Body.String())
@@ -142,7 +142,7 @@ func TestAdminNodeDetailsRequireSessionAndIncludeHiddenHistory(t *testing.T) {
 			if !body.Node.Node.Hidden || body.Node.Node.Agent == nil || body.Node.Node.Agent.AgentVersion != "test-version" || body.Node.Report == nil {
 				t.Fatalf("admin snapshot: %+v", body)
 			}
-		} else {
+		} else if strings.HasPrefix(suffix, "/history") {
 			var body struct {
 				Metrics []store.MetricHistoryPoint  `json:"metrics"`
 				Latency []store.LatencyHistoryPoint `json:"latency"`
@@ -167,7 +167,7 @@ func TestAdminNodeDetailsRequireSessionAndIncludeHiddenHistory(t *testing.T) {
 	if err := authService.Logout(ctx, cookie.Value); err != nil {
 		t.Fatal(err)
 	}
-	for _, suffix := range []string{"", "/history?range=1h"} {
+	for _, suffix := range []string{"", "/history?range=1h", "/events?range=1h"} {
 		if response := get(base+suffix, cookie); response.Code != http.StatusUnauthorized {
 			t.Fatalf("revoked session still accessed detail: %d", response.Code)
 		}
