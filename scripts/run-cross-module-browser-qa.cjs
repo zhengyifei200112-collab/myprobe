@@ -47,7 +47,9 @@ async function main() {
     fs.writeFileSync(path.join(scratch,job.name+'.log'),log,{mode:0o600,flag:'wx'});
     const assertions = job.tests.map(name => ({name, passed:log.includes(`--- PASS: ${name} (`), skipped:log.includes(`--- SKIP: ${name} (`)}));
     const record = {name:job.name, exit_code:result.status, signal:result.signal, elapsed_seconds:(Date.now()-start)/1000,
-      log_sha256:sha(log), tests:assertions, passed:result.status===0 && assertions.every(t=>t.passed && !t.skipped)};
+      log_sha256:sha(log), tests:assertions,
+      failure_kinds:['Target crashed','Permission denied','Timeout','Cannot find module'].filter(kind=>log.includes(kind)),
+      passed:result.status===0 && assertions.every(t=>t.passed && !t.skipped)};
     evidence.packages.push(record);
     console.log(JSON.stringify(record));
     if (!record.passed) throw new Error(job.name+' lifecycle acceptance failed; inspect the private fixture log');

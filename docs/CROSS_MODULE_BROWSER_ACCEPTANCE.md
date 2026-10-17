@@ -16,6 +16,9 @@ Linux 完整配置另外运行两个真实 `Client.Run` 用例：HTTP 维护统�
 测试私网地址。运行器拒绝宿主网络或额外网卡；不会调整宿主网卡、放宽正式访问
 策略、访问真实 Provider 或改变生产服务。浏览器默认在 Windows 使用 Edge，其他
 平台使用已安装的 Playwright Chromium；`BROWSER_CHANNEL` 可显式指定其他通道。
+Linux Chromium的共享内存句柄使用标准`/tmp`；Go数据库/日志和Playwright配置目录
+仍在私有目录。把浏览器进程的`TMPDIR`也指向0700日志父目录会导致渲染器权限拒绝
+并崩溃；原始失败与最小复现保留，不通过放宽私有目录权限修复。
 
 ## 复现
 
