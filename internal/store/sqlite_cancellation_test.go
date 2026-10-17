@@ -83,6 +83,7 @@ func TestCanceledQueryReleasesWALReader(t *testing.T) {
 	query := "SELECT myprobe_test_cancel_row(v)" + strings.Repeat(",v", 1499) + " FROM cancellation_fixture LIMIT 1"
 	delays := []time.Duration{0, 10 * time.Microsecond, 30 * time.Microsecond, 100 * time.Microsecond}
 	canceledErrors, returnedRows := 0, 0
+	started := time.Now()
 	for i := 0; i < 400; i++ {
 		if _, err := writer.db.ExecContext(ctx, "UPDATE cancellation_fixture SET v=v+1"); err != nil {
 			t.Fatal(err)
@@ -98,6 +99,16 @@ func TestCanceledQueryReleasesWALReader(t *testing.T) {
 				t.Fatalf("iteration %d: close returned rows: %v", i, err)
 			}
 		}
+		// A prepare/step failure need not invoke the scalar function. Diagnose
+		// it immediately instead of waiting for a callback that cannot run.
+		if queryErr != nil && !errors.Is(queryErr, context.Canceled) {
+			cancel()
+			t.Fatalf("iteration %d after %s: query error=%v callback=%v parent=%v", i, time.Since(started), queryErr, p.called.Load(), ctx.Err())
+		}
+		if !p.called.Load() {
+			cancel()
+			t.Fatalf("iteration %d after %s: query never produced fixture row: error=%v parent=%v", i, time.Since(started), queryErr, ctx.Err())
+		}
 		select {
 		case <-p.done:
 		case <-ctx.Done():
@@ -106,9 +117,6 @@ func TestCanceledQueryReleasesWALReader(t *testing.T) {
 		}
 		cancel()
 		if queryErr != nil {
-			if !errors.Is(queryErr, context.Canceled) {
-				t.Fatalf("iteration %d: unexpected query error: %v", i, queryErr)
-			}
 			canceledErrors++
 		}
 		if inUse := reader.db.Stats().InUse; inUse != 0 {
@@ -129,6 +137,9 @@ func TestCanceledQueryReleasesWALReader(t *testing.T) {
 		}
 		if busy != 0 || frames < 0 || frames != copied {
 			t.Fatalf("iteration %d: canceled query pinned WAL after caller cleanup: busy=%d frames=%d backfilled=%d canceled_errors=%d returned_rows=%d", i, busy, frames, copied, canceledErrors, returnedRows)
+		}
+		if (i+1)%100 == 0 {
+			t.Logf("completed %d cancellation/checkpoint/reuse cycles in %s", i+1, time.Since(started))
 		}
 	}
 	if canceledErrors == 0 {
