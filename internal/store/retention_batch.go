@@ -5,14 +5,16 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"strings"
 	"time"
 )
 
-const historyPruneRows = 1000
+const historyPruneRows = 100
+const historyMinuteGroups = 8
 
 // HistoryRetentionBatch describes committed work, not completion of all history.
-// Each pass processes at most one raw minute and one complete five-minute group
-// across all nodes, and prunes at most 1000 expired rows per rollup table.
+// Each pass processes at most one raw minute across nodes and eight complete
+// node/five-minute groups, and prunes at most 100 expired rows per rollup table.
 type HistoryRetentionBatch struct {
 	RawBuckets, MinuteBuckets, RollupsDeleted int64
 	More                                      bool
@@ -93,29 +95,30 @@ func (s *Store) RetainHistory(ctx context.Context, now time.Time, policy Retenti
 	if !next.IsZero() {
 		minuteCutoff = minTime(minuteCutoff, floorTime(next, 5*time.Minute))
 	}
-	next, err = nextMinuteRetention(ctx, tx, minuteCutoff)
+	for range historyMinuteGroups {
+		node, minute, selectErr := nextMinuteRetention(ctx, tx, minuteCutoff)
+		if selectErr != nil {
+			return batch, selectErr
+		}
+		if minute.IsZero() {
+			break
+		}
+		end := minTime(floorTime(minute, 5*time.Minute).Add(5*time.Minute), minuteCutoff)
+		for _, item := range nodeMinuteRetentionQueries {
+			if _, err = tx.ExecContext(ctx, item.query, node, formatTime(end)); err != nil {
+				return batch, err
+			}
+			if _, err = tx.ExecContext(ctx, `DELETE FROM `+item.table+` WHERE node_id=? AND bucket_seconds=60 AND bucket_at<?`, node, formatTime(end)); err != nil {
+				return batch, err
+			}
+		}
+		batch.MinuteBuckets++
+	}
+	_, pendingMinute, err := nextMinuteRetention(ctx, tx, minuteCutoff)
 	if err != nil {
 		return batch, err
 	}
-	if !next.IsZero() {
-		end := minTime(floorTime(next, 5*time.Minute).Add(5*time.Minute), minuteCutoff)
-		for _, query := range []string{rollupMinuteMetricsQuery, rollupMinuteLatencyQuery, rollupMinuteTrafficQuery} {
-			if _, err = tx.ExecContext(ctx, query, formatTime(end)); err != nil {
-				return batch, err
-			}
-		}
-		for _, table := range historyRollupTables {
-			if _, err = tx.ExecContext(ctx, `DELETE FROM `+table+` WHERE bucket_seconds=60 AND bucket_at<?`, formatTime(end)); err != nil {
-				return batch, err
-			}
-		}
-		batch.MinuteBuckets = 1
-		next, err = nextMinuteRetention(ctx, tx, minuteCutoff)
-		if err != nil {
-			return batch, err
-		}
-		batch.More = batch.More || !next.IsZero()
-	}
+	batch.More = batch.More || !pendingMinute.IsZero()
 	for _, table := range historyRollupTables {
 		r, deleteErr := tx.ExecContext(ctx, `DELETE FROM `+table+` WHERE rowid IN (
 			SELECT rowid FROM `+table+` WHERE bucket_seconds=300 AND bucket_at<? ORDER BY bucket_at LIMIT ?)`, formatTime(fiveCutoff), historyPruneRows)
@@ -146,6 +149,15 @@ func (s *Store) RetainHistory(ctx context.Context, now time.Time, policy Retenti
 
 var historyRollupTables = []string{"metric_rollups", "latency_rollups", "traffic_rollups"}
 
+// Preserve the full transaction's columns, epoch identity and aggregate rules;
+// add only a bound node parameter to its source. Node/time indexes can seek the
+// selected group without scanning other nodes or the unexpired retained range.
+var nodeMinuteRetentionQueries = []struct{ table, query string }{
+	{"metric_rollups", strings.Replace(rollupMinuteMetricsQuery, "FROM metric_rollups m WHERE", "FROM metric_rollups m INDEXED BY idx_metric_rollups_retention_time WHERE m.node_id=? AND", 1)},
+	{"latency_rollups", strings.Replace(rollupMinuteLatencyQuery, "FROM latency_rollups l WHERE", "FROM latency_rollups l INDEXED BY idx_latency_rollups_retention_time WHERE l.node_id=? AND", 1)},
+	{"traffic_rollups", strings.Replace(rollupMinuteTrafficQuery, "FROM traffic_rollups t WHERE", "FROM traffic_rollups t INDEXED BY idx_traffic_rollups_retention_time WHERE t.node_id=? AND", 1)},
+}
+
 func nextRawRetention(ctx context.Context, tx *sql.Tx, cutoff time.Time) (time.Time, error) {
 	var first time.Time
 	for _, query := range []string{
@@ -174,26 +186,28 @@ func nextRawRetention(ctx context.Context, tx *sql.Tx, cutoff time.Time) (time.T
 	return first, nil
 }
 
-func nextMinuteRetention(ctx context.Context, tx *sql.Tx, cutoff time.Time) (time.Time, error) {
+func nextMinuteRetention(ctx context.Context, tx *sql.Tx, cutoff time.Time) (string, time.Time, error) {
 	var first time.Time
+	var node string
 	for _, table := range historyRollupTables {
-		var text string
-		err := tx.QueryRowContext(ctx, `SELECT bucket_at FROM `+table+` WHERE bucket_seconds=60 AND bucket_at<? ORDER BY bucket_at LIMIT 1`, formatTime(cutoff)).Scan(&text)
+		var text, id string
+		err := tx.QueryRowContext(ctx, `SELECT node_id,bucket_at FROM `+table+` WHERE bucket_seconds=60 AND bucket_at<? ORDER BY bucket_at LIMIT 1`, formatTime(cutoff)).Scan(&id, &text)
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
 		if err != nil {
-			return time.Time{}, err
+			return "", time.Time{}, err
 		}
 		at, err := parseTime(text)
 		if err != nil {
-			return time.Time{}, err
+			return "", time.Time{}, err
 		}
 		if first.IsZero() || at.Before(first) {
 			first = at
+			node = id
 		}
 	}
-	return first, nil
+	return node, first, nil
 }
 
 func minTime(a, b time.Time) time.Time {

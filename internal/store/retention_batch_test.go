@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -103,7 +104,7 @@ func TestHistoryBatchesMatchFullRetentionAcrossTiersAndReopen(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if batch.RawBuckets > 1 || batch.MinuteBuckets > 1 || batch.RollupsDeleted > 3*historyPruneRows {
+		if batch.RawBuckets > 1 || batch.MinuteBuckets > historyMinuteGroups || batch.RollupsDeleted > 3*historyPruneRows {
 			t.Fatalf("unbounded pass: %+v", batch)
 		}
 		if passes == 2 {
@@ -221,12 +222,77 @@ func TestHistoryBatchBoundsExpiredRollupPruning(t *testing.T) {
 		SELECT 'a',300,strftime('%Y-%m-%dT%H:%M:%SZ',?,'+'||(i*300)||' seconds'),i,i*2 FROM n`, formatTime(now.Add(-400*24*time.Hour))); err != nil {
 		t.Fatal(err)
 	}
-	for pass, want := range []int{1500, 500, 0} {
+	for pass := range 26 {
 		batch, err := s.RetainHistory(ctx, now, DefaultRetentionPolicy())
-		if err != nil || batch.More != (pass < 2) || batch.RollupsDeleted != int64(min(1000, 2500-pass*1000)) {
+		want := max(0, 2500-(pass+1)*historyPruneRows)
+		if err != nil || batch.More != (pass < 25) || batch.RollupsDeleted != int64(min(historyPruneRows, max(0, 2500-pass*historyPruneRows))) {
 			t.Fatalf("expiry pass %d: %+v %v", pass, batch, err)
 		}
 		assertCount(t, s, `SELECT COUNT(*) FROM traffic_rollups`, want)
+	}
+}
+
+func TestHistoryBatchMinuteSourcesSeekOnlyExpiredRange(t *testing.T) {
+	s, err := Open(context.Background(), ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for _, item := range nodeMinuteRetentionQueries {
+		rows, err := s.db.Query(`EXPLAIN QUERY PLAN `+item.query, "synthetic-node", "2026-10-01T00:05:00Z")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var plan strings.Builder
+		for rows.Next() {
+			var id, parent, unused int
+			var detail string
+			if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+				rows.Close()
+				t.Fatal(err)
+			}
+			plan.WriteString(detail + "\n")
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		rows.Close()
+		if !strings.Contains(plan.String(), "USING INDEX idx_"+item.table+"_retention_time (bucket_seconds=? AND bucket_at<?)") {
+			t.Fatalf("minute source can scan retained history: %s", plan.String())
+		}
+	}
+}
+
+func TestHistoryBatchSplitsNodesWithoutSplittingFiveMinuteGroups(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	now := time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
+	for i := range 17 {
+		id := fmt.Sprintf("synthetic-%02d", i)
+		if _, _, err := s.CreateNode(ctx, CreateNodeParams{ID: id, Name: id}); err != nil {
+			t.Fatal(err)
+		}
+		for minute := range 5 {
+			if _, err := s.db.Exec(`INSERT INTO metric_rollups(node_id,bucket_seconds,bucket_at,sample_count,cpu_sum,memory_percent_sum,disk_percent_sum,net_rx_rate_sum,net_tx_rate_sum) VALUES(?,60,?,4,68,80,0,0,0)`, id, formatTime(now.Add(-40*24*time.Hour).Add(time.Duration(minute)*time.Minute))); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	for pass, groups := range []int64{8, 8, 1} {
+		batch, err := s.RetainHistory(ctx, now, DefaultRetentionPolicy())
+		if err != nil || batch.MinuteBuckets != groups || batch.More != (pass < 2) {
+			t.Fatalf("node group pass %d: %+v %v", pass, batch, err)
+		}
+		var samples, cpu int
+		if err := s.db.QueryRow(`SELECT SUM(sample_count),SUM(cpu_sum) FROM metric_rollups`).Scan(&samples, &cpu); err != nil || samples != 17*20 || cpu != 17*340 {
+			t.Fatal("a visible pass lost or double-counted part of a node group", samples, cpu, err)
+		}
+		assertCount(t, s, `SELECT COUNT(*) FROM metric_rollups WHERE bucket_seconds=300 AND sample_count!=20`, 0)
 	}
 }
 

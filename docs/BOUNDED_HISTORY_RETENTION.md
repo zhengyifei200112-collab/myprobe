@@ -1,7 +1,7 @@
 # Bounded host history catch-up
 
-Server startup commits one closed raw minute, at most one complete five-minute
-group of minute rollups, bounded expired five-minute pruning (1000 rows per
+Server startup commits one closed raw minute, at most eight complete node/five-minute
+groups of minute rollups, bounded expired five-minute pruning (100 rows per
 table), and a separate existing HTTP batch. It then opens the listener. Startup
 does not wait for the entire historical backlog. The background worker yields
 100 ms between passes while either host or HTTP work remains; it retries errors
@@ -11,7 +11,12 @@ This addresses a reproduced 100-node aged, approximately 30 GB fixture: the
 original single retention transaction took 131.68 seconds on its independent
 private copy; raw latency aggregation alone took 35.97 seconds. That offline
 profile is not a successful startup or proof of an earlier long-test failure.
-The readiness acceptance remains 30 seconds. A time window bounds the declared
+The first prototype became ready in 6.71 seconds but failed a subsequent one-second
+health request during catch-up. Three instrumented passes on that post-failure
+copy took 0.84–0.94 seconds, including 0.33–0.37 seconds per COMMIT. The current
+smaller minute/expiry quanta address this write amplification; they still require
+a fresh native acceptance run. The readiness acceptance remains 30 seconds.
+A time window bounds the declared
 probe workload, not arbitrarily dense imported data or a wall-clock deadline.
 
 ## Data consistency
