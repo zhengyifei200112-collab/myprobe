@@ -11,7 +11,7 @@
 
 ## 演练内容
 
-`TestEncryptedBackupPortability` 默认跳过。导出使用 32 MiB 合法合成报告、一位管理员、
+`TestEncryptedBackupPortability` 默认跳过。导出默认使用 32 MiB 合法合成报告、一位管理员、
 一个节点、加密通知渠道、HTTP 服务与真实告警导入回执，通过生产 Repository 生成
 加密快照。备份后新增节点不会出现在还原中。导出仅保留 `archive.mpb`、私有
 `control.json` 和 `producer.json`，不传源数据库、WAL 或绑定原路径的仓库归属文件。
@@ -27,6 +27,25 @@
 无外部通知请求或生产凭据。失败不写成功结果，不覆盖既有导出或 `recovery.json`。
 恢复数据库由测试临时目录清理；导出包留给操作者安全转移及演练后清理。
 
+## 大库档位与输入绑定
+
+`MYPROBE_TEST_BACKUP_PORTABILITY_MIB` 只接受32、512、1024，默认32。它控制有效
+报告JSON的造数目标，不是稀疏文件、空白BLOB或指定的密文字节数；真实数据库及
+归档大小分别记录。源端与目的端必须显式选择相同档位，导入在读取大归档前核对
+档位、来源平台、完整提交和每个驱动摘要。`producer.v2`记录RequestedMiB和
+SourceBytes，并与私有控制文件再次比较；`recovery.v2`保留完整来源描述。v1属于
+历史32MiB测试证据，当前同源驱动拒绝它；这不是生产归档或公开API格式变化。
+
+临时卷预检至少需要8倍档位加1GiB；导出还检查包所在卷。哈希与解密保持流式，
+密文上限为2倍档位加64MiB，32MiB档位原128MiB上限不变；小描述仍限制64KiB，
+不会把可选的大库上限套到描述解析。512/1024MiB建议分别保留10/15分钟独立演练
+预算。这些是测试预算，不修改Server请求超时或生产备份策略。
+
+CI的本机roundtrip选择512MiB，保留错误口令/截断/应用密钥拒绝、渠道解密、正式
+暂存与激活、完整报告及永久回执摘要/回放、管理员和Agent凭据、原目的库保留及
+凭据隔离等11项检查。CI成功仅证明该机本地大库路径；异机结果仍须绑定独立机器、
+传输密文摘要、两端实际程序和准确源。Store路径也不冒充HTTP上传或Server重启。
+
 ## 独立进程与机器的操作
 
 在同一冻结提交分别构建源/目的原生测试二进制，记录源码归档和两个可执行文件的
@@ -39,9 +58,10 @@ SHA-256。Go 测试包工作目录为 `internal/backup`，用于读取实际源�
 
 ```powershell
 $env:MYPROBE_TEST_BACKUP_PORTABILITY='export'
+$env:MYPROBE_TEST_BACKUP_PORTABILITY_MIB='512' # Optional; default 32. Match import.
 $env:MYPROBE_TEST_SOURCE_COMMIT='<full frozen commit>'
 $env:MYPROBE_TEST_BACKUP_PORTABILITY_BUNDLE='<existing empty private directory>'
-go test ./internal/backup -run '^TestEncryptedBackupPortability$' -count=1 -timeout 3m -v
+go test ./internal/backup -run '^TestEncryptedBackupPortability$' -count=1 -timeout 10m -v
 ```
 
 通过已有加密传输把三个文件送入目的端新建的私有目录；核对传输前后密文摘要。不要
@@ -53,11 +73,12 @@ go test ./internal/backup -run '^TestEncryptedBackupPortability$' -count=1 -time
 
 ```sh
 MYPROBE_TEST_BACKUP_PORTABILITY=import \
+MYPROBE_TEST_BACKUP_PORTABILITY_MIB=512 \
 MYPROBE_TEST_SOURCE_COMMIT='<same full frozen commit>' \
 MYPROBE_TEST_BACKUP_PORTABILITY_ORIGIN=windows/amd64 \
 MYPROBE_TEST_BACKUP_PORTABILITY_BUNDLE='<absolute private transferred directory>' \
 MYPROBE_TEST_BACKUP_PORTABILITY_OUTPUT='<absolute empty result directory>' \
-/absolute/backup.test -test.run='^TestEncryptedBackupPortability$' -test.count=1 -test.timeout=3m -test.v
+/absolute/backup.test -test.run='^TestEncryptedBackupPortability$' -test.count=1 -test.timeout=10m -test.v
 ```
 
 反向测试使用 Linux 原生导出和 Windows 原生导入，来源改为 `linux/arm64`；每次用新
