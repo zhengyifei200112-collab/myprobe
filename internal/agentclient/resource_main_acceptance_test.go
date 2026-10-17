@@ -333,8 +333,9 @@ func TestResourceIncidentThroughMainRestart(t *testing.T) {
 	}
 	finalJobs := deliveries()
 	firingAttempts, recoveryAttempts := attempts(firing.ID), attempts(finalJobs[0].ID)
-	if len(firingAttempts) != 2 || firingAttempts[0].Outcome != "delivered" || firingAttempts[1].Outcome != "unknown" || len(recoveryAttempts) != 1 || recoveryAttempts[0].Outcome != "delivered" {
-		t.Fatal("durable attempt outcomes disagree with actual receiver receipts")
+	// The page is returned chronologically after selecting its newest entries.
+	if len(firingAttempts) != 2 || firingAttempts[0].Number != 1 || firingAttempts[0].Outcome != "unknown" || firingAttempts[1].Number != 2 || firingAttempts[1].Outcome != "delivered" || len(recoveryAttempts) != 1 || recoveryAttempts[0].Number != 1 || recoveryAttempts[0].Outcome != "delivered" {
+		t.Fatalf("durable attempt outcomes disagree with receiver receipts: firing=%+v recovery=%+v", firingAttempts, recoveryAttempts)
 	}
 	rawBinary, err := os.ReadFile(binary)
 	if err != nil {
