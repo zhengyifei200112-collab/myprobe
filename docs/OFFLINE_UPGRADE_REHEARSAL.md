@@ -5,6 +5,11 @@ closed SQLite backup, without starting the Server, Agent or notification workers
 It complements encrypted archive portability; it is not an application failover
 or downgrade procedure. Never give it a live Server database.
 
+The separate [native application rehearsal](APPLICATION_UPGRADE_ACCEPTANCE.md)
+records actual old/new application startup, stored authentication, deployed-image
+Agent compatibility and a large encrypted HTTP stage/restart restore on isolated
+copies. Its scope and prior failures do not change this Store helper's guarantees.
+
 `TestOfflineUpgradeRehearsal` skips by default. Build a native Store test executable
 from a clean frozen source, record the source archive/executable SHA-256 separately,
 and run it on the intended operating system/architecture. The declared commit in

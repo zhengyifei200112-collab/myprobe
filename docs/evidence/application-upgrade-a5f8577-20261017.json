@@ -1,0 +1,106 @@
+{
+  "format": "myprobe.screened-application-upgrade.v1",
+  "observed_at": "2026-10-17T02:46:32.066821+00:00",
+  "source_commit": "a5f8577bfb0c97918b9eef27879bf7fb83ac9be6",
+  "source_archive_sha256": "378f445c8755db61dd0cd955cb8c4fe4e865480b0549d23a19fef07e3af75449",
+  "server_sha256": "02d917a787421375e45b00d0fc73195eaf00e3f385f0b09f441841151f435f87",
+  "driver_sha256": "ab4e25059f05bc8775e8350837593560dc58137b9b5821240d8a6aa5fc1f81b9",
+  "private_result_sha256": "c5ff30f20ca42376a6889b39c54209a86362d7b8b5c588da0baa385dd287579c",
+  "platform": "native Linux/amd64; Go 1.26.5 cross-compiled on Windows; CGO disabled",
+  "original_backup": {
+    "bytes": 526508032,
+    "sha256": "c4dd19a0db02c7849955eca94a4a560ecb67a2549fd5c08c3f9fc7a92abdb7f6",
+    "migrations": 13,
+    "nodes": 2,
+    "raw_reports": 120302
+  },
+  "archive": {
+    "bytes": 541952166,
+    "sha256": "6c4962f71ffe45cabd0572c3ac3119c5ee081e9c81954fb36267afe18c20232f"
+  },
+  "application_schema": "047_node_timeline_indexes.sql",
+  "deployed_executables": {
+    "previous_server_sha256": "b555b0a7771a42f063168ae814fcf479f6e895363278a9d5c8dc30d66422f2f0",
+    "legacy_agent_sha256": "9ba242498661809d13a536512aca6afb66cfbad7892c2ad64015f03fd7ee125b"
+  },
+  "original_policy": {
+    "nodes": 2,
+    "raw_reports_after_retention": 119008
+  },
+  "frozen_snapshot": {
+    "retention_days": 3650,
+    "nodes": 3,
+    "raw_reports": 120303,
+    "restored_raw_reports": 120303,
+    "ordered_report_digest_equal": true,
+    "post_backup_marker_absent": true,
+    "pre_restore_database_preserved": true
+  },
+  "previous_application": {
+    "schema": "013_github_oauth.sql",
+    "nodes": 2,
+    "raw_reports_after_retention": 118996
+  },
+  "startup_observations": {
+    "new-original-policy": {
+      "health_seconds": 7.4971292447298765,
+      "deadline_seconds": 150
+    },
+    "new-roundtrip": {
+      "health_seconds": 11.119604593142867,
+      "deadline_seconds": 150
+    },
+    "new-after-restore": {
+      "health_seconds": 3.29725238122046,
+      "deadline_seconds": 150
+    },
+    "old-rollback": {
+      "health_seconds": 261.4383659698069,
+      "deadline_seconds": 900
+    }
+  },
+  "limits": {
+    "cpu_quota_percent": 25,
+    "memory_max_bytes": 1073741824,
+    "memory_swap_max_bytes": 0,
+    "private_network": true,
+    "protect_system": "strict"
+  },
+  "production_after": {
+    "server_healthy": true,
+    "server_image_and_start_time_unchanged": true,
+    "agent_running": true,
+    "agent_image_and_start_time_unchanged": true
+  },
+  "checks": [
+    "new application starts/migrates with original retention policy, stored key/login, node membership and public privacy",
+    "actual deployed-image Agent authenticates and reports via websocket/v1 without false configuration confirmation",
+    "actual authenticated encrypted HTTP export persisted to private file",
+    "large archive uploaded as bounded multipart and durably staged with CSRF/session",
+    "full new Server restart applies pending restore, preserves previous database and exact ordered report digest, excludes post-backup marker and permits fresh stored-login authentication",
+    "pre-backup deployed Agent credential authenticates and stores new reports after actual application restore",
+    "actual previous deployed Server starts on separate original-schema copy with original stored key/login and original node membership",
+    "original consistent backup remains byte-identical"
+  ],
+  "exit_status": 0,
+  "elapsed_seconds": 374.5064702294767,
+  "prior_attempts": [
+    {
+      "revision": "r1",
+      "passed": false,
+      "reason": "sysfs interface view guard; stopped before copies or application startup"
+    },
+    {
+      "revision": "r2",
+      "passed": false,
+      "reason": "previous application HTTP readiness exceeded the initial 150-second observation deadline; no success result written"
+    }
+  ],
+  "scope": "same-host isolated loopback copies; actual deployed executables, stored key/login, HTTP encrypted export/stage/restart and old-application rollback; no public traffic switch, external OAuth/Provider or cross-machine large-database claim",
+  "limitations": [
+    "Roundtrip copy alone uses 3650-day tier retention for exact snapshot comparison; original settings were tested separately.",
+    "Previous application uses a separate original-schema copy, never the migrated database. Its normal synchronous retention still runs.",
+    "Resource controls and observed startup times are not a whole-machine capacity, RSS or old/new performance benchmark.",
+    "Only screened aggregate metadata is published. Private backups, runtime keys, login data, row data, archive passphrase and process logs remain off-repository."
+  ]
+}
