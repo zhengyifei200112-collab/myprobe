@@ -288,7 +288,7 @@ func (s *Service) Tick(ctx context.Context, now time.Time) (result error) {
 	if err := s.store.ReconcileIncidents(ctx, now); err != nil {
 		return err
 	}
-	rules, err := s.store.ListAlertRules(ctx)
+	rules, err := s.store.ListEnabledAlertRules(ctx)
 	if err != nil {
 		return err
 	}

@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Closed certificate history no longer fills the alert evaluator's current rule
+  workset or rewrites inactive definitions on every synchronization. Permanent
+  identities remain available for exact deduplication and administration.
+  Forward migration 048 adds partial runtime indexes; take an upgrade backup.
+
 - Canceled SQLite queries release rows created before cancellation reaches the
   caller, allowing WAL checkpoints to advance after the pooled connection becomes
   idle. The driver update also prevents a late interrupt from reaching the next
