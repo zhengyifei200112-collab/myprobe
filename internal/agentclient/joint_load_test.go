@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -309,6 +310,32 @@ func TestJointRuntimeLoad(t *testing.T) {
 	}
 	measurements := make(map[string][]float64)
 	var requestErrors int
+	recordRequestFailure := func(endpoint, kind string, status int, before time.Time, cause error) {
+		requestErrors++
+		if len(result.APIFailures) >= 32 {
+			return
+		}
+		class := ""
+		if cause != nil {
+			class = "request_error"
+			var networkError net.Error
+			switch {
+			case errors.Is(cause, context.DeadlineExceeded):
+				class = "deadline_exceeded"
+			case errors.Is(cause, context.Canceled):
+				class = "context_canceled"
+			case errors.As(cause, &networkError) && networkError.Timeout():
+				class = "network_timeout"
+			case errors.Is(cause, io.EOF), errors.Is(cause, io.ErrUnexpectedEOF):
+				class = "unexpected_eof"
+			}
+		}
+		failure := jointAPIFailure{Endpoint: endpoint, Kind: kind, Status: status, ErrorClass: class, ObservedAt: time.Now().UTC(), ElapsedMilliseconds: float64(time.Since(before)) / float64(time.Millisecond)}
+		result.APIFailures = append(result.APIFailures, failure)
+		// Endpoint names are fixed above; never retain response bodies, URLs,
+		// cookies, node identifiers or the transport error's raw message.
+		t.Logf("joint API request failure: %+v", failure)
+	}
 	var cpuMicros uint64
 	restarted, disconnected := false, false
 	started, err := budget.startMeasurement()
@@ -392,13 +419,17 @@ func TestJointRuntimeLoad(t *testing.T) {
 			before := time.Now()
 			response, err := httpClient.Get(base + endpoint.path)
 			if err != nil {
-				requestErrors++
+				recordRequestFailure(endpoint.name, "transport", 0, before, err)
 				continue
 			}
 			body, readErr := io.ReadAll(io.LimitReader(response.Body, 16<<20))
 			response.Body.Close()
 			if response.StatusCode != 200 || readErr != nil {
-				requestErrors++
+				kind := "http_status"
+				if readErr != nil {
+					kind = "response_read"
+				}
+				recordRequestFailure(endpoint.name, kind, response.StatusCode, before, readErr)
 				continue
 			}
 			measurements[endpoint.name] = append(measurements[endpoint.name], float64(time.Since(before))/float64(time.Millisecond))
@@ -410,7 +441,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 			if endpoint.name == "health" {
 				var current jointHealth
 				if err := json.Unmarshal(body, &current); err != nil {
-					requestErrors++
+					recordRequestFailure(endpoint.name, "invalid_json", response.StatusCode, before, nil)
 				} else {
 					result.FinalHealth = current
 				}
@@ -759,9 +790,17 @@ type jointLoadResult struct {
 	ServerCPUMicroseconds                                                                                                                     uint64
 	APILatency                                                                                                                                map[string]jointLatency
 	APIErrors                                                                                                                                 int
+	APIFailures                                                                                                                               []jointAPIFailure
 	CollectedReports, PersistedReports, TCPSuccesses, HTTPResults, Snapshots, SubscriptionEvents, NotificationsFailed, NotificationsDelivered int64
 	Faults, Limitations                                                                                                                       []string
 	Passed                                                                                                                                    bool
+}
+
+type jointAPIFailure struct {
+	Endpoint, Kind, ErrorClass string
+	Status                     int
+	ObservedAt                 time.Time
+	ElapsedMilliseconds        float64
 }
 
 type jointResourcePoint struct {
