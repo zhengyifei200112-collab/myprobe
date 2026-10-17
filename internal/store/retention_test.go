@@ -79,13 +79,16 @@ func TestMetricHistoryQueryDoesNotCorrelateEveryRawSampleWithRollups(t *testing.
 		t.Fatal(err)
 	}
 
-	rows, err := database.db.QueryContext(ctx, "EXPLAIN QUERY PLAN "+metricHistoryQuery,
-		node.ID, formatTime(time.Now().UTC().Add(-time.Hour)),
-		node.ID, formatTime(time.Now().UTC().Add(-time.Hour)), 60, 60)
+	args, err := historyQueryArgs(node.ID, time.Now().UTC().Add(-time.Hour), time.Now().UTC(), 60, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := database.db.QueryContext(ctx, "EXPLAIN QUERY PLAN "+metricHistoryQuery, args...)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer rows.Close()
+	usesNanosecondRange := false
 	for rows.Next() {
 		var id, parent, unused int
 		var detail string
@@ -95,9 +98,15 @@ func TestMetricHistoryQueryDoesNotCorrelateEveryRawSampleWithRollups(t *testing.
 		if strings.Contains(strings.ToUpper(detail), "CORRELATED") {
 			t.Fatalf("metric history query still contains a correlated scan: %s", detail)
 		}
+		if strings.Contains(detail, "idx_metric_samples_node_capture_ns") && strings.Contains(detail, "captured_sort_ns>?") && strings.Contains(detail, "captured_sort_ns<?") {
+			usesNanosecondRange = true
+		}
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
+	}
+	if !usesNanosecondRange {
+		t.Fatal("bounded raw history must use both nanosecond bounds in the existing node/time index")
 	}
 }
 
