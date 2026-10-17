@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { fetchHistory, fetchSiteSettings, SessionExpiredError } from './api'
+import { fetchHistory, fetchNodeTimeline, fetchSiteSettings, SessionExpiredError } from './api'
 import { applyAppearance, cacheAppearance } from './appearance'
 import { DsButton } from './design-system'
-import { defaultSiteSettings, type HistoryResponse, type HistorySelection, type PublicNode, type ThemeMode } from './types'
+import { defaultSiteSettings, type HistoryResponse, type HistorySelection, type NodeTimeline, type PublicNode, type ThemeMode } from './types'
 import { aggregateNode, commonByteUnit, formatBytesInUnit, formatPercent, formatUptime } from './public-dashboard/metrics'
 import HistoryCharts from './node-details/HistoryCharts.vue'
+import NodeTimelineView from './node-details/NodeTimeline.vue'
 import { historyRanges, localDateTime, readHistorySelection, selectionQuery } from './node-details/history-view'
 import './node-details/node-details.css'
 
@@ -14,6 +15,11 @@ const emit = defineEmits<{ sessionExpired: [] }>()
 
 const node = ref<PublicNode>()
 const history = ref<HistoryResponse>()
+const timeline = ref<NodeTimeline>()
+const focused = ref('')
+const moreLoading = ref(false)
+const moreError = ref('')
+let moreController: AbortController | undefined
 const loading = ref(true)
 const error = ref('')
 const selection = ref<HistorySelection>('1h')
@@ -36,7 +42,7 @@ async function load(includeHistory = true) {
   controller?.abort()
   controller = new AbortController()
   const signal = controller.signal
-  if (includeHistory) { loading.value = true; history.value = undefined }
+  if (includeHistory) { loading.value = true; history.value = undefined; timeline.value = undefined; focused.value = ''; moreController?.abort(); moreLoading.value = false; moreError.value = '' }
   error.value = ''
   try {
     if (!nodeID) throw new Error('节点不存在或已隐藏。')
@@ -49,7 +55,10 @@ async function load(includeHistory = true) {
     if (includeHistory) {
       const result = await fetchHistory(nodeID, selection.value, signal, props.admin)
       if (version !== generation) return
+      const events = await fetchNodeTimeline(nodeID, { start: result.start, end: result.end }, signal, props.admin)
+      if (version !== generation) return
       history.value = result
+      timeline.value = events
       startInput.value = localDateTime(result.start)
       endInput.value = localDateTime(result.end)
     }
@@ -57,11 +66,36 @@ async function load(includeHistory = true) {
     if (signal.aborted || version !== generation) return
     node.value = undefined
     history.value = undefined
+    timeline.value = undefined
+    focused.value = ''
+    moreController?.abort()
     error.value = value instanceof Error ? value.message : '加载失败，请重试。'
     if (value instanceof SessionExpiredError) emit('sessionExpired')
   } finally {
     if (version === generation) loading.value = false
   }
+}
+async function loadMore() {
+  const current = timeline.value
+  if (!current?.next_cursor || moreLoading.value) return
+  moreController?.abort()
+  const own = new AbortController()
+  moreController = own
+  moreLoading.value = true
+  moreError.value = ''
+  try {
+    const page = await fetchNodeTimeline(nodeID, { start: current.start, end: current.end }, own.signal, props.admin, current.next_cursor)
+    if (own.signal.aborted || current !== timeline.value) return
+    const seen = new Set(current.events.map(event => event.id))
+    timeline.value = { ...page, events: [...current.events, ...page.events.filter(event => !seen.has(event.id))] }
+  } catch (value) {
+    if (own.signal.aborted || current !== timeline.value) return
+    if (value instanceof SessionExpiredError || value instanceof Error && value.message === '节点不存在或已隐藏。') {
+      generation++; controller?.abort(); node.value = undefined; history.value = undefined; timeline.value = undefined; focused.value = ''
+      error.value = (value as Error).message
+      if (value instanceof SessionExpiredError) emit('sessionExpired')
+    } else moreError.value = value instanceof Error ? value.message : '事件加载失败，请重试。'
+  } finally { if (moreController === own) moreLoading.value = false }
 }
 function select(value: HistorySelection) {
   selection.value = value
@@ -77,7 +111,7 @@ function applyCustom() {
 }
 function restoreURL() {
   try { selection.value = readHistorySelection(location.search); void load() }
-  catch (value) { controller?.abort(); generation++; loading.value = false; node.value = undefined; history.value = undefined; error.value = (value as Error).message }
+  catch (value) { controller?.abort(); moreController?.abort(); generation++; loading.value = false; node.value = undefined; history.value = undefined; timeline.value = undefined; focused.value = ''; error.value = (value as Error).message }
 }
 function changeTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
@@ -96,7 +130,7 @@ onMounted(async () => {
     applyAppearance(result, theme.value)
   } catch { /* Default appearance remains usable during settings failure. */ }
 })
-onBeforeUnmount(() => { stopped = true; generation++; controller?.abort(); clearInterval(poll); window.removeEventListener('popstate', restoreURL) })
+onBeforeUnmount(() => { stopped = true; generation++; controller?.abort(); moreController?.abort(); clearInterval(poll); window.removeEventListener('popstate', restoreURL) })
 </script>
 
 <template>
@@ -120,7 +154,7 @@ onBeforeUnmount(() => { stopped = true; generation++; controller?.abort(); clear
           <div class="detail-card"><span>下载 / 上传</span><strong>{{ node.report ? `${formatBytesInUnit(metrics!.rxRate, rateUnit, '/s')} / ${formatBytesInUnit(metrics!.txRate, rateUnit, '/s')}` : '—' }}</strong></div>
           <div class="detail-card"><span>运行时间</span><strong>{{ node.report ? formatUptime(node.report.uptime_seconds) : '—' }}</strong></div>
         </section>
-        <template v-if="history"><p class="detail-muted">{{ dateLabel(history.start) }} — {{ dateLabel(history.end) }} · 每桶 {{ history.bucket_seconds }} 秒，横轴标记桶的起点。汇总数据仅包含完整时间桶，边界可能缺少数据；空桶不连线。</p><HistoryCharts :history="history" :theme="theme" /></template>
+        <template v-if="history"><p class="detail-muted">{{ dateLabel(history.start) }} — {{ dateLabel(history.end) }} · 每桶 {{ history.bucket_seconds }} 秒，横轴标记桶的起点。汇总数据仅包含完整时间桶，边界可能缺少数据；空桶不连线。</p><NodeTimelineView v-if="timeline" :timeline="timeline" :admin="admin" :loading="moreLoading" :error="moreError" :focused="focused" @more="loadMore" @focus="focused = $event" /><HistoryCharts :history="history" :theme="theme" :focus-time="focused" /></template>
       </template>
     </main>
   </div>

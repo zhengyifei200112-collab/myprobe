@@ -244,6 +244,14 @@ time selection and separate linked charts. Administrator detail supports hidden
 nodes and retains the destination across login; public and share APIs retain their
 visibility boundaries. See [NODE_DETAILS.md](NODE_DETAILS.md).
 
+Node detail timelines link retained report observations and reboot hints to the
+history curves. Public timelines contain only approximate observation evidence;
+authenticated timelines add node-owned incident phases, maintenance and saved
+configuration operations without copying private payloads. Fixed-window cursors,
+bounded raw scanning, retention limitations and migration 047 are described in
+[NODE_TIMELINE.md](NODE_TIMELINE.md). A saved configuration is not Agent application
+proof, a reporting gap is not host downtime, and a reconnect is not a reboot.
+
 - Latest state: in memory and persisted per node.
 - Raw samples: seven days by default.
 - One-minute rollups: 30 days.

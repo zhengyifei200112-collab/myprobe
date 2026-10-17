@@ -22,6 +22,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Node detail timelines show retained report observations, approximate reporting
+  gaps and reboot hints. Authenticated timelines add node-owned incident phases,
+  maintenance and configuration audit events with fixed-window pagination.
+  Selecting an event marks and zooms the history curves. Migration 047 adds
+  exact timestamp indexes without changing original evidence or Agent protocol.
+
 - Integrated quantity editors preserve integer minor-unit prices, legacy billing
   cycles and unchanged expiry timestamps. Currency, bandwidth, traffic and time
   units are explicit in current node and alert-policy forms.
