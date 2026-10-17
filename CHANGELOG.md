@@ -9,6 +9,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Server startup and background history retention process closed time windows
+  instead of holding one writer transaction for an entire backlog. Each pass
+  atomically preserves rollups and traffic anchors, then yields before catch-up.
+  Forward migration 049 stores small anchor references without backfilling raw
+  history. See `docs/BOUNDED_HISTORY_RETENTION.md` for upgrade and scope limits.
+
 - Closed certificate history no longer fills the alert evaluator's current rule
   workset or rewrites inactive definitions on every synchronization. Permanent
   identities remain available for exact deduplication and administration.

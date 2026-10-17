@@ -116,7 +116,11 @@ HTTP retention now independently catches up in bounded 1000-row transactions,
 yielding between batches and retrying errors with backoff. A monotonic 31-day
 floor and both deletions remain atomic per batch; migration 038 indexes closed
 epochs. Host rollups and permanent replay/deduplication records are preserved.
-See [cleanup contracts and local capacity evidence](HTTP_RETENTION_CAPACITY.md);
+Host history now also uses closed-window startup/background transactions with
+durable traffic-anchor references (forward migration 049). A successful
+maintenance job reports one committed batch, not complete backlog exhaustion.
+See [bounded history catch-up](BOUNDED_HISTORY_RETENTION.md) and
+[cleanup contracts and local capacity evidence](HTTP_RETENTION_CAPACITY.md);
 this does not complete full-system capacity or the 24-hour acceptance.
 
 | Area | Requirement | Acceptance evidence | Status |
