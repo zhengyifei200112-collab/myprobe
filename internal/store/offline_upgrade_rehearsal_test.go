@@ -371,6 +371,11 @@ func TestOfflineUpgradeRehearsalPreservesLegacyAndRejectsUnsafeInputs(t *testing
 	if err := old.Close(); err != nil {
 		t.Fatal(err)
 	}
+	// SQLite creation follows the process umask. A synthetic backup must satisfy
+	// the same explicit private-file guard as an operator's real closed backup.
+	if err := os.Chmod(source, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	hash, err := rehearsalFileHash(ctx, source)
 	if err != nil {
 		t.Fatal(err)
