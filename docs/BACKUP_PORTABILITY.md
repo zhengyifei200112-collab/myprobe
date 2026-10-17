@@ -5,6 +5,10 @@
 它与[静止大库容量](BACKUP_CAPACITY.md)、[在线备份负载](ONLINE_BACKUP_LOAD.md)及
 完整 24 小时验收分别记录，不能互相替代。
 
+已有一致SQLite备份的操作者可另用[隔离升级演练](OFFLINE_UPGRADE_REHEARSAL.md)
+核对旧库到当前迁移、原始记录保留和旧schema恢复副本。该步骤不启动Server/Provider，
+也不替代下述加密归档恢复或完整应用切换。
+
 ## 演练内容
 
 `TestEncryptedBackupPortability` 默认跳过。导出使用 32 MiB 合法合成报告、一位管理员、
