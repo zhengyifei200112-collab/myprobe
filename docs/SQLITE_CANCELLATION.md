@@ -44,6 +44,12 @@ go test ./internal/store -run '^TestCanceledQueryReleasesWALReader$' -count=1 -v
 
 The default Go suite includes the regression. Native Linux CI also runs this
 specific fixture with `-race`; a Windows `CGO_ENABLED=0` run is not a race check.
+The fixture has a two-minute total context. Initial native race runs exceeded
+its original 30-second context after approximately 220 cycles; diagnostic
+milestones measured 12.4 seconds per 100 cycles and confirmed the parent deadline
+expired before the next scalar callback. The revised budget permits all 400
+instrumented cycles without reducing their count, retrying a failed cycle or
+changing production timeouts, WAL assertions or immediate connection reuse.
 
 Before the update, the regression failed on Windows at iteration 0: the caller
 received a cancellation error with no returned rows, the pool was idle, but only

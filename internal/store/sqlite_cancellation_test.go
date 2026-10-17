@@ -55,7 +55,10 @@ func TestCanceledQueryReleasesWALReader(t *testing.T) {
 	defer sqliteCancellation.Store(nil)
 	previous := runtime.GOMAXPROCS(4)
 	defer runtime.GOMAXPROCS(previous)
-	ctx, stop := context.WithTimeout(context.Background(), 30*time.Second)
+	// Native -race takes about 12.4 seconds per 100 cycles in CI. This is
+	// a correctness fixture, so allow the complete 400-cycle instrumented
+	// run; production request timeouts and all per-cycle assertions stay fixed.
+	ctx, stop := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer stop()
 
 	// Both handles use the production Open/DSN against a new test-owned database.
