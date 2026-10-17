@@ -24,5 +24,6 @@ exec unshare --net sh -eu -c '
     ip link set lo up
     ip addr add 192.0.2.1/32 dev lo
     ip addr add 10.77.0.1/32 dev lo
+    "$1" -test.run="^TestJointStartupFailureEvidence$" -test.count=1 -test.timeout=45s -test.v
     exec "$1" -test.run="^TestJointRuntimeLoad$" -test.timeout="${MYPROBE_TEST_LOAD_TIMEOUT:-10m}" -test.v
 ' joint-load "$test_binary"
