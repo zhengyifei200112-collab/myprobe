@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Canceled SQLite queries release rows created before cancellation reaches the
+  caller, allowing WAL checkpoints to advance after the pooled connection becomes
+  idle. The driver update also prevents a late interrupt from reaching the next
+  query on the connection. SQLite remains 3.50.4; no schema migration is required.
+
 - Long collection periods no longer turn a reachable Agent into a false outage.
   Current socket heartbeats and independent HTTP fallback hellos persist contact
   without inventing metric samples or report ingress. Public stale-data status
