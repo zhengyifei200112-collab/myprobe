@@ -3,12 +3,14 @@ const fs = require('node:fs'), path = require('node:path'), cp = require('node:c
 const crypto = require('node:crypto'), assert = require('node:assert/strict');
 const { launchFixtureBrowser } = require('./browser-fixture.cjs');
 const repo = path.resolve(__dirname, '..');
-const [outputArg, adminArg, servicesArg] = process.argv.slice(2);
-assert.ok(outputArg && adminArg, 'Usage: node script.cjs <empty output> <httpapi.test> [agentclient.test]');
+const [outputArg, adminArg, servicesArg, serverArg] = process.argv.slice(2);
+assert.ok(outputArg && adminArg, 'Usage: node script.cjs <empty output> <httpapi.test> [agentclient.test] [resource-server]');
 const output = path.resolve(outputArg), admin = path.resolve(adminArg);
 const services = servicesArg ? path.resolve(servicesArg) : undefined;
+const server = serverArg ? path.resolve(serverArg) : undefined;
 assert.ok(fs.statSync(output).isDirectory() && fs.readdirSync(output).length === 0, 'Output must be an empty owned directory');
 assert.ok(fs.statSync(admin).isFile() && (!services || fs.statSync(services).isFile()), 'Native test executables required');
+assert.ok(!server || (services && fs.statSync(server).isFile()), 'The main-resource profile requires a Server and Agent test executable');
 if (services) {
   assert.equal(process.platform, 'linux', 'Private target checks require an isolated Linux network namespace');
   assert.notEqual(fs.readlinkSync('/proc/self/ns/net'), fs.readlinkSync('/proc/1/ns/net'), 'Refuse the host network namespace');
@@ -25,12 +27,13 @@ const clean = git(['status','--porcelain']).length === 0;
 const scratch = path.join(output,'private');
 fs.mkdirSync(scratch,{mode:0o700});
 const expectedAdmin = ['TestLivePolicyBrowserLifecycle','TestLiveMaintenanceBrowserLifecycle','TestLiveIncidentAcknowledgementBrowser','TestLiveIncidentSilenceBrowser','TestLiveNotificationAggregationBrowser','TestLiveSingleIncidentLinkBrowser'];
-const expectedServices = ['TestHTTPMaintenanceStatisticsThroughRealAgent','TestServiceIncidentThroughRealAgent'];
+const expectedServices = ['TestHTTPMaintenanceStatisticsThroughRealAgent','TestServiceIncidentThroughRealAgent',...(server?['TestResourceIncidentThroughMainRestart']:[])];
 const evidence = {format:'myprobe.cross-module-browser.v1', source_commit:commit, source_clean:clean,
   node:process.version, platform:process.platform, arch:process.arch, source_files:before,
-  executables:{httpapi:fileHash(admin),...(services?{agentclient:fileHash(services)}:{})},
+  executables:{httpapi:fileHash(admin),...(services?{agentclient:fileHash(services)}:{}),...(server?{server:fileHash(server)}:{})},
+  resource_main_process:!!server,
   private_network_namespace:!!services, packages:[], passed:false,
-  scope:'Synthetic embedded UI/API/SQLite/evaluator/worker/receiver lifecycles; service profile uses real Client.Run and production private-target policy in an isolated namespace. No production data, external OAuth/Provider, full main-process capacity or 24-hour assertion.'};
+  scope:'Synthetic embedded UI/API/SQLite/evaluator/worker/receiver lifecycles; service profile uses real Client.Run/private-target policy, and optional resource profile restarts actual main with the default evaluator/sender in an isolated namespace. No production data, external OAuth/Provider, capacity or 24-hour assertion.'};
 async function main() {
   const browser = await launchFixtureBrowser();
   try { evidence.browser = browser.version(); } finally { await browser.close(); }
@@ -39,7 +42,8 @@ async function main() {
     const env = {...process.env, TMPDIR:scratch, TMP:scratch, TEMP:scratch,
       MYPROBE_TEST_POLICY_BROWSER:'1', MYPROBE_TEST_MAINTENANCE_BROWSER:'1', MYPROBE_TEST_ACK_BROWSER:'1',
       MYPROBE_TEST_SILENCE_BROWSER:'1', MYPROBE_TEST_AGGREGATION_BROWSER:'1',
-      MYPROBE_TEST_HTTP_BROWSER:services?'1':'0', MYPROBE_TEST_PRIVATE_HTTP:services?'1':'0'};
+      MYPROBE_TEST_HTTP_BROWSER:services?'1':'0', MYPROBE_TEST_PRIVATE_HTTP:services?'1':'0',
+      MYPROBE_TEST_RESOURCE_MAIN:server?'1':'0', MYPROBE_TEST_RESOURCE_SERVER:server||'', MYPROBE_TEST_RESOURCE_OUTPUT:output};
     const args = [`-test.run=^(${job.tests.join('|')})$`,'-test.count=1','-test.timeout=10m','-test.v'];
     const start = Date.now();
     const result = cp.spawnSync(job.binary,args,{cwd:path.join(repo,'internal',job.name),env,encoding:'utf8',timeout:11*60*1000,maxBuffer:8*1024*1024});
@@ -53,6 +57,13 @@ async function main() {
     evidence.packages.push(record);
     console.log(JSON.stringify(record));
     if (!record.passed) throw new Error(job.name+' lifecycle acceptance failed; inspect the private fixture log');
+  }
+  if(server) {
+    const file = path.join(output,'resource-main-result.json');
+    const child = JSON.parse(fs.readFileSync(file));
+    assert.equal(child.passed,true,'Main-resource child failed');
+    assert.equal(child.server_sha256,evidence.executables.server,'Main-resource executable mismatch');
+    evidence.children = {resource_main:{path:'resource-main-result.json',sha256:fileHash(file)}};
   }
   assert.deepEqual(sources(),before,'Source changed during execution');
   assert.equal(git(['rev-parse','HEAD']),commit,'Commit changed during execution');
@@ -75,7 +86,7 @@ async function main() {
     fs.copyFileSync(path.join(scratch,item.path),destination,fs.constants.COPYFILE_EXCL);
   }
   evidence.screenshots = screenshots;
-  evidence.executables_unchanged = fileHash(admin)===evidence.executables.httpapi && (!services || fileHash(services)===evidence.executables.agentclient);
+  evidence.executables_unchanged = fileHash(admin)===evidence.executables.httpapi && (!services || fileHash(services)===evidence.executables.agentclient) && (!server || fileHash(server)===evidence.executables.server);
   assert.ok(evidence.executables_unchanged,'A test executable changed');
   evidence.passed = true;
 }

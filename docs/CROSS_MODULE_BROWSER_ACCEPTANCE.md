@@ -12,6 +12,9 @@
 
 Linux 完整配置另外运行两个真实 `Client.Run` 用例：HTTP 维护统计经过实际126秒
 成熟期；服务故障/恢复、缺测、诊断和事件链接经过真实调度及本地目标。
+提供第四个Server参数时，还运行[CPU波动与真实主进程重启](RESOURCE_MAIN_ACCEPTANCE.md)，
+使用默认评估/超时/重试，核对同一事件及投递跨重启。CI完整配置要求九项通过；
+原三参数Linux服务配置仍保留八项，Windows管理配置仍为六项。
 `scripts/run-cross-module-browser-qa.sh` 只在新网络命名空间内创建 loopback 和
 测试私网地址。运行器拒绝宿主网络或额外网卡；不会调整宿主网卡、放宽正式访问
 策略、访问真实 Provider 或改变生产服务。浏览器默认在 Windows 使用 Edge，其他
@@ -27,12 +30,14 @@ Linux Chromium的共享内存句柄使用标准`/tmp`；Go数据库/日志和Pla
 ```sh
 go test -c -o /absolute/httpapi.test ./internal/httpapi
 go test -c -o /absolute/agentclient.test ./internal/agentclient
+go build -ldflags '-X main.version=resource-main-acceptance' \
+  -o /absolute/resource-server ./cmd/server
 mkdir -m 700 /absolute/empty-output
 sudo env PATH="$PATH" \
   PLAYWRIGHT_MODULE=/absolute/node_modules/playwright \
   PLAYWRIGHT_BROWSERS_PATH=/absolute/browser-cache \
   sh scripts/run-cross-module-browser-qa.sh \
-  /absolute/empty-output /absolute/httpapi.test /absolute/agentclient.test
+  /absolute/empty-output /absolute/httpapi.test /absolute/agentclient.test /absolute/resource-server
 ```
 
 Windows 只运行无需私网目标的六项管理流程：
@@ -49,6 +54,8 @@ node scripts/run-cross-module-browser-qa.cjs C:/owned/empty-output C:/owned/http
 结果记录准确提交、干净状态、源文件/产物摘要、实际两个测试程序摘要、浏览器与
 Node版本、逐项用例/退出码和截图摘要。跳过任何必需用例都会失败；脚本不会把
 只有顶层 `PASS` 的空运行当作完成。源码和二进制运行前后也须一致。
+主进程资源配置另外绑定实际Server及`resource-main-result.json`子结果摘要；
+汇总JSON同样只含阶段、计数与身份一致布尔值。
 
 原a5f8577上策略/聚合两个旧定位超时的失败仍保留；修正脚本后的结果须另存，
 不能改写成原轮次通过。CI独立job不延长既有主测试的时限。
