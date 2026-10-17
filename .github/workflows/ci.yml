@@ -330,6 +330,7 @@ jobs:
           go test -race ./internal/agentclient -run '^TestJointBackup' -count=1
           go test -race ./internal/store -run '^TestCanceledQueryReleasesWALReader$' -count=1
           go test -race ./internal/agentclient -run '^TestJointStartup(ReadinessClassification|PrivateCaptureBoundaries)$' -count=1
+          go test -race ./internal/agentclient -run '^TestJointBacklog' -count=1
           go test -race ./internal/store ./internal/agentgateway ./internal/agentclient ./internal/alerts -run '^Test(AgentContact|AgentHelloContact|PublicFreshness|HeartbeatACK|HTTPHelloRequires|ActualAgentContact|OfflineUsesContact)' -count=1
           go test -race ./internal/store ./internal/scheduler ./internal/agentgateway -run '^TestNetwork' -count=1
           go test -race ./internal/httpapi -run '^TestNetworkQuality' -count=1
@@ -384,7 +385,8 @@ jobs:
           go build -o "${RUNNER_TEMP}/myprobe-joint-server" ./cmd/server
           go test -c ./internal/agentclient -o "${RUNNER_TEMP}/myprobe-joint-agentclient.test"
           install -d -m 700 "${RUNNER_TEMP}/myprobe-joint-process-private"
-          sudo env MYPROBE_TEST_LOAD_PROCESS_LOG_DIR="${RUNNER_TEMP}/myprobe-joint-process-private" MYPROBE_TEST_LOAD_RECONCILE=1 MYPROBE_TEST_LOAD_HISTORY=year MYPROBE_TEST_LOAD_TIMEOUT=10m sh scripts/run-joint-load.sh "${RUNNER_TEMP}/myprobe-joint-agentclient.test" "${RUNNER_TEMP}/myprobe-joint-server"
+          install -d -m 700 "${RUNNER_TEMP}/myprobe-joint-fixtures-private"
+          sudo env MYPROBE_TEST_LOAD_PRIVATE_FIXTURE_DIR="${RUNNER_TEMP}/myprobe-joint-fixtures-private" MYPROBE_TEST_LOAD_BACKLOG_HOURS=12 MYPROBE_TEST_LOAD_PROCESS_LOG_DIR="${RUNNER_TEMP}/myprobe-joint-process-private" MYPROBE_TEST_LOAD_RECONCILE=1 MYPROBE_TEST_LOAD_HISTORY=year MYPROBE_TEST_LOAD_TIMEOUT=10m sh scripts/run-joint-load.sh "${RUNNER_TEMP}/myprobe-joint-agentclient.test" "${RUNNER_TEMP}/myprobe-joint-server"
 
       - name: Build and validate container images
         shell: bash

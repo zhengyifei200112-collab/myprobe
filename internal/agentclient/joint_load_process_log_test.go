@@ -28,24 +28,31 @@ func openJointProcessLog(directory string) (*jointProcessLog, error) {
 	if directory == "" {
 		return nil, nil
 	}
-	if runtime.GOOS == "windows" {
-		return nil, errors.New("private process capture requires POSIX directory permissions")
-	}
-	if !filepath.IsAbs(directory) {
-		return nil, errors.New("process log directory must be absolute")
-	}
-	info, err := os.Lstat(directory)
-	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return nil, errors.New("process log directory must already exist without a symlink")
-	}
-	if info.Mode().Perm()&0o077 != 0 {
-		return nil, errors.New("process log directory must exclude group and other access")
+	if err := validateJointPrivateDirectory(directory); err != nil {
+		return nil, err
 	}
 	file, err := os.OpenFile(filepath.Join(directory, "server-"+rand.Text()+".log"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return nil, errors.New("cannot create private process log")
 	}
 	return &jointProcessLog{file: file}, nil
+}
+
+func validateJointPrivateDirectory(directory string) error {
+	if runtime.GOOS == "windows" {
+		return errors.New("private test output requires POSIX directory permissions")
+	}
+	if !filepath.IsAbs(directory) {
+		return errors.New("private test directory must be absolute")
+	}
+	info, err := os.Lstat(directory)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return errors.New("private test directory must already exist without a symlink")
+	}
+	if info.Mode().Perm()&0o077 != 0 {
+		return errors.New("private test directory must exclude group and other access")
+	}
+	return nil
 }
 
 func (p *jointProcessLog) Write(data []byte) (int, error) {
