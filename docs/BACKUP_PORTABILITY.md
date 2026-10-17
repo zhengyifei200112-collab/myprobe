@@ -71,5 +71,32 @@ MYPROBE_TEST_BACKUP_PORTABILITY_OUTPUT='<absolute empty result directory>' \
 DNS/业务流量切换或生产 failover。32 MiB 跨机成功不扩大已验证的大库上限。应用
 密钥与归档口令分别恢复，不能从“归档可解密”推断通知凭据可用。
 
-实际跨机结果尚待执行；实现和 CI 中加入步骤不计为通过。完整 M1—M5、最终整合源
-24 小时、原始容量目标、外部 Provider/OAuth 和所有者合并/发布审批继续保留。
+## 已执行的原生异机验收（2026-10-16 UTC）
+
+冻结源码 `dc5152ba629ee984a5deba1cbd31277d44c1c93f` 已完成实际双向传输与原生
+导入，不再是仅有操作步骤。Windows/amd64 与独立 Linux/arm64 分别使用各自的
+Go 1.26.5 原生测试二进制；目的端未依赖源数据库或源编译器。每方向3990条报告，
+加密归档均36,369,150 B，均完成以上十一项检查，包括原应用密钥解密渠道、生产
+暂存/激活、快照/永久回执、原Agent认证、管理员登录和目的旧库/凭据隔离。
+
+| 方向 | 导出密文 SHA-256 | 目的原生检查 |
+| --- | --- | --- |
+| Windows/amd64 → Linux/arm64 | `13ec7d050b629389b73545de89ef17a49ceccc695f6d9344b7a096c4ac92c432` | 11项通过 |
+| Linux/arm64 → Windows/amd64 | `59112af10fb0e613e10e7592b1713ac5165280a6aba4fc7676b5e962f8069d86` | 11项通过 |
+
+冻结源码归档 SHA-256 为
+`375d72534536102b7351ed598b781199e51a8044ad68e0cfad10717ccd92a954`；Windows
+二进制为 `7feb402caad70d76340fc7bb6c8b9ad7749de847b79a728303392e6338b5ebc6`，
+Linux 二进制为 `3e717bec03929821cdb1af797a58b14ce5c4a639aa1da03609123f90d444bb13`。
+筛选后的[验收清单](evidence/backup-portability-dc5152b-20261017.json)保留来源提交、
+实际平台、归档/可执行文件摘要、报告数与检查名，不包含控制文件、合成令牌或主机
+地址。私有传输包及未筛选日志继续由操作者保管，不上传Git/CI。
+
+该提交的[CI38949952716](https://github.com/zhengyifei200112-collab/myprobe/actions/runs/38949952716)
+九项通过；CI同机roundtrip不是上述真实跨机结果的替代证明。此文档更正没有重跑
+原生演练，也不把后续源码和迁移重新标记成该冻结版本。
+
+实际范围仍为32MiB合成数据的Store级生产恢复路径。跨机大库、真实HTTP上传、
+完整Server重启、流量切换和生产failover仍待验收；当前整合源也须重新检查兼容性。
+完整 M1—M5、最终整合源24小时、原始容量目标、外部Provider/OAuth与所有者合并/
+发布审批继续保留。

@@ -1,0 +1,72 @@
+{
+  "format": "myprobe.backup-portability-screened-evidence.v1",
+  "source_commit": "dc5152ba629ee984a5deba1cbd31277d44c1c93f",
+  "recorded_at": "2026-10-16T19:29:37.8368428Z",
+  "source_tree_and_native_binaries_bound": true,
+  "transport": "Private encrypted transfer between independent Windows/amd64 and Linux/arm64 machines",
+  "source_archive_sha256": "375d72534536102b7351ed598b781199e51a8044ad68e0cfad10717ccd92a954",
+  "windows_test_executable_sha256": "7feb402caad70d76340fc7bb6c8b9ad7749de847b79a728303392e6338b5ebc6",
+  "linux_test_executable_sha256": "3e717bec03929821cdb1af797a58b14ce5c4a639aa1da03609123f90d444bb13",
+  "directions": [
+    {
+      "producer_os": "windows",
+      "producer_arch": "amd64",
+      "destination_os": "linux",
+      "destination_arch": "arm64",
+      "go_version": "go1.26.5",
+      "archive_sha256": "13ec7d050b629389b73545de89ef17a49ceccc695f6d9344b7a096c4ac92c432",
+      "archive_bytes": 36369150,
+      "reports": 3990,
+      "checks": [
+        "encrypted transfer SHA-256/size",
+        "wrong passphrase rejected",
+        "truncation rejected",
+        "wrong application key rejected",
+        "channel decryption with separate application key",
+        "production staged restore and activation",
+        "snapshot population and exact report digest",
+        "permanent import receipt digest and replay",
+        "Agent authentication",
+        "administrator login",
+        "previous destination preserved and credentials isolated"
+      ],
+      "limitations": [
+        "fixed synthetic 32 MiB source; no production data or external notification requests",
+        "same-platform roundtrip is not cross-machine proof; bind transport, machine and binary identity in a separate run manifest",
+        "Store restore path only, not an HTTP upload, Server restart or production failover",
+        "source commit is declared by the runner; source hashes and executable digests must be independently bound"
+      ]
+    },
+    {
+      "producer_os": "linux",
+      "producer_arch": "arm64",
+      "destination_os": "windows",
+      "destination_arch": "amd64",
+      "go_version": "go1.26.5",
+      "archive_sha256": "59112af10fb0e613e10e7592b1713ac5165280a6aba4fc7676b5e962f8069d86",
+      "archive_bytes": 36369150,
+      "reports": 3990,
+      "checks": [
+        "encrypted transfer SHA-256/size",
+        "wrong passphrase rejected",
+        "truncation rejected",
+        "wrong application key rejected",
+        "channel decryption with separate application key",
+        "production staged restore and activation",
+        "snapshot population and exact report digest",
+        "permanent import receipt digest and replay",
+        "Agent authentication",
+        "administrator login",
+        "previous destination preserved and credentials isolated"
+      ],
+      "limitations": [
+        "fixed synthetic 32 MiB source; no production data or external notification requests",
+        "same-platform roundtrip is not cross-machine proof; bind transport, machine and binary identity in a separate run manifest",
+        "Store restore path only, not an HTTP upload, Server restart or production failover",
+        "source commit is declared by the runner; source hashes and executable digests must be independently bound"
+      ]
+    }
+  ],
+  "scope": "Completed native 32 MiB synthetic Store restore only; not final-source, large-database cross-machine, HTTP upload, whole Server restart or production failover acceptance",
+  "private_control_files_included": false
+}
