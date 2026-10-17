@@ -56,8 +56,12 @@ func main() {
 		Raw: cfg.Retention.Raw, OneMinute: cfg.Retention.OneMinute, FiveMinute: cfg.Retention.FiveMinute,
 	}
 	phaseDone = startupPhase(logger, "history_retention")
-	if err := database.ApplyRetention(ctx, time.Now().UTC(), retentionPolicy); err != nil {
+	if _, err := database.RetainHistory(ctx, time.Now().UTC(), retentionPolicy); err != nil {
 		logger.Error("apply history retention", "error", err)
+		os.Exit(1)
+	}
+	if _, err := database.PruneHTTPHistory(ctx, time.Now().UTC()); err != nil {
+		logger.Error("prune HTTP history", "error", err)
 		os.Exit(1)
 	}
 	phaseDone()
@@ -156,7 +160,7 @@ func startupPhase(logger *slog.Logger, phase string) func() {
 }
 
 type retentionDatabase interface {
-	ApplyRetention(context.Context, time.Time, store.RetentionPolicy) error
+	RetainHistory(context.Context, time.Time, store.RetentionPolicy) (store.HistoryRetentionBatch, error)
 	PruneHTTPHistory(context.Context, time.Time) (store.HTTPRetentionBatch, error)
 }
 
@@ -174,34 +178,31 @@ func runRetention(ctx context.Context, database retentionDatabase, policy store.
 			observer.Schedule(delay)
 		}
 	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	// Startup retention removes only one HTTP batch. Catch up after startup,
-	// releasing the SQLite writer between every bounded pass.
+	// Startup commits only one host window and one HTTP batch. Both backlogs
+	// continue here, releasing the writer and yielding between every pass.
 	cleanup := time.NewTimer(100 * time.Millisecond)
 	schedule(100 * time.Millisecond)
 	defer cleanup.Stop()
-	catchingUp := true
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			if err := database.ApplyRetention(ctx, time.Now().UTC(), policy); err != nil && !errors.Is(err, context.Canceled) {
-				logger.Error("apply history retention", "error", err)
-			}
-			if !catchingUp {
-				cleanup.Reset(100 * time.Millisecond)
-				schedule(100 * time.Millisecond)
-			}
 		case <-cleanup.C:
+			history, historyErr := database.RetainHistory(ctx, time.Now().UTC(), policy)
+			if ctx.Err() != nil {
+				return
+			}
 			batch, err := database.PruneHTTPHistory(ctx, time.Now().UTC())
-			if err != nil {
-				if ctx.Err() != nil {
-					return
+			if ctx.Err() != nil {
+				return
+			}
+			if historyErr != nil || err != nil {
+				if historyErr != nil {
+					logger.Error("retain history batch", "error", historyErr)
 				}
-				logger.Error("prune HTTP history", "error", err)
-				catchingUp = true
+				if err != nil {
+					logger.Error("prune HTTP history", "error", err)
+				}
 				cleanup.Reset(5 * time.Second)
 				schedule(5 * time.Second)
 				continue
@@ -209,8 +210,7 @@ func runRetention(ctx context.Context, database retentionDatabase, policy store.
 			if batch.TasksDeleted > 0 || batch.EpochsDeleted > 0 {
 				logger.Info("pruned HTTP history batch", "tasks", batch.TasksDeleted, "epochs", batch.EpochsDeleted, "retained_from", batch.RetainedFrom, "more", batch.More)
 			}
-			catchingUp = batch.More
-			if batch.More {
+			if batch.More || history.More {
 				cleanup.Reset(100 * time.Millisecond)
 				schedule(100 * time.Millisecond)
 			} else {

@@ -17,11 +17,11 @@ import (
 )
 
 type retentionFixture struct {
-	apply func(context.Context, time.Time, store.RetentionPolicy) error
+	apply func(context.Context, time.Time, store.RetentionPolicy) (store.HistoryRetentionBatch, error)
 	prune func(context.Context, time.Time) (store.HTTPRetentionBatch, error)
 }
 
-func (f retentionFixture) ApplyRetention(ctx context.Context, now time.Time, p store.RetentionPolicy) error {
+func (f retentionFixture) RetainHistory(ctx context.Context, now time.Time, p store.RetentionPolicy) (store.HistoryRetentionBatch, error) {
 	return f.apply(ctx, now, p)
 }
 func (f retentionFixture) PruneHTTPHistory(ctx context.Context, now time.Time) (store.HTTPRetentionBatch, error) {
@@ -51,9 +51,8 @@ func TestRetentionWorkerImmediatelyDrainsAndYields(t *testing.T) {
 	called := make(chan time.Time, 4)
 	var passes atomic.Int64
 	retentionWorker(t, retentionFixture{
-		apply: func(context.Context, time.Time, store.RetentionPolicy) error {
-			t.Error("hourly rollup ran early")
-			return nil
+		apply: func(context.Context, time.Time, store.RetentionPolicy) (store.HistoryRetentionBatch, error) {
+			return store.HistoryRetentionBatch{}, nil
 		},
 		prune: func(_ context.Context, now time.Time) (store.HTTPRetentionBatch, error) {
 			called <- now
@@ -84,7 +83,9 @@ func TestRetentionWorkerRetriesFailureWithoutWaitingForHour(t *testing.T) {
 	called := make(chan time.Time, 4)
 	var passes atomic.Int64
 	retentionWorker(t, retentionFixture{
-		apply: func(context.Context, time.Time, store.RetentionPolicy) error { return nil },
+		apply: func(context.Context, time.Time, store.RetentionPolicy) (store.HistoryRetentionBatch, error) {
+			return store.HistoryRetentionBatch{}, nil
+		},
 		prune: func(_ context.Context, now time.Time) (store.HTTPRetentionBatch, error) {
 			called <- now
 			if passes.Add(1) == 1 {
@@ -108,10 +109,41 @@ func TestRetentionWorkerRetriesFailureWithoutWaitingForHour(t *testing.T) {
 	}
 }
 
+func TestRetentionWorkerDrainsHostBacklogWhenHTTPIsIdle(t *testing.T) {
+	called := make(chan time.Time, 4)
+	var passes atomic.Int64
+	cancel, _ := retentionWorker(t, retentionFixture{
+		apply: func(_ context.Context, now time.Time, _ store.RetentionPolicy) (store.HistoryRetentionBatch, error) {
+			called <- now
+			return store.HistoryRetentionBatch{RawBuckets: 1, More: passes.Add(1) == 1}, nil
+		},
+		prune: func(context.Context, time.Time) (store.HTTPRetentionBatch, error) {
+			return store.HTTPRetentionBatch{}, nil
+		},
+	}, time.Hour)
+	var first time.Time
+	for i := range 2 {
+		select {
+		case at := <-called:
+			if i == 0 {
+				first = at
+			} else if at.Sub(first) < 80*time.Millisecond {
+				t.Fatal("host catch-up did not release the writer between passes")
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("host backlog waited for the hourly interval")
+		}
+	}
+	cancel()
+}
+
 func TestRetentionWorkerKeepsHostRollupScheduleAndCancels(t *testing.T) {
 	rolled := make(chan struct{}, 8)
 	_, done := retentionWorker(t, retentionFixture{
-		apply: func(context.Context, time.Time, store.RetentionPolicy) error { rolled <- struct{}{}; return nil },
+		apply: func(context.Context, time.Time, store.RetentionPolicy) (store.HistoryRetentionBatch, error) {
+			rolled <- struct{}{}
+			return store.HistoryRetentionBatch{}, nil
+		},
 		prune: func(context.Context, time.Time) (store.HTTPRetentionBatch, error) {
 			return store.HTTPRetentionBatch{More: true}, nil
 		},

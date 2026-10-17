@@ -12,9 +12,12 @@ stalls or exits. These fields contain no database paths, credentials or settings
 `http_listen` has `state=starting`; this marker does not prove a bound listener.
 The actual HTTP health response remains the readiness authority.
 
-Startup ordering, SQLite transactions, background retention frequency, public
-API, schema, Agent protocol and production timeouts have not changed. Default
-background retention runs hourly. A failure at 12 hours does not itself prove a
+The original observability change preserved startup ordering and runtime
+semantics. The later [bounded retention change](BOUNDED_HISTORY_RETENTION.md)
+commits one startup host window and continues in a yielding background loop;
+an idle worker still waits the configured hourly interval. The 30-second
+readiness acceptance and production timeouts remain unchanged.
+A failure at 12 hours does not itself prove a
 12-hour retention backlog, a WAL recovery problem or any particular request cause.
 
 ## Private process capture
