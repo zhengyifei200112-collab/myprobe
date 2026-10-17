@@ -1,10 +1,10 @@
 // Real embedded UI/API/database/evaluator; fixtures and receiver are local to Go test.
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { launchFixtureBrowser } = require('./browser-fixture.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 (async () => {
-  const browser = await chromium.launch({channel:'msedge',headless:true});
+  const browser = await launchFixtureBrowser();
   try {
     const context = await browser.newContext({baseURL:process.env.POLICY_BROWSER_URL});
     // Exercise the browser capability boundary of non-local HTTP deployment.
@@ -28,7 +28,7 @@ const path = require('node:path');
     await page.getByRole('combobox',{name:/^通知通道/}).selectOption(process.env.POLICY_BROWSER_CHANNEL);
     await page.getByRole('combobox',{name:'告警类型',exact:true}).selectOption('expiry');
     await page.getByLabel('提前提醒（天）',{exact:true}).fill('1');
-    await page.getByRole('spinbutton',{name:/^聚合等待/}).fill('0');
+    await page.getByRole('textbox',{name:'聚合等待',exact:true}).fill('0');
     await page.getByRole('button',{name:'保存范围策略',exact:true}).click();
     await page.getByRole('button',{name:'编辑策略',exact:true}).waitFor();
     const incident = await until(async()=> (await read('/api/v1/admin/incidents?state=firing')).incidents[0]);

@@ -1,7 +1,7 @@
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { launchFixtureBrowser } = require('./browser-fixture.cjs');
 const assert = require('node:assert/strict'), fs = require('node:fs/promises'), path = require('node:path');
 (async () => {
- const browser=await chromium.launch({channel:'msedge',headless:true});
+ const browser=await launchFixtureBrowser();
  try {
   const page=await browser.newPage(), errors=[];let privateReads=0;
   page.on('pageerror',e=>errors.push(e.message));

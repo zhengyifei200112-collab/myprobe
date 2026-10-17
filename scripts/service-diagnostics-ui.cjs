@@ -1,7 +1,7 @@
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { launchFixtureBrowser } = require('./browser-fixture.cjs');
 const assert = require('node:assert/strict'), fs = require('node:fs/promises'), path = require('node:path');
 (async () => {
-  const browser = await chromium.launch({ channel: 'msedge', headless: true });
+  const browser = await launchFixtureBrowser();
   const output = await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'myprobe-diagnostics-'));
   const target = new URL(process.env.DIAGNOSTIC_URL), base = target.origin;
   try {

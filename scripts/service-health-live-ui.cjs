@@ -1,7 +1,7 @@
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { launchFixtureBrowser } = require('./browser-fixture.cjs');
 const assert = require('node:assert/strict'), fs = require('node:fs/promises'), path = require('node:path'), os = require('node:os');
 (async () => {
- const browser = await chromium.launch({channel:'msedge',headless:true});
+ const browser = await launchFixtureBrowser();
  try {
   const phase=process.env.SERVICE_HEALTH_PHASE, label={healthy:'服务正常',degraded:'服务降级',unknown:'服务状态未知'}[phase];
   assert.ok(label); const page=await browser.newPage(),errors=[];let privateReads=0;

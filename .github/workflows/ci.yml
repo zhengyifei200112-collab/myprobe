@@ -9,6 +9,77 @@ permissions:
   contents: read
 
 jobs:
+  cross-module-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact lifecycle source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build exact embedded frontend
+        run: |
+          npm --prefix web ci
+          npm --prefix web run build
+          git diff --exit-code -- internal/webui/dist
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: go.sum
+
+      - name: Install pinned browser fixture runtime
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/myprobe-lifecycle-browsers
+        run: |
+          npm install --prefix "${RUNNER_TEMP}/myprobe-lifecycle-browser" --no-save playwright@1.62.1
+          node "${RUNNER_TEMP}/myprobe-lifecycle-browser/node_modules/playwright/cli.js" install --with-deps --only-shell chromium
+
+      - name: Verify lifecycle assertions with real browsers and isolated private targets
+        run: |
+          mkdir -m 700 "${RUNNER_TEMP}/myprobe-lifecycle-private"
+          go test -c -o "${RUNNER_TEMP}/myprobe-lifecycle-httpapi.test" ./internal/httpapi
+          go test -c -o "${RUNNER_TEMP}/myprobe-lifecycle-agentclient.test" ./internal/agentclient
+          sudo env PATH="$PATH" \
+            PLAYWRIGHT_MODULE="${RUNNER_TEMP}/myprobe-lifecycle-browser/node_modules/playwright" \
+            PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/myprobe-lifecycle-browsers" \
+            sh scripts/run-cross-module-browser-qa.sh \
+            "${RUNNER_TEMP}/myprobe-lifecycle-private" \
+            "${RUNNER_TEMP}/myprobe-lifecycle-httpapi.test" \
+            "${RUNNER_TEMP}/myprobe-lifecycle-agentclient.test"
+
+      - name: Collect screened lifecycle evidence
+        if: always()
+        run: |
+          private="${RUNNER_TEMP}/myprobe-lifecycle-private"
+          screened="${RUNNER_TEMP}/myprobe-lifecycle-evidence"
+          mkdir -m 700 "$screened"
+          if sudo test -f "$private/result.json"; then
+            sudo cat "$private/result.json" > "$screened/result.json"
+          fi
+          if sudo test -d "$private/screenshots"; then
+            sudo cp -r "$private/screenshots" "$screened/screenshots"
+            sudo chown -R "$(id -u):$(id -g)" "$screened/screenshots"
+          fi
+
+      - name: Preserve synthetic screenshots and source-bound result
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cross-module-browser-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/myprobe-lifecycle-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
   network-probe-darwin:
     strategy:
       fail-fast: false
