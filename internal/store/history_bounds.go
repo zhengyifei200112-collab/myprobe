@@ -22,7 +22,10 @@ const historyRawBounds = `captured_sort_ns>=:start AND captured_sort_ns<:end`
 
 // Retention buckets start on whole seconds. Only include complete buckets: a
 // partially overlapping aggregate cannot be separated into its original samples.
-const historyRollupBounds = `bucket_at>=:rollup_start AND bucket_at<:scan_end
+// Both supported levels are explicit so the existing (node,level,time) indexes
+// can seek the time range. Without the level predicate SQLite scans every
+// retained bucket for the node before applying the requested dates.
+const historyRollupBounds = `bucket_seconds IN (60,300) AND bucket_at>=:rollup_start AND bucket_at<:scan_end
 	AND unixepoch(bucket_at)+bucket_seconds<=:end_second`
 
 func historyQueryArgs(nodeID string, start, end time.Time, bucketSeconds int, includeHidden bool) ([]any, error) {
