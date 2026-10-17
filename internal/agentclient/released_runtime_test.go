@@ -21,14 +21,26 @@ import (
 // Uses the published artifact, not a reconstruction with today's dependencies.
 // CI pins the release SHA and supplies its path; normal offline tests skip it.
 func TestReleased021AgentRuntimeCompatibility(t *testing.T) {
-	binary := os.Getenv("MYPROBE_TEST_RELEASED_AGENT")
-	if binary == "" {
-		t.Skip("MYPROBE_TEST_RELEASED_AGENT is not configured")
-	}
-	expected := map[string]string{
+	testReleasedAgentRuntime(t, "MYPROBE_TEST_RELEASED_AGENT", "v0.2.1", map[string]string{
 		"windows": "76c8a7a0805ea151db344e03fa1d81080f6f415a1ad603b9350a5b45716394bf",
 		"linux":   "006fc5b316d3168ed22b1578bdc37012c1b13b82bab740116824ffc71b43b8dc",
-	}[runtime.GOOS]
+	})
+}
+
+func TestReleased020AgentRuntimeCompatibility(t *testing.T) {
+	testReleasedAgentRuntime(t, "MYPROBE_TEST_RELEASED020_AGENT", "v0.2.0", map[string]string{
+		"windows": "7aaac5623ae354889635b331aebf5e99cbfee594ad6967b8583503c21b13842d",
+		"linux":   "983279667af2da58451559299d8f855e8a9118488da66cf6d56c8918586b23a0",
+	})
+}
+
+func testReleasedAgentRuntime(t *testing.T, environment, release string, digests map[string]string) {
+	t.Helper()
+	binary := os.Getenv(environment)
+	if binary == "" {
+		t.Skip(environment + " is not configured")
+	}
+	expected := digests[runtime.GOOS]
 	if expected == "" || runtime.GOARCH != "amd64" {
 		t.Fatal("this acceptance fixture requires the pinned amd64 Linux or Windows release")
 	}
@@ -89,7 +101,7 @@ func TestReleased021AgentRuntimeCompatibility(t *testing.T) {
 					if err != nil || evidence.Status != want || evidence.AppliedRevision != nil {
 						t.Fatal("released Agent welcome/hello was claimed applied")
 					}
-					t.Logf("pinned v0.2.1 binary accepted via %s/v1; configuration status=%s", transport, evidence.Status)
+					t.Logf("pinned %s binary accepted via %s/v1; configuration status=%s", release, transport, evidence.Status)
 					return
 				}
 				time.Sleep(10 * time.Millisecond)

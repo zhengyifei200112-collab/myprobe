@@ -75,6 +75,16 @@ Return the task ID, target ID, latency, success state, error class, and completi
 
 Keeps an otherwise idle connection alive. Regular reports also count as heartbeats.
 
+Current Agents send the existing heartbeat envelope every five seconds, independently
+of metric collection/report periods. The Server commits authenticated contact for
+the current socket generation before acknowledging it. A heartbeat does not create
+a metric sample, report-ingress record or configuration-application receipt. Old
+Agents keep their existing envelope/cadence; there are no new required wire fields.
+When no socket is available, current Agents independently repeat the existing
+authenticated HTTP hello every five seconds with a bounded request. The Server
+stores metadata and contact together; HTTP contact does not create a socket or
+claim a report transport. This also works while a preferred socket dial is pending.
+
 ## Server to agent messages
 
 ### `welcome`

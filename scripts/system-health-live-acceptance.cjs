@@ -7,7 +7,8 @@ const os = require('node:os')
 const base = process.env.HEALTH_TEST_URL || 'http://127.0.0.1:25779'
 if (!['127.0.0.1', 'localhost'].includes(new URL(base).hostname)) throw new Error('Local disposable Server required')
 ;(async () => {
-  const browser = await chromium.launch({ channel: 'msedge', headless: true })
+  const channel = process.env.BROWSER_CHANNEL || (process.platform === 'win32' ? 'msedge' : undefined)
+  const browser = await chromium.launch({ ...(channel ? { channel } : {}), headless: true })
   const context = await browser.newContext()
   let nodeID, csrf
   try {
@@ -53,7 +54,7 @@ if (!['127.0.0.1', 'localhost'].includes(new URL(base).hostname)) throw new Erro
     assert.equal(health.scheduler.observation_scope, 'process')
     assert.ok(health.scheduler.job.completed_runs > 0)
     assert.equal(health.backup.job.state, 'never_run')
-    const output = path.join(os.tmpdir(), 'myprobe-health-live-ui')
+    const output = process.env.PROBE_SCREENSHOT_DIR || path.join(os.tmpdir(), 'myprobe-health-live-ui')
     await fs.mkdir(output, { recursive: true })
     for (const theme of ['light', 'dark']) for (const width of [360, 768, 1440]) {
       await page.setViewportSize({ width, height: 1000 })
@@ -73,6 +74,7 @@ if (!['127.0.0.1', 'localhost'].includes(new URL(base).hostname)) throw new Erro
     await page.getByRole('button', { name: '刷新诊断', exact: true }).click()
     await page.getByRole('heading', { name: '登录管理中心', exact: true }).waitFor()
     assert.deepEqual(errors, [])
+    if (process.env.PROBE_SCREENSHOT_DIR) await fs.writeFile(path.join(output,'result.json'),JSON.stringify({format:'myprobe.system-health-browser.v1',passed:true,browser:browser.version(),fixture:'actual disposable Server, health/diagnostics API, authentication and revoked session',screenshots:['light','dark'].flatMap(theme=>[360,768,1440].flatMap(width=>[`${theme}-${width}.png`,`${theme}-${width}-queue.png`]))},null,2),{mode:0o600,flag:'wx'})
     console.log(`PASS: real login, health API, node diagnostics, six viewports/themes, keyboard actions and revoked session. Screenshots: ${output}`)
   } finally {
     if (nodeID && csrf) await context.request.delete(base + '/api/v1/admin/nodes/' + nodeID, { headers: { 'X-CSRF-Token': csrf } })

@@ -12,7 +12,7 @@ const { once } = require('node:events');
   const binary = path.resolve(process.argv[2] || '');
   const output = path.resolve(process.argv[3] || '');
   const profile = process.argv[4] || 'forms';
-  assert.ok(['forms', 'node-batches', 'node-order', 'node-details'].includes(profile), 'Unknown QA profile');
+  assert.ok(['forms', 'node-batches', 'node-order', 'node-details', 'system-health'].includes(profile), 'Unknown QA profile');
   assert.ok(process.argv[2] && process.argv[3], 'Usage: node run-form-units-qa.cjs /server /existing-empty-output');
   assert.ok((await fs.stat(binary)).isFile());
   assert.ok((await fs.stat(output)).isDirectory());
@@ -22,6 +22,9 @@ const { once } = require('node:events');
   const sourceDirty = execFileSync('git', ['status', '--porcelain'], { cwd: repo, encoding: 'utf8', windowsHide: true }).trim() !== '';
   const hash = async file => crypto.createHash('sha256').update(await fs.readFile(file)).digest('hex');
   const sourceHashes = {};
+  for (const name of ['internal/agentclient/released_runtime_test.go','.github/workflows/ci.yml']) sourceHashes[name] = await hash(path.join(repo, name));
+  for (const name of ['web/tsconfig.json','web/src/ReleaseAwareness.vue','web/src/DiagnosticExport.vue','scripts/system-health-live-acceptance.cjs','scripts/agent-runtime-live-acceptance.cjs']) sourceHashes[name] = await hash(path.join(repo, name));
+  for (const name of ['web/src/SystemHealth.vue','web/src/public-dashboard/contact-time.test.ts','internal/store/agent_contact.go','internal/store/agent_contact_test.go','internal/store/agent_metadata.go','internal/agentgateway/heartbeat_test.go','internal/agentclient/client.go','internal/agentclient/contact_integration_test.go','internal/alerts/freshness_test.go']) sourceHashes[name] = await hash(path.join(repo, name));
   for (const name of ['internal/store/node_timeline.go', 'internal/store/node_timeline_test.go', 'internal/store/migrations/047_node_timeline_indexes.sql', 'internal/httpapi/node_timeline.go', 'internal/httpapi/node_timeline_test.go', 'web/src/node-details/NodeTimeline.vue', 'web/src/node-details/timeline-view.ts', 'web/src/node-details/timeline-view.test.mjs', 'web/src/charting.ts']) sourceHashes[name] = await hash(path.join(repo, name));
   for (const name of ['web/src/AdminApp.vue', 'web/src/forms/units.ts', 'web/src/forms/units.test.ts', 'web/src/forms/QuantityInput.vue', 'web/src/notification-center/NotificationCenter.vue', 'web/src/notification-center/PolicyManager.vue', 'web/src/public-dashboard/metrics.ts', 'scripts/form_units_browser_test.cjs', 'scripts/alert-policies-ui.cjs', 'scripts/run-form-units-qa.cjs']) sourceHashes[name] = await hash(path.join(repo, name));
   const assetHashes = {};
@@ -31,6 +34,9 @@ const { once } = require('node:events');
   for (const name of ['web/src/App.vue', 'web/src/public-dashboard/PublicNodeCard.vue', 'web/src/public-dashboard/PublicNodeTable.vue', 'web/src/public-dashboard/discovery.ts', 'web/src/public-dashboard/discovery.test.ts', 'web/src/public-dashboard/discovery.css', 'scripts/dashboard_browser_test.cjs']) sourceHashes[name] = await hash(path.join(repo, name));
   for (const name of ['index.html', ...(await fs.readdir(path.join(repo, 'internal/webui/dist/assets'))).map(name => 'assets/' + name)]) assetHashes[name] = await hash(path.join(repo, 'internal/webui/dist', name));
   const binaryHash = await hash(binary);
+  const agentBinary = profile === 'system-health' ? path.resolve(process.argv[5] || '') : undefined;
+  if (profile === 'system-health') assert.ok(process.argv[5] && (await fs.stat(agentBinary)).isFile(), 'System Health requires an actual CLI Agent executable');
+  const agentHash = agentBinary ? await hash(agentBinary) : undefined;
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'myprobe-form-units-'));
   await fs.chmod(root, 0o700);
   const listener = net.createServer();
@@ -43,7 +49,7 @@ const { once } = require('node:events');
   const base = `http://127.0.0.1:${port}`;
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('MYPROBE_')));
   const server = spawn(binary, [], {
-    env: { ...env, MYPROBE_LISTEN: `127.0.0.1:${port}`, MYPROBE_DATABASE: path.join(root, 'fixture.db'), MYPROBE_ADMIN_USERNAME: 'admin', MYPROBE_ADMIN_PASSWORD: password, MYPROBE_ENCRYPTION_KEY: key, MYPROBE_RELEASE_CHECKS_AUTO: 'false' },
+    env: { ...env, MYPROBE_LISTEN: `127.0.0.1:${port}`, MYPROBE_DATABASE: path.join(root, 'fixture.db'), MYPROBE_ADMIN_USERNAME: 'admin', MYPROBE_ADMIN_PASSWORD: password, MYPROBE_ENCRYPTION_KEY: key, MYPROBE_RELEASE_CHECKS_AUTO: 'false', ...(profile === 'system-health' ? { MYPROBE_HTTP_PROBES_ENABLED: 'true' } : {}) },
     stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
   });
   let serverLog = '';
@@ -62,11 +68,11 @@ const { once } = require('node:events');
     }
     assert.ok(ready, 'Disposable Server readiness deadline');
     if (profile === 'forms') await fs.mkdir(path.join(output, 'discovery'), { mode: 0o700 });
-    const scripts = profile === 'forms' ? ['form_units_browser_test.cjs', 'alert-policies-ui.cjs', 'dashboard_browser_test.cjs'] : profile === 'node-details' ? ['node-detail-live-acceptance.cjs', 'node-detail-ui-acceptance.cjs'] : [profile === 'node-batches' ? 'node_batch_browser_test.cjs' : 'node_order_browser_test.cjs'];
+    const scripts = profile === 'forms' ? ['form_units_browser_test.cjs', 'alert-policies-ui.cjs', 'dashboard_browser_test.cjs'] : profile === 'system-health' ? ['system-health-live-acceptance.cjs', 'agent-runtime-live-acceptance.cjs'] : profile === 'node-details' ? ['node-detail-live-acceptance.cjs', 'node-detail-ui-acceptance.cjs'] : [profile === 'node-batches' ? 'node_batch_browser_test.cjs' : 'node_order_browser_test.cjs'];
     for (const script of scripts) {
-      const scriptOutput = ['form_units_browser_test.cjs', 'node_batch_browser_test.cjs', 'node_order_browser_test.cjs', 'node-detail-live-acceptance.cjs', 'node-detail-ui-acceptance.cjs'].includes(script) ? output : path.join(output, script === 'alert-policies-ui.cjs' ? 'policy-contract' : 'discovery');
+      const scriptOutput = profile === 'system-health' ? path.join(output, script === 'system-health-live-acceptance.cjs' ? 'health' : 'runtime') : ['form_units_browser_test.cjs', 'node_batch_browser_test.cjs', 'node_order_browser_test.cjs', 'node-detail-live-acceptance.cjs', 'node-detail-ui-acceptance.cjs'].includes(script) ? output : path.join(output, script === 'alert-policies-ui.cjs' ? 'policy-contract' : 'discovery');
       const child = spawn(process.execPath, [path.join(__dirname, script)], {
-        env: { ...env, UI_BASE_URL: base, MYPROBE_QA_URL: base, MYPROBE_QA_PASSWORD: password, QA_OUTPUT_DIR: scriptOutput, MYPROBE_TEST_URL: base, MYPROBE_TEST_PASSWORD: password, MYPROBE_TEST_OUTPUT: scriptOutput, PROBE_TEST_URL: base, PROBE_TEST_USERNAME: 'admin', PROBE_TEST_PASSWORD: password, PROBE_SCREENSHOT_DIR: scriptOutput },
+        env: { ...env, UI_BASE_URL: base, MYPROBE_QA_URL: base, MYPROBE_QA_PASSWORD: password, QA_OUTPUT_DIR: scriptOutput, MYPROBE_TEST_URL: base, MYPROBE_TEST_PASSWORD: password, MYPROBE_TEST_OUTPUT: scriptOutput, PROBE_TEST_URL: base, PROBE_TEST_USERNAME: 'admin', PROBE_TEST_PASSWORD: password, PROBE_SCREENSHOT_DIR: scriptOutput, HEALTH_TEST_URL: base, HEALTH_TEST_PASSWORD: password, RUNTIME_TEST_AGENT: agentBinary || '' },
         stdio: 'inherit', windowsHide: true, timeout: 240000,
       });
       const [code, signal] = await once(child, 'exit');
@@ -78,9 +84,16 @@ const { once } = require('node:events');
       assert.equal(live.passed,true); assert.equal(ui.passed,true);
       await fs.writeFile(path.join(output,'result.json'),JSON.stringify({format:'myprobe.node-details-browser.v1',passed:true,browser:live.browser,live_result_sha256:await hash(path.join(output,'live-result.json')),ui_result_sha256:await hash(path.join(output,'ui-result.json')),screenshots:[...live.screenshots,...ui.screenshots]},null,2),{mode:0o600,flag:'wx'});
     }
+    if (profile === 'system-health') {
+      assert.equal(await hash(agentBinary), agentHash, 'CLI Agent executable changed during acceptance');
+      const health = JSON.parse(await fs.readFile(path.join(output,'health/result.json'),'utf8'));
+      const runtime = JSON.parse(await fs.readFile(path.join(output,'runtime/result.json'),'utf8'));
+      assert.equal(health.passed,true); assert.equal(runtime.passed,true);
+      await fs.writeFile(path.join(output,'result.json'),JSON.stringify({format:'myprobe.system-health-browser.v1',passed:true,browser:health.browser,health_result_sha256:await hash(path.join(output,'health/result.json')),runtime_result_sha256:await hash(path.join(output,'runtime/result.json')),screenshots:[...health.screenshots.map(name=>'health/'+name),...runtime.screenshots.map(name=>'runtime/'+name)]},null,2),{mode:0o600,flag:'wx'});
+    }
     assert.equal(JSON.parse(await fs.readFile(path.join(output, 'result.json'), 'utf8')).passed, true);
     const additional = profile === 'forms' ? { discovery_result_sha256: await hash(path.join(output, 'discovery/result.json')), policy_contract_passed: true } : {};
-    await fs.writeFile(path.join(output, 'run-manifest.json'), JSON.stringify({ format: profile === 'forms' ? 'myprobe.form-units-native-run.v1' : profile === 'node-batches' ? 'myprobe.node-batch-native-run.v1' : profile === 'node-details' ? 'myprobe.node-details-native-run.v1' : 'myprobe.node-order-native-run.v1', source_commit: sourceCommit, source_dirty: sourceDirty, server_sha256: binaryHash, source_sha256: sourceHashes, assets_sha256: assetHashes, browser_result_sha256: await hash(path.join(output, 'result.json')), ...additional }, null, 2), { mode: 0o600, flag: 'wx' });
+    await fs.writeFile(path.join(output, 'run-manifest.json'), JSON.stringify({ format: profile === 'forms' ? 'myprobe.form-units-native-run.v1' : profile === 'system-health' ? 'myprobe.system-health-native-run.v1' : profile === 'node-batches' ? 'myprobe.node-batch-native-run.v1' : profile === 'node-details' ? 'myprobe.node-details-native-run.v1' : 'myprobe.node-order-native-run.v1', source_commit: sourceCommit, source_dirty: sourceDirty, server_sha256: binaryHash, ...(agentHash ? {agent_sha256: agentHash} : {}), source_sha256: sourceHashes, assets_sha256: assetHashes, browser_result_sha256: await hash(path.join(output, 'result.json')), ...additional }, null, 2), { mode: 0o600, flag: 'wx' });
   } finally {
     if (server.pid && server.exitCode === null) server.kill();
     await exited;

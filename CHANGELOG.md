@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Long collection periods no longer turn a reachable Agent into a false outage.
+  Current socket heartbeats and independent HTTP fallback hellos persist contact
+  without inventing metric samples or report ingress. Public stale-data status
+  follows actual capture time; pages distinguish contact, capture and report receipt.
+
 - Administrator node-history time selectors no longer trigger notification-link
   errors during login; pending notifications take priority over stale detail returns.
 
