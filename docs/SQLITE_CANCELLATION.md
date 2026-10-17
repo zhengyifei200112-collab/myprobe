@@ -26,11 +26,12 @@ both lifecycle fixes while retaining the existing SQLite engine version. See the
 
 `TestCanceledQueryReleasesWALReader` uses two production `Store.Open` handles on a
 fresh database under `t.TempDir`, each limited to one connection. A test-only
-scalar function schedules cancellation while the first row's metadata is being
-constructed. The caller closes every returned `Rows` and waits for its own
-cancellation callback. The test then verifies that the reader connection is idle,
-another committed write can be fully backfilled by a passive checkpoint, and the
-next query on that same pooled connection succeeds without retry or reopen.
+scalar function cancels synchronously or schedules cancellation while the first
+row's metadata is being constructed. The synchronous case guarantees pre-return
+cancellation even on fast machines. The caller closes every returned `Rows` and
+waits for its own cancellation callback. The test then verifies that the reader
+connection is idle, its immediate next query succeeds without sleep/retry/reopen,
+and another committed write can be fully backfilled by a passive checkpoint.
 
 The fixture runs 400 cancellations with four scheduling offsets and requires at
 least one cancellation error before `QueryContext` returns. It does not use an
@@ -47,7 +48,7 @@ specific fixture with `-race`; a Windows `CGO_ENABLED=0` run is not a race check
 Before the update, the regression failed on Windows at iteration 0: the caller
 received a cancellation error with no returned rows, the pool was idle, but only
 520 of 521 committed frames could be backfilled. With 1.42.2 the same fixture
-completed all 400 iterations: 128 canceled query errors, 272 explicitly closed
+completed all 400 iterations: 104 canceled query errors, 296 explicitly closed
 returned rows, every checkpoint complete and subsequent query usable. Counts
 depend on scheduling; they are observations rather than fixed test expectations.
 

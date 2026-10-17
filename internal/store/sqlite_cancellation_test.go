@@ -33,6 +33,13 @@ func TestCanceledQueryReleasesWALReader(t *testing.T) {
 		sqlite.MustRegisterScalarFunction("myprobe_test_cancel_row", 1, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
 			p := sqliteCancellation.Load()
 			if p != nil && p.called.CompareAndSwap(false, true) {
+				// Include cancellation before step returns so fast machines
+				// cannot miss the required pre-return cancellation entirely.
+				if p.delay == 0 {
+					p.cancel()
+					close(p.done)
+					return args[0], nil
+				}
 				go func() {
 					started := time.Now()
 					for time.Since(started) < p.delay {
@@ -104,11 +111,14 @@ func TestCanceledQueryReleasesWALReader(t *testing.T) {
 			}
 			canceledErrors++
 		}
-		// Caller-owned Rows are closed; allow database/sql's cancellation watcher
-		// to finish before distinguishing an orphan from ordinary live readers.
-		time.Sleep(time.Millisecond)
 		if inUse := reader.db.Stats().InUse; inUse != 0 {
 			t.Fatalf("iteration %d: connection still in use: %d", i, inUse)
+		}
+		// Reuse immediately: a late interrupt must not reach the next user of
+		// this pooled connection. Do not hide it behind a sleep or retry.
+		var value int
+		if err := reader.db.QueryRowContext(ctx, "SELECT v FROM cancellation_fixture").Scan(&value); err != nil || value != 2*i+2 {
+			t.Fatalf("iteration %d: next query value=%d error=%v", i, value, err)
 		}
 		if _, err := writer.db.ExecContext(ctx, "UPDATE cancellation_fixture SET v=v+1"); err != nil {
 			t.Fatal(err)
@@ -119,12 +129,6 @@ func TestCanceledQueryReleasesWALReader(t *testing.T) {
 		}
 		if busy != 0 || frames < 0 || frames != copied {
 			t.Fatalf("iteration %d: canceled query pinned WAL after caller cleanup: busy=%d frames=%d backfilled=%d canceled_errors=%d returned_rows=%d", i, busy, frames, copied, canceledErrors, returnedRows)
-		}
-		// A late interrupt must not spill into the next user of the same pooled
-		// connection. It must remain usable without a retry or fresh connection.
-		var value int
-		if err := reader.db.QueryRowContext(ctx, "SELECT v FROM cancellation_fixture").Scan(&value); err != nil || value != 2*i+3 {
-			t.Fatalf("iteration %d: next query value=%d error=%v", i, value, err)
 		}
 	}
 	if canceledErrors == 0 {
