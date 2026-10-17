@@ -1,10 +1,10 @@
 // Embedded UI + real session/CSRF API, SQLite, evaluator/worker and local receiver.
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { launchFixtureBrowser } = require('./browser-fixture.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 (async () => {
-  const browser = await chromium.launch({channel:'msedge',headless:true});
+  const browser = await launchFixtureBrowser();
   try {
     const context = await browser.newContext({baseURL:process.env.SILENCE_BROWSER_URL,timezoneId:'Asia/Shanghai'});
     await context.addInitScript(() => Object.defineProperty(crypto,'randomUUID',{value:undefined,configurable:true}));
