@@ -1,4 +1,4 @@
-import { formatCurrencyMinor } from '../forms/units'
+import { formatCurrencyMinor } from '../forms/units.ts'
 import type { PublicNode } from '../types'
 
 export function aggregateNode(item: PublicNode) {
@@ -116,9 +116,14 @@ export function lastReport(item: PublicNode) {
 }
 
 export function offlineDuration(item: PublicNode, now: Date) {
-  if (!item.report?.captured_at) return '持续时间未知'
-  const captured = new Date(item.report.captured_at)
-  if (Number.isNaN(captured.getTime())) return '持续时间未知'
-  const seconds = Math.max(0, Math.floor((now.getTime() - captured.getTime()) / 1000))
+  if (!item.node.last_seen_at) return '持续时间未知'
+  const contact = new Date(item.node.last_seen_at)
+  if (Number.isNaN(contact.getTime())) return '持续时间未知'
+  const seconds = Math.max(0, Math.floor((now.getTime() - contact.getTime()) / 1000))
   return seconds < 60 ? '不足 1 分钟' : formatUptime(seconds)
+}
+
+export function lastContact(item: PublicNode) {
+  const value = item.node.last_seen_at ? new Date(item.node.last_seen_at) : undefined
+  return value && !Number.isNaN(value.getTime()) ? value.toLocaleString('zh-CN', { hour12: false }) : '尚无联系记录'
 }

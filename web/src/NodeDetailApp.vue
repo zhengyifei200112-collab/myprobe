@@ -138,7 +138,7 @@ onBeforeUnmount(() => { stopped = true; generation++; controller?.abort(); moreC
     <a v-if="!admin" class="skip-link" href="#main-content">跳转到节点详情</a>
     <header class="detail-header"><a :href="admin ? '/admin' : '/'" class="soft-button">← 返回节点列表</a><span>{{ admin ? '管理端节点详情' : settings.site_name }}</span><DsButton @click="changeTheme">{{ theme === 'dark' ? '浅色模式' : '深色模式' }}</DsButton></header>
     <main id="main-content" tabindex="-1">
-      <header class="detail-heading"><div><span class="eyebrow">NODE DETAILS</span><h1>{{ node?.node.name || '节点详情' }}</h1><p v-if="node">{{ status }} · 最后上报 {{ dateLabel(node.node.last_seen_at) }}</p></div><DsButton :loading="loading" @click="load()">刷新数据</DsButton></header>
+      <header class="detail-heading"><div><span class="eyebrow">NODE DETAILS</span><h1>{{ node?.node.name || '节点详情' }}</h1><p v-if="node">{{ status }} · 最近联系 {{ dateLabel(node.node.last_seen_at) }} · 最近采样 {{ dateLabel(node.report?.captured_at) }}</p></div><DsButton :loading="loading" @click="load()">刷新数据</DsButton></header>
       <section class="detail-card detail-controls" aria-label="历史时间选择">
         <div class="detail-presets"><DsButton v-for="range in historyRanges" :key="range" :variant="selection === range ? 'primary' : 'secondary'" :aria-pressed="selection === range" @click="select(range)">{{ range }}</DsButton></div>
         <form class="detail-time-form" @submit.prevent="applyCustom"><label>开始时间<input v-model="startInput" type="datetime-local" step="1" required></label><label>结束时间<input v-model="endInput" type="datetime-local" step="1" required></label><DsButton type="submit">应用时间范围</DsButton></form>

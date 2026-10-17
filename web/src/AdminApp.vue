@@ -658,7 +658,7 @@ onMounted(async () => {
               <div class="admin-node-card__target-list"><span v-for="target in assignedTargets(item)" :key="target.id" class="admin-node-card__target">{{ target.name }}</span><span v-if="!assignedTargets(item).length" class="admin-node-card__empty">未分配探测目标</span></div>
             </div>
             <footer class="admin-node-card__footer">
-              <span class="admin-node-card__report">最后上报：{{ formatAdminTime(item.last_seen_at) }}</span>
+              <span class="admin-node-card__report">最近联系：{{ formatAdminTime(item.last_seen_at) }}</span>
               <div class="admin-node-card__actions">
                 <a class="soft-button" :href="`/admin/nodes/${encodeURIComponent(item.id)}`">查看详情</a>
                 <DsButton size="small" variant="ghost" @click="editNode(item)">编辑</DsButton>
@@ -770,7 +770,7 @@ onMounted(async () => {
         <div><dt>探测模式</dt><dd>{{ nodeConfig.latency_mode.toUpperCase() }}</dd></div>
         <div><dt>Agent 主机</dt><dd>{{ nodeConfig.agent?.hostname || '尚未连接' }}</dd></div>
         <div><dt>Agent 版本</dt><dd>{{ nodeConfig.agent?.agent_version || '尚未报告' }}</dd></div>
-        <div><dt>最后上报</dt><dd>{{ formatAdminTime(nodeConfig.last_seen_at) }}</dd></div>
+        <div><dt>最近联系</dt><dd>{{ formatAdminTime(nodeConfig.last_seen_at) }}</dd></div>
         <div><dt>探测目标</dt><dd>{{ assignedTargets(nodeConfig).map(target => target.name).join('、') || '未分配' }}</dd></div>
       </dl>
       <template #footer><DsButton @click="nodeConfig = null">完成</DsButton></template>

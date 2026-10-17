@@ -77,6 +77,28 @@ Store 的 `agent_confirmed` 是持久回执事实；管理员 API 额外结合�
 
 ## 实际入库通道与权限
 
+### 联系时间与数据新鲜度（2026-10-17）
+
+`nodes.last_seen_at`记录服务端最近成功保存的Agent联系：有效报告、当前连接的心跳，
+或已认证HTTP/WS hello。心跳与hello不创建采样、报告Ingress或配置应用确认；
+hello的元数据与联系时间同事务保存，失败不ACK。WebSocket联系还受进程内活动
+连接围栏及持久代际约束，旧/替换/注销连接不能更新它，联系写入不改变批量预览和
+采样配置版本。当前Agent每5秒心跳，HTTP回退亦有独立5秒hello、5秒请求期限，
+不受长采集周期或尚未完成的WebSocket拨号影响；没有新增协议字段/能力或迁移。
+
+公开`online`仍按最近联系及`max(20,3*report_seconds)`门槛判断，不等于主机/网站
+可用。`stale`改按实际`report.captured_at`与`max(12,2*max(collection_seconds,
+report_seconds))`秒判断，缺失时间或超过服务端30秒的未来时间也不能当作新鲜。
+心跳或迟到/重复样本不会刷新旧数据。只收到联系但未有指标的节点仍等待首次上报；
+首页等待/中断/在线分类不重复计数。管理、健康与详情页分别标注最近联系、实际
+采样和报告入库时间。联系中断时长以联系时间计算，不从旧采样倒推主机停机时间。
+
+离线规则继续看联系，资源规则保留实际采样新鲜度检查。当前Agent变更缩短联系
+节奏；旧Agent仍用原有报告/心跳周期，自定义离线阈值必须适合其实际节奏。升级
+Server修复旧数据投影，升级Agent获得独立5秒HTTP联系；仅换Agent不能改变旧Server
+的判断逻辑。正常5秒上报期间也会有心跳，最终容量须对当前源码重新测量；冻结的
+旧版长测不能直接沿用结论。
+
 报告入口把 `http/v1` 或 `websocket/v1|v2` 与服务端观察时间、样本时间写入同一报告事务。报告验证、认证或事务失败都不更新证据。内部 `SaveReport` 未提供来源时明确标记未知，避免继承之前的 WebSocket/HTTP。旧库迁移不倒推历史通道。
 
 最后通道表示最新成功提交的报告来源，不代表当前持久连接、TLS、节点在线或服务健康。HTTP 上报不计入 WebSocket 长连接数。
@@ -95,7 +117,28 @@ Store 的 `agent_confirmed` 是持久回执事实；管理员 API 额外结合�
 
 普通回归涵盖 Store 版本/nonce/代际、报告与来源事务、v1/v2 协商边界、独立采样/旧样本丢弃、真实 Agent welcome/live config 和 HTTP 回退、私有 API 与内部身份过滤。
 
-正式 v0.2.1 原始 Agent 二进制使用固定 SHA-256，测试真实 WebSocket/v1 与 HTTP/v1 入库及确认不可用；普通离线测试跳过，需要显式提供 `MYPROBE_TEST_RELEASED_AGENT`。CI 下载固定发布资产、校验哈希后运行，Linux/Windows amd64 fixture 各自校验对应哈希，不用重新编译旧源码冒充原始发布文件。
+正式 v0.2.0 / v0.2.1 原始 Agent 二进制使用固定 SHA-256，测试真实 WebSocket/v1 与 HTTP/v1 入库及确认不可用；普通离线测试跳过，分别通过 `MYPROBE_TEST_RELEASED020_AGENT` / `MYPROBE_TEST_RELEASED_AGENT` 显式提供。CI下载两份固定Linux资产并验hash，Linux/Windows amd64夹具各自核对预设摘要，不用重新编译旧源码冒充原始发布文件。v0.2.0摘要来自该版本官方GitHub发布资产；公开二进制兼容证明不等于已部署容器内二进制完全同一或旧站完整切换成功。
+
+五秒联系专项覆盖真实Client.Run的v1、v2与拨号阻塞HTTP回退、服务端心跳失败不ACK、
+注销/替换围栏、hello元数据事务回滚、采样与联系独立以及离线/资源规则边界。16项
+前端契约覆盖只联系未采样的等待状态、无重复分类及联系/采样时长。新增Linux/race
+检查这些并发入口，不把Windows关闭CGO的本地结果写作race通过。
+
+共享本地验收现在有`system-health`配置，给两类脚本各自新的证据子目录，绑定健康/
+CLI结果摘要及实际Server/Agent可执行文件。Linux默认Playwright Chromium，Windows
+默认Edge；原Go opt-in入口保留。例：
+
+```sh
+go build -ldflags '-X main.version=health-live-acceptance' -o /tmp/contact-server ./cmd/server
+go build -ldflags '-X main.version=runtime-evidence-acceptance' -o /tmp/contact-agent ./cmd/agent
+mkdir /tmp/contact-health-evidence
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright node scripts/run-form-units-qa.cjs \
+  /tmp/contact-server /tmp/contact-health-evidence system-health /tmp/contact-agent
+```
+
+必须使用空输出目录。健康页12截图和CLI诊断6截图均来自实际隔离Server，包含认证/
+撤销、当前联系、报告入库、采样、真实应用确认、断连与重新确认；模拟组件图不替代
+这些结果。单节点/界面检查不能替代最终整合源的吞吐、完整24小时与真实公网账户验收。
 
 管理页验收命令（需要本地 Node/Playwright 与 Edge）：
 

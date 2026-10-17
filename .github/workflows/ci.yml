@@ -250,6 +250,7 @@ jobs:
           go test -race ./internal/agentclient -run '^TestJointResource' -count=1
           go test -race ./internal/agentclient -run '^TestJointLoadBudget' -count=1
           go test -race ./internal/agentclient -run '^TestJointBackup' -count=1
+          go test -race ./internal/store ./internal/agentgateway ./internal/agentclient ./internal/alerts -run '^Test(AgentContact|AgentHelloContact|PublicFreshness|HeartbeatACK|HTTPHelloRequires|ActualAgentContact|OfflineUsesContact)' -count=1
           go test -race ./internal/store ./internal/scheduler ./internal/agentgateway -run '^TestNetwork' -count=1
           go test -race ./internal/httpapi -run '^TestNetworkQuality' -count=1
           go test -race ./internal/networkquality -count=1
@@ -286,6 +287,11 @@ jobs:
           printf '%s  %s\n' '006fc5b316d3168ed22b1578bdc37012c1b13b82bab740116824ffc71b43b8dc' "$released_agent" | sha256sum --check --strict
           chmod 700 "$released_agent"
           MYPROBE_TEST_RELEASED_AGENT="$released_agent" go test ./internal/agentclient -run '^TestReleased021AgentRuntimeCompatibility$' -count=1 -v
+          released020_agent="${RUNNER_TEMP}/myprobe-agent-v0.2.0-linux-amd64"
+          curl --fail --location --retry 3 --output "$released020_agent" https://github.com/zhengyifei200112-collab/myprobe/releases/download/v0.2.0/myprobe-agent-linux-amd64
+          printf '%s  %s\n' '983279667af2da58451559299d8f855e8a9118488da66cf6d56c8918586b23a0' "$released020_agent" | sha256sum --check --strict
+          chmod 700 "$released020_agent"
+          MYPROBE_TEST_RELEASED020_AGENT="$released020_agent" go test ./internal/agentclient -run '^TestReleased020AgentRuntimeCompatibility$' -count=1 -v
 
       - name: Verify permanent service replay capacity and restore
         env:
@@ -463,6 +469,16 @@ jobs:
         run: |
           mkdir -m 700 "${RUNNER_TEMP}/myprobe-network-comparison/node-details"
           node scripts/run-form-units-qa.cjs "${RUNNER_TEMP}/myprobe-form-units-server" "${RUNNER_TEMP}/myprobe-network-comparison/node-details" node-details
+
+      - name: Verify real contact diagnostics with a disposable Server and CLI Agent
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/myprobe-browser/node_modules/playwright
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/myprobe-browsers
+        run: |
+          mkdir -m 700 "${RUNNER_TEMP}/myprobe-network-comparison/system-health"
+          go build -ldflags '-X main.version=health-live-acceptance' -o "${RUNNER_TEMP}/myprobe-health-server" ./cmd/server
+          go build -ldflags '-X main.version=runtime-evidence-acceptance' -o "${RUNNER_TEMP}/myprobe-health-agent" ./cmd/agent
+          node scripts/run-form-units-qa.cjs "${RUNNER_TEMP}/myprobe-health-server" "${RUNNER_TEMP}/myprobe-network-comparison/system-health" system-health "${RUNNER_TEMP}/myprobe-health-agent"
 
       - name: Preserve synthetic comparison screenshots and result
         if: always()
