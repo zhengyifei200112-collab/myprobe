@@ -70,3 +70,10 @@ Three tick durations are individual measurements, not p95 or a performance ratio
 between different random corpora. File-backed Store/engine results do not establish
 real Server API latency/RSS, whole 2-vCPU/2-GiB SSD capacity, all permanent ledgers,
 arbitrary retention backlog, actual HTTP restore or 24-hour stability.
+
+The first 93891ec CI attempt finished all tests, race checks, released upgrade,
+capacity and joint runtime steps, then reached the job's 15-minute total limit
+during container building. Its cancelled result is retained. The primary test job
+now has a 25-minute orchestration budget so container and installer checks can
+finish. Individual test deadlines, the 30-second Server readiness limit, normal
+SQLite busy timeout, report accounting and acceptance assertions are unchanged.
