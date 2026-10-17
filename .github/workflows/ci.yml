@@ -49,13 +49,15 @@ jobs:
           mkdir -m 700 "${RUNNER_TEMP}/myprobe-lifecycle-private"
           go test -c -o "${RUNNER_TEMP}/myprobe-lifecycle-httpapi.test" ./internal/httpapi
           go test -c -o "${RUNNER_TEMP}/myprobe-lifecycle-agentclient.test" ./internal/agentclient
+          go build -ldflags '-X main.version=resource-main-acceptance' -o "${RUNNER_TEMP}/myprobe-lifecycle-resource-server" ./cmd/server
           sudo env PATH="$PATH" \
             PLAYWRIGHT_MODULE="${RUNNER_TEMP}/myprobe-lifecycle-browser/node_modules/playwright" \
             PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/myprobe-lifecycle-browsers" \
             sh scripts/run-cross-module-browser-qa.sh \
             "${RUNNER_TEMP}/myprobe-lifecycle-private" \
             "${RUNNER_TEMP}/myprobe-lifecycle-httpapi.test" \
-            "${RUNNER_TEMP}/myprobe-lifecycle-agentclient.test"
+            "${RUNNER_TEMP}/myprobe-lifecycle-agentclient.test" \
+            "${RUNNER_TEMP}/myprobe-lifecycle-resource-server"
 
       - name: Collect screened lifecycle evidence
         if: always()
@@ -65,6 +67,9 @@ jobs:
           mkdir -m 700 "$screened"
           if sudo test -f "$private/result.json"; then
             sudo cat "$private/result.json" > "$screened/result.json"
+          fi
+          if sudo test -f "$private/resource-main-result.json"; then
+            sudo cat "$private/resource-main-result.json" > "$screened/resource-main-result.json"
           fi
           if sudo test -d "$private/screenshots"; then
             sudo cp -r "$private/screenshots" "$screened/screenshots"
