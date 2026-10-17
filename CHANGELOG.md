@@ -32,6 +32,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Server startup logs identify pending restore, database open and history-retention
+  phases with completion durations. The isolated joint-load fixture can retain
+  bounded private process logs and distinguishes early exit from readiness timeout.
+  Its 30-second readiness gate and production startup ordering remain unchanged.
+
 - An operator-only offline upgrade rehearsal verifies forward migrations, exact
   legacy record preservation, integrity, reopen and a separate old-schema restore
   copy from a hash-verified closed backup. Default CI uses synthetic data; the

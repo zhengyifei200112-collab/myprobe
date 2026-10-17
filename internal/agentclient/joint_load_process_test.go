@@ -3,6 +3,7 @@ package agentclient
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,6 +27,7 @@ type jointServer struct {
 	unit, cgroup     string
 	pid              int
 	limits           map[string]string
+	capture          *jointProcessLog
 }
 
 func (s *jointServer) start(t *testing.T, ctx context.Context, base string) {
@@ -60,29 +62,55 @@ func (s *jointServer) start(t *testing.T, ctx context.Context, base string) {
 	}
 	s.cmd.Env = append(s.cmd.Env, s.env...)
 	s.cmd.Stdout, s.cmd.Stderr = io.Discard, io.Discard
+	capture, err := openJointProcessLog(os.Getenv("MYPROBE_TEST_LOAD_PROCESS_LOG_DIR"))
+	if err != nil {
+		stop()
+		t.Fatal(err)
+	}
+	s.capture = capture
+	if capture != nil {
+		s.cmd.Stdout, s.cmd.Stderr = capture, capture
+	}
 	if err := s.cmd.Start(); err != nil {
 		stop()
+		if capture != nil {
+			fmt.Fprintf(capture, "fixture exec start failed: %v\n", err)
+			capture.close()
+			_ = capture.recordStartup("exec_start_failed", 0, false, nil)
+		}
+		s.capture = nil
+		s.cmd = nil
 		t.Fatalf("start disposable Server: %v", err)
 	}
 	s.done = make(chan error, 1)
 	go func(cmd *exec.Cmd, done chan error) { done <- cmd.Wait() }(s.cmd, s.done)
 	s.pid = s.cmd.Process.Pid
 	client := &http.Client{Timeout: time.Second}
-	ready := false
-	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline) && ctx.Err() == nil; {
-		response, err := client.Get(base + "/healthz")
-		if err == nil {
-			response.Body.Close()
-			if response.StatusCode == 200 {
-				ready = true
-				break
+	readiness := waitJointReadiness(ctx, client, base, s.done, 30*time.Second)
+	var exitCode *int
+	if readiness.exited {
+		// stop must still observe the one command completion it normally owns.
+		s.done <- readiness.err
+		code := 0
+		if readiness.err != nil {
+			code = -1
+			var exit *exec.ExitError
+			if errors.As(readiness.err, &exit) {
+				code = exit.ExitCode()
 			}
 		}
-		time.Sleep(50 * time.Millisecond)
+		exitCode = &code
 	}
-	if !ready {
+	if readiness.class != "ready" {
 		s.stop()
-		t.Fatal("disposable Server did not become ready")
+		if err := capture.recordStartup(readiness.class, readiness.elapsed, readiness.exited, exitCode); err != nil {
+			t.Log("private startup summary could not be written")
+		}
+		t.Fatalf("disposable Server did not become ready: %s", readiness.class)
+	}
+	if err := capture.recordStartup("ready", readiness.elapsed, false, nil); err != nil {
+		s.stop()
+		t.Fatal("private startup summary could not be written")
 	}
 	if s.unit != "" {
 		pid, err := jointSystemctl(ctx, "show", s.unit, "--property=MainPID", "--value")
@@ -118,6 +146,10 @@ func (s *jointServer) start(t *testing.T, ctx context.Context, base string) {
 }
 
 func (s *jointServer) stop() {
+	defer func() {
+		s.capture.close()
+		s.capture = nil
+	}()
 	if s.cmd == nil {
 		return
 	}
