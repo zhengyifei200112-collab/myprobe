@@ -22,6 +22,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- An operator-only offline upgrade rehearsal verifies forward migrations, exact
+  legacy record preservation, integrity, reopen and a separate old-schema restore
+  copy from a hash-verified closed backup. Default CI uses synthetic data; the
+  opt-in never starts the Server or sends notifications.
+
 - Node detail timelines show retained report observations, approximate reporting
   gaps and reboot hints. Authenticated timelines add node-owned incident phases,
   maintenance and configuration audit events with fixed-window pagination.
