@@ -13,6 +13,8 @@ import SystemHealth from './SystemHealth.vue'
 import ScheduledBackups from './ScheduledBackups.vue'
 import { currencyFactor, formatQuantity, parseQuantity } from './forms/units'
 import NodeBatchManager from './NodeBatchManager.vue'
+import NodeDetailApp from './NodeDetailApp.vue'
+import { adminDetailDestination } from './node-details/navigation'
 import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
 import { fetchSiteSettings } from './api'
 import { defaultSiteSettings, normalizeSiteSettings } from './types'
@@ -25,13 +27,14 @@ import {
 } from './admin-api'
 
 const comparisonOpen = ref(false)
+const detailRoute = /^\/admin\/nodes\/[^/]+\/?$/.test(location.pathname)
 type Tab = 'nodes' | 'targets' | 'services' | 'settings' | 'alerts' | 'shares' | 'maintenance' | 'security' | 'health'
 const authenticated = ref(false)
 const booting = ref(true)
 const busy = ref(false)
 const error = ref('')
 const notice = ref('')
-const initialNotification = parseNotificationTarget(location.search)
+const initialNotification = detailRoute ? { target: null, error: '', explicit: false } : parseNotificationTarget(location.search)
 const initialHealth = !initialNotification.explicit && new URLSearchParams(location.search).get('tab') === 'health'
 const initialMaintenance = !initialNotification.explicit && new URLSearchParams(location.search).get('tab') === 'maintenance'
 const tab = ref<Tab>(initialHealth ? 'health' : initialMaintenance ? 'maintenance' : 'nodes')
@@ -70,6 +73,29 @@ const shares = ref<ChartShare[]>([])
 const token = ref('')
 const tokenNode = ref('')
 const tokenNodeID = ref('')
+const detailReturnKey = 'myprobe-admin-detail-return'
+
+function rememberDetailDestination() {
+  try {
+    const path = adminDetailDestination(location.pathname + location.search)
+    if (path) sessionStorage.setItem(detailReturnKey, path)
+    else sessionStorage.removeItem(detailReturnKey)
+  } catch { /* Login works even if browser storage is unavailable. */ }
+}
+
+function resumeDetailDestination(): boolean {
+  try {
+    const path = adminDetailDestination(sessionStorage.getItem(detailReturnKey))
+    sessionStorage.removeItem(detailReturnKey)
+    if (path && !detailRoute && !notificationTarget.value) { location.replace(path); return true }
+  } catch { /* Stay in the authenticated console if storage is unavailable. */ }
+  return false
+}
+
+function detailSessionExpired() {
+  authenticated.value = false
+  error.value = '管理会话已过期，请重新登录。登录后将回到此节点和时间范围。'
+}
 const configFile = ref<File | null>(null)
 const configDocument = ref<unknown>(null)
 const configPreview = ref<ConfigImportResult | null>(null)
@@ -186,8 +212,9 @@ async function submitLogin() {
     password.value = ''
     captchaID.value = ''; captchaPrompt.value = ''; captchaAnswer.value = ''
     authenticated.value = true
+    if (resumeDetailDestination()) return
     restoreNotificationNavigation()
-    await refresh()
+    if (!detailRoute) await refresh()
   })
 }
 
@@ -555,9 +582,10 @@ onMounted(async () => {
   } catch { applyAppearance(siteSettings) }
   try { githubEnabled.value = (await loadGitHubStatus()).enabled } catch { githubEnabled.value = false }
   authenticated.value = await restoreSession()
+  if (authenticated.value && new URLSearchParams(location.search).get('oauth') === 'github' && resumeDetailDestination()) return
   if (authenticated.value) {
     restoreNotificationNavigation()
-    try { await refresh() } catch (value) { showError(value) }
+    if (!detailRoute) { try { await refresh() } catch (value) { showError(value) } }
   }
   if (oauth.get('oauth') === 'github') notice.value = 'GitHub 登录验证成功。'
   const oauthError = oauth.get('oauth_error')
@@ -577,7 +605,7 @@ onMounted(async () => {
     <a class="skip-link" href="#main-content">跳到主要内容</a>
     <header class="admin-nav">
       <a class="brand" href="/"><img v-if="siteSettings.logo_url" class="brand-logo" :src="siteSettings.logo_url" alt=""><span v-else class="brand-mark">MP</span><span>{{ siteSettings.site_name || 'MyProbe' }} <small>管理中心</small></span></a>
-      <nav v-if="authenticated" class="admin-tabs" aria-label="管理中心导航">
+      <nav v-if="authenticated && !detailRoute" class="admin-tabs" aria-label="管理中心导航">
         <button :class="{ active: tab === 'nodes' }" @click="tab = 'nodes'">节点</button>
         <button :class="{ active: tab === 'targets' }" @click="tab = 'targets'">探测目标</button>
         <button :class="{ active: tab === 'services' }" @click="tab = 'services'">HTTP 服务</button>
@@ -594,10 +622,11 @@ onMounted(async () => {
       <section class="admin-panel login-card">
         <header><span class="eyebrow">SECURE CONSOLE</span><h1>登录管理中心</h1><p>使用管理员密码，或通过已授权的 GitHub 账号继续。</p></header>
         <form @submit.prevent="submitLogin"><label>用户名<input v-model="username" autocomplete="username" required></label><label>密码<input v-model="password" type="password" autocomplete="current-password" required></label><label v-if="captchaPrompt">安全验证：{{ captchaPrompt }}<input v-model="captchaAnswer" inputmode="numeric" autocomplete="off" required></label><p v-if="notice" class="form-message success" role="status">{{ notice }}</p><p v-if="error" class="form-message error" role="alert">{{ error }}</p><button class="primary-button" :disabled="busy">{{ busy ? '登录中…' : '使用密码登录' }}</button></form>
-        <div v-if="githubEnabled" class="login-divider"><span>或</span></div><a v-if="githubEnabled" class="github-login-button" href="/api/v1/auth/github/start" @click="rememberNotificationTarget(notificationTarget)"><span aria-hidden="true">GH</span>使用 GitHub 登录</a><p class="login-security-note">受 HttpOnly 会话、CSRF 防护与登录限速保护</p>
+        <div v-if="githubEnabled" class="login-divider"><span>或</span></div><a v-if="githubEnabled" class="github-login-button" href="/api/v1/auth/github/start" @click="rememberNotificationTarget(notificationTarget); rememberDetailDestination()"><span aria-hidden="true">GH</span>使用 GitHub 登录</a><p class="login-security-note">受 HttpOnly 会话、CSRF 防护与登录限速保护</p>
       </section>
     </main>
 
+    <NodeDetailApp v-else-if="detailRoute" admin @session-expired="detailSessionExpired" />
     <main v-else id="main-content" class="admin-main" tabindex="-1">
       <div v-if="error" class="admin-alert error" role="alert">{{ error }}</div><div v-if="notice" class="admin-alert success" role="status">{{ notice }}</div>
 
@@ -631,6 +660,7 @@ onMounted(async () => {
             <footer class="admin-node-card__footer">
               <span class="admin-node-card__report">最后上报：{{ formatAdminTime(item.last_seen_at) }}</span>
               <div class="admin-node-card__actions">
+                <a class="soft-button" :href="`/admin/nodes/${encodeURIComponent(item.id)}`">查看详情</a>
                 <DsButton size="small" variant="ghost" @click="editNode(item)">编辑</DsButton>
                 <DsButton size="small" @click="nodeConfig = item">查看配置</DsButton>
                 <DsDropdown label="更多操作" align="end">
