@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- History range reads use existing node/level/time indexes for both date bounds
+  instead of filtering each node's full retained rollup history. Metric weights,
+  latency statistics, traffic semantics and visibility are unchanged; no new
+  schema or index build is required.
+
 - Server startup and background history retention process closed time windows
   instead of holding one writer transaction for an entire backlog. Each pass
   atomically preserves rollups and traffic anchors, then yields before catch-up.

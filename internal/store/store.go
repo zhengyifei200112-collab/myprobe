@@ -895,26 +895,28 @@ func (s *Store) AdminLatencyHistoryRange(ctx context.Context, nodeID string, sta
 	return s.latencyHistoryRange(ctx, nodeID, start, end, bucketSeconds, true)
 }
 
-func (s *Store) latencyHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int, includeHidden bool) ([]LatencyHistoryPoint, error) {
-	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds, includeHidden)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := s.db.QueryContext(ctx, `WITH history AS (
+const latencyHistoryQuery = `WITH history AS (
 		SELECT node_id,target_id,kind,substr(captured_at,1,19)||'Z' AS sample_at,1 AS sample_count,success AS success_count,
 		CASE WHEN success=1 AND latency_ms IS NOT NULL THEN 1 ELSE 0 END AS latency_count,
 		CASE WHEN success=1 THEN COALESCE(latency_ms,0) ELSE 0 END AS latency_sum
-		FROM latency_samples WHERE node_id=:node AND `+historyRawBounds+`
+		FROM latency_samples WHERE node_id=:node AND ` + historyRawBounds + `
 		UNION ALL
 		SELECT node_id,target_id,kind,bucket_at,sample_count,success_count,latency_count,latency_sum
-		FROM latency_rollups WHERE node_id=:node AND `+historyRollupBounds+`
+		FROM latency_rollups WHERE node_id=:node AND ` + historyRollupBounds + `
 	)
 	SELECT (unixepoch(substr(sample_at,1,19)||'Z')/:bucket)*:bucket AS bucket,history.target_id,t.name,history.kind,
 		CASE WHEN SUM(latency_count)>0 THEN SUM(latency_sum)/SUM(latency_count) END,
 		100.0*SUM(success_count)/SUM(sample_count)
 	FROM history JOIN targets t ON t.id=history.target_id JOIN nodes n ON n.id=history.node_id
 	WHERE (n.hidden=0 OR :include_hidden) GROUP BY bucket,history.target_id,t.name,history.kind
-	ORDER BY bucket,t.sort_order,t.name`, args...)
+	ORDER BY bucket,t.sort_order,t.name`
+
+func (s *Store) latencyHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int, includeHidden bool) ([]LatencyHistoryPoint, error) {
+	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds, includeHidden)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.QueryContext(ctx, latencyHistoryQuery, args...)
 	if err != nil {
 		return nil, err
 	}

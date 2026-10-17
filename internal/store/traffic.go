@@ -139,18 +139,20 @@ func (s *Store) AdminTrafficHistoryRange(ctx context.Context, nodeID string, sta
 	return s.trafficHistoryRange(ctx, nodeID, start, end, bucketSeconds, true)
 }
 
+const trafficHistoryRangeQuery = `SELECT 0,captured_at,net_rx_total,net_tx_total
+		FROM metric_samples JOIN nodes n ON n.id=node_id
+		WHERE node_id=:node AND (n.hidden=0 OR :include_hidden) AND ` + historyRawBounds + `
+		UNION ALL SELECT 1,bucket_at,rx_bytes,tx_bytes
+		FROM traffic_rollups JOIN nodes n ON n.id=node_id
+		WHERE node_id=:node AND (n.hidden=0 OR :include_hidden) AND ` + historyRollupBounds + `
+		ORDER BY 2`
+
 func (s *Store) trafficHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int, includeHidden bool) ([]TrafficHistoryPoint, error) {
 	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds, includeHidden)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT 0,captured_at,net_rx_total,net_tx_total
-		FROM metric_samples JOIN nodes n ON n.id=node_id
-		WHERE node_id=:node AND (n.hidden=0 OR :include_hidden) AND `+historyRawBounds+`
-		UNION ALL SELECT 1,bucket_at,rx_bytes,tx_bytes
-		FROM traffic_rollups JOIN nodes n ON n.id=node_id
-		WHERE node_id=:node AND (n.hidden=0 OR :include_hidden) AND `+historyRollupBounds+`
-		ORDER BY 2`, args...)
+	rows, err := s.db.QueryContext(ctx, trafficHistoryRangeQuery, args...)
 	if err != nil {
 		return nil, err
 	}
