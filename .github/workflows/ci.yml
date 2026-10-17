@@ -326,6 +326,7 @@ jobs:
           go test -race ./internal/agentclient -run '^TestJointResource' -count=1
           go test -race ./internal/agentclient -run '^TestJointLoadBudget' -count=1
           go test -race ./internal/agentclient -run '^TestJointBackup' -count=1
+          go test -race ./internal/store -run '^TestCanceledQueryReleasesWALReader$' -count=1
           go test -race ./internal/store ./internal/agentgateway ./internal/agentclient ./internal/alerts -run '^Test(AgentContact|AgentHelloContact|PublicFreshness|HeartbeatACK|HTTPHelloRequires|ActualAgentContact|OfflineUsesContact)' -count=1
           go test -race ./internal/store ./internal/scheduler ./internal/agentgateway -run '^TestNetwork' -count=1
           go test -race ./internal/httpapi -run '^TestNetworkQuality' -count=1

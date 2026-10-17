@@ -41,6 +41,9 @@ production timeouts or checkpoint settings.
 go test ./internal/store -run '^TestCanceledQueryReleasesWALReader$' -count=1 -v
 ```
 
+The default Go suite includes the regression. Native Linux CI also runs this
+specific fixture with `-race`; a Windows `CGO_ENABLED=0` run is not a race check.
+
 Before the update, the regression failed on Windows at iteration 0: the caller
 received a cancellation error with no returned rows, the pool was idle, but only
 520 of 521 committed frames could be backfilled. With 1.42.2 the same fixture
