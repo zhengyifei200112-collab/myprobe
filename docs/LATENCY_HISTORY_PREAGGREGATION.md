@@ -92,6 +92,21 @@ These measurements support the long-window access choice, not a guarantee of a
 cache state, an optimal crossover for every dataset, or a passed HTTP/capacity gate.
 Short windows retain selective date access to avoid broad index traversal. New
 weighted/privacy/boundary tests exercise both paths, including exactly thirty days,
-one nanosecond longer and one year. The combined production reader still needs a
-fresh uninstrumented HTTP probe and the full native 50-node progression before the
-100-node continuous run starts.
+one nanosecond longer and one year.
+
+The [fresh first-node HTTP evidence](evidence/latency-first-node-http-native-2026-10-18.json)
+records the actual uninstrumented `84e27cd` Server on another hash-verified copy:
+2.42-second readiness, thirty-day response in 2.88 seconds and one-year response
+in 5.40 seconds, within the original 30-second/10-second budgets. All 713/727
+complete expected historical buckets were checked across metrics, the three
+latency targets and traffic. Nine concurrent one-second health observations
+succeeded. The live Server executable digest was captured and matched the clean
+source build; terminal exit was normal, artifacts rehashed and owned cgroup empty.
+
+That probe disables HTTP task dispatch to isolate the first selected node's reads,
+while retaining default history retention. It is not the steady thirty-day
+HTTP-p95 gate or all fifty nodes. The full native Agent/five-browser progression
+and its SLO/accounting checks remain required before the 100-node continuous run
+starts. The original failure, aggregation-only cold failure, and all comparison
+results remain retained. Physical host memory is about 12 GB; the controlled
+test unit was capped at 2 GiB, rather than a physically 2 GiB host.

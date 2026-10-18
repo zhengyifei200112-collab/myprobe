@@ -1,0 +1,52 @@
+{
+  "format": "myprobe.native-latency-first-node-http.v1",
+  "source_commit": "84e27cd268a507a5c4fc5992f07e8f78ce2ee36f",
+  "full_tree_files_checked": 835,
+  "source_archive_sha256": "82ecb7a8c58692dd2fccd0ddea51b47e103f0b96c6938bb347bd2c0a3f582095",
+  "server_sha256": "8ed05f74eb0cc077dd65f432098bb08176133dc45bfdc47eb26f5bd4ee95c519",
+  "unmodified_server": true,
+  "passed": true,
+  "readiness_seconds": 2.415402056009043,
+  "readiness_budget_seconds": 30,
+  "queries": [
+    {
+      "range": "30d",
+      "seconds": 2.8799631649744697,
+      "http_budget_seconds": 10,
+      "status": 200,
+      "complete_buckets_checked": 713,
+      "metrics": 717,
+      "latency": 2151,
+      "traffic": 717
+    },
+    {
+      "range": "1y",
+      "seconds": 5.402603615017142,
+      "http_budget_seconds": 10,
+      "status": 200,
+      "complete_buckets_checked": 727,
+      "metrics": 730,
+      "latency": 2190,
+      "traffic": 730
+    }
+  ],
+  "health_samples": 9,
+  "health_maximum_seconds": 0.003128421027213335,
+  "source_copy_bytes": 14749286400,
+  "source_copy_hash_verified": true,
+  "original_failed_corpus_preserved": true,
+  "limits": {
+    "cpu_count": 2,
+    "memory_bytes": 2147483648,
+    "swap_bytes": 0,
+    "private_network": true
+  },
+  "live_server_digest_captured": true,
+  "all_artifacts_reverified": true,
+  "server_exit": 0,
+  "owned_cgroup_empty": true,
+  "automatic_retry": false,
+  "joint50_accepted": false,
+  "soak100_24h_started": false,
+  "scope": "First selected node on a fresh verified retained50-node working copy,advisory page eviction,actual uninstrumented Server,default history policy/original30s startup/10s HTTP gates. HTTP probing disabled to isolate history reads. Complete expected historical metrics/latency/traffic checked. Not30d HTTPp95,full50-node/five-browser capacity,aged100-node restart or24h acceptance. Physical host about12GB; controlled unit2GiB,not a2GiB physical VM claim."
+}
