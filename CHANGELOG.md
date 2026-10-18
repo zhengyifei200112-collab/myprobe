@@ -9,12 +9,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Latency history aggregates raw and retained sources before joining target
-  metadata, reducing work for long ranges while preserving sample weights,
-  successful/failed counts, missing durations, visibility and complete-bucket
-  boundaries. Windows over thirty days traverse the existing node primary index
-  in target order; shorter windows retain direct date-range seeks. No schema/index
-  migration or timeout change is required.
+- Latency history seeks existing indexes by node, target, retained kind, tier and
+  both time bounds before aggregating, preserving weights, missing durations,
+  visibility and complete-bucket boundaries even after a target is changed or
+  unassigned. Node history overlaps latency with metric/traffic reads, with a
+  Server-wide limit of two node-history queries and cancellation/join on every exit.
+  The shared connection pool, timeouts, schema and indexes remain unchanged.
 
 - Idle notification consumers avoid writer reservations when no claim/recovery
   work exists, reducing maintenance contention and shared-pool starvation.

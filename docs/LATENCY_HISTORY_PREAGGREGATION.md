@@ -1,5 +1,10 @@
 # Latency history aggregation
 
+The following records the earlier aggregation and access-order investigation.
+The current candidate's scoped seeks and bounded overlapping reads are described
+in [Scoped history reads](SCOPED_HISTORY_READS.md); the retained native 50-node
+thirty-day SLO failure remains unresolved until that candidate is verified.
+
 The native 50-node progression failed before the actual Agent/browser measurement:
 the first one-year history request exceeded the fixture's existing 10-second HTTP
 client budget. A source-bound diagnostic Server on a separate copy reproduced

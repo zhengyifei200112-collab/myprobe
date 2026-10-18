@@ -293,7 +293,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 		result.Limitations[3] = "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports"
 	}
 	result.SourceSHA256 = make(map[string]string)
-	for _, path := range []string{"internal/agentclient/joint_load_process_log_test.go", "internal/agentclient/joint_load_process_readiness_test.go", "internal/agentclient/joint_load_startup_validation_test.go", "internal/agentclient/joint_load_backlog_test.go", "internal/agentclient/joint_load_backlog_validation_test.go", "internal/agentclient/joint_load_slo_test.go", "internal/agentclient/joint_load_slo_validation_test.go"} {
+	for _, path := range []string{"internal/agentclient/joint_load_process_log_test.go", "internal/agentclient/joint_load_process_readiness_test.go", "internal/agentclient/joint_load_startup_validation_test.go", "internal/agentclient/joint_load_backlog_test.go", "internal/agentclient/joint_load_backlog_validation_test.go", "internal/agentclient/joint_load_slo_test.go", "internal/agentclient/joint_load_slo_validation_test.go", "internal/httpapi/server.go", "internal/httpapi/history_reads.go"} {
 		raw, err := os.ReadFile(filepath.Join("../..", path))
 		if err != nil {
 			t.Fatal(err)

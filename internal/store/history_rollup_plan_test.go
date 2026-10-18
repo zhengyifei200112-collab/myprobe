@@ -18,10 +18,10 @@ func TestHistoryRollupSourcesSeekBothTimeBounds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, item := range []struct{ table, query string }{
-		{"metric_rollups", metricHistoryQuery},
-		{"latency_rollups", latencyHistoryQuery},
-		{"traffic_rollups", trafficHistoryRangeQuery},
+	for _, item := range []struct{ table, query, bounds string }{
+		{"metric_rollups", metricHistoryQuery, "node_id=? AND bucket_seconds=? AND bucket_at>? AND bucket_at<?"},
+		{"latency_rollups", latencyHistoryQuery, "node_id=? AND target_id=? AND kind=? AND bucket_seconds=? AND bucket_at>? AND bucket_at<?"},
+		{"traffic_rollups", trafficHistoryRangeQuery, "node_id=? AND bucket_seconds=? AND bucket_at>? AND bucket_at<?"},
 	} {
 		t.Run(item.table, func(t *testing.T) {
 			rows, err := s.db.Query(`EXPLAIN QUERY PLAN `+item.query, args...)
@@ -38,7 +38,7 @@ func TestHistoryRollupSourcesSeekBothTimeBounds(t *testing.T) {
 					t.Fatal(err)
 				}
 				plan.WriteString(detail + "\n")
-				if strings.Contains(detail, item.table) && strings.Contains(detail, "node_id=? AND bucket_seconds=? AND bucket_at>? AND bucket_at<?") {
+				if strings.Contains(detail, item.table) && strings.Contains(detail, item.bounds) {
 					ranged = true
 				}
 			}
