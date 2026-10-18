@@ -200,6 +200,9 @@ secrets:
 此批覆盖本地定时备份
 运行链路，不代表完整 SYS-02、SYS-01—03、M5 或 M1—M5 已全部交付。
 
+定时备份的 opt-in 实际主进程浏览器用例由 Windows CI 显式启用，见
+[运维浏览器 CI](OPERATIONS_BROWSER_CI.md)。这不替代真实通知与大库容量验收。
+
 本地复现（Node 和 Edge/Playwright 已可用时）：
 
 ```powershell
