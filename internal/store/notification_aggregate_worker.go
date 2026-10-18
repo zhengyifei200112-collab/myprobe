@@ -96,6 +96,17 @@ func (s *Store) ClaimAggregate(ctx context.Context, at time.Time, lease time.Dur
 		return nil, errors.New("invalid aggregate lease")
 	}
 	at = at.UTC()
+	// Empty/future-only polling is read-only. Due work and expired leases must
+	// still pass through the original serialized recovery and claim transaction.
+	var work bool
+	if err := s.db.QueryRowContext(ctx, `SELECT
+		EXISTS(SELECT 1 FROM notification_aggregates WHERE status='pending' AND available_at_ms<=?)
+		OR EXISTS(SELECT 1 FROM notification_aggregates WHERE status='inflight' AND lease_until_ms<=?)`, at.UnixMilli(), at.UnixMilli()).Scan(&work); err != nil {
+		return nil, err
+	}
+	if !work {
+		return nil, nil
+	}
 	tx, err := beginAggregateWrite(ctx, s)
 	if err != nil {
 		return nil, err

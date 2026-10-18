@@ -128,6 +128,19 @@ func (s *Store) ClaimDelivery(ctx context.Context, now time.Time, lease time.Dur
 		return nil, errors.New("invalid delivery lease")
 	}
 	now = now.UTC()
+	// An idle poll must not occupy the SQLite writer (and a pooled connection)
+	// behind unrelated maintenance. A miss is a read snapshot; newly arriving
+	// work is seen by the next poll. A hit still uses all original transactional
+	// lease recovery, eligibility and final state checks below.
+	var work bool
+	if err := s.db.QueryRowContext(ctx, `SELECT
+		EXISTS(SELECT 1 FROM notification_deliveries WHERE aggregate_id IS NULL AND status='pending' AND available_at_ms<=?)
+		OR EXISTS(SELECT 1 FROM notification_deliveries WHERE aggregate_id IS NULL AND status='inflight' AND lease_until_ms<=?)`, now.UnixMilli(), now.UnixMilli()).Scan(&work); err != nil {
+		return nil, err
+	}
+	if !work {
+		return nil, nil
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err

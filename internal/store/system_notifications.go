@@ -69,6 +69,18 @@ func (s *Store) SystemNotifications(ctx context.Context) ([]SystemNotification, 
 	return result, rows.Err()
 }
 func (s *Store) ClaimSystemNotification(ctx context.Context, now time.Time) (*SystemNotification, error) {
+	// Even future pending rows can require channel-revision cancellation, so
+	// conservatively enter the original transaction for any pending system job.
+	// Empty/terminal-only queues and unexpired leases need no writer reservation.
+	var work bool
+	if err := s.db.QueryRowContext(ctx, `SELECT
+		EXISTS(SELECT 1 FROM system_notifications WHERE status='pending')
+		OR EXISTS(SELECT 1 FROM system_notifications WHERE status='inflight' AND lease_until_ms<=?)`, now.UnixMilli()).Scan(&work); err != nil {
+		return nil, err
+	}
+	if !work {
+		return nil, nil
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err

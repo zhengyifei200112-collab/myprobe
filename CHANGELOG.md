@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Idle notification consumers avoid writer reservations when no claim/recovery
+  work exists, reducing maintenance contention and shared-pool starvation.
+  Due jobs, expired leases, future system-job cancellation and final send
+  authorization retain their existing transactional checks.
+
 - History range reads use existing node/level/time indexes for both date bounds
   instead of filtering each node's full retained rollup history. Metric weights,
   latency statistics, traffic semantics and visibility are unchanged; no new

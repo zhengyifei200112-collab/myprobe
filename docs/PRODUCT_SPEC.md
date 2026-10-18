@@ -116,6 +116,10 @@ HTTP retention now independently catches up in bounded 1000-row transactions,
 yielding between batches and retrying errors with backoff. A monotonic 31-day
 floor and both deletions remain atomic per batch; migration 038 indexes closed
 epochs. Host rollups and permanent replay/deduplication records are preserved.
+Idle single/aggregate/system notification consumers use read-only negative
+preflights while retaining the original positive claim and lease-recovery
+transactions; future system jobs still undergo stale-channel cancellation.
+See [idle notification claims](IDLE_NOTIFICATION_CLAIMS.md).
 History range reads explicitly select the two supported rollup levels so the
 existing node/level/time indexes can seek both bounds; see
 [rollup range access](HISTORY_RANGE_INDEXES.md).
