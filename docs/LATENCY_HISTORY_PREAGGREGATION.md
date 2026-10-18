@@ -16,6 +16,14 @@ and latency counts and latency sums, and joins target names/order only after the
 large input has been reduced. This avoids carrying/repeating target metadata
 through every original sample and rollup row.
 
+Windows of thirty days or less keep the existing node/level/date index seeks.
+Longer windows use the existing rollup primary index in node/target/kind/level/time
+order. This trades a wider scan of the node's index for more sequential table-page
+access when much of its year is needed. Time and complete-bucket predicates still
+filter the same rows. No other node's history is traversed. The primary-index name
+comes from released migration 010 and is verified by a latest-schema query-plan
+test; future table rebuilds must preserve or update that access contract.
+
 Average latency remains total successful non-null duration divided by its count;
 success rate remains total successes divided by all samples. A successful sample
 with a missing duration contributes to success rate but not average latency.
@@ -62,3 +70,28 @@ a separately hash-verified copy with the original 30-second readiness and
 and its SLO/report accounting checks. Start the 100-node/24-hour run only after
 that progression passes. Retain failures instead of changing gates or reporting
 a warm request as cold acceptance.
+
+## Cold access follow-up
+
+The first implemented aggregation-only source (`3c5983a`) passed its full local
+baseline and all ten CI jobs. Its uninstrumented first-read probe still timed out
+at one year under the unchanged ten-second budget. The thirty-day response took
+2.91 seconds and all 714 complete buckets checked correctly; thirteen concurrent
+health observations succeeded. This failure and its working copy remain retained.
+
+A subsequent read-only comparison used that quiescent working copy, fresh SQLite
+connections and an advisory eviction request before **each** observation, under
+the same 2 CPU / 2 GiB cap. Three alternating rounds preserved the complete output
+digest and row count. The one-year latency query averaged 6589.31 ms with the date
+index and 1999.34 ms with the node's primary-index order. Actual process read bytes
+increased from about 126 MB to 189 MB, while CPU and wall time decreased. A second
+three-variant comparison also evaluated explicit series/time seeks; those averaged
+6235.97 ms for one year and were not selected.
+
+These measurements support the long-window access choice, not a guarantee of a
+cache state, an optimal crossover for every dataset, or a passed HTTP/capacity gate.
+Short windows retain selective date access to avoid broad index traversal. New
+weighted/privacy/boundary tests exercise both paths, including exactly thirty days,
+one nanosecond longer and one year. The combined production reader still needs a
+fresh uninstrumented HTTP probe and the full native 50-node progression before the
+100-node continuous run starts.

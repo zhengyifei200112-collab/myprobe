@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"math"
+	"strings"
 	"testing"
 	"time"
 )
@@ -52,6 +53,61 @@ func previousLatencyPoints(t *testing.T, s *Store, args []any) []LatencyHistoryP
 		t.Fatal(err)
 	}
 	return points
+}
+
+func TestLatencyHistoryAccessPlansMatchWindow(t *testing.T) {
+	s, node, _ := historyFixture(t)
+	end := time.Date(2026, 10, 18, 0, 0, 0, 0, time.UTC)
+	for _, test := range []struct {
+		name string
+		span time.Duration
+		long bool
+	}{
+		{"short", time.Hour, false},
+		{"exact thirty days", 30 * 24 * time.Hour, false},
+		{"over thirty days", 30*24*time.Hour + time.Nanosecond, true},
+		{"year", 365 * 24 * time.Hour, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			start := end.Add(-test.span)
+			query := latencyHistorySQL(start, end)
+			if (query == latencyHistoryLongQuery) != test.long {
+				t.Fatal("wrong access strategy for history window")
+			}
+			args, err := historyQueryArgs(node.ID, start, end, 43200, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows, err := s.db.Query("EXPLAIN QUERY PLAN "+query, args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer rows.Close()
+			matched := false
+			for rows.Next() {
+				var a, b, c int
+				var detail string
+				if err := rows.Scan(&a, &b, &c, &detail); err != nil {
+					t.Fatal(err)
+				}
+				if test.long && strings.Contains(detail, "sqlite_autoindex_latency_rollups_1 (node_id=?)") {
+					matched = true
+				}
+				if !test.long && strings.Contains(detail, "latency_rollups") && strings.Contains(detail, "node_id=? AND bucket_seconds=? AND bucket_at>? AND bucket_at<?") {
+					matched = true
+				}
+				if strings.HasPrefix(detail, "SCAN latency_rollups") {
+					t.Fatal("history scans all nodes", detail)
+				}
+			}
+			if err := rows.Err(); err != nil {
+				t.Fatal(err)
+			}
+			if !matched {
+				t.Fatal("required node/range access path absent")
+			}
+		})
+	}
 }
 
 func TestLatencyPreaggregationPreservesWeightedSourcesAndScopes(t *testing.T) {
@@ -114,7 +170,7 @@ func TestLatencyPreaggregationPreservesWeightedSourcesAndScopes(t *testing.T) {
 			for _, window := range []struct {
 				Start, End time.Time
 				Bucket     int
-			}{{base, base.Add(time.Hour), 3600}, {base, base.Add(12 * time.Hour), 43200}, {base.Add(time.Nanosecond), base.Add(900*time.Second - time.Nanosecond), 60}, {base.Add(1200 * time.Second), base.Add(1201 * time.Second), 1}, {base.Add(1200*time.Second + 1), base.Add(1201*time.Second - 1), 1}, {base.Add(2 * time.Hour), base.Add(3 * time.Hour), 300}} {
+			}{{base, base.Add(time.Hour), 3600}, {base, base.Add(12 * time.Hour), 43200}, {base, base.Add(30 * 24 * time.Hour), 3600}, {base, base.Add(30*24*time.Hour + time.Nanosecond), 43200}, {base, base.Add(365 * 24 * time.Hour), 43200}, {base.Add(time.Nanosecond), base.Add(900*time.Second - time.Nanosecond), 60}, {base.Add(1200 * time.Second), base.Add(1201 * time.Second), 1}, {base.Add(1200*time.Second + 1), base.Add(1201*time.Second - 1), 1}, {base.Add(2 * time.Hour), base.Add(3 * time.Hour), 300}} {
 				args, err := historyQueryArgs(node.ID, window.Start, window.End, window.Bucket, admin)
 				if err != nil {
 					t.Fatal(err)

@@ -898,7 +898,7 @@ func (s *Store) AdminLatencyHistoryRange(ctx context.Context, nodeID string, sta
 // Reduce each source to the requested buckets before combining its counts and
 // joining target metadata. Keep sums/counts until the final division: averaging
 // source averages would change unequal rollup weights and null-latency results.
-const latencyHistoryQuery = `WITH history AS (
+const latencyHistorySources = `WITH history AS (
 		SELECT (unixepoch(substr(captured_at,1,19)||'Z')/:bucket)*:bucket AS bucket,target_id,kind,
 		COUNT(*) AS sample_count,SUM(success) AS success_count,
 		SUM(CASE WHEN success=1 AND latency_ms IS NOT NULL THEN 1 ELSE 0 END) AS latency_count,
@@ -909,7 +909,9 @@ const latencyHistoryQuery = `WITH history AS (
 		UNION ALL
 		SELECT (unixepoch(substr(bucket_at,1,19)||'Z')/:bucket)*:bucket AS bucket,target_id,kind,
 		SUM(sample_count),SUM(success_count),SUM(latency_count),SUM(latency_sum)
-		FROM latency_rollups JOIN nodes n ON n.id=node_id
+		`
+
+const latencyHistoryAggregation = ` JOIN nodes n ON n.id=node_id
 		WHERE node_id=:node AND (n.hidden=0 OR :include_hidden) AND ` + historyRollupBounds + `
 		GROUP BY bucket,target_id,kind
 	), grouped AS (
@@ -923,12 +925,26 @@ const latencyHistoryQuery = `WITH history AS (
 	FROM grouped g JOIN targets t ON t.id=g.target_id
 	ORDER BY g.bucket,t.sort_order,t.name`
 
+const latencyHistoryQuery = latencyHistorySources + `FROM latency_rollups` + latencyHistoryAggregation
+const latencyHistoryLongQuery = latencyHistorySources + `FROM latency_rollups INDEXED BY sqlite_autoindex_latency_rollups_1` + latencyHistoryAggregation
+
+func latencyHistorySQL(start, end time.Time) string {
+	// Keep selective date seeks for the thirty-day and shorter presets. Wider
+	// windows traverse the node's existing primary index in target/kind/time
+	// order, avoiding interleaved cold table-page lookups. Both queries retain
+	// the same complete-bucket/time predicates and weighted aggregation.
+	if end.Sub(start) > 30*24*time.Hour {
+		return latencyHistoryLongQuery
+	}
+	return latencyHistoryQuery
+}
+
 func (s *Store) latencyHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int, includeHidden bool) ([]LatencyHistoryPoint, error) {
 	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds, includeHidden)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, latencyHistoryQuery, args...)
+	rows, err := s.db.QueryContext(ctx, latencyHistorySQL(start, end), args...)
 	if err != nil {
 		return nil, err
 	}
