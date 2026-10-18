@@ -293,7 +293,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 		result.Limitations[3] = "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports"
 	}
 	result.SourceSHA256 = make(map[string]string)
-	for _, path := range []string{"internal/agentclient/joint_load_process_log_test.go", "internal/agentclient/joint_load_process_readiness_test.go", "internal/agentclient/joint_load_startup_validation_test.go", "internal/agentclient/joint_load_backlog_test.go", "internal/agentclient/joint_load_backlog_validation_test.go"} {
+	for _, path := range []string{"internal/agentclient/joint_load_process_log_test.go", "internal/agentclient/joint_load_process_readiness_test.go", "internal/agentclient/joint_load_startup_validation_test.go", "internal/agentclient/joint_load_backlog_test.go", "internal/agentclient/joint_load_backlog_validation_test.go", "internal/agentclient/joint_load_slo_test.go", "internal/agentclient/joint_load_slo_validation_test.go"} {
 		raw, err := os.ReadFile(filepath.Join("../..", path))
 		if err != nil {
 			t.Fatal(err)
@@ -707,6 +707,12 @@ func TestJointRuntimeLoad(t *testing.T) {
 	if result.FinalHealth.Engine.Evaluation.FailedRuns > 0 || result.FinalHealth.Retention.Job.FailedRuns > 0 {
 		t.Error("real runtime workers reported failures")
 	}
+	result.SLO = evaluateJointSLO(result, withHistory, runtime.GOOS == "linux")
+	for _, gate := range result.SLO.Gates {
+		if !gate.Passed {
+			t.Errorf("joint SLO failed: %s observed=%g %s available=%t; requires < %g", gate.Metric, gate.Observed, gate.Unit, gate.Available, gate.Limit)
+		}
+	}
 	result.Passed = !t.Failed()
 	raw, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
@@ -822,6 +828,7 @@ type jointLoadResult struct {
 	CollectedReports, PersistedReports, TCPSuccesses, HTTPResults, Snapshots, SubscriptionEvents, NotificationsFailed, NotificationsDelivered int64
 	Faults, Limitations                                                                                                                       []string
 	Passed                                                                                                                                    bool
+	SLO                                                                                                                                       jointSLOEvidence
 }
 
 type jointAPIFailure struct {

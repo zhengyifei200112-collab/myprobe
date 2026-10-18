@@ -133,3 +133,25 @@ Windows 磁盘路径断言失败（独立 #47），其余包通过。CGO 关闭�
 继续保留稠密 30 天/一年历史同时查询、报告发送/ACK/入库对账及可解释缺测、长时间
 队列与内存趋势、实际 24 小时、任意积压保留追赶、加密大库/跨机器恢复、公网
 Provider/OAuth、依赖整合、所有者合并/发布与完整 M1—M5 的原始范围。
+
+## Performance acceptance gates
+
+`Passed` now requires overview P95 **<500 ms**, dense thirty-day history P95
+**<2000 ms** when that profile is enabled, and sampled Server RSS **<700 MiB**
+on Linux. Equality, missing samples and non-finite/negative latency observations
+fail. The result records each fixed limit and observation in `SLO`; the limited
+non-history/non-Linux profiles do not claim unmeasured history/RSS gates.
+
+The uninstrumented native 50-node/five-page result on runtime source `84e27cd`
+finished its functional paths with zero API/page errors and exact 1005 report
+attempt/forward/ACK/storage reconciliation, but thirty-day P95 was **5342.266962
+ms** (overview 363.746438 ms; sampled RSS 65236992 bytes). The old harness wrote
+`Passed=true` because it omitted these limits. External acceptance rejected that
+run. It is a retained performance failure, not a 50-node capacity pass. Its raw
+result SHA-256 is `337c0c40ea5fa6da6ef57ece7b6d34d3fc8482e23f92a65af9422229b7c0ee9e`.
+
+SLO violations now call `t.Error` before final serialization. When
+`MYPROBE_TEST_LOAD_PRIVATE_FIXTURE_DIR` is selected, the existing
+failure-preservation path also retains their database for diagnosis.
+This changes the test harness only; it does not fix the runtime latency or
+establish 100-node/24-hour acceptance.
