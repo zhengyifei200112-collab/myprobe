@@ -1,0 +1,33 @@
+{
+  "format": "myprobe.whole-application-portability-binding.v1",
+  "head": "75cf0d35b7d17e7b999cf069977d25c833b05f2c",
+  "full_tree_files_checked": 824,
+  "source_reports_checked_each_direction": 63830,
+  "metric_digest": "f8bc25c922b8068c3b998042358608bad0d2dff2248aa7a4897cd5298b0273d0",
+  "permanent_receipt_digest": "50c73940ad710355d69e30bc3aa6471ae976084b00757d7549d31a3d656e9238",
+  "directions": [
+    {
+      "from": "windows/amd64",
+      "to": "linux/amd64",
+      "archive_bytes": 567773850,
+      "archive_sha256": "e731e4dd4226c1de2cddbb4abafdeee174ecba55c5ee9f65c8ba2aaaab841e8b",
+      "new_original_credential_reports": 1,
+      "elapsed_seconds": 76.608418919
+    },
+    {
+      "from": "linux/amd64",
+      "to": "windows/amd64",
+      "archive_bytes": 567773850,
+      "archive_sha256": "e29063bc05c35c0cc4011804deccb5c136da10a7f0de1e1488be78f9e1f5a65c",
+      "new_original_credential_reports": 1,
+      "elapsed_seconds": 11.6355586
+    }
+  ],
+  "native_owned_processes_remaining": 0,
+  "native_production_containers_unchanged": true,
+  "native_live_helper_identity_checked": true,
+  "native_live_server_child_digest_captured": false,
+  "server_artifact_hashes_verified_before_and_after": true,
+  "scope": "Actual production Windows/native Linux Server HTTP512MiB encrypted export/stage and real restart activation in both directions. All original report bytes/permanent receipt, source login, old destination credential isolation/preservation and actual Client.Run/Gateway writes verified. The Windows seed was produced by older2d7180f Store fixture; both transferred whole-application archives were exported over actual75cf HTTP. Native helper live identity/resources observed; no live Server child digest was captured. No default-retention/whole2GiB host/24h, final release, production traffic switch or newly added049 old-application rollback claim.",
+  "verified_at": "2026-10-18T08:36:49.288Z"
+}
