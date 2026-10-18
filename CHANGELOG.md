@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Latency history aggregates raw and retained sources before joining target
+  metadata, reducing work for long ranges while preserving sample weights,
+  successful/failed counts, missing durations, visibility and complete-bucket
+  boundaries. No schema/index migration or timeout change is required.
+
 - Idle notification consumers avoid writer reservations when no claim/recovery
   work exists, reducing maintenance contention and shared-pool starvation.
   Due jobs, expired leases, future system-job cancellation and final send
