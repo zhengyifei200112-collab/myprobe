@@ -98,6 +98,15 @@ uncheckpointed WAL, unsupported version, conflicting index or cancellation.
 The ordinary repository Go test job covers this command's package on Linux; the
 local Windows test also exercises exclusive publication on NTFS.
 
-The native Python diagnostic motivates this implementation. It must not be
-reported as execution of this Go command; command-specific native rehearsal is a
-separate acceptance item until its source-bound evidence is recorded.
+The source-bound [native command evidence](evidence/legacy-rollback-command-native-2026-10-18.json)
+records execution of this Go command against a separate closed legacy snapshot:
+120,302 reports / 219,265 rows / 34 tables checked, preparation in 26.34 seconds,
+then actual old Server readiness in 5.79 seconds, stored login and original node
+membership preserved. The unchanged 900-second startup budget, original retention
+policy, CPU 25%, 1 GiB memory, zero swap and idle I/O priority were retained. The
+original backup and five production container identities remained unchanged;
+all startup artifacts were rehashed after terminal exit and the owned cgroup was
+empty. A live child-process executable digest was not captured in this short run;
+the record binds verified files, the launcher and its actual command execution.
+The old application subsequently expired reports according to its original policy.
+This does not make the failed untouched-backup rollback pass.
