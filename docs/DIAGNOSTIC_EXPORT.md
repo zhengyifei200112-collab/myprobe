@@ -97,6 +97,9 @@ CSRF 与 401/403 清除。最终完整本地、CI 和渲染结果必须按对应
 六视图、审计失败、下载哈希不符、到期、重试及 401/403 清除均通过，并核对代表截图。
 既有五项 npm 告警和图表分包提示不在本批升级；容器与正式库升级以新提交 CI 为准。
 
+这条 opt-in 实际主进程浏览器用例由 Windows CI 显式启用；源文件、Go JSON
+run/pass/skip 状态及新截图均记录在独立证据中，见 [运维浏览器 CI](OPERATIONS_BROWSER_CI.md)。
+
 本地复现（先构建 `web`；Edge/Playwright 已安装）：
 
 ```powershell
