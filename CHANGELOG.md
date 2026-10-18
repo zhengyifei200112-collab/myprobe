@@ -53,6 +53,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- An offline `rollback-prepare` command creates a hash-verified new copy of a
+  closed schema-013 backup with additive history lookup indexes. It checks
+  unchanged table contents and preserves the untouched original and application
+  migration receipts. See `docs/LEGACY_ROLLBACK_PREPARATION.md` before rehearsing
+  the old application; this is not a down migration of a current database.
+
 - Server startup logs identify pending restore, database open and history-retention
   phases with completion durations. The isolated joint-load fixture can retain
   bounded private process logs and distinguishes early exit from readiness timeout.
