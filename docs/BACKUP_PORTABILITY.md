@@ -1,5 +1,8 @@
 # 加密备份跨平台与异机恢复演练
 
+实际 Server HTTP 暂存、重启激活、凭据隔离及恢复后 Agent 落库的双向大库结果，
+另见[完整应用跨平台恢复](WHOLE_APPLICATION_PORTABILITY.md)。它补充本文的 Store 路径。
+
 此工作包补齐 SYS-02 的可重复异机恢复步骤，复用生产 `.mpb` 格式、快照、解密、
 `StageDatabaseRestore` 和 `ApplyPendingRestore`，不改变公开接口、schema 或部署配置。
 它与[静止大库容量](BACKUP_CAPACITY.md)、[在线备份负载](ONLINE_BACKUP_LOAD.md)及

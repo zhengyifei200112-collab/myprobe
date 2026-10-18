@@ -280,6 +280,26 @@ jobs:
           mkdir -m 700 "$MYPROBE_TEST_BACKUP_PORTABILITY_OUTPUT"
           go test ./internal/backup -run '^Test(EncryptedBackupPortability|PortableBackupProducerIdentity|PortableBackupSizeProfile)$' -count=1 -timeout 10m -v
 
+      - name: Verify actual application encrypted restore and original Agent credential
+        env:
+          MYPROBE_TEST_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          fixture="${RUNNER_TEMP}/myprobe-application-portability-private"
+          evidence="${RUNNER_TEMP}/myprobe-application-portability-evidence"
+          mkdir -m 700 "$fixture" "$fixture/bundle" "$fixture/run" "$fixture/tmp" "$evidence"
+          MYPROBE_TEST_BACKUP_PORTABILITY=export MYPROBE_TEST_BACKUP_PORTABILITY_MIB=512 \
+            MYPROBE_TEST_BACKUP_PORTABILITY_BUNDLE="$fixture/bundle" \
+            go test ./internal/backup -run '^TestEncryptedBackupPortability$' -count=1 -timeout 10m -v
+          go build -o "$fixture/server" ./cmd/server
+          go build -o "$fixture/driver" ./scripts/fixtures/application-portability
+          sudo env -i HOME=/root PATH=/usr/sbin:/usr/bin:/sbin:/bin TMPDIR="$fixture/tmp" \
+            MYPROBE_TEST_SOURCE_COMMIT="$MYPROBE_TEST_SOURCE_COMMIT" \
+            unshare --net sh -eu -c '
+              ip link set lo up
+              exec "$1" "$2" "$3" "$4" linux/amd64 "$5" export
+            ' application-fixture "$fixture/driver" "$fixture/run" "$fixture/server" "$fixture/bundle" "$MYPROBE_TEST_SOURCE_COMMIT"
+          sudo cat "$fixture/run/application-result.json" > "$evidence/application-result.json"
+
       - name: Preserve aggregate capacity evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -288,6 +308,7 @@ jobs:
           path: |
             ${{ runner.temp }}/myprobe-backup-capacity
             ${{ runner.temp }}/myprobe-backup-portability
+            ${{ runner.temp }}/myprobe-application-portability-evidence
           if-no-files-found: ignore
           retention-days: 7
 
