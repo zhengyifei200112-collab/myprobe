@@ -9,6 +9,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Public dashboards coalesce optional node-cache serialization into 250 ms
+  windows while applying live updates immediately. Full/empty privacy snapshots
+  and page exit flush current state; storage failures no longer interrupt event
+  processing. Bounded reuse of sample/contact text reduces repeated locale work
+  without changing displayed timestamps or their timezone behavior.
+
 - Latency history seeks existing indexes by node, target, retained kind, tier and
   both time bounds before aggregating, preserving weights, missing durations,
   visibility and complete-bucket boundaries even after a target is changed or

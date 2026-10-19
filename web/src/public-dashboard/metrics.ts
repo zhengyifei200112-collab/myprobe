@@ -1,4 +1,5 @@
 import { formatCurrencyMinor } from '../forms/units.ts'
+import { formatLocalSampleTime } from './sample-time.ts'
 import type { PublicNode } from '../types'
 
 export function aggregateNode(item: PublicNode) {
@@ -112,7 +113,7 @@ export function lastReport(item: PublicNode) {
   if (!item.report?.captured_at) return '暂无上报数据'
   const captured = new Date(item.report.captured_at)
   if (Number.isNaN(captured.getTime())) return '暂无上报数据'
-  return captured.toLocaleString('zh-CN', { hour12: false })
+  return formatLocalSampleTime(captured)
 }
 
 export function offlineDuration(item: PublicNode, now: Date) {
@@ -125,5 +126,5 @@ export function offlineDuration(item: PublicNode, now: Date) {
 
 export function lastContact(item: PublicNode) {
   const value = item.node.last_seen_at ? new Date(item.node.last_seen_at) : undefined
-  return value && !Number.isNaN(value.getTime()) ? value.toLocaleString('zh-CN', { hour12: false }) : '尚无联系记录'
+  return value && !Number.isNaN(value.getTime()) ? formatLocalSampleTime(value) : '尚无联系记录'
 }

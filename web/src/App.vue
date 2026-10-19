@@ -5,6 +5,7 @@ import { connectRealtime, fetchHistory, fetchNodes } from './api'
 import { DsCard, DsEmptyState, DsLoading, DsTabs } from './design-system'
 import PublicNodeCard from './public-dashboard/PublicNodeCard.vue'
 import PublicNodeTable from './public-dashboard/PublicNodeTable.vue'
+import { createNodeCache } from './public-dashboard/node-cache'
 import { matchesQuery, nodeState, queryURL, readQuery, sortNodes, sortOptions } from './public-dashboard/discovery'
 import './public-dashboard/discovery.css'
 import { aggregateNode as aggregate, commonByteUnit, formatBytesInUnit, formatMilliseconds, formatPercent } from './public-dashboard/metrics'
@@ -15,6 +16,7 @@ const comparisonOpen = ref(false)
 type DisplayMode = 'compact' | 'detailed'
 
 const nodes = ref<PublicNode[]>([])
+const nodeCache = createNodeCache(() => nodes.value, text => localStorage.setItem('myprobe-nodes', text))
 const siteSettings = ref<SiteSettings>(defaultSiteSettings())
 let savedDiscovery = {}
 try { savedDiscovery = JSON.parse(localStorage.getItem('myprobe-discovery') || '{}') || {} } catch { /* use defaults */ }
@@ -122,7 +124,7 @@ async function load() {
     if (!initialTheme) theme.value = siteSettings.value.theme_mode
     cacheAppearance(siteSettings.value)
     applyAppearance(siteSettings.value, theme.value)
-    localStorage.setItem('myprobe-nodes', JSON.stringify(nodes.value))
+    nodeCache.writeNow()
     error.value = ''
   } catch {
     error.value = '暂时无法获取最新数据'
@@ -287,6 +289,10 @@ function systemThemeChanged() {
   if (chartNode.value) void loadHistory()
 }
 
+function flushHiddenCache() {
+  if (document.visibilityState === 'hidden') nodeCache.flush()
+}
+
 watch(chartNode, (open) => document.body.classList.toggle('has-modal', Boolean(open)))
 
 onMounted(() => {
@@ -294,21 +300,27 @@ onMounted(() => {
   void load()
   disconnect = connectRealtime((event) => {
     mergeEvent(event)
-    localStorage.setItem('myprobe-nodes', JSON.stringify(nodes.value))
+    if (event.type === 'snapshot') nodeCache.writeNow()
+    else if (event.type === 'node_metrics') nodeCache.schedule()
   }, (state) => { connected.value = state })
   clock = window.setInterval(() => { now.value = new Date() }, 1000)
   sortClock = window.setInterval(() => { if (!pointerInList.value && !focusInList.value && !chartNode.value) updateRanking() }, 5000)
   window.addEventListener('popstate', readLocation)
   window.addEventListener('resize', resizeCharts)
+  window.addEventListener('pagehide', nodeCache.flush)
+  document.addEventListener('visibilitychange', flushHiddenCache)
   systemTheme.addEventListener('change', systemThemeChanged)
 })
 
 onBeforeUnmount(() => {
   disconnect?.()
+  nodeCache.dispose()
   if (sortClock !== undefined) window.clearInterval(sortClock)
   window.removeEventListener('popstate', readLocation)
   if (clock !== undefined) window.clearInterval(clock)
   window.removeEventListener('resize', resizeCharts)
+  window.removeEventListener('pagehide', nodeCache.flush)
+  document.removeEventListener('visibilitychange', flushHiddenCache)
   systemTheme.removeEventListener('change', systemThemeChanged)
   document.body.classList.remove('has-modal')
   resourceChart?.dispose()
