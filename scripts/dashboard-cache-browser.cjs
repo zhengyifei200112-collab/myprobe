@@ -125,7 +125,7 @@ module.exports = async function verifyDashboardCache(browser, baseURL) {
     await rendered();
     fresh = false;
     await page.reload();
-    await page.getByText('暂时无法获取最新数据', { exact: true }).waitFor();
+    await page.getByRole('alert').filter({ hasText: '暂时无法获取最新数据' }).waitFor();
     await rendered();
     assert.deepEqual(await cached(), nodes);
     assert.deepEqual(errors, []);
