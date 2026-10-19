@@ -11,6 +11,13 @@
 
 ## Feature parity matrix
 
+The owner's deployment target is personal use with at most about 50 nodes
+(clarified 2026-10-19). Required capacity validation progresses from five to
+50 nodes and then a continuous 24-hour run. The existing correctness, latency
+and resource gates remain; 100/500 nodes are optional expansion work rather than
+release prerequisites. Historical large correctness fixtures retain their scope.
+See [self-use capacity and acceptance](SELF_USE_CAPACITY.md).
+
 Private System Health now includes official stable-release awareness for the
 Server and selected Agent's last advertised version, with explicit unknown,
 stale and unavailable states. Daily automatic checks can be disabled; manual
