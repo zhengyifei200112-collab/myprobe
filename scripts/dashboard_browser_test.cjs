@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const os = require('node:os');
 const fs = require('node:fs/promises');
+const verifyDashboardCache = require('./dashboard-cache-browser.cjs');
 
 (async () => {
   const baseURL = process.env.MYPROBE_QA_URL || 'http://127.0.0.1:4173';
@@ -118,11 +119,12 @@ const fs = require('node:fs/promises');
     await page.getByText('实时连接中断，正在重连', { exact: true }).waitFor();
     assert.ok(await page.getByText('等待接入', { exact: true }).count());
     assert.deepEqual(errors, []);
+    await verifyDashboardCache(browser, baseURL);
     await fs.writeFile(path.join(output, 'result.json'), JSON.stringify({
       format: 'myprobe.dashboard-discovery-browser.v1', passed: true,
       fixture: '100 synthetic public API/WebSocket nodes; disposable real Server serves embedded assets',
       browser: browser.version(), screenshots,
-      checks: ['combined-search-tag-status', 'waiting-interrupted-stale', 'URL-reload-target-sort', 'throttled-pointer-keyboard-order', 'history-focus-return', 'network-comparison-entry', 'reconnect-semantics', 'viewport-overflow'],
+      checks: ['combined-search-tag-status', 'waiting-interrupted-stale', 'URL-reload-target-sort', 'throttled-pointer-keyboard-order', 'history-focus-return', 'network-comparison-entry', 'reconnect-semantics', 'viewport-overflow', '500-event-cache-coalescing', 'privacy-snapshot-cache-barrier', 'hidden-pagehide-reload-cache', 'quota-recovery', 'sample-time-reuse'],
     }, null, 2), { mode: 0o600, flag: 'wx' });
     console.log('PASS: 100-node discovery, URL reload, missing data, throttled ordering, pointer/keyboard freeze, reconnect semantics and 12 viewport/theme/view screenshots');
   } finally { await browser.close(); }
