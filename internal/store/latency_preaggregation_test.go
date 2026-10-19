@@ -61,40 +61,36 @@ func TestLatencyHistoryAccessPlansMatchWindow(t *testing.T) {
 	for _, test := range []struct {
 		name string
 		span time.Duration
-		long bool
 	}{
-		{"short", time.Hour, false},
-		{"exact thirty days", 30 * 24 * time.Hour, false},
-		{"over thirty days", 30*24*time.Hour + time.Nanosecond, true},
-		{"year", 365 * 24 * time.Hour, true},
+		{"short", time.Hour},
+		{"under thirty days", 30*24*time.Hour - time.Nanosecond},
+		{"exact thirty days", 30 * 24 * time.Hour},
+		{"over thirty days", 30*24*time.Hour + time.Nanosecond},
+		{"year", 365 * 24 * time.Hour},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			start := end.Add(-test.span)
-			query := latencyHistorySQL(start, end)
-			if (query == latencyHistoryLongQuery) != test.long {
-				t.Fatal("wrong access strategy for history window")
-			}
 			args, err := historyQueryArgs(node.ID, start, end, 43200, false)
 			if err != nil {
 				t.Fatal(err)
 			}
-			rows, err := s.db.Query("EXPLAIN QUERY PLAN "+query, args...)
+			rows, err := s.db.Query("EXPLAIN QUERY PLAN "+latencyHistoryQuery, args...)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer rows.Close()
-			matched := false
+			matchedRaw, matchedRollup := false, false
 			for rows.Next() {
 				var a, b, c int
 				var detail string
 				if err := rows.Scan(&a, &b, &c, &detail); err != nil {
 					t.Fatal(err)
 				}
-				if test.long && strings.Contains(detail, "sqlite_autoindex_latency_rollups_1 (node_id=?)") {
-					matched = true
+				if strings.Contains(detail, "latency_samples") && strings.Contains(detail, "node_id=? AND target_id=? AND captured_sort_ns>? AND captured_sort_ns<?") {
+					matchedRaw = true
 				}
-				if !test.long && strings.Contains(detail, "latency_rollups") && strings.Contains(detail, "node_id=? AND bucket_seconds=? AND bucket_at>? AND bucket_at<?") {
-					matched = true
+				if strings.Contains(detail, "latency_rollups") && strings.Contains(detail, "node_id=? AND target_id=? AND kind=? AND bucket_seconds=? AND bucket_at>? AND bucket_at<?") {
+					matchedRollup = true
 				}
 				if strings.HasPrefix(detail, "SCAN latency_rollups") {
 					t.Fatal("history scans all nodes", detail)
@@ -103,8 +99,8 @@ func TestLatencyHistoryAccessPlansMatchWindow(t *testing.T) {
 			if err := rows.Err(); err != nil {
 				t.Fatal(err)
 			}
-			if !matched {
-				t.Fatal("required node/range access path absent")
+			if !matchedRaw || !matchedRollup {
+				t.Fatalf("required scoped time seek absent: raw=%t retained=%t", matchedRaw, matchedRollup)
 			}
 		})
 	}
@@ -134,6 +130,7 @@ func TestLatencyPreaggregationPreservesWeightedSourcesAndScopes(t *testing.T) {
 		Args []any
 	}{
 		{`INSERT INTO latency_rollups VALUES(?,?,?,60,?,10,8,6,60)`, []any{node.ID, target.ID, "tcping", formatTime(base)}},
+		{`INSERT INTO latency_rollups VALUES(?,?,?,60,?,2,2,2,14)`, []any{node.ID, target.ID, "ping", formatTime(base)}},
 		{`INSERT INTO latency_rollups VALUES(?,?,?,300,?,100,60,30,600)`, []any{node.ID, target.ID, "tcping", formatTime(base.Add(300 * time.Second))}},
 		{`INSERT INTO latency_rollups VALUES(?,?,?,60,?,10,0,0,0)`, []any{node.ID, failed.ID, "tcping", formatTime(base)}},
 		{`INSERT INTO latency_rollups VALUES(?,?,?,60,?,2,2,0,0)`, []any{node.ID, nullOnly.ID, "tcping", formatTime(base)}},
@@ -231,12 +228,18 @@ func TestLatencyPreaggregationPreservesWeightedSourcesAndScopes(t *testing.T) {
 	if len(seen) != 4 || len(got) != 4 || got[0].TargetID != failed.ID {
 		t.Fatal("missing group or changed target order", seen, got)
 	}
-	if _, err = s.db.Exec("UPDATE targets SET name='renamed target' WHERE id=?", target.ID); err != nil {
+	if _, err = s.db.Exec("UPDATE targets SET name='renamed target',kind='ping',enabled=0 WHERE id=?", target.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.db.Exec("DELETE FROM node_targets WHERE node_id=? AND target_id=?", node.ID, target.ID); err != nil {
 		t.Fatal(err)
 	}
 	renamed, err := s.AdminLatencyHistoryRange(ctx, node.ID, base, base.Add(900*time.Second), 900)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(renamed) != len(got) {
+		t.Fatal("retyped/disabled/unassigned target lost retained history")
 	}
 	for _, p := range renamed {
 		if p.TargetID == target.ID && p.Name != "renamed target" {

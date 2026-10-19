@@ -898,21 +898,30 @@ func (s *Store) AdminLatencyHistoryRange(ctx context.Context, nodeID string, sta
 // Reduce each source to the requested buckets before combining its counts and
 // joining target metadata. Keep sums/counts until the final division: averaging
 // source averages would change unequal rollup weights and null-latency results.
-const latencyHistorySources = `WITH history AS (
+// Enumerate target IDs and both retained kinds before reading samples, so every
+// existing index key before time is constrained. Current node assignments or
+// target kinds cannot replace this enumeration: either can change after capture.
+const latencyHistoryQuery = `WITH target_series AS MATERIALIZED (
+		SELECT id AS series_target FROM targets
+	), retained_kinds AS (
+		SELECT 'ping' AS series_kind UNION ALL SELECT 'tcping'
+	), history AS (
 		SELECT (unixepoch(substr(captured_at,1,19)||'Z')/:bucket)*:bucket AS bucket,target_id,kind,
 		COUNT(*) AS sample_count,SUM(success) AS success_count,
 		SUM(CASE WHEN success=1 AND latency_ms IS NOT NULL THEN 1 ELSE 0 END) AS latency_count,
 		SUM(CASE WHEN success=1 THEN COALESCE(latency_ms,0) ELSE 0 END) AS latency_sum
-		FROM latency_samples JOIN nodes n ON n.id=node_id
-		WHERE node_id=:node AND (n.hidden=0 OR :include_hidden) AND ` + historyRawBounds + `
+		FROM target_series CROSS JOIN latency_samples INDEXED BY idx_latency_samples_node_target_capture_ns
+		JOIN nodes n ON n.id=node_id
+		WHERE target_id=series_target AND node_id=:node AND (n.hidden=0 OR :include_hidden) AND ` + historyRawBounds + `
 		GROUP BY bucket,target_id,kind
 		UNION ALL
 		SELECT (unixepoch(substr(bucket_at,1,19)||'Z')/:bucket)*:bucket AS bucket,target_id,kind,
 		SUM(sample_count),SUM(success_count),SUM(latency_count),SUM(latency_sum)
-		`
-
-const latencyHistoryAggregation = ` JOIN nodes n ON n.id=node_id
-		WHERE node_id=:node AND (n.hidden=0 OR :include_hidden) AND ` + historyRollupBounds + `
+		FROM target_series CROSS JOIN retained_kinds
+		CROSS JOIN latency_rollups INDEXED BY sqlite_autoindex_latency_rollups_1
+		JOIN nodes n ON n.id=node_id
+		WHERE target_id=series_target AND kind=series_kind AND node_id=:node
+		AND (n.hidden=0 OR :include_hidden) AND ` + historyRollupBounds + `
 		GROUP BY bucket,target_id,kind
 	), grouped AS (
 		SELECT bucket,target_id,kind,SUM(sample_count) AS sample_count,SUM(success_count) AS success_count,
@@ -925,26 +934,12 @@ const latencyHistoryAggregation = ` JOIN nodes n ON n.id=node_id
 	FROM grouped g JOIN targets t ON t.id=g.target_id
 	ORDER BY g.bucket,t.sort_order,t.name`
 
-const latencyHistoryQuery = latencyHistorySources + `FROM latency_rollups` + latencyHistoryAggregation
-const latencyHistoryLongQuery = latencyHistorySources + `FROM latency_rollups INDEXED BY sqlite_autoindex_latency_rollups_1` + latencyHistoryAggregation
-
-func latencyHistorySQL(start, end time.Time) string {
-	// Keep selective date seeks for the thirty-day and shorter presets. Wider
-	// windows traverse the node's existing primary index in target/kind/time
-	// order, avoiding interleaved cold table-page lookups. Both queries retain
-	// the same complete-bucket/time predicates and weighted aggregation.
-	if end.Sub(start) > 30*24*time.Hour {
-		return latencyHistoryLongQuery
-	}
-	return latencyHistoryQuery
-}
-
 func (s *Store) latencyHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int, includeHidden bool) ([]LatencyHistoryPoint, error) {
 	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds, includeHidden)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, latencyHistorySQL(start, end), args...)
+	rows, err := s.db.QueryContext(ctx, latencyHistoryQuery, args...)
 	if err != nil {
 		return nil, err
 	}

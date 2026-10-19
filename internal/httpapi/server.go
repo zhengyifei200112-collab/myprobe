@@ -51,6 +51,7 @@ type Server struct {
 	networkRetentionWorkerHealth func() diagnostics.LoopSnapshot
 	diagnosticExports            diagnostics.ExportPreviews
 	releases                     *releasecheck.Checker
+	historyReads                 historyReadLimiter
 }
 
 type Option func(*Server)
@@ -393,26 +394,26 @@ func (s *Server) writeNodeHistoryForScope(c *gin.Context, nodeID string, admin b
 	if admin {
 		readMetrics, readLatency, readTraffic = s.store.AdminMetricHistoryRange, s.store.AdminLatencyHistoryRange, s.store.AdminTrafficHistoryRange
 	}
-	metrics, err := readMetrics(c.Request.Context(), nodeID, window.Start, window.End, window.BucketSeconds)
+	history, stage, err := s.historyReads.nodeHistory(c.Request.Context(), nodeHistoryReads{
+		metrics: func(ctx context.Context) ([]store.MetricHistoryPoint, error) {
+			return readMetrics(ctx, nodeID, window.Start, window.End, window.BucketSeconds)
+		},
+		latency: func(ctx context.Context) ([]store.LatencyHistoryPoint, error) {
+			return readLatency(ctx, nodeID, window.Start, window.End, window.BucketSeconds)
+		},
+		traffic: func(ctx context.Context) ([]store.TrafficHistoryPoint, error) {
+			return readTraffic(ctx, nodeID, window.Start, window.End, window.BucketSeconds)
+		},
+	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read metric history"})
-		return
-	}
-	latency, err := readLatency(c.Request.Context(), nodeID, window.Start, window.End, window.BucketSeconds)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read latency history"})
-		return
-	}
-	traffic, err := readTraffic(c.Request.Context(), nodeID, window.Start, window.End, window.BucketSeconds)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read traffic history"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read " + stage + " history"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"range": window.Name, "start": window.Start, "end": window.End,
 		"bucket_seconds": window.BucketSeconds, "interval": "[start,end)",
 		"rollup_boundary_policy": "complete_buckets_only",
-		"metrics":                metrics, "latency": latency, "traffic": traffic,
+		"metrics":                history.Metrics, "latency": history.Latency, "traffic": history.Traffic,
 	})
 }
 
