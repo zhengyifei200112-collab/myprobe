@@ -1552,5 +1552,7 @@
   "native50_or24h_acceptance_from_this_artifact": false,
   "true_github_oauth_or_telegram_proven": false,
   "owner_release_approved": false,
-  "scope": "Exact-final-head artifact/source/PNG/child verification and scoped synthetic functional/component capacity evidence. CI passes do not prove fullM1-M5 user acceptance,native50/24h,realProvider or production release."
+  "scope": "Exact-final-head artifact/source/PNG/child verification and scoped synthetic functional/component capacity evidence. CI passes do not prove fullM1-M5 user acceptance,native50/24h,realProvider or production release.",
+  "pr_metadata_snapshot_at": "2026-10-20T09:12:54.149Z",
+  "pr_metadata_snapshot_scope": "PR41..118 before documentation successor119; not a claim about future open PR counts"
 }
