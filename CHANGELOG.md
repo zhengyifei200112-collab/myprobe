@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Refresh the pinned Vue patch release and compatible PostCSS, Nano ID and
+  source-map-js resolutions to remove the five package warnings reported by the
+  npm dependency audit. Regenerate the browser bundle; deployment acceptance
+  remains separate from the previously frozen runtime's capacity results.
+
 - Bounded history reads avoid repeated node-visibility lookups for every sample
   and use compact, statement-local latency grouping keys. Public target IDs,
   weighted values, hidden-node permissions, time bounds and retention remain intact.
