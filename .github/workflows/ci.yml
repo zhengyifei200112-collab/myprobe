@@ -441,6 +441,9 @@ jobs:
           go-version: '1.26.x'
           cache-dependency-path: go.sum
 
+      - name: Audit pinned frontend dependencies
+        run: npm --prefix web audit --audit-level=moderate
+
       - name: Test and vet
         run: |
           go test ./...
