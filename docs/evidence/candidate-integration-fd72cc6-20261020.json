@@ -1,0 +1,1556 @@
+{
+  "format": "myprobe.candidate-acceptance-evidence.v1",
+  "observed_at": "2026-10-20T09:23:19.221Z",
+  "candidate_commit": "fd72cc663e68bdc86032791b28623c545a92a388",
+  "main_commit": "4a33a80366acef27733726b01ab21eb3de2a6333",
+  "ci": {
+    "run": 39395467560,
+    "url": "https://github.com/zhengyifei200112-collab/myprobe/actions/runs/39395467560",
+    "all_checks_passed": 12
+  },
+  "tracked_source_files_checked": 858,
+  "cross_module_source_records": 545,
+  "cross_module_cases": [
+    "TestLivePolicyBrowserLifecycle",
+    "TestLiveMaintenanceBrowserLifecycle",
+    "TestLiveIncidentAcknowledgementBrowser",
+    "TestLiveIncidentSilenceBrowser",
+    "TestLiveNotificationAggregationBrowser",
+    "TestLiveSingleIncidentLinkBrowser",
+    "TestHTTPMaintenanceStatisticsThroughRealAgent",
+    "TestServiceIncidentThroughRealAgent",
+    "TestResourceIncidentThroughMainRestart"
+  ],
+  "operations_main": {
+    "cases": [
+      "TestLiveDiagnosticExportMainBrowser",
+      "TestLiveScheduledBackupMainBrowser"
+    ],
+    "screenshots": 24,
+    "recorded_live_server_digest": false
+  },
+  "pngs": {
+    "total": 300,
+    "recorded_expected_sha256": 162,
+    "format_checked_and_hashed_without_expected": 138,
+    "visual_spot_checks": 2,
+    "all_visually_reviewed": false
+  },
+  "module_cases": [
+    {
+      "profile": "form-units",
+      "file": "result.json",
+      "format": "myprobe.form-units-browser.v1",
+      "checks": [
+        "exact legacy amount/cycle/expiry roundtrip",
+        "JPY/USD/KWD and zero persistence",
+        "legacy byte/time/recovery persistence",
+        "policy byte/time/recovery/aggregation persistence",
+        "unsafe byte integer refusal",
+        "nonterminating unit switch preserves seconds",
+        "unchanged policy roundtrip",
+        "safe integer public currency precision",
+        "eighteen viewport/theme views",
+        "no page/API errors"
+      ],
+      "screenshots": 18
+    },
+    {
+      "profile": "form-units",
+      "file": "discovery/result.json",
+      "format": "myprobe.dashboard-discovery-browser.v1",
+      "checks": [
+        "combined-search-tag-status",
+        "waiting-interrupted-stale",
+        "URL-reload-target-sort",
+        "throttled-pointer-keyboard-order",
+        "history-focus-return",
+        "network-comparison-entry",
+        "reconnect-semantics",
+        "viewport-overflow",
+        "500-event-cache-coalescing",
+        "privacy-snapshot-cache-barrier",
+        "hidden-pagehide-reload-cache",
+        "quota-recovery",
+        "sample-time-reuse"
+      ],
+      "screenshots": 12
+    },
+    {
+      "profile": "node-batches",
+      "file": "result.json",
+      "format": "myprobe.node-batch-browser.v1",
+      "checks": [
+        "cross-page selection",
+        "preview invalidation",
+        "no-op",
+        "atomic conflict",
+        "target add/remove/replace",
+        "retry after committed response loss",
+        "interval persistence",
+        "live public visibility"
+      ],
+      "screenshots": 12
+    },
+    {
+      "profile": "node-order",
+      "file": "result.json",
+      "format": "myprobe.node-order-browser.v1",
+      "checks": [
+        "keyboard moves and focus",
+        "boundary controls",
+        "cancel/no-op",
+        "atomic save",
+        "lost-response retry",
+        "single audit",
+        "metadata preserved",
+        "reload persistence",
+        "concurrent addition conflict",
+        "reload recovery",
+        "dialog focus restoration"
+      ],
+      "screenshots": 6
+    },
+    {
+      "profile": "node-details",
+      "file": "result.json",
+      "format": "myprobe.node-details-browser.v1",
+      "checks": [],
+      "screenshots": 18
+    },
+    {
+      "profile": "node-details",
+      "file": "live-result.json",
+      "format": "myprobe.node-detail-live.v1",
+      "checks": [],
+      "screenshots": 12
+    },
+    {
+      "profile": "node-details",
+      "file": "ui-result.json",
+      "format": "myprobe.node-detail-ui.v1",
+      "checks": [],
+      "screenshots": 6
+    },
+    {
+      "profile": "system-health",
+      "file": "result.json",
+      "format": "myprobe.system-health-browser.v1",
+      "checks": [],
+      "screenshots": 18
+    },
+    {
+      "profile": "system-health",
+      "file": "health/result.json",
+      "format": "myprobe.system-health-browser.v1",
+      "checks": [],
+      "screenshots": 12
+    },
+    {
+      "profile": "system-health",
+      "file": "runtime/result.json",
+      "format": "myprobe.agent-runtime-browser.v1",
+      "checks": [],
+      "screenshots": 6
+    }
+  ],
+  "network_observers": 8,
+  "native_darwin": [
+    {
+      "arch": "arm64",
+      "passed_tests": [
+        "TestNetworkProbeNativeICMPEvidence/ipv4",
+        "TestNetworkProbeNativeICMPEvidence/ipv6",
+        "TestNetworkProbeRealTCPAddressFamilies/tcp4",
+        "TestNetworkProbeRealTCPAddressFamilies/tcp6",
+        "TestNetworkProbeThroughActualAgentAndGateway/bounded_busy",
+        "TestNetworkProbeThroughActualAgentAndGateway/icmp4_three_packets",
+        "TestNetworkProbeThroughActualAgentAndGateway/icmp6_three_packets",
+        "TestNetworkProbeThroughActualAgentAndGateway/tcp4",
+        "TestNetworkProbeThroughActualAgentAndGateway/tcp6"
+      ]
+    },
+    {
+      "arch": "amd64",
+      "passed_tests": [
+        "TestNetworkProbeNativeICMPEvidence/ipv4",
+        "TestNetworkProbeNativeICMPEvidence/ipv6",
+        "TestNetworkProbeRealTCPAddressFamilies/tcp4",
+        "TestNetworkProbeRealTCPAddressFamilies/tcp6",
+        "TestNetworkProbeThroughActualAgentAndGateway/bounded_busy",
+        "TestNetworkProbeThroughActualAgentAndGateway/icmp4_three_packets",
+        "TestNetworkProbeThroughActualAgentAndGateway/icmp6_three_packets",
+        "TestNetworkProbeThroughActualAgentAndGateway/tcp4",
+        "TestNetworkProbeThroughActualAgentAndGateway/tcp6"
+      ]
+    }
+  ],
+  "online_backup": {
+    "nodes": 5,
+    "overview_p95_ms": 2.415924,
+    "history_30d_p95_ms": 488.12822,
+    "sampled_peak_rss_bytes": 98566144,
+    "archive_bytes": 1377027818,
+    "accounting": {
+      "Mode": "test-observer-http-ws-ack-store",
+      "ReportAttempts": 63,
+      "Forwarded": 63,
+      "Acknowledged": 63,
+      "Stored": 63,
+      "StoredWithoutACK": 0,
+      "InterruptedNotStored": 0,
+      "UnexplainedNotStored": 0,
+      "ACKWithoutStored": 0,
+      "UnknownStored": 0,
+      "HashMismatch": 0,
+      "DuplicateStored": 0,
+      "MaxACKDelayMilliseconds": 1715.860348,
+      "GeneratedEnvelopes": 348,
+      "ObservedEnvelopes": 348,
+      "UnobservedGeneratedEnvelopes": 0
+    },
+    "slo": {
+      "Gates": [
+        {
+          "Metric": "overview.p95",
+          "Unit": "ms",
+          "Limit": 500,
+          "Observed": 2.415924,
+          "Available": true,
+          "Passed": true
+        },
+        {
+          "Metric": "history_dense_30d.p95",
+          "Unit": "ms",
+          "Limit": 2000,
+          "Observed": 488.12822,
+          "Available": true,
+          "Passed": true
+        },
+        {
+          "Metric": "server.sampled_peak_rss",
+          "Unit": "bytes",
+          "Limit": 734003200,
+          "Observed": 98566144,
+          "Available": true,
+          "Passed": true
+        }
+      ],
+      "Passed": true
+    }
+  },
+  "ci_application_restore": {
+    "archive_bytes": 567773850,
+    "reports": 63830,
+    "new_original_credential_reports": 1,
+    "scope": "Meaningful512MiB synthetic data, actual production HTTP streaming stage and export, pending activation at real Server restart, exact original report bytes/permanent receipt, stored source login, destination credential isolation/preserved old database and actual Client.Run/Gateway report with original Agent token. Separate extended3650-day retention preserves the exact snapshot; default-retention capacity/24h/old-binary rollback and live failover are separate gates."
+  },
+  "certificate_history": [
+    {
+      "identities": 1000,
+      "full_tick_seconds": [
+        0.003125058,
+        0.002174109,
+        0.002220727
+      ],
+      "report_attempts": 12,
+      "report_stored": 12,
+      "write_errors": 0
+    },
+    {
+      "identities": 10000,
+      "full_tick_seconds": [
+        0.009767349,
+        0.007469577,
+        0.00756714
+      ],
+      "report_attempts": 13,
+      "report_stored": 13,
+      "write_errors": 0
+    },
+    {
+      "identities": 100000,
+      "full_tick_seconds": [
+        0.056130462,
+        0.058214531,
+        0.058465163
+      ],
+      "report_attempts": 13,
+      "report_stored": 13,
+      "write_errors": 0
+    }
+  ],
+  "recorded_executable_sha256": {
+    "httpapi": "8e86e4ca970de414c7fcb274bd03be0a02b313fc31832cb30b6919dcb39e7ab4",
+    "agentclient": "73607393ad6532065728d96e847845efe19f7ca13e25909a7c700b8b75d47d67",
+    "server": "b87a6d47f5d12c357d955c3ea2208041af7d550cb6f726f79fb14e20a2904078"
+  },
+  "downloaded_binary_bytes": false,
+  "migrations": {
+    "files": 48,
+    "highest": 49,
+    "number_014_absent": true
+  },
+  "requirements": [
+    {
+      "id": "UX-01",
+      "user_result": "首页搜索、状态过滤与排序",
+      "module_doc": "DASHBOARD_DISCOVERY_VALIDATION.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 46,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/46",
+          "state": "OPEN",
+          "draft": false,
+          "branch": "feature/dashboard-discovery",
+          "base": "main",
+          "head": "dbc74b2f529ce627c27737d3a23dad96846d2de4",
+          "updated_at": "2026-10-01T13:06:19Z",
+          "original_evidence_source": "dbc74b2f529ce627c27737d3a23dad96846d2de4",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 88,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/88",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/integrate-dashboard-discovery",
+          "base": "feature/integrate-form-units",
+          "head": "66f8bac317be079a5ed126cd33c17159bf125b08",
+          "updated_at": "2026-10-16T23:46:01Z",
+          "original_evidence_source": "66f8bac317be079a5ed126cd33c17159bf125b08",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "UX-02",
+      "user_result": "节点表格与响应式",
+      "module_doc": "DASHBOARD_DISCOVERY_VALIDATION.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 46,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/46",
+          "state": "OPEN",
+          "draft": false,
+          "branch": "feature/dashboard-discovery",
+          "base": "main",
+          "head": "dbc74b2f529ce627c27737d3a23dad96846d2de4",
+          "updated_at": "2026-10-01T13:06:19Z",
+          "original_evidence_source": "dbc74b2f529ce627c27737d3a23dad96846d2de4",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 88,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/88",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/integrate-dashboard-discovery",
+          "base": "feature/integrate-form-units",
+          "head": "66f8bac317be079a5ed126cd33c17159bf125b08",
+          "updated_at": "2026-10-16T23:46:01Z",
+          "original_evidence_source": "66f8bac317be079a5ed126cd33c17159bf125b08",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 95,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/95",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "fix/agent-heartbeat-liveness",
+          "base": "chore/offline-upgrade-rehearsal",
+          "head": "a5f8577bfb0c97918b9eef27879bf7fb83ac9be6",
+          "updated_at": "2026-10-17T02:38:07Z",
+          "original_evidence_source": "a5f8577bfb0c97918b9eef27879bf7fb83ac9be6",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "UX-03",
+      "user_result": "金额、流量、时间单位",
+      "module_doc": "FORM_UNITS_VALIDATION.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 45,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/45",
+          "state": "OPEN",
+          "draft": false,
+          "branch": "feature/form-units",
+          "base": "main",
+          "head": "28a4ee54fa7ab7ccb6f7d6f259749374dcf03eb6",
+          "updated_at": "2026-10-01T12:58:05Z",
+          "original_evidence_source": "28a4ee54fa7ab7ccb6f7d6f259749374dcf03eb6",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 49,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/49",
+          "state": "OPEN",
+          "draft": false,
+          "branch": "feature/node-keyboard-order",
+          "base": "main",
+          "head": "e62b61f7ffa4c643af3d19defe418ed775d8af81",
+          "updated_at": "2026-10-02T09:05:43Z",
+          "original_evidence_source": "e62b61f7ffa4c643af3d19defe418ed775d8af81",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 87,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/87",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/integrate-form-units",
+          "base": "chore/portable-test-baseline",
+          "head": "dccf509274fd78dd637835b5452e0856d11e9f4e",
+          "updated_at": "2026-10-16T23:30:25Z",
+          "original_evidence_source": "dccf509274fd78dd637835b5452e0856d11e9f4e",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 90,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/90",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/integrate-node-order",
+          "base": "feature/integrate-node-batches",
+          "head": "609bffbf1b85bae9d484b985ee397e930c2a68fb",
+          "updated_at": "2026-10-17T00:10:36Z",
+          "original_evidence_source": "609bffbf1b85bae9d484b985ee397e930c2a68fb",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "OPS-01",
+      "user_result": "批量预览与事务执行",
+      "module_doc": "NODE_BATCH_MANAGEMENT.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 48,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/48",
+          "state": "OPEN",
+          "draft": false,
+          "branch": "feature/node-batch-management",
+          "base": "main",
+          "head": "5a3478421e2969aa1ff1ae7cdb2fbfcc7d7ca3ef",
+          "updated_at": "2026-10-02T02:30:07Z",
+          "original_evidence_source": "5a3478421e2969aa1ff1ae7cdb2fbfcc7d7ca3ef",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 89,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/89",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/integrate-node-batches",
+          "base": "feature/integrate-dashboard-discovery",
+          "head": "b4da86178833f27936f1f430b523811924d3fbe5",
+          "updated_at": "2026-10-17T00:10:32Z",
+          "original_evidence_source": "b4da86178833f27936f1f430b523811924d3fbe5",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "OPS-02",
+      "user_result": "批量选择与结果界面",
+      "module_doc": "NODE_BATCH_MANAGEMENT.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 48,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/48",
+          "state": "OPEN",
+          "draft": false,
+          "branch": "feature/node-batch-management",
+          "base": "main",
+          "head": "5a3478421e2969aa1ff1ae7cdb2fbfcc7d7ca3ef",
+          "updated_at": "2026-10-02T02:30:07Z",
+          "original_evidence_source": "5a3478421e2969aa1ff1ae7cdb2fbfcc7d7ca3ef",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 89,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/89",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/integrate-node-batches",
+          "base": "feature/integrate-dashboard-discovery",
+          "head": "b4da86178833f27936f1f430b523811924d3fbe5",
+          "updated_at": "2026-10-17T00:10:32Z",
+          "original_evidence_source": "b4da86178833f27936f1f430b523811924d3fbe5",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "ALT-01",
+      "user_result": "故障事件与投递模型",
+      "module_doc": "INCIDENT_DELIVERY.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 50,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/50",
+          "state": "OPEN",
+          "draft": false,
+          "branch": "feature/incident-outbox",
+          "base": "main",
+          "head": "99d08aa3985eecb7ef14d13dad46cfe461dedcbd",
+          "updated_at": "2026-10-03T01:00:47Z",
+          "original_evidence_source": "99d08aa3985eecb7ef14d13dad46cfe461dedcbd",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 95,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/95",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "fix/agent-heartbeat-liveness",
+          "base": "chore/offline-upgrade-rehearsal",
+          "head": "a5f8577bfb0c97918b9eef27879bf7fb83ac9be6",
+          "updated_at": "2026-10-17T02:38:07Z",
+          "original_evidence_source": "a5f8577bfb0c97918b9eef27879bf7fb83ac9be6",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 98,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/98",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/resource-main-acceptance",
+          "base": "docs/application-upgrade-acceptance",
+          "head": "1318c45af340b7a4ad2cc7a0e8f7a3ecc7bb365f",
+          "updated_at": "2026-10-17T07:57:18Z",
+          "original_evidence_source": "1318c45af340b7a4ad2cc7a0e8f7a3ecc7bb365f",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "ALT-02",
+      "user_result": "策略范围与继承",
+      "module_doc": "ALERT_POLICIES.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 54,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/54",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/alert-policy-scopes",
+          "base": "feature/incident-outbox",
+          "head": "ed7044a6f6cda15d77f58cced5a021f49841e43b",
+          "updated_at": "2026-10-11T06:08:21Z",
+          "original_evidence_source": "ed7044a6f6cda15d77f58cced5a021f49841e43b",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 96,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/96",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/cross-module-browser-validation",
+          "base": "fix/agent-heartbeat-liveness",
+          "head": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "updated_at": "2026-10-17T06:59:49Z",
+          "original_evidence_source": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "ALT-03",
+      "user_result": "维护、知悉、静默",
+      "module_doc": "INCIDENT_SILENCE.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 55,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/55",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/incident-maintenance",
+          "base": "feature/alert-policy-scopes",
+          "head": "f5424d38cd1b3f24dad76a7da3fd907d66cc2408",
+          "updated_at": "2026-10-12T12:49:35Z",
+          "original_evidence_source": "f5424d38cd1b3f24dad76a7da3fd907d66cc2408",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 56,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/56",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/incident-acknowledgement",
+          "base": "feature/incident-maintenance",
+          "head": "50808b60bc32d50990935619e2dfafecabb7706e",
+          "updated_at": "2026-10-12T13:38:40Z",
+          "original_evidence_source": "50808b60bc32d50990935619e2dfafecabb7706e",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 57,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/57",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/incident-silence",
+          "base": "feature/incident-acknowledgement",
+          "head": "626e665c9ad53521d8f1797413a9e11e6d83fa32",
+          "updated_at": "2026-10-12T23:34:28Z",
+          "original_evidence_source": "626e665c9ad53521d8f1797413a9e11e6d83fa32",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 96,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/96",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/cross-module-browser-validation",
+          "base": "fix/agent-heartbeat-liveness",
+          "head": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "updated_at": "2026-10-17T06:59:49Z",
+          "original_evidence_source": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "ALT-04",
+      "user_result": "Outbox、重试与投递历史",
+      "module_doc": "INCIDENT_DELIVERY.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 50,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/50",
+          "state": "OPEN",
+          "draft": false,
+          "branch": "feature/incident-outbox",
+          "base": "main",
+          "head": "99d08aa3985eecb7ef14d13dad46cfe461dedcbd",
+          "updated_at": "2026-10-03T01:00:47Z",
+          "original_evidence_source": "99d08aa3985eecb7ef14d13dad46cfe461dedcbd",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 96,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/96",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/cross-module-browser-validation",
+          "base": "fix/agent-heartbeat-liveness",
+          "head": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "updated_at": "2026-10-17T06:59:49Z",
+          "original_evidence_source": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 98,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/98",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/resource-main-acceptance",
+          "base": "docs/application-upgrade-acceptance",
+          "head": "1318c45af340b7a4ad2cc7a0e8f7a3ecc7bb365f",
+          "updated_at": "2026-10-17T07:57:18Z",
+          "original_evidence_source": "1318c45af340b7a4ad2cc7a0e8f7a3ecc7bb365f",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "ALT-05",
+      "user_result": "聚合与通知深链",
+      "module_doc": "NOTIFICATION_AGGREGATION.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 58,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/58",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/notification-aggregation",
+          "base": "feature/incident-silence",
+          "head": "7bee226289bdd73e5e7c6b721ca618f5427b89e4",
+          "updated_at": "2026-10-13T06:10:47Z",
+          "original_evidence_source": "7bee226289bdd73e5e7c6b721ca618f5427b89e4",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 96,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/96",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/cross-module-browser-validation",
+          "base": "fix/agent-heartbeat-liveness",
+          "head": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "updated_at": "2026-10-17T06:59:49Z",
+          "original_evidence_source": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "DETAIL-01",
+      "user_result": "节点固定链接与时间范围",
+      "module_doc": "NODE_DETAILS.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 51,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/51",
+          "state": "OPEN",
+          "draft": false,
+          "branch": "feature/node-details",
+          "base": "main",
+          "head": "f9dc594b6bb8aab3b6c72169efc738ac2a39e502",
+          "updated_at": "2026-10-03T12:30:11Z",
+          "original_evidence_source": "f9dc594b6bb8aab3b6c72169efc738ac2a39e502",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 91,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/91",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/integrate-node-details",
+          "base": "feature/integrate-node-order",
+          "head": "8d90aea692b06f75a3cb2374d329ab392c8e9db7",
+          "updated_at": "2026-10-17T01:17:24Z",
+          "original_evidence_source": "8d90aea692b06f75a3cb2374d329ab392c8e9db7",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 95,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/95",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "fix/agent-heartbeat-liveness",
+          "base": "chore/offline-upgrade-rehearsal",
+          "head": "a5f8577bfb0c97918b9eef27879bf7fb83ac9be6",
+          "updated_at": "2026-10-17T02:38:07Z",
+          "original_evidence_source": "a5f8577bfb0c97918b9eef27879bf7fb83ac9be6",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "DETAIL-02",
+      "user_result": "事件时间线与曲线联动",
+      "module_doc": "NODE_TIMELINE.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 51,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/51",
+          "state": "OPEN",
+          "draft": false,
+          "branch": "feature/node-details",
+          "base": "main",
+          "head": "f9dc594b6bb8aab3b6c72169efc738ac2a39e502",
+          "updated_at": "2026-10-03T12:30:11Z",
+          "original_evidence_source": "f9dc594b6bb8aab3b6c72169efc738ac2a39e502",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 91,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/91",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/integrate-node-details",
+          "base": "feature/integrate-node-order",
+          "head": "8d90aea692b06f75a3cb2374d329ab392c8e9db7",
+          "updated_at": "2026-10-17T01:17:24Z",
+          "original_evidence_source": "8d90aea692b06f75a3cb2374d329ab392c8e9db7",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 92,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/92",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/node-event-timeline",
+          "base": "feature/integrate-node-details",
+          "head": "a3ab4def808b2d888e9657e7f5b9d0efb73513a7",
+          "updated_at": "2026-10-17T01:49:15Z",
+          "original_evidence_source": "a3ab4def808b2d888e9657e7f5b9d0efb73513a7",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "SVC-01",
+      "user_result": "HTTP 能力与协议",
+      "module_doc": "HTTP_SERVICE_MONITORING.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 53,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/53",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/http-probe-protocol",
+          "base": "main",
+          "head": "d711950c2af8da9fe5147ee9d56259cfbb3c8e41",
+          "updated_at": "2026-10-07T05:46:28Z",
+          "original_evidence_source": "d711950c2af8da9fe5147ee9d56259cfbb3c8e41",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "SVC-02",
+      "user_result": "HTTP 执行与结果存储",
+      "module_doc": "HTTP_SERVICE_MONITORING.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 53,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/53",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/http-probe-protocol",
+          "base": "main",
+          "head": "d711950c2af8da9fe5147ee9d56259cfbb3c8e41",
+          "updated_at": "2026-10-07T05:46:28Z",
+          "original_evidence_source": "d711950c2af8da9fe5147ee9d56259cfbb3c8e41",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 96,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/96",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/cross-module-browser-validation",
+          "base": "fix/agent-heartbeat-liveness",
+          "head": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "updated_at": "2026-10-17T06:59:49Z",
+          "original_evidence_source": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "SVC-03",
+      "user_result": "服务配置、证书与告警",
+      "module_doc": "SERVICE_INCIDENTS.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 59,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/59",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/service-incidents",
+          "base": "feature/notification-aggregation",
+          "head": "0abad97aa4d425fa57f6b3858d1849b212615b50",
+          "updated_at": "2026-10-14T11:13:01Z",
+          "original_evidence_source": "0abad97aa4d425fa57f6b3858d1849b212615b50",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 96,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/96",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/cross-module-browser-validation",
+          "base": "fix/agent-heartbeat-liveness",
+          "head": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "updated_at": "2026-10-17T06:59:49Z",
+          "original_evidence_source": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "NET-01",
+      "user_result": "包计数、地址族与归档",
+      "module_doc": "NETWORK_PROBE_EVIDENCE.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 71,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/71",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/network-quality-ledger",
+          "base": "feature/joint-soak-observation",
+          "head": "8786c202c56c739428c55fe4be2b8a9c68280608",
+          "updated_at": "2026-10-15T09:21:07Z",
+          "original_evidence_source": "8786c202c56c739428c55fe4be2b8a9c68280608",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 72,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/72",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/network-quality-statistics",
+          "base": "feature/network-quality-ledger",
+          "head": "ca9bfec51fa22fc4e3e982d9cfa77b9d7626a43a",
+          "updated_at": "2026-10-15T09:24:54Z",
+          "original_evidence_source": "ca9bfec51fa22fc4e3e982d9cfa77b9d7626a43a",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 73,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/73",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/network-archive-capacity",
+          "base": "feature/network-quality-statistics",
+          "head": "15561ccb5ac76cba82968aae3f6166f80a7eab4a",
+          "updated_at": "2026-10-15T13:36:27Z",
+          "original_evidence_source": "15561ccb5ac76cba82968aae3f6166f80a7eab4a",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 78,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/78",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/network-probe-evidence",
+          "base": "feature/joint-soak-supervision",
+          "head": "b889acf7d5fa1734c6619e9dc9d188b9aeb275ae",
+          "updated_at": "2026-10-16T07:05:32Z",
+          "original_evidence_source": "b889acf7d5fa1734c6619e9dc9d188b9aeb275ae",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 83,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/83",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/darwin-network-native",
+          "base": "fix/soak-status-audit",
+          "head": "bdf95c7e645a79f055e47eaec5e3b9eda69c84fa",
+          "updated_at": "2026-10-16T18:54:23Z",
+          "original_evidence_source": "bdf95c7e645a79f055e47eaec5e3b9eda69c84fa",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "NET-02",
+      "user_result": "多节点网络质量对比",
+      "module_doc": "NETWORK_QUALITY_UI.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 74,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/74",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/network-quality-api",
+          "base": "feature/network-archive-capacity",
+          "head": "fefd5f0845a04cb08924d16e689243e02cfeedc9",
+          "updated_at": "2026-10-15T13:36:23Z",
+          "original_evidence_source": "fefd5f0845a04cb08924d16e689243e02cfeedc9",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 75,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/75",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/network-quality-series",
+          "base": "feature/network-quality-api",
+          "head": "4b7f2ec734cf30a69a1fa4e8100b8b0f64ca2f9f",
+          "updated_at": "2026-10-15T14:56:55Z",
+          "original_evidence_source": "4b7f2ec734cf30a69a1fa4e8100b8b0f64ca2f9f",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 76,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/76",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/network-quality-comparison",
+          "base": "feature/network-quality-series",
+          "head": "73c084dba3c2cdb85128b2fcc994407fd22faf73",
+          "updated_at": "2026-10-16T00:07:54Z",
+          "original_evidence_source": "73c084dba3c2cdb85128b2fcc994407fd22faf73",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "SYS-01",
+      "user_result": "系统健康与版本诊断",
+      "module_doc": "SYSTEM_HEALTH.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 52,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/52",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/system-health",
+          "base": "main",
+          "head": "12b5bba89d5e1949cff973407ea3befc739b897f",
+          "updated_at": "2026-10-04T01:32:02Z",
+          "original_evidence_source": "12b5bba89d5e1949cff973407ea3befc739b897f",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 60,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/60",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/system-health-integration",
+          "base": "feature/service-incidents",
+          "head": "ef6d5e72c502f57dcd16889df657e1e554d8fe5b",
+          "updated_at": "2026-10-14T12:15:01Z",
+          "original_evidence_source": "ef6d5e72c502f57dcd16889df657e1e554d8fe5b",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 63,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/63",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/agent-runtime-evidence",
+          "base": "feature/diagnostic-export",
+          "head": "64c5f26100f3d52df18449098d08e9c213ef43f9",
+          "updated_at": "2026-10-14T18:03:52Z",
+          "original_evidence_source": "64c5f26100f3d52df18449098d08e9c213ef43f9",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 81,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/81",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/release-awareness",
+          "base": "feature/live-backup-load",
+          "head": "ddd5c16e53486fa3cd2c68bcbfb3f1a60d544d3a",
+          "updated_at": "2026-10-16T17:39:44Z",
+          "original_evidence_source": "ddd5c16e53486fa3cd2c68bcbfb3f1a60d544d3a",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 95,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/95",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "fix/agent-heartbeat-liveness",
+          "base": "chore/offline-upgrade-rehearsal",
+          "head": "a5f8577bfb0c97918b9eef27879bf7fb83ac9be6",
+          "updated_at": "2026-10-17T02:38:07Z",
+          "original_evidence_source": "a5f8577bfb0c97918b9eef27879bf7fb83ac9be6",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 100,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/100",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/joint-startup-evidence",
+          "base": "fix/sqlite-cancellation-cleanup",
+          "head": "59cbff6a8d441e08e12813c8e7829178d9c60f4e",
+          "updated_at": "2026-10-17T13:09:39Z",
+          "original_evidence_source": "59cbff6a8d441e08e12813c8e7829178d9c60f4e",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "SYS-02",
+      "user_result": "定时备份与恢复演练",
+      "module_doc": "BACKUP_PORTABILITY.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 61,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/61",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/scheduled-backups",
+          "base": "feature/system-health-integration",
+          "head": "1f37dfe08ac05a70f4b878320216d4322bd6e534",
+          "updated_at": "2026-10-14T15:51:21Z",
+          "original_evidence_source": "1f37dfe08ac05a70f4b878320216d4322bd6e534",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 79,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/79",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/encrypted-backup-capacity",
+          "base": "feature/network-probe-evidence",
+          "head": "36d83abd6acaa09681b8ab8057e6e80595a95731",
+          "updated_at": "2026-10-16T07:40:12Z",
+          "original_evidence_source": "36d83abd6acaa09681b8ab8057e6e80595a95731",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 80,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/80",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/live-backup-load",
+          "base": "feature/encrypted-backup-capacity",
+          "head": "81ce3c3b0572b45aa7568d2248832d646b0b943c",
+          "updated_at": "2026-10-16T08:20:21Z",
+          "original_evidence_source": "81ce3c3b0572b45aa7568d2248832d646b0b943c",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 84,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/84",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/backup-portability",
+          "base": "chore/darwin-network-native",
+          "head": "dc5152ba629ee984a5deba1cbd31277d44c1c93f",
+          "updated_at": "2026-10-16T19:31:03Z",
+          "original_evidence_source": "dc5152ba629ee984a5deba1cbd31277d44c1c93f",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 93,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/93",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "docs/backup-native-acceptance",
+          "base": "feature/node-event-timeline",
+          "head": "bd5f2fbf40ae168430ba8538113a71c7f7b1536d",
+          "updated_at": "2026-10-17T01:52:36Z",
+          "original_evidence_source": "bd5f2fbf40ae168430ba8538113a71c7f7b1536d",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 94,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/94",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/offline-upgrade-rehearsal",
+          "base": "docs/backup-native-acceptance",
+          "head": "676a28ed3f452cbc803b1a5d00080a47a9c0ee75",
+          "updated_at": "2026-10-17T02:21:23Z",
+          "original_evidence_source": "676a28ed3f452cbc803b1a5d00080a47a9c0ee75",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 97,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/97",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "docs/application-upgrade-acceptance",
+          "base": "chore/cross-module-browser-validation",
+          "head": "68313ffa61b28ee4824466f2d51760169ca3e754",
+          "updated_at": "2026-10-17T07:03:01Z",
+          "original_evidence_source": "68313ffa61b28ee4824466f2d51760169ca3e754",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 99,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/99",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "fix/sqlite-cancellation-cleanup",
+          "base": "chore/resource-main-acceptance",
+          "head": "c196d6297df23041429d0832b2f38726f1bd735b",
+          "updated_at": "2026-10-17T12:17:31Z",
+          "original_evidence_source": "c196d6297df23041429d0832b2f38726f1bd735b",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 102,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/102",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/large-backup-portability",
+          "base": "chore/retention-backlog-reproduction",
+          "head": "2d7180f256fc2db26bc02202ffcee982a514429d",
+          "updated_at": "2026-10-17T17:19:00Z",
+          "original_evidence_source": "2d7180f256fc2db26bc02202ffcee982a514429d",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "SYS-03",
+      "user_result": "脱敏诊断导出",
+      "module_doc": "DIAGNOSTIC_EXPORT.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 62,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/62",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/diagnostic-export",
+          "base": "feature/scheduled-backups",
+          "head": "bb7d2be4abfb750da7444b6c9cc5e35154c76554",
+          "updated_at": "2026-10-14T16:46:08Z",
+          "original_evidence_source": "bb7d2be4abfb750da7444b6c9cc5e35154c76554",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    },
+    {
+      "id": "PERF-01",
+      "user_result": "可重复负载与容量报告",
+      "module_doc": "JOINT_RUNTIME_LOAD.md",
+      "module_doc_present": true,
+      "sources": [
+        {
+          "pr": 64,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/64",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/history-retention-capacity",
+          "base": "feature/agent-runtime-evidence",
+          "head": "a32fdaeda06e66776d07608da908486c64a06eb8",
+          "updated_at": "2026-10-14T23:25:03Z",
+          "original_evidence_source": "a32fdaeda06e66776d07608da908486c64a06eb8",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 65,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/65",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/service-replay-capacity",
+          "base": "feature/history-retention-capacity",
+          "head": "1abcc03370a5d1b88a4d2ce6a3791b0d7e595617",
+          "updated_at": "2026-10-15T00:06:11Z",
+          "original_evidence_source": "1abcc03370a5d1b88a4d2ce6a3791b0d7e595617",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 66,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/66",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/joint-runtime-load",
+          "base": "feature/service-replay-capacity",
+          "head": "94867aa1f41b8d908af14eff0f739d3695c3a235",
+          "updated_at": "2026-10-15T00:42:11Z",
+          "original_evidence_source": "94867aa1f41b8d908af14eff0f739d3695c3a235",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 67,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/67",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/node-publication",
+          "base": "feature/joint-runtime-load",
+          "head": "dd6b0a4c5533559bf035ecc35593088e116742c8",
+          "updated_at": "2026-10-15T00:58:49Z",
+          "original_evidence_source": "dd6b0a4c5533559bf035ecc35593088e116742c8",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 68,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/68",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/runtime-reconciliation",
+          "base": "feature/node-publication",
+          "head": "68a398fc5f3f2b3a204d2d77540ae9201ffb7703",
+          "updated_at": "2026-10-15T05:50:10Z",
+          "original_evidence_source": "68a398fc5f3f2b3a204d2d77540ae9201ffb7703",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 69,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/69",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/dense-joint-history",
+          "base": "feature/runtime-reconciliation",
+          "head": "658d12346b41ba3daa9cf2a736974316e35f7725",
+          "updated_at": "2026-10-15T07:14:35Z",
+          "original_evidence_source": "658d12346b41ba3daa9cf2a736974316e35f7725",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 70,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/70",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/joint-soak-observation",
+          "base": "feature/dense-joint-history",
+          "head": "4a29197831a38c4b9b8987b52496325c5f645d2a",
+          "updated_at": "2026-10-15T08:14:30Z",
+          "original_evidence_source": "4a29197831a38c4b9b8987b52496325c5f645d2a",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 77,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/77",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "feature/joint-soak-supervision",
+          "base": "feature/network-quality-comparison",
+          "head": "9adabe73967618a00330a034bd3cad91ec723dfd",
+          "updated_at": "2026-10-16T00:07:56Z",
+          "original_evidence_source": "9adabe73967618a00330a034bd3cad91ec723dfd",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 82,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/82",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "fix/soak-status-audit",
+          "base": "feature/release-awareness",
+          "head": "63b652851d2099529d7e8929e38b888d0db06ad6",
+          "updated_at": "2026-10-16T18:05:02Z",
+          "original_evidence_source": "63b652851d2099529d7e8929e38b888d0db06ad6",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 85,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/85",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "fix/joint-load-phase-budget",
+          "base": "chore/backup-portability",
+          "head": "6ad11376978f8041e367b3df25426e631be8e588",
+          "updated_at": "2026-10-16T19:31:07Z",
+          "original_evidence_source": "6ad11376978f8041e367b3df25426e631be8e588",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 95,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/95",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "fix/agent-heartbeat-liveness",
+          "base": "chore/offline-upgrade-rehearsal",
+          "head": "a5f8577bfb0c97918b9eef27879bf7fb83ac9be6",
+          "updated_at": "2026-10-17T02:38:07Z",
+          "original_evidence_source": "a5f8577bfb0c97918b9eef27879bf7fb83ac9be6",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 96,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/96",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/cross-module-browser-validation",
+          "base": "fix/agent-heartbeat-liveness",
+          "head": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "updated_at": "2026-10-17T06:59:49Z",
+          "original_evidence_source": "3a2c60875feacbd6bc4c3f0197337e2f416c3b7c",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 98,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/98",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/resource-main-acceptance",
+          "base": "docs/application-upgrade-acceptance",
+          "head": "1318c45af340b7a4ad2cc7a0e8f7a3ecc7bb365f",
+          "updated_at": "2026-10-17T07:57:18Z",
+          "original_evidence_source": "1318c45af340b7a4ad2cc7a0e8f7a3ecc7bb365f",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 99,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/99",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "fix/sqlite-cancellation-cleanup",
+          "base": "chore/resource-main-acceptance",
+          "head": "c196d6297df23041429d0832b2f38726f1bd735b",
+          "updated_at": "2026-10-17T12:17:31Z",
+          "original_evidence_source": "c196d6297df23041429d0832b2f38726f1bd735b",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 100,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/100",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/joint-startup-evidence",
+          "base": "fix/sqlite-cancellation-cleanup",
+          "head": "59cbff6a8d441e08e12813c8e7829178d9c60f4e",
+          "updated_at": "2026-10-17T13:09:39Z",
+          "original_evidence_source": "59cbff6a8d441e08e12813c8e7829178d9c60f4e",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 101,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/101",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/retention-backlog-reproduction",
+          "base": "chore/joint-startup-evidence",
+          "head": "71b09c23896a672b71ae0d15034892e85ca7e529",
+          "updated_at": "2026-10-17T13:45:19Z",
+          "original_evidence_source": "71b09c23896a672b71ae0d15034892e85ca7e529",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        },
+        {
+          "pr": 102,
+          "url": "https://github.com/zhengyifei200112-collab/myprobe/pull/102",
+          "state": "OPEN",
+          "draft": true,
+          "branch": "chore/large-backup-portability",
+          "base": "chore/retention-backlog-reproduction",
+          "head": "2d7180f256fc2db26bc02202ffcee982a514429d",
+          "updated_at": "2026-10-17T17:19:00Z",
+          "original_evidence_source": "2d7180f256fc2db26bc02202ffcee982a514429d",
+          "original_source_in_candidate": true,
+          "current_head_in_candidate": true
+        }
+      ],
+      "final_user_acceptance": "pending"
+    }
+  ],
+  "open_pr_heads_in_candidate": 73,
+  "other_open_prs": [
+    {
+      "pr": 41,
+      "reason": "dependency update not included"
+    },
+    {
+      "pr": 42,
+      "reason": "dependency update not included"
+    },
+    {
+      "pr": 43,
+      "reason": "dependency update not included"
+    },
+    {
+      "pr": 44,
+      "reason": "early roadmap; current accepted full requirements introduced by documentation successor"
+    },
+    {
+      "pr": 47,
+      "reason": "patch-equivalent, exact test-file bytes already included",
+      "file": "internal/collector/network_test.go",
+      "file_sha256": "7933ce23a9621d0ad3d44daa5f2b5839329a1220954c22197f162c661c1c055d"
+    }
+  ],
+  "public_frontend_observation": {
+    "at": "2026-10-20T09:13:22.217Z",
+    "status": 200,
+    "html_matches_main": true,
+    "html_matches_candidate": false,
+    "server_commit_proven": false
+  },
+  "facts": {
+    "code": "verified-current",
+    "runtime": "pending: native50x24h running; candidate not deployed",
+    "docs": "changed-and-verified after link/scope checks",
+    "rules": "verified-current: existing global and repository AGENTS; unchanged",
+    "memory": "out-of-scope: generated-read-only; untouched",
+    "workspace": "pending: current checkout verified; other worktree contents not audited; no cleanup"
+  },
+  "native50_or24h_acceptance_from_this_artifact": false,
+  "true_github_oauth_or_telegram_proven": false,
+  "owner_release_approved": false,
+  "scope": "Exact-final-head artifact/source/PNG/child verification and scoped synthetic functional/component capacity evidence. CI passes do not prove fullM1-M5 user acceptance,native50/24h,realProvider or production release."
+}
