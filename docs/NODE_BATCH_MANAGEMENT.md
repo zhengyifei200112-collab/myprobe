@@ -58,6 +58,10 @@ defines the replay window; after deletion the client must create a new preview.
 These operational records are not part of configuration export, but encrypted full
 database backups retain them and the revisions.
 
+Expiry and replay cleanup compare exact UTC instants even when stored fractional
+timestamp widths differ. See [preview retention boundaries](NODE_PREVIEW_RETENTION.md)
+for quota, nanosecond-boundary and snapshot/reopen regression coverage.
+
 Visibility changes send an internal refresh signal, replacing queued public metric
 events so a full current public snapshot removes hidden nodes without a reload.
 A refresh generation also rejects in-flight publications whose snapshot read started
