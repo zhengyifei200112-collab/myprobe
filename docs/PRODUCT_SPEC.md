@@ -292,17 +292,19 @@ excluded from v1 to keep the agent attack surface small.
 
 ## Incident delivery development
 
-The incident-outbox branch adds persisted pending/firing/resolved incidents,
+The development candidate includes persisted pending/firing/resolved incidents,
 independent recovery windows, stale observation handling, transactional delivery
 jobs, leased workers, bounded retries and per-attempt diagnostics. Administrator
 APIs and the notification center expose incident state separately from delivery
 status. Protocol payloads remain compatible; SQLite migration 015 imports legacy
 active state without mass resending successful notifications.
 
-This work remains in development, not released. Evidence and remaining gates are
-in [INCIDENT_DELIVERY.md](INCIDENT_DELIVERY.md). Scoped policy inheritance,
-maintenance/acknowledgement/silence and aggregation remain later M2 tasks; this
-foundation must not be presented as completion of the full roadmap.
+This work remains in the development candidate, not released. Its original
+foundation evidence is in [INCIDENT_DELIVERY.md](INCIDENT_DELIVERY.md). Scoped
+policy inheritance, maintenance/acknowledgement/silence and aggregation now have
+candidate implementations and scoped evidence described below. The
+[current acceptance index](CANDIDATE_ACCEPTANCE.md) records remaining user,
+runtime and release gates; source inclusion does not complete the full roadmap.
 
 ## Incident acknowledgement development
 
@@ -389,7 +391,9 @@ Final destination snapshots are private; their configuration version separates
 changed retries. Older editors omit the field without disabling an existing
 setting; an explicit zero disables it. These queue/receiver checks do not replace
 release integration or complete AGG-01/ALT-05. Non-aggregate/service links and
-M3–M5 remain in the original roadmap.
+M3–M5 have separate candidate implementations and evidence in this specification;
+the full [roadmap](DEVELOPMENT_ROADMAP.zh-CN.md) and
+[acceptance index](CANDIDATE_ACCEPTANCE.md) retain their remaining gates.
 
 ### 通知渠道共享等待补充（开发分支，迁移 033）
 

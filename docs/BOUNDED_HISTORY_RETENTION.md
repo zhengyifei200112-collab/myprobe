@@ -62,9 +62,12 @@ fractional timestamps, including reopen midway. They inject statement and
 deferred-constraint COMMIT failures, check cancellation and bounded expiry,
 migration failure/idempotence/no backfill, and independent host/HTTP catch-up.
 
-The new native 100-node startup/restart rehearsal must use a fresh verified copy
-of the retained original aged input. A copy already processed by the diagnostic
-transaction cannot serve as that input. Native readiness, full catch-up and
-concurrent write results remain pending until collected. No final 24-hour,
-whole-machine 2 vCPU/2 GiB, real Provider, production deployment or release
-acceptance follows from unit tests alone.
+The required native startup/restart and continuous run now target the owner's
+at-most-50-node use, confirmed on 2026-10-19. Aged-backlog rehearsals still require
+a fresh verified copy of their declared input; a previously processed diagnostic
+copy cannot replace it. The original 100-node failed experiments above retain
+their source-specific conclusions and are optional for this release. Full backlog
+catch-up and concurrent writes must be assessed against their actual fixtures;
+neither short readiness nor unit tests prove final 24-hour, whole-machine
+2 vCPU/2 GiB, real Provider, deployment or release acceptance. See the current
+[candidate evidence and remaining gates](CANDIDATE_ACCEPTANCE.md).

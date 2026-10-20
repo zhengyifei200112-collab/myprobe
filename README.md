@@ -9,6 +9,9 @@ for clear server-health and network visibility.
 The product scope and acceptance evidence are tracked in
 [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md), and the versioned agent protocol is
 defined in [`docs/PROTOCOL.md`](docs/PROTOCOL.md).
+The [current development candidate and remaining acceptance gates](docs/CANDIDATE_ACCEPTANCE.md)
+distinguish implemented code from merged and deployed behavior. The complete
+[development roadmap](docs/DEVELOPMENT_ROADMAP.zh-CN.md) preserves all 21 tasks.
 
 ## Architecture
 
@@ -215,10 +218,10 @@ Collection and reporting run independently; optional v2 capability negotiation
 preserves released v1 Agents. See [Agent runtime evidence](docs/AGENT_RUNTIME_EVIDENCE.md)
 for bounded sampling semantics, compatibility and remaining release gates.
 
-The incident-outbox branch adds independent fault incidents, durable delivery jobs
+The development candidate contains independent fault incidents, durable delivery jobs
 and per-attempt diagnostics. See the [Chinese operations guide](docs/ALERT_OPERATIONS.zh-CN.md)
 and [implementation evidence](docs/INCIDENT_DELIVERY.md). This work is not released;
-scoped policies, maintenance, silence and aggregation have dependent development
-branches with separate integration/release gates. Aggregate management and
+scoped policies, maintenance, silence and aggregation are included in the candidate
+with separate acceptance/release gates. Aggregate management and
 authenticated links are documented in
 [NOTIFICATION_AGGREGATION.md](docs/NOTIFICATION_AGGREGATION.md).
