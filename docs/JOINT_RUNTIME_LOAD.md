@@ -86,7 +86,7 @@ sudo sh scripts/run-joint-load.sh /tmp/myprobe-joint-agentclient.test /tmp/mypro
 依赖须预先准备；输出目录须已经存在）：
 
 ```sh
-sudo env MYPROBE_TEST_LOAD_SYSTEMD=1 MYPROBE_TEST_LOAD_NODES=100 \
+sudo env MYPROBE_TEST_LOAD_SYSTEMD=1 MYPROBE_TEST_LOAD_NODES=20 \
   MYPROBE_TEST_LOAD_BROWSER=1 MYPROBE_TEST_LOAD_OUTPUT=/tmp/myprobe-load-results \
   PLAYWRIGHT_MODULE=/absolute/path/to/node_modules/playwright \
   PLAYWRIGHT_BROWSERS_PATH=/absolute/path/to/browser-cache \
