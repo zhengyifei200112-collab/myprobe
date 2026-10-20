@@ -170,7 +170,17 @@ func (s *Store) PreviewNodeBatch(ctx context.Context, userID string, request Nod
 	}
 	defer tx.Rollback()
 	// A write first obtains the SQLite writer reservation before reading snapshots.
-	if _, err = tx.ExecContext(ctx, `DELETE FROM node_batch_previews WHERE (applied_at IS NULL AND expires_at < ?) OR (applied_at IS NOT NULL AND applied_at < ?)`, formatTime(now), formatTime(now.Add(-30*24*time.Hour))); err != nil {
+	// Stored UTC RFC3339Nano values have variable fractional width: ".5Z" does
+	// not sort chronologically against "Z" or ".500000001Z". Compare padded
+	// nanosecond keys without rewriting historical rows or rounding to SQL time
+	// precision. Expiry is inclusive, matching ApplyNodeBatch's !Before check;
+	// applied results remain until strictly older than the 30-day cutoff.
+	orderKey := func(value time.Time) string {
+		return strings.ReplaceAll(value.UTC().Format("2006-01-02T15:04:05.000000000"), ".", "")
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM node_batch_previews WHERE
+		(applied_at IS NULL AND substr(replace(rtrim(expires_at,'Z'),'.','') || '000000000',1,28) <= ?)
+		OR (applied_at IS NOT NULL AND substr(replace(rtrim(applied_at,'Z'),'.','') || '000000000',1,28) < ?)`, orderKey(now), orderKey(now.Add(-30*24*time.Hour))); err != nil {
 		return preview, err
 	}
 	var pending int

@@ -16,6 +16,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Batch-preview cleanup respects the actual nanosecond expiry and thirty-day
+  replay boundary when stored UTC timestamps have different fractional widths.
+  Valid previews and replay results no longer disappear early, and expired
+  previews release their per-user quota at the same instant as the apply check.
+
 - Refresh the pinned Vue patch release and compatible PostCSS, Nano ID and
   source-map-js resolutions to remove the five package warnings reported by the
   npm dependency audit. Regenerate the browser bundle; deployment acceptance
