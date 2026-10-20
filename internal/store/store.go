@@ -828,20 +828,20 @@ func (s *Store) ListLatestLatency(ctx context.Context, nodeID string) ([]LatestL
 }
 
 const metricHistoryQuery = `WITH history AS (
-		SELECT m.node_id,substr(m.captured_at,1,19)||'Z' AS sample_at,1 AS sample_count,m.cpu_usage AS cpu_sum,
+		SELECT substr(m.captured_at,1,19)||'Z' AS sample_at,1 AS sample_count,m.cpu_usage AS cpu_sum,
 		CASE WHEN m.memory_total>0 THEN 100.0*m.memory_used/m.memory_total ELSE 0 END AS memory_sum,
 		CASE WHEN m.disk_total>0 THEN 100.0*m.disk_used/m.disk_total ELSE 0 END AS disk_sum,
 		m.net_rx_rate AS rx_sum,m.net_tx_rate AS tx_sum
 		FROM metric_samples m
 		WHERE m.node_id=:node AND ` + historyRawBounds + `
 		UNION ALL
-		SELECT node_id,bucket_at,sample_count,cpu_sum,memory_percent_sum,disk_percent_sum,net_rx_rate_sum,net_tx_rate_sum
+		SELECT bucket_at,sample_count,cpu_sum,memory_percent_sum,disk_percent_sum,net_rx_rate_sum,net_tx_rate_sum
 		FROM metric_rollups WHERE node_id=:node AND ` + historyRollupBounds + `
 	)
 	SELECT (unixepoch(substr(sample_at,1,19)||'Z')/:bucket)*:bucket AS bucket,
 	SUM(cpu_sum)/SUM(sample_count),SUM(memory_sum)/SUM(sample_count),SUM(disk_sum)/SUM(sample_count),
 	SUM(rx_sum)/SUM(sample_count),SUM(tx_sum)/SUM(sample_count)
-	FROM history JOIN nodes n ON n.id=history.node_id WHERE (n.hidden=0 OR :include_hidden)
+	FROM history WHERE ` + historyNodeScope + `
 	GROUP BY bucket ORDER BY bucket`
 
 func (s *Store) MetricHistory(ctx context.Context, nodeID string, start time.Time, bucketSeconds int) ([]MetricHistoryPoint, error) {
@@ -901,38 +901,39 @@ func (s *Store) AdminLatencyHistoryRange(ctx context.Context, nodeID string, sta
 // Enumerate target IDs and both retained kinds before reading samples, so every
 // existing index key before time is constrained. Current node assignments or
 // target kinds cannot replace this enumeration: either can change after capture.
+// Within this statement, use the target table's integer row identity as the
+// grouping key. Public IDs and ordering are restored at the final metadata join;
+// no row identity is persisted or used as an API/foreign key.
 const latencyHistoryQuery = `WITH target_series AS MATERIALIZED (
-		SELECT id AS series_target FROM targets
+		SELECT rowid AS series_index,id AS series_target FROM targets
 	), retained_kinds AS (
 		SELECT 'ping' AS series_kind UNION ALL SELECT 'tcping'
 	), history AS (
-		SELECT (unixepoch(substr(captured_at,1,19)||'Z')/:bucket)*:bucket AS bucket,target_id,kind,
+		SELECT (unixepoch(substr(captured_at,1,19)||'Z')/:bucket)*:bucket AS bucket,series_index,kind,
 		COUNT(*) AS sample_count,SUM(success) AS success_count,
 		SUM(CASE WHEN success=1 AND latency_ms IS NOT NULL THEN 1 ELSE 0 END) AS latency_count,
 		SUM(CASE WHEN success=1 THEN COALESCE(latency_ms,0) ELSE 0 END) AS latency_sum
 		FROM target_series CROSS JOIN latency_samples INDEXED BY idx_latency_samples_node_target_capture_ns
-		JOIN nodes n ON n.id=node_id
-		WHERE target_id=series_target AND node_id=:node AND (n.hidden=0 OR :include_hidden) AND ` + historyRawBounds + `
-		GROUP BY bucket,target_id,kind
+		WHERE target_id=series_target AND node_id=:node AND ` + historyNodeScope + ` AND ` + historyRawBounds + `
+		GROUP BY bucket,series_index,kind
 		UNION ALL
-		SELECT (unixepoch(substr(bucket_at,1,19)||'Z')/:bucket)*:bucket AS bucket,target_id,kind,
+		SELECT (unixepoch(substr(bucket_at,1,19)||'Z')/:bucket)*:bucket AS bucket,series_index,kind,
 		SUM(sample_count),SUM(success_count),SUM(latency_count),SUM(latency_sum)
 		FROM target_series CROSS JOIN retained_kinds
 		CROSS JOIN latency_rollups INDEXED BY sqlite_autoindex_latency_rollups_1
-		JOIN nodes n ON n.id=node_id
 		WHERE target_id=series_target AND kind=series_kind AND node_id=:node
-		AND (n.hidden=0 OR :include_hidden) AND ` + historyRollupBounds + `
-		GROUP BY bucket,target_id,kind
+		AND ` + historyNodeScope + ` AND ` + historyRollupBounds + `
+		GROUP BY bucket,series_index,kind
 	), grouped AS (
-		SELECT bucket,target_id,kind,SUM(sample_count) AS sample_count,SUM(success_count) AS success_count,
+		SELECT bucket,series_index,kind,SUM(sample_count) AS sample_count,SUM(success_count) AS success_count,
 		SUM(latency_count) AS latency_count,SUM(latency_sum) AS latency_sum
-		FROM history GROUP BY bucket,target_id,kind
+		FROM history GROUP BY bucket,series_index,kind
 	)
-	SELECT g.bucket,g.target_id,t.name,g.kind,
+	SELECT g.bucket,t.id,t.name,g.kind,
 		CASE WHEN g.latency_count>0 THEN g.latency_sum/g.latency_count END,
 		100.0*g.success_count/g.sample_count
-	FROM grouped g JOIN targets t ON t.id=g.target_id
-	ORDER BY g.bucket,t.sort_order,t.name`
+	FROM grouped g JOIN targets t ON t.rowid=g.series_index
+	ORDER BY g.bucket,t.sort_order,t.name,t.id,g.kind`
 
 func (s *Store) latencyHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int, includeHidden bool) ([]LatencyHistoryPoint, error) {
 	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds, includeHidden)
