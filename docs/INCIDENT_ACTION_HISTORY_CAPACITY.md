@@ -1,18 +1,67 @@
-# Incident action history growth acceptance
+# 知悉、静默与维护操作历史增长验收
 
-This workload is under implementation. It will validate retained acknowledgement
-and silence request identities at 1,000 / 10,000 / 100,000 finished incidents, and
-maintenance request replay at the existing 1,000-window admission limit.
+此专项补充 PR #117 的完成投递历史测试，验证操作请求身份在历史增长、指标清理和
+SQLite 完整备份后仍然可用。它只修改测试、CI 与文档，不修改生产代码、保留策略、
+API、协议、迁移或前端资源。PR #118 依赖 #117；原生 50 节点长测继续使用冻结的
+0d2d739 运行源，不能把本专项的源码版本当作长测版本。
 
-The test uses synthetic, completed Store operations. It must preserve original
-results through metric retention, close/reopen and a consistent SQLite backup,
-reject changed-content retries, and keep new actions usable with old history.
-Concurrent report writes and component read timings will be reported separately.
-Maintenance remains bounded; this does not authorize a larger window limit.
+## 数据形状与断言
 
-No real notification provider, production database or credential is involved.
-This component evidence cannot replace the independent 50-node continuous 24-hour
-run, process memory trend, real Telegram/OAuth or owner release approval.
+- 一个合成节点通过真实 Store API 创建故障，单独知悉、创建静默、取消静默并恢复。
+  未发送的故障投递已被静默取消，恢复不会凭空补发通知。
+- 从该完成轨迹复制 1,000 / 10,000 / 100,000 个历史故障，每个故障一个知悉、一个
+  已取消静默、两条请求结果及原决策/投递关联/审计。复制时改写目标、请求身份及冻结
+  结果中的身份，并按真实请求内容重新计算摘要；不能用无效请求摘要填充历史。
+- 另通过真实 Store API 创建并取消 1,000 个维护窗口，验证第 1,001 个新请求被拒绝、
+  原创建/取消仍可回放、改内容仍报冲突，以及完整分页中的成员、选择来源和取消身份。
+  维护历史沿用现有 1,000 窗口限制，没有新增清理或提高上限。
+- 每个规模的四组读取/回放各至少 100 样本、持续至少三秒，与每 20ms 计划一次的
+  `Store.SaveReport` 并行。记录实际写入数、退出取消数和错误；延迟为组件观察值。
+- 核对最早、中间和最新复制请求的完整原结果；重试使用 400 天后的服务端时间，
+  改知悉内容、静默时长或取消版本必须冲突。读取/回放不得改变旧数据摘要。
+- 400 天后的指标保留操作不清理这些操作身份。八类故障操作数据和五类维护数据
+  按主键顺序比较全部类型化列；审计也参与全量摘要。关闭重开、一致性备份重开后
+  比较完整历史，重验旧请求及维护分页。恢复后再创建真实的新故障/知悉/静默/取消，
+  确认旧复制历史不变，最后执行 SQLite integrity/foreign-key 检查。
 
-Stacked on PR #117. Runtime source remains the 0d2d739 candidate under native soak.
-Results and exact source checks will be added after execution; no pass is claimed.
+这是每故障一个静默的已完成历史；没有测量单故障十万次静默、未完成队列长期积压或
+任意手工导入的超限维护库。备份是 SQLite 一致性快照，并非加密 HTTP 应用还原。
+没有实际 Provider、Agent 或浏览器，也不能据此宣布 50 节点、24 小时、物理 2GiB
+主机容量或整套用户场景验收通过。真实 Telegram 按用户安排稍后配置。
+
+## 执行与证据
+
+普通 `go test ./...` 编译该测试但默认跳过专项。使用已存在、绝对路径的私有输出目录：
+
+```sh
+MYPROBE_TEST_INCIDENT_ACTION_HISTORY=1 \
+MYPROBE_TEST_INCIDENT_ACTION_OUTPUT=/absolute/private/output \
+go test ./internal/store -run '^TestIncidentActionHistoryCapacity$' -count=1 -timeout 17m -v
+```
+
+开发时可设 `MYPROBE_TEST_INCIDENT_ACTION_MAX=1000` 或 `10000`；默认完整三档至
+100000。结果使用独占创建并 fsync，成功只清理已核验归属的自有临时库；失败保留
+合成库到显式目录，不覆盖失败或将小档结果当作完整通过。
+
+原生 Linux CI 在同一 history job 中独立执行原通知历史和本操作历史专项。共用
+`scripts/native-notification-history-capacity.py`，第四参数 `incident-actions` 选择本测试：
+
+```sh
+EXPECTED_SOURCE=<exact-40-character-clean-HEAD> \
+python3 scripts/native-notification-history-capacity.py \
+  /absolute/new/private /absolute/new/evidence incident-actions
+```
+
+脚本核对每个已跟踪文件与准确提交 blob，构建并记录测试程序摘要，在独立 systemd
+单元限制全部子进程为 2CPU / 2GiB / swap0 / CPU0–1，使用私网命名空间、只读源及
+独占可写目录。采集 live PID/start ticks/程序摘要、实际 cgroup 限制、OOM/swap 和
+终态退出；结束后重核源码与程序。每专项有独立 17 分钟测试、18 分钟单元及 19 分钟
+观察预算，无自动重跑；完整 job 为两次构建/执行预留 45 分钟。
+
+CI 只上传四份筛选后的 JSON（源码映射、构建清单、聚合结果、原生证明），不上传
+库或私有日志。失败样本留在该 runner 的私有目录至 runner 生命周期结束；这与本机
+显式目录的持续保留不同。宿主物理内存另行记录，不把 cgroup 限额写成低配整机实测。
+
+实现阶段的首个 1,000 条夹具错误地期待被静默取消的故障产生恢复通知；实际契约不
+补发，断言已修正，原失败样本保留，没有更改生产行为。完整本机与 Linux 结果按
+准确提交和外部验收台账记录；尚未生成的 CI 证据不能提前视为通过。

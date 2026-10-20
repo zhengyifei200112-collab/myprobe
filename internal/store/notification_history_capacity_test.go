@@ -172,10 +172,15 @@ type notificationHistoryTable struct {
 }
 
 func notificationHistoryReadSeed(t *testing.T, s *Store) ([]notificationHistoryTable, []string) {
+	return retainedHistoryReadSeed(t, s, notificationHistoryTables)
+}
+
+// Definitions are static test-owned table/column identifiers, never API input.
+func retainedHistoryReadSeed(t *testing.T, s *Store, definitions []struct{ name, identity string }) ([]notificationHistoryTable, []string) {
 	t.Helper()
 	var tables []notificationHistoryTable
 	var ids []string
-	for _, definition := range notificationHistoryTables {
+	for _, definition := range definitions {
 		table := notificationHistoryTable{name: definition.name, identity: definition.identity}
 		rows, err := s.db.Query("PRAGMA table_xinfo(" + table.name + ")")
 		notificationHistoryMust(t, err)
@@ -281,10 +286,18 @@ type notificationHistoryDigest struct {
 }
 
 func notificationHistoryDigests(t *testing.T, s *Store, tables []notificationHistoryTable) map[string]notificationHistoryDigest {
+	return retainedHistoryDigests(t, s, tables, true)
+}
+
+func retainedHistoryDigests(t *testing.T, s *Store, tables []notificationHistoryTable, copiesOnly bool) map[string]notificationHistoryDigest {
 	t.Helper()
 	result := map[string]notificationHistoryDigest{}
 	for _, table := range tables {
-		rows, err := s.db.Query("SELECT * FROM " + table.name + " WHERE " + table.identity + " LIKE 'capacity-%' ORDER BY " + strings.Join(table.keys, ","))
+		where := ""
+		if copiesOnly {
+			where = " WHERE " + table.identity + " LIKE 'capacity-%'"
+		}
+		rows, err := s.db.Query("SELECT * FROM " + table.name + where + " ORDER BY " + strings.Join(table.keys, ","))
 		notificationHistoryMust(t, err)
 		columns, err := rows.Columns()
 		notificationHistoryMust(t, err)

@@ -11,7 +11,7 @@ permissions:
 jobs:
   notification-history-capacity:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - name: Check out exact notification history source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,6 +35,22 @@ jobs:
         with:
           name: notification-history-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ runner.temp }}/notification-history-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Verify retained incident actions and bounded maintenance replay
+        env:
+          EXPECTED_SOURCE: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 scripts/native-notification-history-capacity.py \
+            "${RUNNER_TEMP}/incident-action-history-private" \
+            "${RUNNER_TEMP}/incident-action-history-evidence" incident-actions
+      - name: Preserve screened source-bound action evidence only
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: incident-action-history-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/incident-action-history-evidence
           if-no-files-found: ignore
           retention-days: 7
 

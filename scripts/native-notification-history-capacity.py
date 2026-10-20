@@ -34,9 +34,16 @@ def state(unit):
 
 
 def main():
-    assert platform.system() == 'Linux' and len(sys.argv) == 3
+    assert platform.system() == 'Linux' and len(sys.argv) in (3, 4)
+    workload = sys.argv[3] if len(sys.argv) == 4 else 'notifications'
+    assert workload in ('notifications', 'incident-actions')
+    actions = workload == 'incident-actions'
+    prefix = 'incident-action-history' if actions else 'notification-history'
+    test_name = 'TestIncidentActionHistoryCapacity' if actions else 'TestNotificationPermanentHistoryCapacity'
+    enabled_env = 'MYPROBE_TEST_INCIDENT_ACTION_HISTORY' if actions else 'MYPROBE_TEST_NOTIFICATION_HISTORY_CAPACITY'
+    output_env = 'MYPROBE_TEST_INCIDENT_ACTION_OUTPUT' if actions else 'MYPROBE_TEST_NOTIFICATION_HISTORY_OUTPUT'
     repo = Path(__file__).resolve().parents[1]
-    private, evidence = (Path(value).resolve() for value in sys.argv[1:])
+    private, evidence = (Path(value).resolve() for value in sys.argv[1:3])
     assert private.is_absolute() and evidence.is_absolute()
     private.mkdir(mode=0o700)
     evidence.mkdir(mode=0o700)
@@ -62,7 +69,7 @@ def main():
         offset = newline + size + 2
     assert offset == len(blobs)
     save(evidence / 'source-tree-sha256.json', hashes)
-    binary = private / 'notification-history.test'
+    binary = private / (prefix + '.test')
     env = {**os.environ, 'CGO_ENABLED': '0'}
     subprocess.run(['go', 'test', '-c', '-o', str(binary), './internal/store'], cwd=repo, env=env, check=True)
     executable_sha = digest(binary)
@@ -76,7 +83,7 @@ def main():
     })
     tmp = private / 'tmp'
     tmp.mkdir(mode=0o700)
-    unit = 'myprobe-notification-history-' + head[:12] + '.service'
+    unit = 'myprobe-' + prefix + '-' + head[:12] + '.service'
     assert state(unit)['LoadState'] == 'not-found'
     subprocess.run([
         'sudo', '-n', 'systemd-run', '--quiet', '--unit=' + unit,
@@ -92,9 +99,9 @@ def main():
         '--property=StandardOutput=file:' + str(private / 'test.log'),
         '--property=StandardError=inherit',
         '--setenv=TMPDIR=' + str(tmp),
-        '--setenv=MYPROBE_TEST_NOTIFICATION_HISTORY_CAPACITY=1',
-        '--setenv=MYPROBE_TEST_NOTIFICATION_HISTORY_OUTPUT=' + str(private),
-        str(binary), '-test.run=^TestNotificationPermanentHistoryCapacity$',
+        '--setenv=' + enabled_env + '=1',
+        '--setenv=' + output_env + '=' + str(private),
+        str(binary), '-test.run=^' + test_name + '$',
         '-test.count=1', '-test.timeout=17m', '-test.v',
     ], check=True)
     samples, identity = [], None
@@ -144,10 +151,16 @@ def main():
         assert all(not item.read_text().strip() for item in group.rglob('cgroup.procs'))
     assert digest(binary) == executable_sha
     assert all(digest(repo / name) == sha for name, sha in hashes.items())
-    result = json.loads((private / 'notification-history-capacity.json').read_text())
+    result = json.loads((private / (prefix + '-capacity.json')).read_text())
     assert result['passed'] and result['maximum_historical_incidents'] == 100000
-    assert result['backup_run_pruning_exercised'] and result['backup_run_history_limit'] == 1000
-    assert result['protected_pending_reminder_preserved_and_retried_after_restore']
+    if actions:
+        assert result['maintenance_windows'] == 1000 and result['maintenance_limit_replay_and_pagination']
+        assert result['reopen_and_consistent_backup_restore'] and result['fresh_post_restore_actions']
+        assert result['old_replays_and_changed_content_conflicts']
+    else:
+        assert result['backup_run_pruning_exercised'] and result['backup_run_history_limit'] == 1000
+        assert result['protected_pending_reminder_preserved_and_retried_after_restore']
+    assert result['metric_retention_400days_preserves_history'] and result['integrity_and_foreign_keys']
     assert [level['historical_incidents'] for level in result['levels']] == [1000, 10000, 100000]
     for level in result['levels']:
         observations = level['reads_with_concurrent_reports']
@@ -162,7 +175,8 @@ def main():
         'scope': 'Bounded Store component and synthetic finished-history growth. No real Provider, Agent/browser, full50,24h or physical2GiB VM proof.',
     })
     print(json.dumps({'passed': True, 'source': head, 'historical_incidents': 100000,
-                      'tables': 10, 'actual_nodes': 4, 'resource_samples': len(samples)}))
+                      'workload': workload, 'actual_nodes': result['actual_nodes'],
+                      'resource_samples': len(samples)}))
 
 
 if __name__ == '__main__':
