@@ -20,6 +20,11 @@ func (s *Store) NodeExists(ctx context.Context, nodeID string) (bool, error) {
 // indexed UTC key, keeping both bounds as direct index predicates.
 const historyRawBounds = `captured_sort_ns>=:start AND captured_sort_ns<:end`
 
+// Every source already fixes node_id=:node. An uncorrelated visibility check
+// avoids looking up the same node for each historical row, while still excluding
+// orphaned records and preserving the administrator's hidden-node scope.
+const historyNodeScope = `EXISTS(SELECT 1 FROM nodes WHERE id=:node AND (hidden=0 OR :include_hidden))`
+
 // Retention buckets start on whole seconds. Only include complete buckets: a
 // partially overlapping aggregate cannot be separated into its original samples.
 // Both supported levels are explicit so the existing (node,level,time) indexes

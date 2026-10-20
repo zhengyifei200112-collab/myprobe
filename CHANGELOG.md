@@ -9,6 +9,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Bounded history reads avoid repeated node-visibility lookups for every sample
+  and use compact, statement-local latency grouping keys. Public target IDs,
+  weighted values, hidden-node permissions, time bounds and retention remain intact.
+  Traffic accounting sorts counters once by exact time, timestamp spelling and
+  original row ID instead of also sorting all history in SQLite; counter resets
+  and retained totals keep their existing meaning.
+
 - Public dashboards coalesce optional node-cache serialization into 250 ms
   windows while applying live updates immediately. Full/empty privacy snapshots
   and page exit flush current state; storage failures no longer interrupt event
