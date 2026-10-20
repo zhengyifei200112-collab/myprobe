@@ -1,10 +1,13 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -139,13 +142,12 @@ func (s *Store) AdminTrafficHistoryRange(ctx context.Context, nodeID string, sta
 	return s.trafficHistoryRange(ctx, nodeID, start, end, bucketSeconds, true)
 }
 
-const trafficHistoryRangeQuery = `SELECT 0,captured_at,net_rx_total,net_tx_total
+const trafficHistoryRangeQuery = `SELECT 0,captured_at,net_rx_total,net_tx_total,id
 		FROM metric_samples
 		WHERE node_id=:node AND ` + historyNodeScope + ` AND ` + historyRawBounds + `
-		UNION ALL SELECT 1,bucket_at,rx_bytes,tx_bytes
+		UNION ALL SELECT 1,bucket_at,rx_bytes,tx_bytes,0
 		FROM traffic_rollups
-		WHERE node_id=:node AND ` + historyNodeScope + ` AND ` + historyRollupBounds + `
-		ORDER BY 2`
+		WHERE node_id=:node AND ` + historyNodeScope + ` AND ` + historyRollupBounds
 
 func (s *Store) trafficHistoryRange(ctx context.Context, nodeID string, start, end time.Time, bucketSeconds int, includeHidden bool) ([]TrafficHistoryPoint, error) {
 	args, err := historyQueryArgs(nodeID, start, end, bucketSeconds, includeHidden)
@@ -157,12 +159,18 @@ func (s *Store) trafficHistoryRange(ctx context.Context, nodeID string, start, e
 		return nil, err
 	}
 	defer rows.Close()
-	var samples, rollups []trafficSample
+	type counterSample struct {
+		trafficSample
+		captured string
+		id       int64
+	}
+	var samples []counterSample
+	var rollups []trafficSample
 	for rows.Next() {
 		var isRollup int
 		var raw string
-		var rx, tx int64
-		if err := rows.Scan(&isRollup, &raw, &rx, &tx); err != nil {
+		var rx, tx, id int64
+		if err := rows.Scan(&isRollup, &raw, &rx, &tx, &id); err != nil {
 			return nil, err
 		}
 		at, err := parseTime(raw)
@@ -173,16 +181,30 @@ func (s *Store) trafficHistoryRange(ctx context.Context, nodeID string, start, e
 		if isRollup == 1 {
 			rollups = append(rollups, item)
 		} else {
-			samples = append(samples, item)
+			samples = append(samples, counterSample{trafficSample: item, captured: raw, id: id})
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	// RFC3339Nano text order differs within a second. Counter deltas must follow
-	// exact timestamp order; equal timestamps retain the database read order.
-	sort.SliceStable(samples, func(i, j int) bool { return samples[i].at.Before(samples[j].at) })
-	return aggregateTrafficHistory(samples, rollups, bucketSeconds), nil
+	// Sort counters once, by exact time. Retain the previous SQL text ordering
+	// for equal instants with different timestamp spellings. Identical spellings
+	// retain the original indexed row-ID order even if the scan is reversed.
+	// Rollups are additive and need no input sort.
+	slices.SortStableFunc(samples, func(a, b counterSample) int {
+		if order := a.at.Compare(b.at); order != 0 {
+			return order
+		}
+		if order := strings.Compare(a.captured, b.captured); order != 0 {
+			return order
+		}
+		return cmp.Compare(a.id, b.id)
+	})
+	counters := make([]trafficSample, len(samples))
+	for index, sample := range samples {
+		counters[index] = sample.trafficSample
+	}
+	return aggregateTrafficHistory(counters, rollups, bucketSeconds), nil
 }
 
 func aggregateTrafficHistory(samples, rollups []trafficSample, bucketSeconds int) []TrafficHistoryPoint {

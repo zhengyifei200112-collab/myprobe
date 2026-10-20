@@ -27,6 +27,12 @@ key or assumed stable across statements. Public ID/kind tie ordering is explicit
 Raw and retained kinds, target enumeration, successful-without-duration cases
 and weighted sums/counts retain their existing semantics.
 
+Traffic reads omit the database-wide text sort before the existing exact-time
+counter accounting. Go sorts raw counters once by instant, timestamp spelling
+and original row ID, including equal instants, duplicate spellings and resets.
+Additive retained traffic needs no input sort. A regression reverses unordered
+SQLite scans while checking independently calculated raw/reset/retained totals.
+
 Existing node/target/kind/tier/time index seeks, exact raw nanosecond bounds and
 complete-retention-bucket policy stay in place. The shared four connections,
 global two-reader admission, cancellation/join, request timeouts, API, protocol,
@@ -39,7 +45,14 @@ An additional regression changes internal target row identities, including
 negative values and values greater than 2^53, while checking identical public IDs,
 ordering, retained kinds and weighted points against the earlier reference.
 
-Current-candidate component comparisons and a new full 50-node short run remain
+The preceding candidate's native five-node short run still failed the unchanged
+30-day gate at 2034.49 ms. Progression correctly left its 50-node and 24-hour
+units unstarted. Its 54 component digests matched the earlier version, with
+smaller metric/latency means but no traffic improvement; this motivated removing
+the redundant traffic sort. That result remains a failure with its original
+synthetic corpus preserved.
+
+Updated-candidate component comparisons and fresh five/fifty-node runs remain
 required. A component speedup or green CI cannot certify the strict 50-node
 capacity gate, continuous 24-hour stability, physical 2 GiB SSD hardware, real
 provider delivery or release. See [scope](SELF_USE_CAPACITY.md) and
