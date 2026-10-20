@@ -1,13 +1,14 @@
 # Self-use capacity and acceptance
 
-The owner clarified on 2026-10-19 that MyProbe is for personal use with at most
-about **50 nodes**. This supersedes earlier plans that made 100-node acceptance
+The owner clarified on 2026-10-20 that MyProbe is for personal use, normally
+about **15 nodes**, with **20 nodes** as the acceptance target. This supersedes
+earlier plans that made 50- or 100-node acceptance
 a prerequisite. Develop and validate the existing daily monitoring, history,
 notifications and backup/upgrade workflows for this actual scale.
 
 ## Required profile
 
-Progress from a five-node functional check to the current-source 50-node profile:
+Progress from a five-node functional check to the current-source 20-node profile:
 
 - Real Agent clients with 15-second reporting, three 60-second network targets
   per node, actual service execution and five rendered browser subscriptions.
@@ -25,7 +26,7 @@ source and executable hashes, measurement boundaries and unavailable evidence.
 An aggregate 2 GiB cgroup on a larger host is not proof of a physical 2 GiB VM
 or of SSD performance. Keep the existing timeouts and strict SLO failure rules.
 
-100/500-node workloads are optional expansion experiments, not delivery gates.
+50/100/500-node workloads are optional expansion experiments, not delivery gates.
 Earlier larger datasets can still exercise filtering, batch boundaries and
 other correctness tests; they do not increase the owner's required node count.
 This scope change adds no runtime node-count restriction or protocol change.
@@ -33,9 +34,11 @@ This scope change adds no runtime node-count restriction or protocol change.
 ## Evidence and test storage
 
 Previous results retain their original source, node count and limitations. A
-failed 50-node P95 remains a failure; reducing the required maximum from 100 to
-50 does not turn it into a pass. Component diagnostics and green five-node CI
-cannot substitute for the required 50-node joint run or its 24-hour follow-up.
+failed 50-node P95 remains a failure; reducing the required maximum to
+20 does not turn it into a pass. A run stopped for this scope change remains
+interrupted and cannot count toward an uninterrupted 24-hour result. Component
+diagnostics and green five-node CI
+cannot substitute for the required 20-node joint run or its 24-hour follow-up.
 
 Retired synthetic failure corpora may be relocated to recover test storage only
 after all owning processes have stopped and the original DB/WAL/SHM byte set is

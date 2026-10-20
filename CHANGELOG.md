@@ -7,6 +7,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Target personal-use capacity acceptance at 20 nodes (usual deployment about
+  15): five-to-twenty short checks followed by a 20-node uninterrupted 24-hour
+  run. Larger workloads are optional; strict performance and recovery criteria
+  and existing product/batch limits remain unchanged.
+
 ### Fixed
 
 - Refresh the pinned Vue patch release and compatible PostCSS, Nano ID and

@@ -11,10 +11,11 @@
 
 ## Feature parity matrix
 
-The owner's deployment target is personal use with at most about 50 nodes
-(clarified 2026-10-19). Required capacity validation progresses from five to
-50 nodes and then a continuous 24-hour run. The existing correctness, latency
-and resource gates remain; 100/500 nodes are optional expansion work rather than
+The owner's deployment target is personal use, usually about 15 nodes, with a
+20-node acceptance target
+(clarified 2026-10-20). Required capacity validation progresses from five to
+20 nodes and then a continuous 24-hour run. The existing correctness, latency
+and resource gates remain; 50/100/500 nodes are optional expansion work rather than
 release prerequisites. Historical large correctness fixtures retain their scope.
 See [self-use capacity and acceptance](SELF_USE_CAPACITY.md).
 

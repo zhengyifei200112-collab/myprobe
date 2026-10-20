@@ -63,7 +63,7 @@ deferred-constraint COMMIT failures, check cancellation and bounded expiry,
 migration failure/idempotence/no backfill, and independent host/HTTP catch-up.
 
 The required native startup/restart and continuous run now target the owner's
-at-most-50-node use, confirmed on 2026-10-19. Aged-backlog rehearsals still require
+20-node acceptance target (usual deployment about 15), confirmed on 2026-10-20. Aged-backlog rehearsals still require
 a fresh verified copy of their declared input; a previously processed diagnostic
 copy cannot replace it. The original 100-node failed experiments above retain
 their source-specific conclusions and are optional for this release. Full backlog
