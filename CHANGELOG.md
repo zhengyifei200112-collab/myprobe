@@ -14,6 +14,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   run. Larger workloads are optional; strict performance and recovery criteria
   and existing product/batch limits remain unchanged.
 
+### Security
+
+- Pin Vite8.1.6 on the existing8.1 line to address the bundled development-editor
+  launch advisories; retain the normal audit gate and regenerate embedded assets.
+
 ### Fixed
 
 - Allow the required 20-node dense-history acceptance fixture, preserving the
