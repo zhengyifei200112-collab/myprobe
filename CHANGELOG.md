@@ -21,6 +21,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Give authenticated database backup/restore transfers a bounded 15-minute
+  transport and processing budget, so slow large restores can return their
+  durable staging acknowledgement. Preserve earlier request deadlines and
+  ordinary endpoint limits; stop archive reads when their context is canceled.
 - Allow the required 20-node dense-history acceptance fixture, preserving the
   existing history density, disk headroom, strict SLOs and optional larger cases.
 - Batch-preview cleanup respects the actual nanosecond expiry and thirty-day

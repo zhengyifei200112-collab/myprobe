@@ -61,6 +61,11 @@ func (s *Server) importConfiguration(c *gin.Context) {
 }
 
 func (s *Server) exportDatabaseBackup(c *gin.Context) {
+	cancel, ok := beginDatabaseTransfer(c, false)
+	if !ok {
+		return
+	}
+	defer cancel()
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
 	var request struct {
 		Passphrase string `json:"passphrase"`
@@ -105,7 +110,7 @@ func (s *Server) exportDatabaseBackup(c *gin.Context) {
 	}
 	encryptedPath := encrypted.Name()
 	defer func() { encrypted.Close(); os.Remove(encryptedPath) }()
-	if err := backuparchive.Encrypt(encrypted, plain, request.Passphrase); err != nil {
+	if err := backuparchive.Encrypt(encrypted, maintenanceArchiveReader{c.Request.Context(), plain}, request.Passphrase); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt backup"})
 		return
 	}
@@ -132,6 +137,11 @@ func (s *Server) exportDatabaseBackup(c *gin.Context) {
 }
 
 func (s *Server) stageDatabaseRestore(c *gin.Context) {
+	cancel, ok := beginDatabaseTransfer(c, true)
+	if !ok {
+		return
+	}
+	defer cancel()
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maximumBackupUpload)
 	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid or oversized restore upload"})
@@ -173,7 +183,7 @@ func (s *Server) stageDatabaseRestore(c *gin.Context) {
 			os.Remove(decryptedPath)
 		}
 	}()
-	if err := backuparchive.Decrypt(decrypted, upload, passphrase); err != nil {
+	if err := backuparchive.Decrypt(decrypted, maintenanceArchiveReader{c.Request.Context(), upload}, passphrase); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
