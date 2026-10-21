@@ -43,10 +43,19 @@ cannot substitute for the required 20-node joint run or its 24-hour follow-up.
 Retired synthetic failure corpora may be relocated to recover test storage only
 after all owning processes have stopped and the original DB/WAL/SHM byte set is
 preserved. Keep source metadata/logs/results, hash each original file, retain a
-verified compressed archive, restore an independent copy on another filesystem,
-fsync and independently reread it, and record the relocation before releasing
-the old disk allocation. Never open the original failure files with SQLite or
-checkpoint them while archiving. Any diagnostic SQL uses a separate new copy.
+verified compressed archive and record exact byte sets, hashes and recovery
+locations. The owner explicitly chose on2026-10-20 to release old reproducible
+synthetic test originals after full compressed-stream inflate/CRC/original-hash
+verification, without waiting for a full independent restored filesystem copy.
+This exception is limited to those synthetic test corpora. Real business data
+still requires the normal independent backup/restore safeguards. Never open
+original failure files with SQLite or checkpoint them while archiving. Any
+diagnostic SQL uses a separate new copy. Close all owning processes/cgroups and
+release closed test-file caches after each terminal run; clear verified redundant
+or incomplete reproducible copies before accumulating another large test.
+
+The actual20-node fixture correction and bounded import receipt/restore checks
+are described in [fixture validation](SELF_USE_FIXTURE_VALIDATION.md).
 
 Real GitHub login, the owner's Telegram channel, daily workflow review and the
 old-site upgrade remain separate acceptance work. Repository-owner approval is
