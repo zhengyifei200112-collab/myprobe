@@ -16,6 +16,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Allow the required 20-node dense-history acceptance fixture, preserving the
+  existing history density, disk headroom, strict SLOs and optional larger cases.
 - Batch-preview cleanup respects the actual nanosecond expiry and thirty-day
   replay boundary when stored UTC timestamps have different fractional widths.
   Valid previews and replay results no longer disappear early, and expired
