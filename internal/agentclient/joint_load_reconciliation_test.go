@@ -21,17 +21,19 @@ import (
 // envelopes without changing version, sequence, payload or negotiated config.
 // It runs outside the Server cgroup; results must disclose this additional hop.
 type jointReportObserver struct {
-	server      *httptest.Server
-	upstream    string
-	client      *http.Client
-	mu          sync.Mutex
-	nodes       map[string]string // generated fixture tokens stay in memory only
-	attempts    map[jointAttemptKey]*jointReportAttempt
-	sequences   map[string]map[uint64]bool
-	connections map[*websocket.Conn]bool
-	workers     sync.WaitGroup
-	closing     bool
-	closeOnce   sync.Once
+	server             *httptest.Server
+	upstream           string
+	client             *http.Client
+	mu                 sync.Mutex
+	nodes              map[string]string // generated fixture tokens stay in memory only
+	attempts           map[jointAttemptKey]*jointReportAttempt
+	sequences          map[string]map[uint64]bool
+	connections        map[*websocket.Conn]bool
+	workers            sync.WaitGroup
+	closing            bool
+	closeOnce          sync.Once
+	trace              *jointEnvelopeTrace
+	conflictingReplays int
 }
 type jointAttemptKey struct {
 	node     string
@@ -53,6 +55,7 @@ type jointReportAccounting struct {
 	InterruptedNotStored, UnexplainedNotStored, ACKWithoutStored, UnknownStored, HashMismatch, DuplicateStored int
 	MaxACKDelayMilliseconds                                                                                    float64
 	GeneratedEnvelopes, ObservedEnvelopes, UnobservedGeneratedEnvelopes                                        int
+	ConflictingReplays                                                                                         int
 }
 
 func newJointReportObserver(upstream string) *jointReportObserver {
@@ -90,6 +93,7 @@ func (p *jointReportObserver) record(node, transport string, envelope protocol.E
 		p.sequences[node] = make(map[uint64]bool)
 	}
 	p.sequences[node][envelope.Sequence] = true
+	p.traceLocked(jointEnvelopeEvent{Event: "observed", Node: node, Sequence: envelope.Sequence, Type: envelope.Type, Transport: transport})
 	p.mu.Unlock()
 	if envelope.Type != protocol.TypeReport {
 		return
@@ -105,7 +109,20 @@ func (p *jointReportObserver) record(node, transport string, envelope protocol.E
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.attempts[jointAttemptKey{node, envelope.Sequence}] = &jointReportAttempt{node: node, sequence: envelope.Sequence, captured: report.CapturedAt.UTC().Format(time.RFC3339Nano), transport: transport, hash: sha256.Sum256(raw), sentAt: time.Now()}
+	key := jointAttemptKey{node, envelope.Sequence}
+	hash := sha256.Sum256(raw)
+	captured := report.CapturedAt.UTC().Format(time.RFC3339Nano)
+	if previous := p.attempts[key]; previous != nil {
+		// A failed WS write can fall back to HTTP with the same envelope. Keep
+		// the original receipt and first-attempt timing across that second hop.
+		if previous.hash != hash || previous.captured != captured {
+			p.conflictingReplays++
+			p.traceLocked(jointEnvelopeEvent{Event: "conflicting_replay", Node: node, Sequence: envelope.Sequence, Transport: transport, CapturedAt: captured, ReportSHA256: hash})
+		}
+		return
+	}
+	p.attempts[key] = &jointReportAttempt{node: node, sequence: envelope.Sequence, captured: captured, transport: transport, hash: hash, sentAt: time.Now()}
+	p.traceLocked(jointEnvelopeEvent{Event: "report", Node: node, Sequence: envelope.Sequence, Transport: transport, CapturedAt: captured, ReportSHA256: hash})
 }
 
 func (p *jointReportObserver) sequenceAccounting(result *jointReportAccounting, generated map[string]uint64) {
@@ -118,6 +135,7 @@ func (p *jointReportObserver) sequenceAccounting(result *jointReportAccounting, 
 				result.ObservedEnvelopes++
 			} else {
 				result.UnobservedGeneratedEnvelopes++
+				p.traceLocked(jointEnvelopeEvent{Event: "sequence_gap", Node: node, Sequence: sequence})
 			}
 		}
 	}
@@ -125,6 +143,7 @@ func (p *jointReportObserver) sequenceAccounting(result *jointReportAccounting, 
 func (p *jointReportObserver) forwarded(node string, sequence uint64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.traceLocked(jointEnvelopeEvent{Event: "forwarded", Node: node, Sequence: sequence})
 	if attempt := p.attempts[jointAttemptKey{node, sequence}]; attempt != nil {
 		attempt.forwarded = true
 	}
@@ -133,6 +152,7 @@ func (p *jointReportObserver) ack(node string, sequence uint64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if attempt := p.attempts[jointAttemptKey{node, sequence}]; attempt != nil {
+		p.traceLocked(jointEnvelopeEvent{Event: "ack", Node: node, Sequence: sequence})
 		attempt.acknowledged = true
 		if attempt.ackAt.IsZero() {
 			attempt.ackAt = time.Now()
@@ -146,6 +166,7 @@ func (p *jointReportObserver) interrupt(node string, sequences []uint64) {
 	for _, sequence := range sequences {
 		if attempt := p.attempts[jointAttemptKey{node, sequence}]; attempt != nil && !attempt.acknowledged && attempt.interruptedAt.IsZero() {
 			attempt.interruptedAt = now
+			p.traceLocked(jointEnvelopeEvent{Event: "interrupted", Node: node, Sequence: sequence})
 		}
 	}
 }
@@ -198,6 +219,7 @@ func (p *jointReportObserver) serveHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	p.mu.Lock()
+	p.traceLocked(jointEnvelopeEvent{Event: "http_status", Node: node, Sequence: envelope.Sequence, Transport: "http", HTTPStatus: response.StatusCode})
 	if attempt := p.attempts[jointAttemptKey{node, envelope.Sequence}]; attempt != nil {
 		attempt.HTTPStatus = response.StatusCode
 	}
@@ -302,7 +324,7 @@ func (p *jointReportObserver) serveSocket(w http.ResponseWriter, r *http.Request
 func (p *jointReportObserver) reconcile(stored map[string]map[string][32]byte, duplicates int) jointReportAccounting {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	result := jointReportAccounting{Mode: "test-observer-http-ws-ack-store", DuplicateStored: duplicates}
+	result := jointReportAccounting{Mode: "test-observer-http-ws-ack-store", DuplicateStored: duplicates, ConflictingReplays: p.conflictingReplays}
 	known := make(map[string]map[string]bool)
 	for _, attempt := range p.attempts {
 		result.ReportAttempts++
@@ -334,6 +356,7 @@ func (p *jointReportObserver) reconcile(stored map[string]map[string][32]byte, d
 			result.InterruptedNotStored++
 		} else {
 			result.UnexplainedNotStored++
+			p.traceLocked(jointEnvelopeEvent{Event: "unexplained_not_stored", Node: attempt.node, Sequence: attempt.sequence, CapturedAt: attempt.captured, ReportSHA256: attempt.hash})
 		}
 	}
 	for node, reports := range stored {

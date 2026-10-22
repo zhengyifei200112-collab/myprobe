@@ -57,6 +57,35 @@ or incomplete reproducible copies before accumulating another large test.
 The actual20-node fixture correction and bounded import receipt/restore checks
 are described in [fixture validation](SELF_USE_FIXTURE_VALIDATION.md).
 
+## Transport evidence for a reconciled joint run
+
+With `MYPROBE_TEST_LOAD_RECONCILE=1`, the test observer preserves the first
+report attempt and ACK for each node/sequence across a repeated envelope on
+WebSocket and HTTP. A repeat with a different report digest or capture time is
+a conflicting replay and fails the run. Unexplained missing reports, missing
+generated envelopes, changed data and the existing interruption window retain
+their strict failure rules. A corrected observer cannot retrospectively accept
+an earlier failed run whose individual transport history was not retained.
+
+The observer also creates `joint-envelope-events.jsonl` exclusively in
+`MYPROBE_TEST_LOAD_OUTPUT`, or the private fixture directory if no output is set.
+Use a fresh directory for each run. The file is mode0600 and limited to512MiB;
+budget that additional space before starting. It records observed sequences,
+transports, report digests, forwarding, ACKs, HTTP status, interruptions and final
+gaps. Node identities are SHA256-hashed; tokens, headers, addresses and complete
+payloads are excluded. Sequence and monotonic elapsed nanoseconds are strings.
+Events describe what the observer actually saw; a generated sequence that never
+reached it still requires separate client-side diagnosis.
+
+The observer flushes/fsyncs during active traffic at a256-event or five-second
+boundary, and on finalization after proxy handlers stop and accounting completes.
+A crash may lose the unsynced interval. `ReportTrace` in the original result
+records event count, bytes, limit, stored-file SHA and completion status. A write,
+capacity, sync or finalization error fails the run. Keep this file and its bound
+source/result with failure evidence; do not upload it as a public CI artifact
+without reviewing its contents. It is test evidence, not a new Agent protocol or
+production logging facility.
+
 Real GitHub login, the owner's Telegram channel, daily workflow review and the
 old-site upgrade remain separate acceptance work. Repository-owner approval is
 still required before merging and releasing the integrated version.

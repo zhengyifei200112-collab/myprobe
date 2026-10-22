@@ -250,7 +250,15 @@ func TestJointRuntimeLoad(t *testing.T) {
 	agentBase := base
 	if os.Getenv("MYPROBE_TEST_LOAD_RECONCILE") == "1" {
 		reportObserver = newJointReportObserver(base)
-		defer reportObserver.close()
+		defer func() { reportObserver.close(); reportObserver.finishTrace() }()
+		traceDirectory := os.Getenv("MYPROBE_TEST_LOAD_OUTPUT")
+		if traceDirectory == "" {
+			traceDirectory = root
+		}
+		reportObserver.trace, err = newJointEnvelopeTrace(traceDirectory)
+		if err != nil {
+			t.Fatal("cannot create private bounded envelope trace")
+		}
 		agentBase = reportObserver.server.URL
 	}
 	var workers sync.WaitGroup
@@ -293,6 +301,14 @@ func TestJointRuntimeLoad(t *testing.T) {
 		result.Limitations[3] = "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports"
 	}
 	result.SourceSHA256 = make(map[string]string)
+	for _, path := range []string{"internal/agentclient/joint_load_trace_test.go", "internal/agentclient/joint_load_trace_validation_test.go"} {
+		raw, err := os.ReadFile(filepath.Join("../..", filepath.FromSlash(path)))
+		if err != nil {
+			t.Fatal("load trace source unavailable for provenance")
+		}
+		hash := sha256.Sum256(raw)
+		result.SourceSHA256[path] = hex.EncodeToString(hash[:])
+	}
 	for _, path := range []string{"internal/agentclient/joint_load_process_log_test.go", "internal/agentclient/joint_load_process_readiness_test.go", "internal/agentclient/joint_load_startup_validation_test.go", "internal/agentclient/joint_load_backlog_test.go", "internal/agentclient/joint_load_backlog_validation_test.go", "internal/agentclient/joint_load_slo_test.go", "internal/agentclient/joint_load_slo_validation_test.go", "internal/httpapi/server.go", "internal/httpapi/history_reads.go"} {
 		raw, err := os.ReadFile(filepath.Join("../..", path))
 		if err != nil {
@@ -684,8 +700,12 @@ func TestJointRuntimeLoad(t *testing.T) {
 		}
 		reportObserver.sequenceAccounting(&result.ReportAccounting, generated)
 		a := result.ReportAccounting
-		if a.UnexplainedNotStored+a.ACKWithoutStored+a.UnknownStored+a.HashMismatch+a.DuplicateStored+a.UnobservedGeneratedEnvelopes != 0 {
+		if a.UnexplainedNotStored+a.ACKWithoutStored+a.UnknownStored+a.HashMismatch+a.DuplicateStored+a.UnobservedGeneratedEnvelopes+a.ConflictingReplays != 0 {
 			t.Errorf("wire/ACK/storage reconciliation failed: %+v", a)
+		}
+		result.ReportTrace = reportObserver.finishTrace()
+		if result.ReportTrace.WriteErrors != 0 || !result.ReportTrace.SyncedAndClosed {
+			t.Error("envelope diagnostic trace incomplete")
 		}
 	}
 	notificationsOK := result.NotificationsFailed > 0 && result.NotificationsDelivered > 0
@@ -818,6 +838,7 @@ type jointLoadResult struct {
 	FinalHealth                                                                                                                               jointHealth
 	HTTPOutcomes                                                                                                                              map[string]int
 	ReportAccounting                                                                                                                          jointReportAccounting
+	ReportTrace                                                                                                                               jointTraceSummary
 	ResourceLimits                                                                                                                            map[string]string
 	ResourceSampleSeconds                                                                                                                     int
 	SampledPeakRSSBytes, SampledPeakWALBytes                                                                                                  int64
