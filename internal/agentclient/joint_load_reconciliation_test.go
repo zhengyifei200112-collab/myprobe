@@ -300,6 +300,7 @@ func (p *jointReportObserver) serveSocket(w http.ResponseWriter, r *http.Request
 		if wsjson.Read(ctx, upstream, &envelope) != nil {
 			break
 		}
+		p.observeServerEnvelope(node, envelope)
 		if envelope.Type == protocol.TypeAcknowledged {
 			ack, err := protocol.DecodePayload[protocol.Acknowledgement](envelope)
 			if err == nil && ack.Sequence == envelope.Sequence {

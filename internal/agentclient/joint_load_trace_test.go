@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 	"io"
 	"os"
 	"path/filepath"
@@ -17,10 +18,11 @@ import (
 // Test-only evidence; no token, address, response body or full payload is logged.
 // Calls are serialized by the observer mutex, including finalization.
 type jointEnvelopeEvent struct {
-	Event, Node, Type, Transport, CapturedAt string
-	Sequence                                 uint64
-	ReportSHA256                             [32]byte
-	HTTPStatus                               int
+	Event, Node, Type, Transport, CapturedAt, ErrorClass string
+	Sequence                                             uint64
+	ReportSHA256                                         [32]byte
+	PayloadSHA256                                        [32]byte
+	HTTPStatus                                           int
 }
 type jointEnvelopeTrace struct {
 	file              *os.File
@@ -52,12 +54,46 @@ func newJointEnvelopeTrace(directory string) (*jointEnvelopeTrace, error) {
 		return nil, err
 	}
 	now := time.Now()
-	return &jointEnvelopeTrace{file: f, writer: bufio.NewWriterSize(f, 64*1024), started: now, lastSync: now, limit: 512 * 1024 * 1024}, nil
+	return &jointEnvelopeTrace{file: f, writer: bufio.NewWriterSize(f, 64*1024), started: now, lastSync: now, limit: 1024 * 1024 * 1024}, nil
 }
 func (p *jointReportObserver) traceLocked(event jointEnvelopeEvent) {
 	if p.trace != nil {
 		p.trace.write(event)
 	}
+}
+
+func (p *jointReportObserver) observeClient(client *Client, node string) {
+	// Called before Client.Run. The Client's callback is never replaced while
+	// send goroutines are active; the observer mutex serializes their events.
+	client.observeEnvelope = func(event clientEnvelopeEvent) {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		captured := ""
+		if !event.CapturedAt.IsZero() {
+			captured = event.CapturedAt.UTC().Format(time.RFC3339Nano)
+		}
+		p.traceLocked(jointEnvelopeEvent{Event: "client_" + event.Phase, Node: node, Sequence: event.Sequence, Type: event.Type, Transport: event.Transport, ErrorClass: event.ErrorClass, HTTPStatus: event.HTTPStatus, CapturedAt: captured, PayloadSHA256: event.PayloadSHA256})
+	}
+}
+
+func (p *jointReportObserver) observeServerEnvelope(node string, envelope protocol.Envelope) {
+	if envelope.Type != protocol.TypeError {
+		return
+	}
+	class := "decode_error"
+	if rejection, err := protocol.DecodePayload[protocol.ProtocolError](envelope); err == nil {
+		switch rejection.Code {
+		case "storage_error", "invalid_report", "invalid_envelope", "invalid_result", "configuration_ack_rejected":
+			class = rejection.Code
+		default:
+			class = "unclassified"
+		}
+	}
+	// Current Server protocol errors have sequence0. Preserve that original
+	// value and timestamp; never pretend it identifies a specific request.
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.traceLocked(jointEnvelopeEvent{Event: "server_protocol_error", Node: node, Sequence: envelope.Sequence, Type: envelope.Type, ErrorClass: class})
 }
 func (trace *jointEnvelopeTrace) write(event jointEnvelopeEvent) {
 	if trace.err != nil {
@@ -71,19 +107,24 @@ func (trace *jointEnvelopeTrace) write(event jointEnvelopeEvent) {
 	}
 	node := sha256.Sum256([]byte(event.Node))
 	value := struct {
-		At           string `json:"at"`
-		ElapsedNS    string `json:"elapsed_ns"`
-		Event        string `json:"event"`
-		NodeSHA256   string `json:"node_sha256"`
-		Sequence     string `json:"sequence"`
-		Type         string `json:"type,omitempty"`
-		Transport    string `json:"transport,omitempty"`
-		CapturedAt   string `json:"captured_at,omitempty"`
-		ReportSHA256 string `json:"report_sha256,omitempty"`
-		HTTPStatus   int    `json:"http_status,omitempty"`
-	}{At: time.Now().UTC().Format(time.RFC3339Nano), ElapsedNS: strconv.FormatInt(time.Since(trace.started).Nanoseconds(), 10), Event: event.Event, NodeSHA256: hex.EncodeToString(node[:]), Sequence: strconv.FormatUint(event.Sequence, 10), Type: event.Type, Transport: event.Transport, CapturedAt: event.CapturedAt, HTTPStatus: event.HTTPStatus}
+		At            string `json:"at"`
+		ElapsedNS     string `json:"elapsed_ns"`
+		Event         string `json:"event"`
+		NodeSHA256    string `json:"node_sha256"`
+		Sequence      string `json:"sequence"`
+		Type          string `json:"type,omitempty"`
+		Transport     string `json:"transport,omitempty"`
+		CapturedAt    string `json:"captured_at,omitempty"`
+		ReportSHA256  string `json:"report_sha256,omitempty"`
+		HTTPStatus    int    `json:"http_status,omitempty"`
+		ErrorClass    string `json:"error_class,omitempty"`
+		PayloadSHA256 string `json:"payload_sha256,omitempty"`
+	}{At: time.Now().UTC().Format(time.RFC3339Nano), ElapsedNS: strconv.FormatInt(time.Since(trace.started).Nanoseconds(), 10), Event: event.Event, NodeSHA256: hex.EncodeToString(node[:]), Sequence: strconv.FormatUint(event.Sequence, 10), Type: event.Type, Transport: event.Transport, CapturedAt: event.CapturedAt, HTTPStatus: event.HTTPStatus, ErrorClass: event.ErrorClass}
 	if event.ReportSHA256 != ([32]byte{}) {
 		value.ReportSHA256 = hex.EncodeToString(event.ReportSHA256[:])
+	}
+	if event.PayloadSHA256 != ([32]byte{}) {
+		value.PayloadSHA256 = hex.EncodeToString(event.PayloadSHA256[:])
 	}
 	raw, err := json.Marshal(value)
 	if err != nil {
@@ -137,7 +178,7 @@ func (trace *jointEnvelopeTrace) finish() jointTraceSummary {
 		trace.err = err
 	}
 	trace.closed = true
-	trace.summary = jointTraceSummary{Format: "myprobe.joint-envelope-trace.v1", File: filepath.Base(trace.file.Name()), Events: trace.events, Bytes: trace.bytes, LimitBytes: trace.limit, SyncedAndClosed: syncOK && trace.err == nil}
+	trace.summary = jointTraceSummary{Format: "myprobe.joint-envelope-trace.v2", File: filepath.Base(trace.file.Name()), Events: trace.events, Bytes: trace.bytes, LimitBytes: trace.limit, SyncedAndClosed: syncOK && trace.err == nil}
 	f, err := os.Open(trace.file.Name())
 	if err == nil {
 		h := sha256.New()

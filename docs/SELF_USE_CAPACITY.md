@@ -69,13 +69,30 @@ an earlier failed run whose individual transport history was not retained.
 
 The observer also creates `joint-envelope-events.jsonl` exclusively in
 `MYPROBE_TEST_LOAD_OUTPUT`, or the private fixture directory if no output is set.
-Use a fresh directory for each run. The file is mode0600 and limited to512MiB;
+Use a fresh directory for each run. The file is mode0600 and limited to1GiB;
 budget that additional space before starting. It records observed sequences,
 transports, report digests, forwarding, ACKs, HTTP status, interruptions and final
 gaps. Node identities are SHA256-hashed; tokens, headers, addresses and complete
 payloads are excluded. Sequence and monotonic elapsed nanoseconds are strings.
 Events describe what the observer actually saw; a generated sequence that never
 reached it still requires separate client-side diagnosis.
+
+The reconciled fixture installs a private Client observation callback before
+Client.Run. The v2 trace also records client-side sequence allocation, local
+encoding/disconnection/cancellation errors and original WS/HTTP write results.
+Report metadata includes capture time and a SHA256 of the original wire payload;
+this is distinct from the observer's normalized report digest. Normal Clients
+leave the callback nil; no logging setting or protocol extension is added.
+Server protocol rejections retain only a whitelisted error code. Their original
+sequence0 and timestamp do not identify a particular request; private messages
+and unknown error-code text are excluded.
+
+An HTTP response with no transport error can still be4xx/5xx; always read its
+status and reconcile ACK/storage. Client observations add evidence only: the
+original generated/observed gap count, interruption window and pass/fail gates
+remain unchanged. Repeated observations cannot retrospectively explain an old
+failed run that lacks client-side evidence. Budget the1GiB trace cap in addition
+to the database/WAL/archive space before running a24-hour profile.
 
 The observer flushes/fsyncs during active traffic at a256-event or five-second
 boundary, and on finalization after proxy handlers stop and accounting completes.
