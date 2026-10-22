@@ -273,6 +273,9 @@ func TestJointRuntimeLoad(t *testing.T) {
 			t.Fatal(err)
 		}
 		client.collector, f.client = f.source, client
+		if reportObserver != nil {
+			reportObserver.observeClient(client, f.id)
+		}
 		workers.Add(1)
 		go func() { defer workers.Done(); _ = client.Run(runCtx) }()
 	}
@@ -301,7 +304,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 		result.Limitations[3] = "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports"
 	}
 	result.SourceSHA256 = make(map[string]string)
-	for _, path := range []string{"internal/agentclient/joint_load_trace_test.go", "internal/agentclient/joint_load_trace_validation_test.go"} {
+	for _, path := range []string{"internal/agentclient/joint_load_trace_test.go", "internal/agentclient/joint_load_trace_validation_test.go", "internal/agentclient/client_observation.go", "internal/agentclient/client_observation_test.go"} {
 		raw, err := os.ReadFile(filepath.Join("../..", filepath.FromSlash(path)))
 		if err != nil {
 			t.Fatal("load trace source unavailable for provenance")
