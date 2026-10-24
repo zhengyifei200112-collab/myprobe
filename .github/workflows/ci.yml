@@ -421,6 +421,10 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    # Ubuntu 26.04 mounts /tmp as tmpfs. Every disk-backed Go fixture in this
+    # job, including permanent replay/restore, needs the runner's disk volume.
+    env:
+      TMPDIR: ${{ runner.temp }}
     timeout-minutes: 25
     steps:
       - name: Check out repository
@@ -488,7 +492,6 @@ jobs:
 
       - name: Verify dense history retention and report writes
         env:
-          TMPDIR: ${{ runner.temp }}
           MYPROBE_TEST_HISTORY_CAPACITY: '1'
           MYPROBE_TEST_HISTORY_NODES: '5'
           MYPROBE_TEST_HISTORY_VARIANT: full
