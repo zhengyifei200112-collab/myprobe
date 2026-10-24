@@ -51,7 +51,10 @@ func (s *Store) RetainHistory(ctx context.Context, now time.Time, policy Retenti
 	defer tx.Rollback()
 	// Reserve the writer before selecting a window. A concurrent report cannot
 	// arrive between the window selection, aggregation and pruning snapshots.
-	if _, err = tx.ExecContext(ctx, `UPDATE history_retention_anchors SET sample_id=sample_id WHERE 0`); err != nil {
+	if err = reserveWriter(ctx, func() error {
+		_, reserveErr := tx.ExecContext(ctx, `UPDATE history_retention_anchors SET sample_id=sample_id WHERE 0`)
+		return reserveErr
+	}); err != nil {
 		return batch, err
 	}
 	next, err := nextRawRetention(ctx, tx, rawCutoff)

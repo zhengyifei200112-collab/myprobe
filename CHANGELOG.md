@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Retry transient SQLite writer acquisition for reports and history retention
+  up to three times, honoring caller cancellation. A writer held beyond one
+  five-second busy timeout can now release before the operation fails;
+  exhausted waits and other errors still propagate, without replaying commits.
+
 - Target personal-use capacity acceptance at 20 nodes (usual deployment about
   15): five-to-twenty short checks followed by a 20-node uninterrupted 24-hour
   run. Larger workloads are optional; strict performance and recovery criteria
