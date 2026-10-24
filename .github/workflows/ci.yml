@@ -95,7 +95,7 @@ jobs:
           go test -c -o "${RUNNER_TEMP}/myprobe-lifecycle-httpapi.test" ./internal/httpapi
           go test -c -o "${RUNNER_TEMP}/myprobe-lifecycle-agentclient.test" ./internal/agentclient
           go build -ldflags '-X main.version=resource-main-acceptance' -o "${RUNNER_TEMP}/myprobe-lifecycle-resource-server" ./cmd/server
-          sudo env PATH="$PATH" \
+          sudo env PATH="$PATH" TMPDIR="$RUNNER_TEMP" \
             PLAYWRIGHT_MODULE="${RUNNER_TEMP}/myprobe-lifecycle-browser/node_modules/playwright" \
             PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/myprobe-lifecycle-browsers" \
             sh scripts/run-cross-module-browser-qa.sh \
@@ -284,7 +284,7 @@ jobs:
           install -d -m 700 "${RUNNER_TEMP}/myprobe-online-backup-process-private"
           go build -o "${RUNNER_TEMP}/myprobe-online-backup-server" ./cmd/server
           go test -c ./internal/agentclient -o "${RUNNER_TEMP}/myprobe-online-backup.test"
-          sudo env PATH="$PATH" \
+          sudo env PATH="$PATH" TMPDIR="$RUNNER_TEMP" \
             PLAYWRIGHT_MODULE="${RUNNER_TEMP}/myprobe-backup-browser/node_modules/playwright" \
             PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/myprobe-backup-browsers" \
             MYPROBE_TEST_LOAD_DURATION=3m MYPROBE_TEST_LOAD_NODES=5 \
@@ -549,7 +549,7 @@ jobs:
           go test -c ./internal/agentclient -o "${RUNNER_TEMP}/myprobe-joint-agentclient.test"
           install -d -m 700 "${RUNNER_TEMP}/myprobe-joint-process-private"
           install -d -m 700 "${RUNNER_TEMP}/myprobe-joint-fixtures-private"
-          sudo env MYPROBE_TEST_LOAD_PRIVATE_FIXTURE_DIR="${RUNNER_TEMP}/myprobe-joint-fixtures-private" MYPROBE_TEST_LOAD_BACKLOG_HOURS=12 MYPROBE_TEST_LOAD_PROCESS_LOG_DIR="${RUNNER_TEMP}/myprobe-joint-process-private" MYPROBE_TEST_LOAD_RECONCILE=1 MYPROBE_TEST_LOAD_HISTORY=year MYPROBE_TEST_LOAD_TIMEOUT=10m sh scripts/run-joint-load.sh "${RUNNER_TEMP}/myprobe-joint-agentclient.test" "${RUNNER_TEMP}/myprobe-joint-server"
+          sudo env TMPDIR="$RUNNER_TEMP" MYPROBE_TEST_LOAD_PRIVATE_FIXTURE_DIR="${RUNNER_TEMP}/myprobe-joint-fixtures-private" MYPROBE_TEST_LOAD_BACKLOG_HOURS=12 MYPROBE_TEST_LOAD_PROCESS_LOG_DIR="${RUNNER_TEMP}/myprobe-joint-process-private" MYPROBE_TEST_LOAD_RECONCILE=1 MYPROBE_TEST_LOAD_HISTORY=year MYPROBE_TEST_LOAD_TIMEOUT=10m sh scripts/run-joint-load.sh "${RUNNER_TEMP}/myprobe-joint-agentclient.test" "${RUNNER_TEMP}/myprobe-joint-server"
 
       - name: Build and validate container images
         shell: bash

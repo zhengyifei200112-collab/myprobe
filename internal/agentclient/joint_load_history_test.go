@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -35,7 +36,9 @@ func seedJointHistory(t *testing.T, ctx context.Context, path string, database *
 	if len(ids) != 5 && len(ids) != 20 && len(ids) != 50 && len(ids) != 100 {
 		t.Fatal("dense joint history requires 5/20/50/100 nodes")
 	}
-	usage, err := disk.Usage(t.TempDir())
+	// A caller-selected private fixture may live on a different volume from
+	// TMPDIR. Check the actual database's volume before allocating dense history.
+	usage, err := disk.Usage(filepath.Dir(path))
 	if err != nil || usage.Free < uint64(len(ids))*((500<<20)+uint64(backlogHours)*(1<<20))+(8<<30) {
 		t.Fatal("dense history requires 500 MiB per node plus 1 MiB per backlog hour/node and 8 GiB free on the fixture volume")
 	}
