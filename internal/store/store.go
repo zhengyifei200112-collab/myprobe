@@ -303,7 +303,10 @@ func (s *Store) saveReport(ctx context.Context, nodeID string, report protocol.R
 	// Reserve the writer before reading the latest measurement. Cached/retried
 	// reports prove transport liveness, but cannot rewind metrics or traffic.
 	observed := time.Now().UTC()
-	if _, err = tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", formatTime(observed), formatTime(observed), nodeID); err != nil {
+	if err = reserveWriter(ctx, func() error {
+		_, reserveErr := tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", formatTime(observed), formatTime(observed), nodeID)
+		return reserveErr
+	}); err != nil {
 		return err
 	}
 	// An earlier timestamp can be a distinct late arrival (for example while

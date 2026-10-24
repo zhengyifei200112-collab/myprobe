@@ -95,7 +95,7 @@ jobs:
           go test -c -o "${RUNNER_TEMP}/myprobe-lifecycle-httpapi.test" ./internal/httpapi
           go test -c -o "${RUNNER_TEMP}/myprobe-lifecycle-agentclient.test" ./internal/agentclient
           go build -ldflags '-X main.version=resource-main-acceptance' -o "${RUNNER_TEMP}/myprobe-lifecycle-resource-server" ./cmd/server
-          sudo env PATH="$PATH" \
+          sudo env PATH="$PATH" TMPDIR="$RUNNER_TEMP" \
             PLAYWRIGHT_MODULE="${RUNNER_TEMP}/myprobe-lifecycle-browser/node_modules/playwright" \
             PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/myprobe-lifecycle-browsers" \
             sh scripts/run-cross-module-browser-qa.sh \
@@ -278,13 +278,14 @@ jobs:
       - name: Verify bounded online backup with dense year and real pages
         env:
           CGO_ENABLED: '0'
+          DEBUG: pw:browser
         run: |
           mkdir -p "${RUNNER_TEMP}/myprobe-online-backup-private"
           chmod 700 "${RUNNER_TEMP}/myprobe-online-backup-private"
           install -d -m 700 "${RUNNER_TEMP}/myprobe-online-backup-process-private"
           go build -o "${RUNNER_TEMP}/myprobe-online-backup-server" ./cmd/server
           go test -c ./internal/agentclient -o "${RUNNER_TEMP}/myprobe-online-backup.test"
-          sudo env PATH="$PATH" \
+          sudo env PATH="$PATH" DEBUG="$DEBUG" \
             PLAYWRIGHT_MODULE="${RUNNER_TEMP}/myprobe-backup-browser/node_modules/playwright" \
             PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/myprobe-backup-browsers" \
             MYPROBE_TEST_LOAD_DURATION=3m MYPROBE_TEST_LOAD_NODES=5 \
@@ -362,6 +363,9 @@ jobs:
 
       - name: Verify encrypted large database snapshots and recovery
         env:
+          # /tmp may be a small tmpfs on hosted Ubuntu images. Keep large
+          # disposable databases on the runner's workspace volume.
+          TMPDIR: ${{ runner.temp }}
           CGO_ENABLED: '0'
           MYPROBE_TEST_BACKUP_CAPACITY: '1'
           MYPROBE_TEST_BACKUP_CAPACITY_MIB: '256,1024'
@@ -370,6 +374,8 @@ jobs:
           MYPROBE_TEST_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           mkdir -p "$MYPROBE_TEST_BACKUP_CAPACITY_OUTPUT"
+          df -h "$TMPDIR"
+          findmnt -T "$TMPDIR"
           go test ./internal/backup -run '^TestEncryptedBackupCapacity$' -timeout 15m -count=1 -v
 
       - name: Verify portable archive and production staged restore locally
@@ -420,6 +426,15 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Use disk-backed temporary storage for all test fixtures
+        shell: bash
+        run: |
+          # Ubuntu 26.04 mounts /tmp as tmpfs; keep large fixtures on disk.
+          test -d "$RUNNER_TEMP"
+          df -h "$RUNNER_TEMP"
+          findmnt -T "$RUNNER_TEMP"
+          printf 'TMPDIR=%s\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -486,7 +501,10 @@ jobs:
           MYPROBE_TEST_HISTORY_CAPACITY: '1'
           MYPROBE_TEST_HISTORY_NODES: '5'
           MYPROBE_TEST_HISTORY_VARIANT: full
-        run: go test ./internal/store -run '^TestHistoryRetentionDenseCapacity$' -timeout 10m -count=1 -v
+        run: |
+          df -h "$TMPDIR"
+          findmnt -T "$TMPDIR"
+          go test ./internal/store -run '^TestHistoryRetentionDenseCapacity$' -timeout 10m -count=1 -v
 
       - name: Verify published Agent compatibility
         shell: bash
@@ -532,7 +550,7 @@ jobs:
           go test -c ./internal/agentclient -o "${RUNNER_TEMP}/myprobe-joint-agentclient.test"
           install -d -m 700 "${RUNNER_TEMP}/myprobe-joint-process-private"
           install -d -m 700 "${RUNNER_TEMP}/myprobe-joint-fixtures-private"
-          sudo env MYPROBE_TEST_LOAD_PRIVATE_FIXTURE_DIR="${RUNNER_TEMP}/myprobe-joint-fixtures-private" MYPROBE_TEST_LOAD_BACKLOG_HOURS=12 MYPROBE_TEST_LOAD_PROCESS_LOG_DIR="${RUNNER_TEMP}/myprobe-joint-process-private" MYPROBE_TEST_LOAD_RECONCILE=1 MYPROBE_TEST_LOAD_HISTORY=year MYPROBE_TEST_LOAD_TIMEOUT=10m sh scripts/run-joint-load.sh "${RUNNER_TEMP}/myprobe-joint-agentclient.test" "${RUNNER_TEMP}/myprobe-joint-server"
+          sudo env TMPDIR="$RUNNER_TEMP" MYPROBE_TEST_LOAD_PRIVATE_FIXTURE_DIR="${RUNNER_TEMP}/myprobe-joint-fixtures-private" MYPROBE_TEST_LOAD_BACKLOG_HOURS=12 MYPROBE_TEST_LOAD_PROCESS_LOG_DIR="${RUNNER_TEMP}/myprobe-joint-process-private" MYPROBE_TEST_LOAD_RECONCILE=1 MYPROBE_TEST_LOAD_HISTORY=year MYPROBE_TEST_LOAD_TIMEOUT=10m sh scripts/run-joint-load.sh "${RUNNER_TEMP}/myprobe-joint-agentclient.test" "${RUNNER_TEMP}/myprobe-joint-server"
 
       - name: Build and validate container images
         shell: bash
