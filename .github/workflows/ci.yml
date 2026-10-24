@@ -362,6 +362,9 @@ jobs:
 
       - name: Verify encrypted large database snapshots and recovery
         env:
+          # /tmp may be a small tmpfs on hosted Ubuntu images. Keep large
+          # disposable databases on the runner's workspace volume.
+          TMPDIR: ${{ runner.temp }}
           CGO_ENABLED: '0'
           MYPROBE_TEST_BACKUP_CAPACITY: '1'
           MYPROBE_TEST_BACKUP_CAPACITY_MIB: '256,1024'
@@ -370,6 +373,8 @@ jobs:
           MYPROBE_TEST_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           mkdir -p "$MYPROBE_TEST_BACKUP_CAPACITY_OUTPUT"
+          df -h "$TMPDIR"
+          findmnt -T "$TMPDIR"
           go test ./internal/backup -run '^TestEncryptedBackupCapacity$' -timeout 15m -count=1 -v
 
       - name: Verify portable archive and production staged restore locally
@@ -483,10 +488,14 @@ jobs:
 
       - name: Verify dense history retention and report writes
         env:
+          TMPDIR: ${{ runner.temp }}
           MYPROBE_TEST_HISTORY_CAPACITY: '1'
           MYPROBE_TEST_HISTORY_NODES: '5'
           MYPROBE_TEST_HISTORY_VARIANT: full
-        run: go test ./internal/store -run '^TestHistoryRetentionDenseCapacity$' -timeout 10m -count=1 -v
+        run: |
+          df -h "$TMPDIR"
+          findmnt -T "$TMPDIR"
+          go test ./internal/store -run '^TestHistoryRetentionDenseCapacity$' -timeout 10m -count=1 -v
 
       - name: Verify published Agent compatibility
         shell: bash
