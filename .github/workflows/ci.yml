@@ -421,14 +421,19 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    # Ubuntu 26.04 mounts /tmp as tmpfs. Every disk-backed Go fixture in this
-    # job, including permanent replay/restore, needs the runner's disk volume.
-    env:
-      TMPDIR: ${{ runner.temp }}
     timeout-minutes: 25
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Use disk-backed temporary storage for all test fixtures
+        shell: bash
+        run: |
+          # Ubuntu 26.04 mounts /tmp as tmpfs; keep large fixtures on disk.
+          test -d "$RUNNER_TEMP"
+          df -h "$RUNNER_TEMP"
+          findmnt -T "$RUNNER_TEMP"
+          printf 'TMPDIR=%s\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
