@@ -26,6 +26,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Keep completed network-probe results in bounded Agent memory until their exact
+  application acknowledgement or original task expiry. Retry unchanged envelopes
+  after a lost result/ACK or a negotiated reconnect without executing probes again
+  or creating duplicate latency rows; do not replay onto an unsupported channel.
+
 - Give authenticated database backup/restore transfers a bounded 15-minute
   transport and processing budget, so slow large restores can return their
   durable staging acknowledgement. Preserve earlier request deadlines and

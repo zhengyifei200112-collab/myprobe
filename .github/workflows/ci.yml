@@ -481,6 +481,7 @@ jobs:
           go test -race ./internal/networkquality -count=1
           go test -race ./internal/protocol/networkcheck -count=1
           go test -race ./internal/agentclient -run '^TestNetworkProbe' -count=1
+          go test -race ./internal/agentclient -run '^TestNetwork(Delivery|ResultDelivery)' -count=1
           go test -race ./cmd/server -run '^TestNetworkRetention' -count=1
 
       - name: Verify released database upgrade
