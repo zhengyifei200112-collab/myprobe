@@ -28,8 +28,11 @@ are actual optional evidence. No resolved address or tool output is returned.
 v1 remains unchanged; unsupported advanced profiles are recorded as a Server
 dispatch decision without executing in a different family. Result admission is
 fenced by the current authenticated connection generation; ACK follows the
-atomic receipt/sample commit. The Agent currently has no new durable result retry
-queue. See [network evidence](NETWORK_PROBE_EVIDENCE.md) for exact contracts,
+atomic receipt/sample commit. The Agent retains up to 32 completed result envelopes
+in memory until their exact ACK or original task expiry; retries preserve the
+sequence and body and require a current mutually negotiated socket. It has no
+durable result retry queue. See [bounded result delivery](NETWORK_RESULT_DELIVERY.md)
+and [network evidence](NETWORK_PROBE_EVIDENCE.md) for exact contracts,
 timeouts, packet semantics, idempotency and native test limitations.
 
 ## Transport
@@ -52,8 +55,10 @@ timeouts, packet semantics, idempotency and native test limitations.
 }
 ```
 
-`sequence` is monotonically increasing for the life of an agent process. The server
-uses it for diagnostics and acknowledges the latest accepted sequence.
+New envelopes receive monotonically increasing `sequence` values for the life of
+an Agent process. A delivery retry reuses its original value. The Server uses it
+for diagnostics and acknowledges the accepted envelope's sequence; a later ACK
+does not cumulatively acknowledge earlier pending network results.
 
 ## Agent to server messages
 

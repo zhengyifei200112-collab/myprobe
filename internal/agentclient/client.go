@@ -56,6 +56,8 @@ type Client struct {
 	writeMu           sync.Mutex
 	conn              *websocket.Conn
 	connVersion       int
+	connNetwork       bool
+	networkResults    networkResultDelivery
 	taskSlots         chan struct{}
 	httpTaskSlots     chan struct{}
 	httpExecutor      httpExecutor
@@ -95,7 +97,9 @@ func New(config Config, source *collector.Collector, logger *slog.Logger) (*Clie
 
 func (c *Client) Run(ctx context.Context) error {
 	var wait sync.WaitGroup
-	wait.Add(4)
+	c.networkResults.start()
+	wait.Add(5)
+	go func() { defer wait.Done(); c.networkResultLoop(ctx) }()
 	go func() { defer wait.Done(); c.collectionLoop(ctx) }()
 	go func() {
 		defer wait.Done()
@@ -215,7 +219,7 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 		connection.CloseNow()
 		return false, errors.New("invalid welcome sampling configuration")
 	}
-	c.replaceConnectionVersion(connection, version)
+	c.replaceNegotiatedConnection(connection, version, networkAllowed)
 	defer c.clearConnection(connection)
 	c.logger.Info("agent websocket connected", "server", c.baseURL.Host)
 	connectionCtx, stopHeartbeat := context.WithCancel(ctx)
@@ -244,7 +248,7 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 			}
 			task, err := networkcheck.DecodeTask(message.Payload, time.Now().UTC())
 			if err == nil {
-				c.startNetworkTask(connectionCtx, connection, task)
+				c.startNetworkTask(connectionCtx, task)
 			}
 		case protocolv2.TypeHTTPTask:
 			if !httpAllowed {
@@ -275,6 +279,7 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 				c.startTask(ctx, task)
 			}
 		case protocol.TypeAcknowledged:
+			c.acknowledgeNetworkResult(connection, message)
 		default:
 			c.logger.Debug("ignored server message", "type", message.Type)
 		}
@@ -508,11 +513,17 @@ func (c *Client) currentConnectionVersion() (*websocket.Conn, int) {
 }
 
 func (c *Client) replaceConnectionVersion(connection *websocket.Conn, version int) {
+	c.replaceNegotiatedConnection(connection, version, false)
+}
+
+func (c *Client) replaceNegotiatedConnection(connection *websocket.Conn, version int, networkAllowed bool) {
 	c.connMu.Lock()
 	old := c.conn
 	c.conn = connection
 	c.connVersion = version
+	c.connNetwork = version == 2 && networkAllowed
 	c.connMu.Unlock()
+	c.networkResults.signal()
 	if old != nil && old != connection {
 		_ = old.Close(websocket.StatusNormalClosure, "replaced")
 	}
@@ -523,7 +534,9 @@ func (c *Client) clearConnection(expected *websocket.Conn) {
 	if expected == nil || c.conn == expected {
 		old := c.conn
 		c.conn = nil
+		c.connNetwork = false
 		c.connMu.Unlock()
+		c.networkResults.signal()
 		if old != nil {
 			_ = old.Close(websocket.StatusNormalClosure, "reconnecting")
 		}
