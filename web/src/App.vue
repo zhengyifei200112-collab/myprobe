@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { connectRealtime, fetchHistory, fetchNodes } from './api'
 import { DsCard, DsEmptyState, DsLoading, DsTabs } from './design-system'
 import PublicNodeCard from './public-dashboard/PublicNodeCard.vue'
+import PublicNodeTable from './public-dashboard/PublicNodeTable.vue'
+import { matchesQuery, nodeState, queryURL, readQuery, sortNodes, sortOptions } from './public-dashboard/discovery'
+import './public-dashboard/discovery.css'
 import { aggregateNode as aggregate, commonByteUnit, formatBytesInUnit, formatMilliseconds, formatPercent } from './public-dashboard/metrics'
 import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
 import { defaultSiteSettings, normalizeSiteSettings, type HistoryRange, type HistoryResponse, type PublicNode, type RealtimeEvent, type SiteSettings, type ThemeMode } from './types'
@@ -11,7 +14,33 @@ type DisplayMode = 'compact' | 'detailed'
 
 const nodes = ref<PublicNode[]>([])
 const siteSettings = ref<SiteSettings>(defaultSiteSettings())
-const activeTag = ref('__all__')
+let savedDiscovery = {}
+try { savedDiscovery = JSON.parse(localStorage.getItem('myprobe-discovery') || '{}') || {} } catch { /* use defaults */ }
+const query = reactive(readQuery(location.search, savedDiscovery))
+const activeTag = computed({ get: () => query.tag, set: (value: string) => { query.tag = value } })
+const rankedIDs = ref<string[]>([])
+const pointerInList = ref(false)
+const focusInList = ref(false)
+let sortClock: number | undefined
+const copyNotice = ref('')
+function updateRanking() { rankedIDs.value = sortNodes(nodes.value, query).map(item => item.node.id) }
+function clearFilters() { Object.assign(query, { q: '', tag: '__all__', status: 'all' }) }
+function readLocation() { Object.assign(query, readQuery(location.search)) }
+async function copyQueryLink() {
+  try { await navigator.clipboard.writeText(new URL(queryURL(new URL(location.href), query), location.origin).href); copyNotice.value = '筛选链接已复制' }
+  catch { copyNotice.value = '复制失败，可直接复制地址栏链接' }
+}
+function leaveListFocus(event: FocusEvent) {
+  focusInList.value = event.relatedTarget instanceof Node && (event.currentTarget as HTMLElement).contains(event.relatedTarget)
+}
+watch(query, () => {
+  if (query.sort === 'latency' && !query.target) query.sort = 'default'
+  updateRanking()
+  history.replaceState(null, '', queryURL(new URL(location.href), query))
+  try { localStorage.setItem('myprobe-discovery', JSON.stringify({ sort: query.sort, target: query.target, view: query.view })) } catch { /* storage unavailable */ }
+  copyNotice.value = ''
+})
+watch(() => nodes.value.length, () => { if (!rankedIDs.value.length) updateRanking() })
 const loading = ref(true)
 const error = ref('')
 const connected = ref(false)
@@ -37,7 +66,15 @@ let trafficChart: any
 let historyTrigger: HTMLElement | null = null
 const systemTheme = matchMedia('(prefers-color-scheme: dark)')
 
-const sortedNodes = computed(() => [...nodes.value].sort((a, b) => a.node.sort_order - b.node.sort_order || a.node.name.localeCompare(b.node.name)))
+const sortedNodes = computed(() => {
+  const ranks = new Map(rankedIDs.value.map((id, index) => [id, index]))
+  return [...nodes.value].sort((a, b) => (ranks.get(a.node.id) ?? Infinity) - (ranks.get(b.node.id) ?? Infinity) || a.node.id.localeCompare(b.node.id))
+})
+const targetOptions = computed(() => {
+  const targets = new Map<string, string>()
+  for (const item of nodes.value) for (const target of item.latency || []) targets.set(target.target_id, target.name)
+  return [...targets].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label))
+})
 const tags = computed(() => {
   const counts = new Map<string, number>()
   for (const item of nodes.value) for (const tag of item.node.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1)
@@ -47,9 +84,9 @@ const filterTabs = computed(() => [
   { value: '__all__', label: `全部 ${nodes.value.length}` },
   ...tags.value.map(([tag, count]) => ({ value: tag, label: `${tag} ${count}` })),
 ])
-const visibleNodes = computed(() => activeTag.value === '__all__'
-  ? sortedNodes.value
-  : sortedNodes.value.filter((item) => item.node.tags?.includes(activeTag.value)))
+const visibleNodes = computed(() => sortedNodes.value.filter(item => matchesQuery(item, query, now.value.getTime())))
+const interruptedCount = computed(() => visibleNodes.value.filter(item => nodeState(item) === 'interrupted').length)
+const waitingCount = computed(() => visibleNodes.value.filter(item => nodeState(item) === 'waiting').length)
 const onlineCount = computed(() => visibleNodes.value.filter((item) => item.online).length)
 const totalRate = computed(() => sumNetwork(visibleNodes.value, 'rate'))
 const totalTraffic = computed(() => sumNetwork(visibleNodes.value, 'total'))
@@ -112,6 +149,7 @@ function sumNetwork(items: PublicNode[], kind: 'rate' | 'total') {
   let up = 0
   let down = 0
   for (const item of items) {
+    if (kind === 'rate' && nodeState(item) !== 'online') continue
     const metrics = aggregate(item)
     up += kind === 'rate' ? metrics.txRate : metrics.txTotal
     down += kind === 'rate' ? metrics.rxRate : metrics.rxTotal
@@ -257,12 +295,16 @@ onMounted(() => {
     localStorage.setItem('myprobe-nodes', JSON.stringify(nodes.value))
   }, (state) => { connected.value = state })
   clock = window.setInterval(() => { now.value = new Date() }, 1000)
+  sortClock = window.setInterval(() => { if (!pointerInList.value && !focusInList.value && !chartNode.value) updateRanking() }, 5000)
+  window.addEventListener('popstate', readLocation)
   window.addEventListener('resize', resizeCharts)
   systemTheme.addEventListener('change', systemThemeChanged)
 })
 
 onBeforeUnmount(() => {
   disconnect?.()
+  if (sortClock !== undefined) window.clearInterval(sortClock)
+  window.removeEventListener('popstate', readLocation)
   if (clock !== undefined) window.clearInterval(clock)
   window.removeEventListener('resize', resizeCharts)
   systemTheme.removeEventListener('change', systemThemeChanged)
@@ -321,7 +363,7 @@ onBeforeUnmount(() => {
         </div>
         <div class="live-badge" :class="{ reconnecting: !connected }" role="status" aria-live="polite" :title="connected ? 'WebSocket 实时连接正常' : '正在重新连接实时数据'">
           <span class="live-dot" aria-hidden="true"></span>
-          {{ connected ? '实时监控中' : '正在重连' }}
+          {{ connected ? '实时监控中' : '实时连接中断，正在重连' }}
         </div>
       </section>
 
@@ -335,22 +377,22 @@ onBeforeUnmount(() => {
             <small>{{ now.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' }) }}</small>
           </div>
         </DsCard>
-        <DsCard as="article" padding="medium" class="overview-card overview-status-card" :title="`当前筛选：总数 ${visibleNodes.length} • 在线 ${onlineCount} • 离线 ${visibleNodes.length - onlineCount}`">
-          <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="6" rx="2"/><rect x="4" y="13.5" width="16" height="6" rx="2"/><path d="M8 7.5h.01M8 16.5h.01M12 7.5h5M12 16.5h5"/></svg></span><span class="overview-title">服务器概况</span></div>
+        <DsCard as="article" padding="medium" class="overview-card overview-status-card" :title="`当前筛选：总数 ${visibleNodes.length} • 在线 ${onlineCount} • 上报中断 ${interruptedCount} • 等待接入 ${waitingCount}`">
+          <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="6" rx="2"/><rect x="4" y="13.5" width="16" height="6" rx="2"/><path d="M8 7.5h.01M8 16.5h.01M12 7.5h5M12 16.5h5"/></svg></span><span class="overview-title">服务器概况（当前筛选）</span></div>
           <div class="overview-content">
             <div class="overview-main-row"><strong class="overview-main-number">{{ visibleNodes.length }}</strong><span>台节点</span></div>
-            <div class="status-breakdown"><span><b class="dot online"></b>在线 <strong>{{ onlineCount }}</strong></span><span><b class="dot offline"></b>离线 <strong>{{ visibleNodes.length - onlineCount }}</strong></span></div>
+            <div class="status-breakdown"><span><b class="dot online"></b>在线 <strong>{{ onlineCount }}</strong></span><span><b class="dot offline"></b>上报中断 <strong>{{ interruptedCount }}</strong></span></div>
           </div>
         </DsCard>
         <DsCard as="article" padding="medium" class="overview-card overview-traffic-card">
-          <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M10 19V5M15 19v-7M20 19V7"/><path d="M3.5 19.5h18"/></svg></span><span class="overview-title">累计流量</span></div>
+          <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M10 19V5M15 19v-7M20 19V7"/><path d="M3.5 19.5h18"/></svg></span><span class="overview-title">累计流量（当前筛选）</span></div>
           <div class="overview-content overview-pairline">
             <span><small><i class="up-arrow">↑</i> 上传</small><strong class="overview-value">{{ formatBytesInUnit(totalTraffic.up, totalTrafficUnit) }}</strong></span>
             <span><small><i class="down-arrow">↓</i> 下载</small><strong class="overview-value">{{ formatBytesInUnit(totalTraffic.down, totalTrafficUnit) }}</strong></span>
           </div>
         </DsCard>
         <DsCard as="article" padding="medium" class="overview-card overview-speed-card">
-          <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5h4l2.2-4 4.2 15 2.5-8h4.1"/></svg></span><span class="overview-title">实时速率</span></div>
+          <div class="overview-head"><span class="overview-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5h4l2.2-4 4.2 15 2.5-8h4.1"/></svg></span><span class="overview-title">实时速率（当前筛选）</span></div>
           <div class="overview-content overview-pairline">
             <span><small><i class="up-arrow">↑</i> 上传</small><strong class="overview-value">{{ formatBytesInUnit(totalRate.up, totalRateUnit, '/s') }}</strong></span>
             <span><small><i class="down-arrow">↓</i> 下载</small><strong class="overview-value">{{ formatBytesInUnit(totalRate.down, totalRateUnit, '/s') }}</strong></span>
@@ -366,15 +408,32 @@ onBeforeUnmount(() => {
           </div>
           <div class="filter-section"><DsTabs v-model="activeTag" :items="filterTabs" label="按标签筛选节点" /></div>
         </div>
+        <div class="discovery-controls">
+          <label>搜索节点<input v-model="query.q" type="search" placeholder="名称或标签" maxlength="200"></label>
+          <label>节点状态<select v-model="query.status" aria-label="节点状态"><option value="all">全部状态</option><option value="attention">需要关注</option><option value="interrupted">上报中断</option><option value="expiring">7 天内到期</option><option value="waiting">等待接入</option></select></label>
+          <label>对比目标<select v-model="query.target" aria-label="对比目标"><option value="">请选择目标</option><option v-if="query.target && !targetOptions.some(option => option.value === query.target)" :value="query.target">目标暂无数据</option><option v-for="option in targetOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
+          <label>排序方式<select v-model="query.sort" aria-label="排序方式"><option v-for="option in sortOptions" :key="option.value" :value="option.value" :disabled="option.value === 'latency' && !query.target">{{ option.label }}</option></select></label>
+          <label>显示方式<select v-model="query.view" aria-label="显示方式"><option value="cards">卡片</option><option value="table">表格</option></select></label>
+          <button type="button" class="discovery-button" @click="clearFilters">清空筛选</button>
+        </div>
+        <div class="discovery-summary">
+          <p role="status">显示 {{ visibleNodes.length }} / 全部 {{ nodes.length }} 个节点 · 等待接入 {{ waitingCount }}</p>
+          <button type="button" class="discovery-button" @click="copyQueryLink">复制筛选链接</button><span role="status">{{ copyNotice }}</span>
+          <p v-if="query.tag !== '__all__' && !tags.some(([tag]) => tag === query.tag)">当前标签「{{ query.tag }}」暂无节点，可清空筛选。</p>
+          <p class="discovery-help">需要关注：上报中断、数据陈旧、资源使用率 ≥ 90% 或到期提醒；这是公开展示规则。动态排序每 5 秒更新，鼠标悬停或键盘操作列表时暂停。</p>
+          <p v-if="query.sort === 'latency' && !query.target" class="discovery-help">请先选择对比目标，暂按节点 ID 排序。</p>
+        </div>
       </section>
 
       <div v-if="error" class="notice" role="alert">{{ error }}，当前展示最后缓存数据。</div>
       <DsLoading v-if="loading" label="正在读取节点" />
-      <DsEmptyState v-else-if="visibleNodes.length === 0" title="还没有可显示的节点" description="在管理后台注册第一台服务器后，数据会实时出现在这里。">
+      <DsEmptyState v-else-if="visibleNodes.length === 0" :title="nodes.length ? '没有匹配的节点' : '还没有可显示的节点'" :description="nodes.length ? '调整条件或点击清空筛选。' : '在管理后台注册第一台服务器后，数据会实时出现在这里。'">
         <template #icon><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="6" rx="2"/><rect x="4" y="14" width="16" height="5" rx="2"/><path d="M8 8h.01M8 16.5h.01"/></svg></template>
       </DsEmptyState>
 
-      <section v-else class="node-grid" :class="displayMode" aria-live="polite">
+      <section v-else @pointerenter="pointerInList = true" @pointerleave="pointerInList = false" @focusin="focusInList = true" @focusout="leaveListFocus">
+      <PublicNodeTable v-if="query.view === 'table'" :nodes="visibleNodes" :target="query.target" :now="now" @open="openHistory" />
+      <div v-else class="node-grid" :class="displayMode">
         <PublicNodeCard
           v-for="item in visibleNodes"
           :key="item.node.id"
@@ -383,6 +442,7 @@ onBeforeUnmount(() => {
           :now="now"
           @open="openHistory(item)"
         />
+      </div>
       </section>
     </main>
 
