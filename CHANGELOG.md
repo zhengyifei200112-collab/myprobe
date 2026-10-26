@@ -26,6 +26,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Private incident acknowledgement records actor, time and note with replay-safe
+  actions; acknowledgement does not resolve or silence the fault.
+
 - Confirmed maintenance windows freeze selected members, retain timezones/reasons,
   support revision-aware cancellation and idempotent retries, and expose combined
   incident/delivery suppression context without inventing recovery.

@@ -79,7 +79,12 @@ func (s *Store) ListIncidents(ctx context.Context, f IncidentFilter) ([]Incident
 	}
 	query += " ORDER BY seq DESC LIMIT ?"
 	args = append(args, f.Limit)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +97,16 @@ func (s *Store) ListIncidents(ctx context.Context, f IncidentFilter) ([]Incident
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := incidentAcknowledgementSummaries(ctx, tx, items); err != nil {
+		return nil, err
+	}
+	return items, tx.Commit()
 }
 
 func (s *Store) ListIncidentDeliveries(ctx context.Context, incidentID string, before int64, limit int) ([]NotificationDelivery, error) {
