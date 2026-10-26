@@ -18,7 +18,7 @@ const fs = require('node:fs/promises'), path = require('node:path');
   await page.getByLabel('策略名称',{exact:true}).fill('Live aggregation');await page.getByLabel('策略键',{exact:false}).fill('browser.aggregation');
   await page.getByRole('combobox',{name:/^通知通道/}).selectOption(process.env.AGG_BROWSER_CHANNEL);
   await page.getByRole('combobox',{name:'告警类型',exact:true}).selectOption('expiry');await page.getByLabel('提前提醒（天）',{exact:true}).fill('1');
-  const windowInput=page.getByRole('spinbutton',{name:/^聚合等待/});assert.equal(await windowInput.inputValue(),'30');
+  const windowInput=page.getByRole('textbox',{name:'聚合等待',exact:true});assert.equal(await windowInput.inputValue(),'30');
   await windowInput.fill('4');await page.getByRole('button',{name:'保存范围策略',exact:true}).click();await page.getByText('聚合等待须为 0，或 5 至 300 的整数秒。',{exact:true}).waitFor();
   await windowInput.fill('30');await page.getByRole('button',{name:'保存范围策略',exact:true}).click();await page.getByRole('button',{name:'编辑策略',exact:true}).waitFor();
   let policy=(await read('/api/v1/admin/alert-policies')).policies[0];assert.equal(policy.config.aggregation_seconds,30);
