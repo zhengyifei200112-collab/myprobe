@@ -44,8 +44,8 @@ func TestIncidentPipelineRetryRecoveryAndAdminReads(t *testing.T) {
 		t.Fatal(err)
 	}
 	hub := agentgateway.NewHub()
-	server := New(config.Config{EncryptionKey: strings.Repeat("e", 32)}, db, authService, agentgateway.New(db, hub), hub)
-	server.alerts = alerts.New(db, strings.Repeat("e", 32), alerts.NewHTTPSender(receiver.Client()), nil)
+	runtimeAlerts := alerts.New(db, strings.Repeat("e", 32), alerts.NewHTTPSender(receiver.Client()), nil)
+	server := NewWithAlertService(config.Config{EncryptionKey: strings.Repeat("e", 32)}, db, authService, agentgateway.New(db, hub), hub, runtimeAlerts)
 	login := httptest.NewRecorder()
 	server.Handler().ServeHTTP(login, httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString(`{"username":"admin","password":"pipeline-test-password"}`)))
 	if login.Code != http.StatusOK {
@@ -88,8 +88,19 @@ func TestIncidentPipelineRetryRecoveryAndAdminReads(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := server.alerts.Tick(ctx, now); err != nil {
+	var policyStatus struct {
+		Evaluation alerts.PolicyEvaluationStatus `json:"evaluation"`
+	}
+	get("/api/v1/admin/alert-policies", &policyStatus)
+	if policyStatus.Evaluation.State != "pending" {
+		t.Fatalf("unstarted status: %+v", policyStatus)
+	}
+	if err := runtimeAlerts.Tick(ctx, now); err != nil {
 		t.Fatal(err)
+	}
+	get("/api/v1/admin/alert-policies", &policyStatus)
+	if policyStatus.Evaluation.State != "ready" || policyStatus.Evaluation.LastAppliedAt == nil || !policyStatus.Evaluation.LastAppliedAt.Equal(now) {
+		t.Fatalf("API does not report running evaluator: %+v", policyStatus)
 	}
 	var incidents struct {
 		Items []store.Incident `json:"incidents"`

@@ -26,6 +26,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Scoped alert policies select nodes or all/any tags with stable keys, priorities,
+  inheritance previews and runtime application status; legacy rules retain their
+  incident/delivery identities when mapped into policies.
+- Versioned policy export/import uses explicit reference mapping, confirmation-bound
+  previews, transactional reference checks and persistent idempotent retries.
+
 - Legacy integer prices without a configured currency remain editable and preserve
   their original minor units until a valid currency is selected.
 

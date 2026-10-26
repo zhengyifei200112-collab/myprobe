@@ -244,6 +244,11 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 	if !current.Enabled || !rule.Enabled || !sameSnapshot(snapshotRule(current), snapshotRule(rule)) {
 		return nil, ErrObservationObsolete
 	}
+	if valid, err := policyRuleCurrent(ctx, tx, current); err != nil {
+		return nil, err
+	} else if !valid {
+		return nil, ErrObservationObsolete
+	}
 	fingerprint := rule.Kind + ":" + rule.ID + ":" + node.ID
 	i, err := scanIncident(tx.QueryRowContext(ctx, "SELECT "+incidentColumns+" FROM alert_incidents WHERE fingerprint=? ORDER BY seq DESC LIMIT 1", fingerprint))
 	exists := err == nil

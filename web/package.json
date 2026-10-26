@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "node --experimental-strip-types --test src/forms/*.test.ts src/public-dashboard/*.test.ts src/node-details/*.test.mjs",
+    "test": "node --experimental-strip-types --test src/forms/*.test.ts src/public-dashboard/*.test.ts src/node-details/*.test.mjs src/admin-api.test.ts",
     "build": "vue-tsc --noEmit && vite build",
     "typecheck": "vue-tsc --noEmit"
   },
