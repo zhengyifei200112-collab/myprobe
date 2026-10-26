@@ -8,8 +8,9 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
-// Limit these node-history queries across all requests on this Server. The shared
-// four-connection Store still has room for health, reports and worker activity.
+// Limit these node-history queries across all requests on this Server. File
+// history uses two short-lived read connections; the main four-connection Store
+// pool serves health, reports and worker activity independently.
 // A zero value is usable by both the production constructor and test fixtures.
 type historyReadLimiter struct {
 	once  sync.Once

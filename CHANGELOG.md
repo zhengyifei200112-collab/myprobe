@@ -9,6 +9,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Use at most two short-lived, read-only connections for file-backed history.
+  On 64-bit Linux, readers enable SQLite memory-mapped I/O and release mappings
+  when their rows close; the main writer pool and history calculations stay
+  unchanged. Set `MYPROBE_HISTORY_MMAP_ENABLED=false` for buffered reads. Mapping
+  trades additional resident file pages/read-ahead for fewer copied page reads;
+  see `docs/HISTORY_READ_CONNECTIONS.md` for resource and I/O-error limits.
+
 - Read raw metric, latency and traffic history projections through bounded
   covering indexes, preserving equal-time row order, weights, visibility and
   counter-reset calculations. Forward migration051 adds disk/raw-write/startup

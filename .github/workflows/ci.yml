@@ -472,6 +472,7 @@ jobs:
           go test -race ./internal/agentclient -run '^TestJointLoadBudget' -count=1
           go test -race ./internal/agentclient -run '^TestJointBackup' -count=1
           go test -race ./internal/store -run '^TestCanceledQueryReleasesWALReader$' -count=1
+          go test -race ./internal/store -run '^TestHistoryRead' -count=1
           go test -race ./internal/agentclient -run '^TestJointStartup(ReadinessClassification|PrivateCaptureBoundaries)$' -count=1
           go test -race ./internal/agentclient -run '^TestJointBacklog' -count=1
           go test -race ./internal/store -run '^TestCertificateHistory' -count=1
