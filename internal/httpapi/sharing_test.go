@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -67,6 +68,12 @@ func TestPasswordProtectedChartShareEnforcesNodeScope(t *testing.T) {
 		t.Fatalf("login = %d %s", loginResponse.Code, loginResponse.Body.String())
 	}
 	shareCookie := loginResponse.Result().Cookies()[0]
+	for _, suffix := range []string{"", "/history?range=1h"} {
+		private := shareRequest(t, server.Handler(), shareCookie, http.MethodGet, "/api/v1/admin/nodes/"+selected.ID+suffix)
+		if private.Code != http.StatusUnauthorized {
+			t.Fatalf("share cookie accessed administrator detail: %d", private.Code)
+		}
+	}
 
 	nodesRequest := httptest.NewRequest(http.MethodGet, "/api/v1/share/"+created.Share.ID+"/nodes", nil)
 	nodesRequest.AddCookie(shareCookie)
@@ -82,6 +89,16 @@ func TestPasswordProtectedChartShareEnforcesNodeScope(t *testing.T) {
 	deniedHistory := shareRequest(t, server.Handler(), shareCookie, http.MethodGet, "/api/v1/share/"+created.Share.ID+"/nodes/"+other.ID+"/history?range=1h")
 	if deniedHistory.Code != http.StatusNotFound {
 		t.Fatalf("denied history = %d", deniedHistory.Code)
+	}
+	absolute := url.Values{"start": {report.CapturedAt.Add(-time.Minute).Format(time.RFC3339Nano)}, "end": {time.Now().UTC().Format(time.RFC3339Nano)}}.Encode()
+	for _, test := range []struct {
+		id     string
+		status int
+	}{{selected.ID, http.StatusOK}, {other.ID, http.StatusNotFound}} {
+		response := shareRequest(t, server.Handler(), shareCookie, http.MethodGet, "/api/v1/share/"+created.Share.ID+"/nodes/"+test.id+"/history?"+absolute)
+		if response.Code != test.status {
+			t.Fatalf("absolute share scope: %d %s", response.Code, response.Body.String())
+		}
 	}
 
 	disable := authenticatedRequest(t, server.Handler(), adminCookie, csrf, http.MethodPatch, "/api/v1/admin/chart-shares/"+created.Share.ID, `{"name":"customer","node_ids":["`+selected.ID+`"],"enabled":false}`)
