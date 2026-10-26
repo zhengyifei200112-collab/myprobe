@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import type { NodeMetadata } from './types'
 import { DsButton, DsConfirmDialog, DsDialog, DsDropdown, DsEmptyState, DsSheet, DsStatusIndicator } from './design-system'
 import SettingsCenter from './settings-center/SettingsCenter.vue'
@@ -68,6 +68,20 @@ const emptyNode = () => ({ name: '', tags: '', country_code: '', collection_seco
 const nodeCreate = reactive(emptyNode())
 const nodeEdit = ref<NodeMetadata | null>(null)
 const nodePrice = ref('')
+const originalPriceMinor = ref<number | null>(null)
+const originalPriceCurrency = ref('')
+const originalPriceText = ref('')
+const legacyPriceCurrency = ref(false)
+function preservesLegacyPrice() {
+  return legacyPriceCurrency.value && (nodeEdit.value?.currency || '') === originalPriceCurrency.value && nodePrice.value === originalPriceText.value
+}
+watch(() => nodeEdit.value?.currency, value => {
+  if (!legacyPriceCurrency.value || !nodeEdit.value || originalPriceMinor.value == null) return
+  try {
+    nodePrice.value = formatQuantity(originalPriceMinor.value, currencyFactor(value || ''))
+    legacyPriceCurrency.value = false
+  } catch { /* Preserve raw minor units until a valid currency is selected. */ }
+})
 const billingChoice = ref('')
 const billingOptions = [{value:'monthly',label:'月付'},{value:'quarterly',label:'季付'},{value:'semiannually',label:'半年付'},{value:'yearly',label:'年付'},{value:'one-time',label:'一次性'}]
 const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -188,8 +202,17 @@ function editNode(item: NodeMetadata) {
   }
   originalExpiry = item.expires_at
   editingExpiry = copy.expires_at || ''
-  try { nodePrice.value = item.price_minor == null ? '' : formatQuantity(item.price_minor, currencyFactor(item.currency)) }
-  catch (error) { showError(error); return }
+  originalPriceMinor.value = item.price_minor ?? null
+  originalPriceCurrency.value = item.currency || ''
+  legacyPriceCurrency.value = false
+  if (item.price_minor == null) nodePrice.value = ''
+  else {
+    try { nodePrice.value = formatQuantity(item.price_minor, 1) }
+    catch (error) { showError(error); return }
+    try { nodePrice.value = formatQuantity(item.price_minor, currencyFactor(item.currency)) }
+    catch { legacyPriceCurrency.value = true }
+  }
+  originalPriceText.value = nodePrice.value
   billingChoice.value = billingOptions.some(option => option.value === item.billing_cycle) ? item.billing_cycle : item.billing_cycle ? '__custom__' : ''
   nodeEdit.value = copy
   nodeTargetIDs.value = config.value.node_targets.filter(x => x.node_id === item.id).map(x => x.target_id)
@@ -231,7 +254,7 @@ async function saveNode() {
   await run(async () => {
     await updateNode(item.id, {
       ...item,
-      price_minor: nodePrice.value.trim() ? parseQuantity(nodePrice.value, currencyFactor(item.currency)) : null,
+      price_minor: preservesLegacyPrice() ? originalPriceMinor.value : nodePrice.value.trim() ? parseQuantity(nodePrice.value, currencyFactor(item.currency)) : null,
       billing_cycle: billingChoice.value === '__custom__' ? item.billing_cycle : billingChoice.value,
       expires_at: (item.expires_at || '') === editingExpiry ? originalExpiry || null : item.expires_at ? new Date(item.expires_at).toISOString() : null,
       traffic_reset_day: item.traffic_reset_day || null,
@@ -674,7 +697,7 @@ onMounted(async () => {
       @confirm="confirmNodeAction"
     />
 
-    <div v-if="nodeEdit" class="admin-overlay" @click.self="nodeEdit = null"><form class="admin-panel edit-dialog" @submit.prevent="saveNode"><header><div><span class="eyebrow">NODE SETTINGS</span><h2>{{ nodeEdit.name }}</h2></div><button type="button" class="close-button" @click="nodeEdit = null">×</button></header><div class="form-grid two"><label>名称<input v-model="nodeEdit.name" required></label><label>排序<input v-model.number="nodeEdit.sort_order" type="number"></label><label>国家/地区代码<input v-model="nodeEdit.country_code" maxlength="2"></label><label>标签（逗号分隔显示）<input :value="nodeEdit.tags.join(', ')" @input="nodeEdit!.tags = ($event.target as HTMLInputElement).value.split(',').map(x => x.trim()).filter(Boolean)"></label><label>采集间隔（秒）<input v-model.number="nodeEdit.collection_seconds" type="number" min="1" max="3600"></label><label>上报间隔（秒）<input v-model.number="nodeEdit.report_seconds" type="number" min="1" max="3600"></label><label>延迟模式<select v-model="nodeEdit.latency_mode"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label><label>流量重置日<input v-model.number="nodeEdit.traffic_reset_day" type="number" min="1" max="31" placeholder="自然月"></label><label>货币<input v-model="nodeEdit.currency" maxlength="3" placeholder="USD"></label><label>价格（金额）<input v-model="nodePrice" inputmode="decimal" placeholder="4.99"><small>按币种小数位保存；切换币种保留输入金额，不换算汇率。</small></label><label>计费周期<select v-model="billingChoice"><option value="">未设置</option><option v-for="option in billingOptions" :key="option.value" :value="option.value">{{ option.label }}</option><option value="__custom__">自定义</option></select></label><label v-if="billingChoice === '__custom__'">自定义周期<input v-model="nodeEdit.billing_cycle" placeholder="保留原有周期描述"></label><label>到期时间<input v-model="nodeEdit.expires_at" type="datetime-local"><small>本地时区：{{ localTimezone }}；保存为 UTC。</small></label></div><div class="assignment-box dialog-assignment"><b>延迟监测目标</b><label v-for="target in config.targets" :key="target.id" class="check-chip"><input v-model="nodeTargetIDs" type="checkbox" :value="target.id">{{ target.name }} · {{ target.kind === 'tcping' ? 'TCP' : 'Ping' }}</label><span v-if="!config.targets.length" class="empty-inline">请先创建探测目标</span></div><div class="switch-row"><label><input v-model="nodeEdit.hidden" type="checkbox"> 从公开面板隐藏</label><label><input v-model="nodeEdit.use_since_boot" type="checkbox"> 使用开机以来流量</label></div><div class="form-actions"><button class="primary-button" :disabled="busy">保存节点</button><button type="button" @click="nodeEdit = null">取消</button></div></form></div>
+    <div v-if="nodeEdit" class="admin-overlay" @click.self="nodeEdit = null"><form class="admin-panel edit-dialog" @submit.prevent="saveNode"><header><div><span class="eyebrow">NODE SETTINGS</span><h2>{{ nodeEdit.name }}</h2></div><button type="button" class="close-button" @click="nodeEdit = null">×</button></header><div class="form-grid two"><label>名称<input v-model="nodeEdit.name" required></label><label>排序<input v-model.number="nodeEdit.sort_order" type="number"></label><label>国家/地区代码<input v-model="nodeEdit.country_code" maxlength="2"></label><label>标签（逗号分隔显示）<input :value="nodeEdit.tags.join(', ')" @input="nodeEdit!.tags = ($event.target as HTMLInputElement).value.split(',').map(x => x.trim()).filter(Boolean)"></label><label>采集间隔（秒）<input v-model.number="nodeEdit.collection_seconds" type="number" min="1" max="3600"></label><label>上报间隔（秒）<input v-model.number="nodeEdit.report_seconds" type="number" min="1" max="3600"></label><label>延迟模式<select v-model="nodeEdit.latency_mode"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label><label>流量重置日<input v-model.number="nodeEdit.traffic_reset_day" type="number" min="1" max="31" placeholder="自然月"></label><label>货币<input v-model="nodeEdit.currency" maxlength="3" placeholder="USD"></label><label>{{ legacyPriceCurrency ? '价格（原始最小单位）' : '价格（金额）' }}<input v-model="nodePrice" :readonly="legacyPriceCurrency" inputmode="decimal" placeholder="4.99"><small v-if="legacyPriceCurrency" role="status">旧记录未设置有效币种，当前显示原始最小单位；不修改时原样保存。填写有效币种后按其小数位显示并允许编辑。</small><small v-else>按币种小数位保存；切换币种保留输入金额，不换算汇率。</small></label><label>计费周期<select v-model="billingChoice"><option value="">未设置</option><option v-for="option in billingOptions" :key="option.value" :value="option.value">{{ option.label }}</option><option value="__custom__">自定义</option></select></label><label v-if="billingChoice === '__custom__'">自定义周期<input v-model="nodeEdit.billing_cycle" placeholder="保留原有周期描述"></label><label>到期时间<input v-model="nodeEdit.expires_at" type="datetime-local"><small>本地时区：{{ localTimezone }}；保存为 UTC。</small></label></div><div class="assignment-box dialog-assignment"><b>延迟监测目标</b><label v-for="target in config.targets" :key="target.id" class="check-chip"><input v-model="nodeTargetIDs" type="checkbox" :value="target.id">{{ target.name }} · {{ target.kind === 'tcping' ? 'TCP' : 'Ping' }}</label><span v-if="!config.targets.length" class="empty-inline">请先创建探测目标</span></div><div class="switch-row"><label><input v-model="nodeEdit.hidden" type="checkbox"> 从公开面板隐藏</label><label><input v-model="nodeEdit.use_since_boot" type="checkbox"> 使用开机以来流量</label></div><div class="form-actions"><button class="primary-button" :disabled="busy">保存节点</button><button type="button" @click="nodeEdit = null">取消</button></div></form></div>
 
     <div v-if="customEdit" class="admin-overlay" @click.self="customEdit = null">
       <form class="admin-panel edit-dialog custom-dialog" @submit.prevent="saveCustomDisplay">

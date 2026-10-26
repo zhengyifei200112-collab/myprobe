@@ -23,6 +23,15 @@ const assert=require('node:assert/strict');
  await page.waitForSelector('.edit-dialog',{state:'hidden'});
  const nodes=await (await context.request.get('/api/v1/admin/nodes')).json();
  const saved=nodes.nodes.find(n=>n.id===node.id);assert.equal(saved.price_minor,499);assert.equal(saved.expires_at,expiry);assert.equal(saved.billing_cycle,'legacy custom');
+ const legacyPatch=await context.request.patch('/api/v1/admin/nodes/'+node.id,{headers,data:{...saved,currency:''}});assert(legacyPatch.ok());
+ await page.reload();await page.locator('.admin-node-card').filter({hasText:fixtureName}).getByRole('button',{name:'编辑',exact:true}).click();
+ const legacyInput=page.getByLabel('价格（原始最小单位）');assert.equal(await legacyInput.inputValue(),'499');assert.equal(await legacyInput.evaluate(e=>e.readOnly),true);
+ await page.getByRole('button',{name:'保存节点',exact:true}).click();await page.waitForSelector('.edit-dialog',{state:'hidden'});
+ const afterLegacy=(await (await context.request.get('/api/v1/admin/nodes')).json()).nodes.find(n=>n.id===node.id);assert.equal(afterLegacy.currency,'');assert.equal(afterLegacy.price_minor,499);
+ await page.locator('.admin-node-card').filter({hasText:fixtureName}).getByRole('button',{name:'编辑',exact:true}).click();await page.getByLabel('货币',{exact:true}).fill('USD');
+ assert.equal(await page.getByLabel('价格（金额）').inputValue(),'4.99');assert.equal(await page.getByLabel('价格（金额）').evaluate(e=>e.readOnly),false);
+ await page.getByRole('button',{name:'保存节点',exact:true}).click();await page.waitForSelector('.edit-dialog',{state:'hidden'});
+ const afterCurrency=(await (await context.request.get('/api/v1/admin/nodes')).json()).nodes.find(n=>n.id===node.id);assert.equal(afterCurrency.currency,'USD');assert.equal(afterCurrency.price_minor,499);
  for(const theme of ['light','dark']) for(const width of [360,768,1440]){
   await page.setViewportSize({width,height:1000}); await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
   await page.locator('.admin-node-card').filter({hasText:fixtureName}).getByRole('button',{name:'编辑',exact:true}).click();

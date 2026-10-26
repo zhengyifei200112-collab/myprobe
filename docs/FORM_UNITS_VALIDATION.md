@@ -35,3 +35,5 @@ No API, database or Agent changes are introduced. Existing prices retain their
 integer minor-unit values; public display now respects currency fraction digits.
 The prior frontend displayed every currency using a divisor of 100, so JPY/KWD
 display may change even though stored integers do not.
+
+旧记录只有价格整数、没有币种时显示只读的原始最小单位；不修改时原样保存，选择有效币种后按其小数位显示。现有真实 Server 浏览器回归覆盖空币种价格499的保存及选择USD后显示4.99，价格整数保持499。
