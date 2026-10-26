@@ -418,7 +418,16 @@ export interface Incident {
   seq: number; id: string; node_id: string; node_name: string; kind: string
   state: 'pending' | 'firing' | 'resolved'; started_at: string; resolved_at?: string
   observation_stale: boolean; message: string; origin: string; approximate_start: boolean; resolution_reason?: string
+  acknowledgement?: { actor_name: string; acknowledged_at: string }
 }
+export interface IncidentAcknowledgement {
+  incident_id: string; actor_id: string; actor_name: string; acknowledged_at: string; note: string
+}
+export interface IncidentAcknowledgementView {
+  incident_state: Incident['state']; acknowledgement: IncidentAcknowledgement | null
+}
+export const loadIncidentAcknowledgement = (id: string) => request<IncidentAcknowledgementView>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/acknowledgement`)
+export const acknowledgeIncident = (id: string, requestID: string, note: string) => request<{ acknowledgement: IncidentAcknowledgement; replayed: boolean }>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/acknowledgement`, { method: 'POST', body: JSON.stringify({ request_id: requestID, note }) })
 export interface IncidentDelivery {
   seq: number; id: string; channel_name: string; provider: string
   notification_type: string; status: string; attempt_count: number

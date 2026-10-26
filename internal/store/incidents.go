@@ -13,29 +13,30 @@ import (
 var ErrObservationObsolete = errors.New("alert rule changed during evaluation")
 
 type Incident struct {
-	Seq                  int64           `json:"seq"`
-	ID                   string          `json:"id"`
-	Fingerprint          string          `json:"-"`
-	RuleID               string          `json:"rule_id"`
-	NodeID               string          `json:"node_id"`
-	NodeName             string          `json:"node_name"`
-	Kind                 string          `json:"kind"`
-	RuleSnapshot         json.RawMessage `json:"-"`
-	State                string          `json:"state"`
-	StartedAt            time.Time       `json:"started_at"`
-	FiredAt              *time.Time      `json:"fired_at,omitempty"`
-	ResolvedAt           *time.Time      `json:"resolved_at,omitempty"`
-	ObservedAt           *time.Time      `json:"observed_at,omitempty"`
-	UpdatedAt            time.Time       `json:"updated_at"`
-	TriggerSince         *time.Time      `json:"trigger_since,omitempty"`
-	RecoverySince        *time.Time      `json:"recovery_since,omitempty"`
-	ObservationStale     bool            `json:"observation_stale"`
-	LastMessage          string          `json:"message"`
-	ResolutionReason     string          `json:"resolution_reason,omitempty"`
-	Origin               string          `json:"origin"`
-	ApproximateStart     bool            `json:"approximate_start"`
-	LastEnqueuedAt       *time.Time      `json:"-"`
-	NotificationSequence int             `json:"-"`
+	Seq                  int64                           `json:"seq"`
+	ID                   string                          `json:"id"`
+	Fingerprint          string                          `json:"-"`
+	RuleID               string                          `json:"rule_id"`
+	NodeID               string                          `json:"node_id"`
+	NodeName             string                          `json:"node_name"`
+	Kind                 string                          `json:"kind"`
+	RuleSnapshot         json.RawMessage                 `json:"-"`
+	State                string                          `json:"state"`
+	StartedAt            time.Time                       `json:"started_at"`
+	FiredAt              *time.Time                      `json:"fired_at,omitempty"`
+	ResolvedAt           *time.Time                      `json:"resolved_at,omitempty"`
+	ObservedAt           *time.Time                      `json:"observed_at,omitempty"`
+	UpdatedAt            time.Time                       `json:"updated_at"`
+	TriggerSince         *time.Time                      `json:"trigger_since,omitempty"`
+	RecoverySince        *time.Time                      `json:"recovery_since,omitempty"`
+	ObservationStale     bool                            `json:"observation_stale"`
+	LastMessage          string                          `json:"message"`
+	ResolutionReason     string                          `json:"resolution_reason,omitempty"`
+	Origin               string                          `json:"origin"`
+	ApproximateStart     bool                            `json:"approximate_start"`
+	LastEnqueuedAt       *time.Time                      `json:"-"`
+	NotificationSequence int                             `json:"-"`
+	Acknowledgement      *IncidentAcknowledgementSummary `json:"acknowledgement,omitempty"`
 }
 
 type AlertObservation struct {
