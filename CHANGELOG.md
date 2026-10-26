@@ -9,6 +9,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Legacy integer prices without a configured currency remain editable and preserve
+  their original minor units until a valid currency is selected.
+
+- Human-readable amount, billing-cycle, bandwidth, traffic and duration editors,
+  with exact integer conversion and explicit rejection of unsafe numeric values.
+- Currency-aware public prices and local timezone guidance when editing expiry;
+  saving an unchanged expiry preserves its original timestamp precision.
+
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
   independent public, admin, and login background presentation.
