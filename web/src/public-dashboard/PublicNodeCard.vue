@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { attentionReasons, nodeState, stateLabels } from './discovery'
 import { DsBadge, DsCard, DsProgress, DsStatusIndicator } from '../design-system'
 import type { PublicNode } from '../types'
 import {
@@ -28,13 +29,16 @@ const rateUnit = computed(() => commonByteUnit([metrics.value.txRate, metrics.va
 const totalUnit = computed(() => commonByteUnit([metrics.value.txTotal, metrics.value.rxTotal]))
 const cycleUnit = computed(() => commonByteUnit([props.item.traffic?.tx_bytes || 0, props.item.traffic?.rx_bytes || 0]))
 const capacityUnit = computed(() => commonByteUnit([props.item.report?.memory.total_bytes || 0, metrics.value.diskTotal]))
-const status = computed(() => !props.item.online ? 'offline' : props.item.stale ? 'warning' : 'online')
-const statusLabel = computed(() => !props.item.online ? '离线' : props.item.stale ? '数据延迟' : '在线')
-const healthTitle = computed(() => !props.item.online ? '节点离线' : props.item.stale ? '连接在线，数据可能延迟' : '运行正常')
+const currentState = computed(() => nodeState(props.item))
+const reasons = computed(() => attentionReasons(props.item, props.now.getTime()))
+const status = computed(() => currentState.value === 'waiting' ? 'neutral' : currentState.value === 'interrupted' ? 'offline' : currentState.value === 'stale' ? 'warning' : 'online')
+const statusLabel = computed(() => stateLabels[currentState.value])
+const healthTitle = computed(() => reasons.value.length ? '需要关注' : currentState.value === 'waiting' ? '等待接入' : '运行正常')
 const healthDescription = computed(() => {
-  if (!props.item.online) return `已离线 ${offlineDuration(props.item, props.now)}`
-  if (!props.item.report) return '等待 Agent 首次上报'
-  return `已稳定运行 ${formatUptime(props.item.report.uptime_seconds)}`
+  if (currentState.value === 'waiting') return '等待 Agent 首次上报'
+  if (currentState.value === 'interrupted') return `上报已中断 ${offlineDuration(props.item, props.now)}，尚不能确认主机不可达`
+  if (currentState.value === 'stale') return `数据已陈旧 · ${lastReport(props.item)}`
+  return `运行时间 ${formatUptime(props.item.report?.uptime_seconds)}`
 })
 
 function countryCode(code: string) {
@@ -49,7 +53,7 @@ function countryCode(code: string) {
     padding="none"
     interactive
     class="public-node-card"
-    :class="[`public-node-card--${status}`, { 'public-node-card--detailed': displayMode === 'detailed' }]"
+    :class="[`public-node-card--${status}`, { 'public-node-card--detailed': displayMode === 'detailed', 'public-node-card--stale': currentState !== 'online' }]"
   >
     <div class="public-node-card__inner">
       <header class="public-node-card__header">
@@ -77,7 +81,7 @@ function countryCode(code: string) {
 
       <section class="public-node-card__health" :aria-label="healthTitle">
         <strong>{{ healthTitle }}</strong>
-        <p>{{ healthDescription }}</p>
+        <p>{{ healthDescription }}</p><p v-if="reasons.length" class="public-node-card__attention">{{ reasons.join(' · ') }}</p>
       </section>
 
       <div v-if="!item.online" class="public-node-card__offline" role="status">
@@ -93,15 +97,15 @@ function countryCode(code: string) {
 
       <section class="public-node-card__resources" aria-label="资源使用">
         <div>
-          <span><b>CPU</b><strong class="ds-tabular">{{ percent(item.report?.cpu.usage_percent) }}</strong></span>
+          <span><b>CPU</b><strong class="ds-tabular">{{ item.report ? percent(item.report.cpu.usage_percent) : '—' }}</strong></span>
           <DsProgress :value="item.report?.cpu.usage_percent" label="CPU 使用率" :tone="resourceTone(item.report?.cpu.usage_percent)" />
         </div>
         <div>
-          <span><b>内存</b><strong class="ds-tabular">{{ percent(item.report?.memory.usage_percent) }}</strong></span>
+          <span><b>内存</b><strong class="ds-tabular">{{ item.report ? percent(item.report.memory.usage_percent) : '—' }}</strong></span>
           <DsProgress :value="item.report?.memory.usage_percent" label="内存使用率" :tone="resourceTone(item.report?.memory.usage_percent)" />
         </div>
         <div>
-          <span><b>磁盘</b><strong class="ds-tabular">{{ percent(metrics.diskPercent) }}</strong></span>
+          <span><b>磁盘</b><strong class="ds-tabular">{{ item.report ? percent(metrics.diskPercent) : '—' }}</strong></span>
           <DsProgress :value="metrics.diskPercent" label="磁盘使用率" :tone="resourceTone(metrics.diskPercent)" />
         </div>
       </section>
