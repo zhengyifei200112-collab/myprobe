@@ -1,6 +1,21 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestNotificationOriginConfiguration(t *testing.T) {
+	t.Setenv("MYPROBE_NOTIFICATION_ORIGIN", " https://probe.example.com/ ")
+	cfg, err := Load()
+	if err != nil || cfg.NotificationOrigin != "https://probe.example.com" {
+		t.Fatalf("origin: %q %v", cfg.NotificationOrigin, err)
+	}
+	t.Setenv("MYPROBE_NOTIFICATION_ORIGIN", "https://user:private-origin-marker@probe.example.com")
+	if _, err := Load(); err == nil || strings.Contains(err.Error(), "private-origin-marker") {
+		t.Fatal("invalid origin accepted or leaked")
+	}
+}
 
 func TestTrustedProxiesAreExplicitAndValidated(t *testing.T) {
 	t.Setenv("MYPROBE_TRUST_PROXY", "")

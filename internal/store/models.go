@@ -246,16 +246,18 @@ type LatencyHistoryPoint struct {
 }
 
 type NotificationChannel struct {
-	ID              string     `json:"id"`
-	Name            string     `json:"name"`
-	Kind            string     `json:"kind"`
-	ConfigEncrypted string     `json:"-"`
-	Enabled         bool       `json:"enabled"`
-	LastTestStatus  string     `json:"last_test_status,omitempty"`
-	LastTestError   string     `json:"last_test_error,omitempty"`
-	LastTestAt      *time.Time `json:"last_test_at,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	DeliveryRevision    int64      `json:"-"`
+	DeliveryPausedUntil *time.Time `json:"delivery_paused_until,omitempty"`
+	ID                  string     `json:"id"`
+	Name                string     `json:"name"`
+	Kind                string     `json:"kind"`
+	ConfigEncrypted     string     `json:"-"`
+	Enabled             bool       `json:"enabled"`
+	LastTestStatus      string     `json:"last_test_status,omitempty"`
+	LastTestError       string     `json:"last_test_error,omitempty"`
+	LastTestAt          *time.Time `json:"last_test_at,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
 }
 
 type NotificationTemplate struct {

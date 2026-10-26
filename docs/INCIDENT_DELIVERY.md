@@ -207,14 +207,18 @@ compatibility history. These tests exercise sender, worker and database together
 ## Per-attempt diagnostics
 
 `GET /api/v1/admin/notification-deliveries/:deliveryID/attempts` requires an
-administrator session and returns at most five attempts in ascending attempt
-order. Each contains number, start/completion timestamps, outcome and safe error
+administrator session. It returns the latest 25 attempts by default (limit 1–100),
+in ascending order within each page. `next_before` is the exclusive attempt-number
+cursor for older history; zero means no older page. The five-send retry budget is
+separate from the monotonic history sequence: known-unsent channel deferrals refund
+budget without deleting or reusing history. Each contains number, start/completion timestamps, outcome and safe error
 classification. Missing deliveries return 404. Lease tokens and provider response
 bodies are excluded. API regression tests cover anonymous rejection, missing jobs,
 an active attempt and omitted private fields; provider integration tests cover
 failed-then-delivered history. The UI supports loading, retry errors and empty
 history, and explicitly explains that unknown outcomes may already have delivered.
-This newly added detail expansion still needs browser acceptance.
+The shared-channel browser fixture verifies 26 retained attempts, loading older
+history, zero consumed send budget and both themes at 360/768/1440 px.
 
 Recovery-form browser verification found that existing notification center save
 buttons inherited the design system's default button type and did not submit.
@@ -318,3 +322,91 @@ have regression coverage; MYPROBE_IDLE_CLAIM_TEST_DIR optionally retains the
 empty-queue regression fixture for external failure evidence. Existing data is
 never reused by that fixture. Scope-policy/maintenance/ack/silence/aggregation
 remain separate dependent PRs.
+
+## Individual event notification links
+
+New individual jobs capture `incident_path` in their durable logical JSON when
+queued, using the validated operator `MYPROBE_NOTIFICATION_ORIGIN` plus the original
+incident ID. Without an origin the value is `/admin?incident=...`, a copyable local
+path. No request Host/Forwarded value or login credential is used. Each firing,
+repeat or recovery job captures its own current origin; an existing job retains its
+payload/path/key across retry, restart and full restore. Old queued payloads are not
+rewritten. This is an additive notification JSON field, with no schema migration,
+public-node API or Agent protocol change.
+
+Default Webhook JSON includes the path. Custom Webhook bodies can substitute
+`{{incident.url}}`; replacement remains literal and non-recursive, without automatic
+JSON escaping. Telegram appends a separately formatted entry for plain/HTML/
+MarkdownV2; Discord appends a markdown link; SMTP appends a plain entry to its encoded
+MIME body. Existing single-message title/body markup is retained. Relative paths are
+escaped text in rich modes, not forced into clickable external links. The final
+linked Telegram/Discord content is checked conservatively in UTF-16 units, including
+formatting overhead; oversize messages fail locally before I/O. No message clipping
+or repair of user-supplied single-message markup is introduced.
+
+The target requires administrator authentication and opens the original event,
+including records outside the first list page. Event details show current state,
+not an immutable single-message snapshot. Already-existing aggregation content links
+retain their version semantics. Template test/manual channel test messages have no
+real incident and no event URL. This batch covers individual incident queue jobs;
+service-availability notifications from M3 still require their own integration.
+
+Store tests exercise invalid-origin atomic rollback, relative fallback, unchanged
+legacy payload, a changed origin while an old job waits, full backup/restore and
+repeat/recovery jobs referencing the same event. Local HTTP protocol fixtures cover
+Webhook/custom Webhook, Telegram modes and Discord; SMTP MIME is decoded locally.
+Length fixtures verify no receiver request on oversized linked messages. The opt-in
+`TestLiveSingleIncidentLinkBrowser` uses a real evaluator/worker/Webhook receiver,
+follows the actual received URL through password login, verifies no private event
+read before login, original ID, reload and six theme/width views. Use the aggregation
+browser flag. Public provider accounts, single-message client markup rendering and
+live GitHub OAuth remain separate acceptance items.
+
+## Management changes during provider I/O
+
+Current-owner completion rechecks the persisted incident/rule/policy selection and
+channel state in the same writer transaction. The check does not wait for Tick to
+materialize a changed policy. Policy disable/delete/technical change, scope removal,
+node deletion and channel disable/provider change revoke obsolete job authority.
+The job becomes canceled (`configuration_changed`) while its exact attempt records
+the actual delivered, failed or unknown response. These actual requests retain
+consumed budget; no pre-send refund is claimed. Completion does not close/recover
+an incident or advance its repeat clock. Normal evaluation remains responsible for
+technical/administrative incident transitions.
+
+Only the current lease can perform this cancellation. Wrong or superseded owners
+retain existing fencing/history rules. An identical canceled-attempt result can be
+replayed without duplicating legacy receipts. A parent can have a delivered transport
+attempt and canceled members: provider confirmation does not make obsolete logical
+jobs active again. Partially revoked groups still apply results to valid members.
+A wholly revoked group cannot extend a channel wait; partially active groups may
+still report a valid wait. Original frozen content/key/member associations remain.
+
+Replacing encrypted destination configuration with the same provider does not by
+itself revoke the logical job. The actual send retains its captured configuration;
+its response cannot pause the replacement revision. Pending leaf backoff still
+applies, and the next attempt freezes new configuration under a different transport
+key while retaining its logical body. Current-state checking does not reconstruct
+every transient disable/re-enable between authorization and completion.
+
+Maintenance/silence retain their existing action/evaluation semantics. Starting
+maintenance after an already-authorized request does not invent a pre-send suppression
+record at completion; actual cancellation already recorded by an action/evaluator
+still limits late responses to history. External requests cannot be recalled.
+
+Real HTTP tests pause a receiver response across eight management actions and four
+outcomes (success, rejection, connection loss, rate limit), without Tick/Reconcile.
+They verify canceled versus valid members, exact receipts, unchanged obsolete clocks,
+no revoked retry and no wait resurrection. A real old/new receiver test verifies
+configuration replacement and body/key behavior. Store tests cover single completion,
+wrong-owner rejection, replay and a later-member failure rolling back all cancellation,
+history and parent updates. These are targeted races, not an exhaustive concurrency
+or full-capacity guarantee. No migration/API/Agent change is introduced.
+
+The aggregation integration extends the idle preflight to exclude aggregate members
+from single-delivery polling and to avoid writes for empty/future aggregate queues.
+Actual due work and expired leases retain transactional recovery. Node-detail and
+notification login destinations coexist: an explicit active route wins over stale
+remembered destinations, and GitHub login remembers only the active destination
+type. A loopback browser regression covers both explicit-route cases; real external
+GitHub authorization remains a separate acceptance gate.

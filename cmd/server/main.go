@@ -66,7 +66,7 @@ func main() {
 	defer cancelRun()
 	latencyScheduler := scheduler.New(database, gateway, logger)
 	go latencyScheduler.Run(runCtx)
-	alertService := alerts.New(database, cfg.EncryptionKey, nil, logger)
+	alertService := alerts.New(database, cfg.EncryptionKey, nil, logger, cfg.NotificationOrigin)
 	go alertService.Run(runCtx)
 	go runRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger)
 	api := httpapi.NewWithAlertService(cfg, database, authService, gateway, hub, alertService)
