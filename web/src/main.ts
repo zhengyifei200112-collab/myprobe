@@ -4,6 +4,7 @@ import 'country-flag-icons/3x2/flags.css'
 import App from './App.vue'
 import AdminApp from './AdminApp.vue'
 import ShareApp from './ShareApp.vue'
+import NodeDetailApp from './NodeDetailApp.vue'
 import './design-system/tokens.css'
 import './design-system/base.css'
 import './style.css'
@@ -14,5 +15,5 @@ import './experience.css'
 
 applyCachedAppearance()
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateThemeColor)
-const root = location.pathname.startsWith('/admin') ? AdminApp : location.pathname.startsWith('/share/') ? ShareApp : App
+const root = location.pathname.startsWith('/admin') ? AdminApp : location.pathname.startsWith('/share/') ? ShareApp : location.pathname.startsWith('/nodes/') ? NodeDetailApp : App
 createApp(root).mount('#app')

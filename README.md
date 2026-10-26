@@ -82,6 +82,13 @@ unchanged. A concurrent node/order change requires reloading the list. Existing
 integer sorting remains supported; see [`docs/NODE_ORDERING.md`](docs/NODE_ORDERING.md)
 for the API contract, limits and validation.
 
+## Node detail and bounded history
+
+Fixed public and administrator node detail links support absolute time windows,
+separate linked charts, zoom/reset controls and explicit gaps. Administrator detail
+includes hidden nodes and preserves the selected destination across login and session
+expiry. See [node detail behavior and acceptance](docs/NODE_DETAILS.md).
+
 ## Deployment
 
 For Linux hosts with systemd, the one-click installer is the recommended path. It
