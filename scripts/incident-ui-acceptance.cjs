@@ -17,11 +17,15 @@ async function main() {
     const incident = { seq: 1, id: 'fixture', node_id: 'fixture-node', node_name: 'Synthetic incident', kind: 'cpu', state: 'resolved', started_at: timestamp, resolved_at: timestamp, message: 'Synthetic recovery', observation_stale: false, origin: 'live', approximate_start: false }
     const statuses = ['pending', 'inflight', 'delivered', 'failed', 'canceled']
     await page.route('**/api/v1/admin/incidents?*', route => route.fulfill({ json: { incidents: [incident], next_before: 0 } }))
-    await page.route('**/api/v1/admin/incidents/fixture/deliveries?*', route => route.fulfill({ json: { deliveries: statuses.map((status, index) => ({ seq: index+1, id: `job-${status}`, channel_name: `Fixture ${status}`, provider: 'webhook', notification_type: index === 2 ? 'resolved' : 'firing', status, attempt_count: 2, created_at: timestamp, available_at: timestamp, error_class: status === 'pending' ? 'http_rate_limited' : '' })), next_before: 0 } }))
+    await page.route('**/api/v1/admin/incidents/fixture', route => route.fulfill({ json: { incident } }))
+    await page.route('**/api/v1/admin/incidents/fixture/maintenance?*', route => route.fulfill({ json: { windows: [], next_cursor: '', checked_at: timestamp, node_exists: true, node_in_maintenance: false } }))
+    await page.route('**/api/v1/admin/incidents/fixture/acknowledgement', route => route.fulfill({ json: { incident_state: 'resolved', acknowledgement: null } }))
+    await page.route('**/api/v1/admin/incidents/fixture/silences?*', route => route.fulfill({ json: { incident_state: 'resolved', observation_stale: false, silences: [], next_cursor: '', checked_at: timestamp, active_silence: null } }))
+    await page.route('**/api/v1/admin/incidents/fixture/deliveries?*', route => route.fulfill({ json: { deliveries: statuses.map((status, index) => ({ seq: index+1, id: `job-${status}`, incident_id: 'fixture', channel_name: `Fixture ${status}`, provider: 'webhook', notification_type: index === 2 ? 'resolved' : 'firing', status, attempt_count: 2, created_at: timestamp, available_at: timestamp, error_class: status === 'pending' ? 'http_rate_limited' : '' })), next_before: 0 } }))
     let failAttempts = true
-    await page.route('**/api/v1/admin/notification-deliveries/*/attempts', route => failAttempts
+    await page.route('**/api/v1/admin/notification-deliveries/*/attempts?*', route => failAttempts
       ? route.fulfill({ status: 503, json: { error: 'synthetic attempts unavailable' } })
-      : route.fulfill({ json: { attempts: [{ number: 1, started_at: timestamp, completed_at: timestamp, outcome: 'unknown', error_class: 'lease_expired' }, { number: 2, started_at: timestamp, completed_at: timestamp, outcome: 'delivered' }] } }))
+      : route.fulfill({ json: { attempts: [{ number: 1, started_at: timestamp, completed_at: timestamp, outcome: 'unknown', error_class: 'lease_expired' }, { number: 2, started_at: timestamp, completed_at: timestamp, outcome: 'delivered' }], next_before: 0 } }))
     await page.goto(`${base}/admin`)
     await page.getByLabel('用户名', { exact: true }).fill(process.env.PROBE_TEST_USERNAME || 'admin')
     await page.getByLabel('密码', { exact: true }).fill(process.env.PROBE_TEST_PASSWORD)
