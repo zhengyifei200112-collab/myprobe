@@ -907,6 +907,8 @@ func (s *Store) AdminLatencyHistoryRange(ctx context.Context, nodeID string, sta
 // Within this statement, use the target table's integer row identity as the
 // grouping key. Public IDs and ordering are restored at the final metadata join;
 // no row identity is persisted or used as an API/foreign key.
+// The retained source uses migration 050's covering index so a cold history
+// read does not fetch the aggregate values from the table for every bucket.
 const latencyHistoryQuery = `WITH target_series AS MATERIALIZED (
 		SELECT rowid AS series_index,id AS series_target FROM targets
 	), retained_kinds AS (
@@ -923,7 +925,7 @@ const latencyHistoryQuery = `WITH target_series AS MATERIALIZED (
 		SELECT (unixepoch(substr(bucket_at,1,19)||'Z')/:bucket)*:bucket AS bucket,series_index,kind,
 		SUM(sample_count),SUM(success_count),SUM(latency_count),SUM(latency_sum)
 		FROM target_series CROSS JOIN retained_kinds
-		CROSS JOIN latency_rollups INDEXED BY sqlite_autoindex_latency_rollups_1
+		CROSS JOIN latency_rollups INDEXED BY idx_latency_rollups_history_cover
 		WHERE target_id=series_target AND kind=series_kind AND node_id=:node
 		AND ` + historyNodeScope + ` AND ` + historyRollupBounds + `
 		GROUP BY bucket,series_index,kind
