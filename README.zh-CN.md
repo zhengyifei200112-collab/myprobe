@@ -96,6 +96,11 @@ sudo ./install.sh agent
 完整步骤、安全边界、升级与卸载说明参见
 [`docs/INSTALLATION.zh-CN.md`](docs/INSTALLATION.zh-CN.md)。
 
+文件数据库的历史读取使用最多两个短期只读连接。64 位 Linux 默认启用内存映射读取；
+需要普通缓冲读取时设置 `MYPROBE_HISTORY_MMAP_ENABLED=false` 并重启 Server。
+映射的内存、预读及 I/O 故障行为说明见
+[历史读取连接说明](docs/HISTORY_READ_CONNECTIONS.md)。
+
 ## 使用 Docker Compose 部署
 
 需要 Docker Engine 和 Docker Compose v2。
