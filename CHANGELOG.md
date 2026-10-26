@@ -9,6 +9,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Read retained latency history from a covering time-range index, avoiding a
+  table lookup for every retained bucket when switching between nodes. Migration
+  050 adds storage and startup index-build work; history statistics, windows and
+  retention are unchanged. See `docs/HISTORY_COVERING_READS.md` before upgrading
+  a populated database.
+
 - Retry transient SQLite writer acquisition for reports and history retention
   up to three times, honoring caller cancellation. A writer held beyond one
   five-second busy timeout can now release before the operation fails;
