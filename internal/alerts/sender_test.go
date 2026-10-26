@@ -12,7 +12,9 @@ import (
 
 func TestHTTPSenderWebhook(t *testing.T) {
 	var received Notification
+	var idempotency string
 	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		idempotency = r.Header.Get("Idempotency-Key")
 		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
 			t.Errorf("unexpected request: %s %s", r.Method, r.Header.Get("Content-Type"))
 		}
@@ -24,9 +26,12 @@ func TestHTTPSenderWebhook(t *testing.T) {
 	defer receiver.Close()
 
 	sender := NewHTTPSender(receiver.Client())
-	notification := Notification{Title: "alert", Message: "node offline", State: "firing", Kind: "offline", NodeID: "node-1", Timestamp: time.Now().UTC()}
+	notification := Notification{IdempotencyKey: "stable-delivery-key", IncidentID: "incident-1", Title: "alert", Message: "node offline", State: "firing", Kind: "offline", NodeID: "node-1", Timestamp: time.Now().UTC()}
 	if err := sender.Deliver(context.Background(), "webhook", ChannelConfig{URL: receiver.URL}, notification); err != nil {
 		t.Fatal(err)
+	}
+	if idempotency != notification.IdempotencyKey || received.IncidentID != notification.IncidentID || received.IdempotencyKey != "" {
+		t.Fatalf("idempotency contract: %q %+v", idempotency, received)
 	}
 	if received.Message != notification.Message || received.NodeID != notification.NodeID {
 		t.Fatalf("received = %#v", received)
