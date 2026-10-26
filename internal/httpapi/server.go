@@ -108,6 +108,8 @@ func (s *Server) routes() {
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
 	admin.GET("/nodes", s.adminNodes)
 	admin.POST("/nodes", s.createNode)
+	admin.POST("/nodes/batch/preview", s.previewNodeBatch)
+	admin.POST("/nodes/batch/apply", s.applyNodeBatch)
 	admin.PATCH("/nodes/:nodeID", s.updateNode)
 	admin.DELETE("/nodes/:nodeID", s.deleteNode)
 	admin.POST("/nodes/:nodeID/rotate-token", s.rotateNodeToken)
@@ -258,7 +260,18 @@ func (s *Server) publicWebSocket(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case event, ok := <-events:
-			if !ok || wsjson.Write(ctx, connection, event) != nil {
+			if !ok {
+				return
+			}
+			if event.Type == "refresh" {
+				nodes, err := s.store.ListPublicNodes(ctx, time.Now().UTC())
+				settings, settingsErr := s.store.GetSiteSettings(ctx)
+				if err != nil || settingsErr != nil || wsjson.Write(ctx, connection, map[string]any{"type": "snapshot", "nodes": nodes, "settings": settings}) != nil {
+					return
+				}
+				continue
+			}
+			if wsjson.Write(ctx, connection, event) != nil {
 				return
 			}
 		}

@@ -44,6 +44,14 @@ func New(config Config) *Collector {
 
 func (c *Collector) UpdateConfig(config Config) {
 	c.mu.Lock()
+	// Omitted configuration fields preserve local selections. An explicit empty
+	// slice resets the selection to automatic discovery.
+	if config.Interfaces == nil {
+		config.Interfaces = c.config.Interfaces
+	}
+	if config.Mounts == nil {
+		config.Mounts = c.config.Mounts
+	}
 	hostRoot := c.config.HostRoot
 	c.config = normalizedConfig(config)
 	c.config.HostRoot = hostRoot
@@ -59,7 +67,7 @@ func (c *Collector) Hello(ctx context.Context, version string, collectionSeconds
 		AgentVersion: version, Hostname: info.Hostname, MachineID: info.HostID,
 		OS: runtime.GOOS, Platform: info.Platform, PlatformVersion: info.PlatformVersion,
 		KernelVersion: info.KernelVersion, Architecture: runtime.GOARCH,
-		Capabilities:      []string{"metrics.v1", "ping.v1", "tcping.v1"},
+		Capabilities:      []string{"metrics.v1", "ping.v1", "tcping.v1", "config.intervals.v1"},
 		CollectionSeconds: collectionSeconds, ReportSeconds: reportSeconds,
 	}, nil
 }

@@ -25,6 +25,8 @@
 | Charts | Ping, TCPing, upload, download, and total traffic history | 1h/12h/1d/3d/7d/30d queries | Implemented |
 | Chart sharing | Group-scoped password protected chart views | Authentication and rate-limit tests | Implemented |
 | Node administration | Register, edit, order, hide, delete, rotate token, generate one-click Agent install command | Admin API and browser clipboard verification | Implemented |
+| Batch administration | Owned previews, atomic configuration updates, revision conflicts, replayable retries and cross-page selection | Store/API/Agent regressions and `scripts/node_batch_browser_test.cjs`; see `NODE_BATCH_MANAGEMENT.md` | Implemented |
+| Agent intervals | Independent collection/report timers; welcome, live WebSocket and HTTP configuration; cached sample deduplication | Agent/gateway/store configuration tests; requires upgraded Agent | Implemented |
 | Target administration | Ping/TCPing target CRUD and assignment from target/node editors | API and scheduler tests | Implemented |
 | Notifications | Encrypted Webhook, Telegram, Discord, and SMTP channels with rules, templates, recovery delivery, cooldowns, and history | Mock receiver and alert-state tests | Implemented |
 | Alerts | Offline/recovery, CPU, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Implemented |

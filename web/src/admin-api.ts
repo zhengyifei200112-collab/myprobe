@@ -139,6 +139,10 @@ export interface GitHubOAuthSettings {
 
 export interface AuthSettings { password_enabled: true; github: GitHubOAuthSettings }
 
+export class AdminRequestError extends Error {
+  constructor(message: string, public status: number, public conflictNodeIDs: string[] = []) { super(message); this.name = 'AdminRequestError' }
+}
+
 let csrfToken = ''
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -149,8 +153,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && csrfToken) headers.set('X-CSRF-Token', csrfToken)
   const response = await fetch(path, { ...options, headers, credentials: 'same-origin', cache: 'no-store' })
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({})) as { error?: string }
-    throw new Error(payload.error || `请求失败（${response.status}）`)
+    const payload = await response.json().catch(() => ({})) as { error?: string; conflict_node_ids?: string[] }
+    throw new AdminRequestError(payload.error || `请求失败（${response.status}）`, response.status, payload.conflict_node_ids || [])
   }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
@@ -259,3 +263,21 @@ export async function uploadDatabaseRestore(file: File, passphrase: string): Pro
   }
   return response.json()
 }
+
+export interface NodeBatchRequest {
+  node_ids: string[]
+  add_tags?: string[]
+  remove_tags?: string[]
+  hidden?: boolean
+  collection_seconds?: number
+  report_seconds?: number
+  targets?: { mode: 'add' | 'remove' | 'replace'; ids: string[] }
+}
+export interface BatchNodeState { tags: string[]; hidden: boolean; collection_seconds: number; report_seconds: number; target_ids: string[] }
+export interface NodeBatchPreview {
+  id: string; expires_at: string
+  nodes: Array<{ node_id: string; name: string; revision: number; changed: boolean; before: BatchNodeState; after: BatchNodeState }>
+}
+export interface NodeBatchResult { preview_id: string; applied_at: string; changed_ids: string[]; unchanged_ids: string[] }
+export const previewNodeBatch = (payload: NodeBatchRequest) => request<NodeBatchPreview>('/api/v1/admin/nodes/batch/preview', { method: 'POST', body: JSON.stringify(payload) })
+export const applyNodeBatch = (previewID: string, key: string) => request<NodeBatchResult>('/api/v1/admin/nodes/batch/apply', { method: 'POST', body: JSON.stringify({ preview_id: previewID, idempotency_key: key }) })

@@ -7,6 +7,17 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Agents now apply welcome configuration and independently schedule collection and
+  reporting, including interval updates on existing connections and HTTP fallback.
+  Interval-only settings preserve local interface/mount selections. Upgrade Agents
+  to obtain this behavior; management saves confirm desired configuration.
+- Exact cached metric replays refresh last contact without duplicating history.
+  Distinct late captures remain in history without moving latest metrics or traffic
+  counters backwards; conflicting payloads at an existing capture time are rejected.
+
+
 ### Added
 
 - Legacy integer prices without a configured currency remain editable and preserve
@@ -22,6 +33,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   small screens, and throttled live ordering that pauses during list interaction.
 - Distinct waiting, interrupted-report and stale-data states, public attention
   reasons, and filtered totals that exclude stale samples from live rates.
+- Transactional node batch configuration previews with ownership, ten-minute
+  expiry, revision conflicts, persistent idempotency and atomic audit recording.
+- Administrative batch selection across pages for tags, visibility, sampling
+  configuration and additive/removal/replacement probe-target assignment.
 
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,
   logo/favicon, footer links, Light/Dark/System themes, five accent presets, and
