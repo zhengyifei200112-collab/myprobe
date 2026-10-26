@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Patch pinned Vue, Vite and compatible CSS/source-map dependencies to address
+  known dependency advisories; CI now rejects moderate or higher npm audit findings.
+
 - Agents now apply welcome configuration and independently schedule collection and
   reporting, including interval updates on existing connections and HTTP fallback.
   Interval-only settings preserve local interface/mount selections. Upgrade Agents
