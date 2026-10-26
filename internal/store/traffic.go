@@ -143,7 +143,7 @@ func (s *Store) AdminTrafficHistoryRange(ctx context.Context, nodeID string, sta
 }
 
 const trafficHistoryRangeQuery = `SELECT 0,captured_at,net_rx_total,net_tx_total,id
-		FROM metric_samples
+		FROM metric_samples INDEXED BY idx_metric_samples_history_cover
 		WHERE node_id=:node AND ` + historyNodeScope + ` AND ` + historyRawBounds + `
 		UNION ALL SELECT 1,bucket_at,rx_bytes,tx_bytes,0
 		FROM traffic_rollups

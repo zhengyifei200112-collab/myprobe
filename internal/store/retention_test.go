@@ -98,7 +98,7 @@ func TestMetricHistoryQueryDoesNotCorrelateEveryRawSampleWithRollups(t *testing.
 		if strings.Contains(strings.ToUpper(detail), "CORRELATED") {
 			t.Fatalf("metric history query still contains a correlated scan: %s", detail)
 		}
-		if strings.Contains(detail, "idx_metric_samples_node_capture_ns") && strings.Contains(detail, "captured_sort_ns>?") && strings.Contains(detail, "captured_sort_ns<?") {
+		if strings.Contains(detail, "idx_metric_samples_history_cover") && strings.Contains(detail, "node_id=?") && strings.Contains(detail, "captured_sort_ns>?") && strings.Contains(detail, "captured_sort_ns<?") {
 			usesNanosecondRange = true
 		}
 	}
@@ -106,7 +106,7 @@ func TestMetricHistoryQueryDoesNotCorrelateEveryRawSampleWithRollups(t *testing.
 		t.Fatal(err)
 	}
 	if !usesNanosecondRange {
-		t.Fatal("bounded raw history must use both nanosecond bounds in the existing node/time index")
+		t.Fatal("bounded raw history must seek the node and both nanosecond bounds in the covering index")
 	}
 }
 
