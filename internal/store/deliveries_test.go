@@ -8,6 +8,38 @@ import (
 	"time"
 )
 
+func TestDeliveryRetryDoesNotRoundDeadlineDown(t *testing.T) {
+	for _, fraction := range []time.Duration{0, time.Nanosecond, 999999 * time.Nanosecond} {
+		t.Run(fraction.String(), func(t *testing.T) {
+			s, rule, node := incidentFixture(t, `{"threshold_percent":90}`)
+			ctx := context.Background()
+			at := time.Now().UTC().Truncate(time.Second)
+			observe(t, s, rule, node, at, true, true)
+			job, err := s.ClaimDelivery(ctx, at, time.Minute)
+			if err != nil || job == nil {
+				t.Fatalf("claim: %+v %v", job, err)
+			}
+			deadline := at.Add(120*time.Second + fraction)
+			if err := s.CompleteDelivery(ctx, job.ID, job.LeaseToken, at.Add(time.Second), DeliveryOutcome{ErrorClass: "http_rate_limited", RetryAt: deadline}); err != nil {
+				t.Fatal(err)
+			}
+			saved, err := s.Delivery(ctx, job.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if saved.AvailableAt.Before(deadline) || saved.AvailableAt.Sub(deadline) >= time.Millisecond {
+				t.Fatalf("deadline %s stored as %s", deadline, saved.AvailableAt)
+			}
+			if early, err := s.ClaimDelivery(ctx, deadline.Add(-time.Nanosecond), time.Minute); err != nil || early != nil {
+				t.Fatalf("early retry: %+v %v", early, err)
+			}
+			if due, err := s.ClaimDelivery(ctx, saved.AvailableAt, time.Minute); err != nil || due == nil {
+				t.Fatalf("due retry: %+v %v", due, err)
+			}
+		})
+	}
+}
+
 func TestDeliveryLeaseExpiryAndStaleCompletion(t *testing.T) {
 	s, rule, node := incidentFixture(t, `{"threshold_percent":90}`)
 	ctx := context.Background()

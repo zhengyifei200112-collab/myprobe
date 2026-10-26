@@ -43,6 +43,7 @@ export type AlertKind = 'offline' | 'cpu' | 'memory' | 'disk' | 'latency' | 'ban
 
 export interface AlertRule {
   id: string
+  policy_id?: string
   node_id: string
   channel_id: string
   kind: AlertKind
@@ -77,6 +78,59 @@ export interface AlertEvent {
   channel_name?: string
   provider?: string
 }
+
+export type AlertPolicyScope =
+  | { kind: 'all' }
+  | { kind: 'nodes'; node_ids: string[] }
+  | { kind: 'tags'; tags: string[]; tag_mode: 'all' | 'any' }
+
+export interface AlertPolicyInput {
+  name: string
+  policy_key: string
+  enabled: boolean
+  priority: number
+  scope: AlertPolicyScope
+  channel_id: string
+  kind: AlertKind
+  config: AlertRule['config']
+  cooldown_seconds: number
+}
+
+export interface AlertPolicy extends AlertPolicyInput {
+  id: string
+  revision: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AlertPolicyDecision {
+  policy_key: string
+  selected_id: string
+  candidate_ids: string[]
+  reason: 'only_match' | 'more_specific_scope' | 'higher_priority'
+}
+
+export interface AlertPolicyResponse {
+  policy: AlertPolicy
+  evaluation_enabled: boolean
+  evaluation: PolicyEvaluationStatus
+}
+
+export interface PolicyEvaluationStatus {
+  state: 'pending' | 'ready' | 'error'
+  last_applied_at?: string
+}
+
+export const loadAlertPolicies = (after = '', limit = 50) => request<{
+  policies: AlertPolicy[]; next_cursor: string; evaluation_enabled: boolean; evaluation: PolicyEvaluationStatus
+}>(`/api/v1/admin/alert-policies?${new URLSearchParams({ after, limit: String(limit) })}`)
+export const loadAlertPolicy = (id: string) => request<AlertPolicyResponse>(`/api/v1/admin/alert-policies/${encodeURIComponent(id)}`)
+export const createAlertPolicy = (payload: AlertPolicyInput) => request<AlertPolicyResponse>('/api/v1/admin/alert-policies', { method: 'POST', body: JSON.stringify(payload) })
+export const updateAlertPolicy = (id: string, payload: AlertPolicyInput & { revision: number }) => request<AlertPolicyResponse>(`/api/v1/admin/alert-policies/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) })
+export const deleteAlertPolicy = (id: string, revision: number) => request<void>(`/api/v1/admin/alert-policies/${encodeURIComponent(id)}?${new URLSearchParams({ revision: String(revision) })}`, { method: 'DELETE' })
+export const loadEffectiveAlertPolicies = (nodeID: string) => request<{
+  decisions: AlertPolicyDecision[]; evaluation_enabled: boolean; evaluation: PolicyEvaluationStatus
+}>(`/api/v1/admin/alert-policies/effective/${encodeURIComponent(nodeID)}`)
 
 export interface NotificationTemplate {
   id: string
@@ -140,8 +194,24 @@ export interface GitHubOAuthSettings {
 
 export interface AuthSettings { password_enabled: true; github: GitHubOAuthSettings }
 
-export class AdminRequestError extends Error {
-  constructor(message: string, public status: number, public conflictNodeIDs: string[] = []) { super(message); this.name = 'AdminRequestError' }
+export class AdminAPIError extends Error {
+  status: number
+  code?: string
+  constructor(message: string, status: number, code?: string) {
+    super(message)
+    this.name = 'AdminAPIError'
+    this.status = status
+    this.code = code
+  }
+}
+
+export class AdminRequestError extends AdminAPIError {
+  conflictNodeIDs: string[]
+  constructor(message: string, status: number, conflictNodeIDs: string[] = [], code?: string) {
+    super(message, status, code)
+    this.name = 'AdminRequestError'
+    this.conflictNodeIDs = conflictNodeIDs
+  }
 }
 
 let csrfToken = ''
@@ -154,8 +224,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && csrfToken) headers.set('X-CSRF-Token', csrfToken)
   const response = await fetch(path, { ...options, headers, credentials: 'same-origin', cache: 'no-store' })
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({})) as { error?: string; conflict_node_ids?: string[] }
-    throw new AdminRequestError(payload.error || `请求失败（${response.status}）`, response.status, payload.conflict_node_ids || [])
+    const payload = await response.json().catch(() => ({})) as { error?: string; code?: string; conflict_node_ids?: string[] }
+    throw new AdminRequestError(payload.error || `请求失败（${response.status}）`, response.status, payload.conflict_node_ids || [], payload.code)
   }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
@@ -219,6 +289,14 @@ export const updateAlertRule = (id: string, payload: unknown) => request<{ rule:
 export const deleteAlertRule = (id: string) => request<void>(`/api/v1/admin/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const loadAlertEvents = () => request<{ events: AlertEvent[] }>('/api/v1/admin/alert-events')
 export const loadNotificationTemplates = () => request<{ templates: NotificationTemplate[] }>('/api/v1/admin/notification-templates')
+
+export type PortablePolicy = Omit<AlertPolicyInput, 'revision'> & { source_id: string }
+export interface PolicyBundle { format: 'myprobe-alert-policies'; version: 1; policies: PortablePolicy[] }
+export interface PolicyImportMapping { channels: Record<string, string>; nodes: Record<string, string>; templates: Record<string, string> }
+export interface PolicyImportPreview { bundle: PolicyBundle; create_count: number; preview_digest: string }
+export const exportPolicyBundle = () => request<PolicyBundle>('/api/v1/admin/alert-policies/export')
+export const previewPolicyImport = (bundle: PolicyBundle, mapping: PolicyImportMapping) => request<PolicyImportPreview>('/api/v1/admin/alert-policies/import/preview', { method: 'POST', body: JSON.stringify({ bundle, mapping }) })
+export const applyPolicyImport = (bundle: PolicyBundle, mapping: PolicyImportMapping, request_id: string, preview_digest: string) => request<{ policy_ids: string[]; replayed: boolean }>('/api/v1/admin/alert-policies/import/apply', { method: 'POST', body: JSON.stringify({ bundle, mapping, request_id, preview_digest }) })
 export const createNotificationTemplate = (payload: unknown) => request<{ template: NotificationTemplate }>('/api/v1/admin/notification-templates', { method: 'POST', body: JSON.stringify(payload) })
 export const updateNotificationTemplate = (id: string, payload: unknown) => request<{ template: NotificationTemplate }>(`/api/v1/admin/notification-templates/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
 export const deleteNotificationTemplate = (id: string) => request<void>(`/api/v1/admin/notification-templates/${encodeURIComponent(id)}`, { method: 'DELETE' })

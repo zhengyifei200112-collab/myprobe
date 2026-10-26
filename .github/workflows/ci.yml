@@ -43,6 +43,13 @@ jobs:
           go vet ./...
           go build ./cmd/...
 
+      - name: Verify released database upgrade
+        env:
+          MYPROBE_TEST_RELEASE_UPGRADE: '1'
+        run: |
+          git fetch --no-tags --depth=1 origin 532352963ab47aed4af730c400f25163d0e6ed45
+          go test ./internal/store -run '^TestReleased021SchemaUpgradeToPolicies$' -count=1 -v
+
       - name: Build and validate container images
         shell: bash
         run: |
