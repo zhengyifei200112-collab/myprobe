@@ -8,10 +8,11 @@ import type { AlertEvent, AlertKind, AlertRule, NotificationChannel, Notificatio
 import { createAlertRule, createChannel, createNotificationTemplate, deleteAlertRule, deleteChannel, deleteNotificationTemplate, loadAlertEvents, loadAlertRules, loadChannels, loadNotificationTemplates, testChannel, testNotificationTemplate, updateAlertRule, updateChannel, updateNotificationTemplate } from '../admin-api'
 import { DsBadge, DsButton, DsEmptyState, DsStatusIndicator, DsTabs } from '../design-system'
 import PolicyManager from './PolicyManager.vue'
+import MaintenanceManager from './MaintenanceManager.vue'
 
 const props = defineProps<{ nodes: NodeMetadata[] }>()
 const emit = defineEmits<{ notice: [value: string]; error: [value: unknown] }>()
-type View = 'overview' | 'channels' | 'rules' | 'templates' | 'history' | 'policies' | 'incidents'
+type View = 'overview' | 'channels' | 'rules' | 'templates' | 'history' | 'policies' | 'incidents' | 'maintenance'
 const view = ref<View>('overview')
 const policyToEdit = ref('')
 watch(view, next => { if (next !== 'policies') policyToEdit.value = '' })
@@ -27,7 +28,7 @@ const historyProvider = ref('all')
 const channelForm = reactive({ id:'', name:'', kind:'webhook' as NotificationChannel['kind'], enabled:true, url:'', method:'POST', headers:'', body_template:'', bot_token:'', chat_id:'', thread_id:'', parse_mode:'', smtp_host:'', smtp_port:587, smtp_username:'', smtp_password:'', smtp_from:'', smtp_to:'', smtp_encryption:'starttls' })
 const ruleForm = reactive({ id:'', node_id:'', channel_id:'', kind:'offline' as AlertKind, threshold:60, duration_seconds:0,recovery_seconds:0,recovery_matches_trigger:true, cooldown_seconds:900, repeat_seconds:900, template_id:'', enabled:true })
 const templateForm = reactive({ id:'', name:'', event_kind:'firing', title_template:'MyProbe 告警 · {{node.name}}', body_template:'{{message}}' })
-const tabs = [{value:'incidents',label:'故障事件'},{value:'overview',label:'概览'},{value:'channels',label:'通知通道'},{value:'rules',label:'告警规则'},{value:'policies',label:'范围策略'},{value:'templates',label:'消息模板'},{value:'history',label:'发送历史'}]
+const tabs = [{value:'incidents',label:'故障事件'},{value:'overview',label:'概览'},{value:'channels',label:'通知通道'},{value:'rules',label:'告警规则'},{value:'policies',label:'范围策略'},{value:'maintenance',label:'维护窗口'},{value:'templates',label:'消息模板'},{value:'history',label:'发送历史'}]
 const templateVariables = ['{{node.name}}','{{message}}','{{state}}','{{event}}']
 const healthyChannels = computed(() => channels.value.filter(x=>x.enabled && x.last_test_status==='success').length)
 const firingEvents = computed(() => events.value.filter(x=>x.state==='firing').length)
@@ -67,7 +68,7 @@ onMounted(()=>run(refresh))
     <header class="notification-hero"><div><span class="eyebrow">NOTIFICATION SYSTEM</span><h1>通知中心</h1><p>统一管理告警触发、发送通道、消息模板与交付记录。</p></div><div class="notification-health"><span class="health-dot"></span><div><strong>通知引擎运行中</strong><small>状态去重与恢复通知已启用</small></div></div></header>
     <DsTabs v-model="view" :items="tabs" label="通知中心导航" />
 
-    <IncidentHistory v-if="view==='incidents'" :nodes="nodes" />
+    <IncidentHistory v-if="view==='incidents'" :nodes="nodes" @maintenance="view='maintenance'" />
     <template v-else-if="view==='overview'">
       <section class="notification-stats"><article><span>已启用通道</span><strong>{{ channels.filter(x=>x.enabled).length }}</strong><small>{{ healthyChannels }} 个测试正常</small></article><article><span>监控规则</span><strong>{{ rules.filter(x=>x.enabled).length }}</strong><small>持久化去重与冷却</small></article><article><span>近期告警发送</span><strong>{{ firingEvents }}</strong><small>最近 100 条投递记录中的告警通知</small></article><article :class="{warn:failedEvents}"><span>发送失败</span><strong>{{ failedEvents }}</strong><small>{{ failedEvents?'请检查历史记录':'近期记录中未发现失败' }}</small></article></section>
       <div class="notification-overview-grid"><section class="notification-card"><header><div><span class="eyebrow">CHANNEL HEALTH</span><h2>通道状态</h2></div><DsButton size="small" @click="view='channels'">管理</DsButton></header><div v-for="item in channels.slice(0,4)" :key="item.id" class="health-row"><span class="provider-icon">{{ item.kind==='telegram'?'TG':item.kind==='discord'?'DC':item.kind==='smtp'?'@':'WH' }}</span><div><strong>{{ item.name }}</strong><small>{{ providerName(item.kind) }} · {{ item.last_test_at?new Date(item.last_test_at).toLocaleString('zh-CN',{hour12:false}):'尚未测试' }}</small></div><DsStatusIndicator :status="!item.enabled?'neutral':item.last_test_status==='failed'?'offline':item.last_test_status==='success'?'online':'warning'" :label="!item.enabled?'停用':item.last_test_status==='failed'?'失败':item.last_test_status==='success'?'正常':'待测试'" /></div><DsEmptyState v-if="!channels.length" title="尚未添加通道" description="先连接一个 Webhook、Telegram、Discord 或 SMTP 通道。" /></section>
@@ -84,6 +85,7 @@ onMounted(()=>run(refresh))
     </template>
 
     <PolicyManager v-else-if="view==='policies'" :nodes="nodes" :channels="channels" :initial-policy-id="policyToEdit" />
+    <MaintenanceManager v-else-if="view==='maintenance'" :nodes="nodes" />
     <template v-else-if="view==='templates'">
       <div class="notification-workspace"><form class="notification-card editor" @submit.prevent="saveTemplate"><span class="eyebrow">SAFE TEMPLATE</span><h2>{{ templateForm.id?'编辑消息模板':'创建消息模板' }}</h2><p>仅支持白名单变量，不执行脚本、表达式或 HTML。</p><label>模板名称<input v-model="templateForm.name" required></label><label>适用状态<select v-model="templateForm.event_kind"><option value="firing">告警</option><option value="resolved">恢复</option><option value="all">全部</option></select></label><label>标题模板<input v-model="templateForm.title_template" required maxlength="300"></label><label>正文模板<textarea v-model="templateForm.body_template" required rows="7" maxlength="8000"></textarea></label><div class="variable-list"><code v-for="variable in templateVariables" :key="variable">{{ variable }}</code></div><footer><DsButton type="submit" variant="primary" :disabled="busy">{{ templateForm.id?'保存修改':'创建模板' }}</DsButton><DsButton v-if="templateForm.id" type="button" @click="editTemplate()">取消</DsButton></footer></form><section class="template-list"><article v-for="item in templates" :key="item.id" class="notification-card template-item"><header><div><h3>{{ item.name }}</h3><p>{{ item.event_kind==='firing'?'告警':item.event_kind==='resolved'?'恢复':'全部事件' }}</p></div><DsBadge v-if="item.is_default">系统默认</DsBadge></header><div class="template-preview"><strong>{{ previewTitle(item.title_template) }}</strong><p>{{ previewBody(item.body_template) }}</p></div><footer><DsButton size="small" @click="editTemplate({...item,id:'' ,name:item.name+' 副本',is_default:false})">复制</DsButton><DsButton v-if="!item.is_default" size="small" @click="editTemplate(item)">编辑</DsButton><DsButton v-if="!item.is_default" size="small" variant="danger" @click="removeTemplate(item)">删除</DsButton></footer></article></section></div>
     </template>

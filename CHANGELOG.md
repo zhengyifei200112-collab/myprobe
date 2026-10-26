@@ -26,6 +26,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Confirmed maintenance windows freeze selected members, retain timezones/reasons,
+  support revision-aware cancellation and idempotent retries, and expose combined
+  incident/delivery suppression context without inventing recovery.
+
 - Scoped alert policies select nodes or all/any tags with stable keys, priorities,
   inheritance previews and runtime application status; legacy rules retain their
   incident/delivery identities when mapped into policies.

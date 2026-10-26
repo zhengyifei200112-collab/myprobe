@@ -284,6 +284,25 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 		}
 		return &i, tx.Commit()
 	}
+	// A fresh continuing fault after an observation gap crossing maintenance is
+	// a current-state summary, even if the previous notification was delivered.
+	// ObservedAt is persisted with this transaction, so subsequent observations
+	// cannot repeatedly consume the same historical window.
+	if i.State == "firing" && o.Active && i.ObservedAt != nil && o.At.After(*i.ObservedAt) {
+		windows, err := matchingMaintenanceIDs(ctx, tx, i.NodeID, *i.ObservedAt, o.At, true)
+		if err != nil {
+			return nil, err
+		}
+		if len(windows) > 0 {
+			i.LastEnqueuedAt = nil
+			if err := recordMaintenanceDecision(ctx, tx, i.ID, windows, "observation_gap", o.At, ""); err != nil {
+				return nil, err
+			}
+			if err := cancelIncidentDeliveries(ctx, tx, i.ID, "maintenance", o.At); err != nil {
+				return nil, err
+			}
+		}
+	}
 	i.ObservedAt = &o.At
 	i.LastMessage = o.Message
 	justResolved := false
@@ -325,6 +344,27 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 			return nil, err
 		}
 		notify = attempted > 0 || (i.Origin == "legacy" && i.NotificationSequence > 0)
+	}
+	{
+		windows, err := matchingMaintenanceIDs(ctx, tx, i.NodeID, time.Time{}, o.At, false)
+		if err != nil {
+			return nil, err
+		}
+		if len(windows) > 0 {
+			// Preserve fault transitions while suppressing this notification intent.
+			// Reset the repeat clock so a continuing fresh fault can notify at end.
+			i.LastEnqueuedAt = nil
+			if err := recordMaintenanceDecision(ctx, tx, i.ID, windows, "observation", o.At, ""); err != nil {
+				return nil, err
+			}
+			if err := cancelIncidentDeliveries(ctx, tx, i.ID, "maintenance", o.At); err != nil {
+				return nil, err
+			}
+			if err := saveIncident(ctx, tx, &i); err != nil {
+				return nil, err
+			}
+			return &i, tx.Commit()
+		}
 	}
 	if notify {
 		if err := queueIncidentNotification(ctx, tx, &i, rule.ChannelID, o); err != nil {
