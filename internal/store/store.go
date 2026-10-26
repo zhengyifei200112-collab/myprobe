@@ -279,25 +279,58 @@ func (s *Store) SaveReport(ctx context.Context, nodeID string, report protocol.R
 		return err
 	}
 	defer tx.Rollback()
-	_, err = tx.ExecContext(ctx, `INSERT INTO metric_latest(node_id, captured_at, report_json) VALUES(?, ?, ?)
-		ON CONFLICT(node_id) DO UPDATE SET captured_at = excluded.captured_at, report_json = excluded.report_json`,
-		nodeID, formatTime(report.CapturedAt), string(raw))
-	if err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO metric_samples(
-		node_id, captured_at, cpu_usage, memory_used, memory_total, disk_used, disk_total,
-		net_rx_rate, net_tx_rate, net_rx_total, net_tx_total, report_json)
-		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, nodeID, formatTime(report.CapturedAt), report.CPU.UsagePercent,
-		report.Memory.UsedBytes, report.Memory.TotalBytes, diskUsed, diskTotal, rxRate, txRate, rxTotal, txTotal, string(raw))
-	if err != nil {
-		return err
-	}
+	// Reserve the SQLite writer before checking the previous sample. Retries and
+	// exact cached replays prove liveness without adding history or making
+	// traffic counters move backwards.
 	if _, err = tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", nowText(), nowText(), nodeID); err != nil {
 		return err
 	}
-	if err = s.updateTrafficState(ctx, tx, nodeID, report.CapturedAt, rxTotal, txTotal); err != nil {
+	// A distinct late capture must remain in history. Deduplicate only exact
+	// replays; reject a different payload using an already stored capture time.
+	var stored string
+	err = tx.QueryRowContext(ctx, "SELECT report_json FROM metric_samples WHERE node_id=? AND captured_at=? ORDER BY id DESC LIMIT 1", nodeID, formatTime(report.CapturedAt)).Scan(&stored)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
+	}
+	duplicate := err == nil
+	if duplicate && stored != string(raw) {
+		return errors.New("conflicting report at an existing capture time")
+	}
+	var previous string
+	err = tx.QueryRowContext(ctx, "SELECT captured_at FROM metric_latest WHERE node_id = ?", nodeID).Scan(&previous)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	newLatest := errors.Is(err, sql.ErrNoRows)
+	if err == nil {
+		at, parseErr := time.Parse(time.RFC3339Nano, previous)
+		if parseErr != nil {
+			return parseErr
+		}
+		newLatest = report.CapturedAt.After(at)
+	}
+	if newLatest {
+		_, err = tx.ExecContext(ctx, `INSERT INTO metric_latest(node_id, captured_at, report_json) VALUES(?, ?, ?)
+		ON CONFLICT(node_id) DO UPDATE SET captured_at = excluded.captured_at, report_json = excluded.report_json`,
+			nodeID, formatTime(report.CapturedAt), string(raw))
+		if err != nil {
+			return err
+		}
+	}
+	if !duplicate {
+		_, err = tx.ExecContext(ctx, `INSERT INTO metric_samples(
+		node_id, captured_at, cpu_usage, memory_used, memory_total, disk_used, disk_total,
+		net_rx_rate, net_tx_rate, net_rx_total, net_tx_total, report_json)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, nodeID, formatTime(report.CapturedAt), report.CPU.UsagePercent,
+			report.Memory.UsedBytes, report.Memory.TotalBytes, diskUsed, diskTotal, rxRate, txRate, rxTotal, txTotal, string(raw))
+		if err != nil {
+			return err
+		}
+	}
+	if newLatest {
+		if err = s.updateTrafficState(ctx, tx, nodeID, report.CapturedAt, rxTotal, txTotal); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
 }
@@ -308,7 +341,7 @@ func (s *Store) ListPublicNodes(ctx context.Context, now time.Time) ([]PublicNod
 		n.latency_mode, n.custom_html, n.custom_badges_json, n.custom_links_json, n.collection_seconds, n.report_seconds, n.created_at, n.updated_at,
 		n.last_seen_at, m.report_json
 		FROM nodes n LEFT JOIN metric_latest m ON m.node_id = n.id
-		WHERE n.hidden = 0 ORDER BY n.sort_order, n.name`)
+		WHERE n.hidden = 0 ORDER BY n.sort_order, n.name, n.id`)
 	if err != nil {
 		return nil, err
 	}

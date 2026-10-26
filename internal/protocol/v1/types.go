@@ -135,7 +135,8 @@ type Welcome struct {
 }
 
 type Acknowledgement struct {
-	Sequence uint64 `json:"sequence"`
+	Sequence uint64  `json:"sequence"`
+	Config   *Config `json:"config,omitempty"`
 }
 
 type Config struct {
