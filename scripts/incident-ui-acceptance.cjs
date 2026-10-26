@@ -34,6 +34,7 @@ async function main() {
     await page.getByRole('tab', { name: '故障事件', exact: true }).click()
     await page.getByRole('button', { name: '查看 Synthetic incident 的投递记录' }).click()
     await page.waitForFunction(() => document.activeElement?.matches('.delivery-detail h3'))
+    await page.locator('.delivery-detail').getByText('Fixture pending · 等待发送', { exact: true }).waitFor()
     for (const label of ['等待发送', '发送中', '已送达', '发送失败', '已取消']) {
       assert.ok((await page.locator('.delivery-detail').innerText()).includes(label), label)
     }
