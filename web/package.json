@@ -12,12 +12,12 @@
   "dependencies": {
     "echarts": "6.1.0",
     "country-flag-icons": "1.6.20",
-    "vue": "3.5.40"
+    "vue": "3.5.44"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "6.0.8",
     "typescript": "6.0.3",
-    "vite": "8.1.5",
+    "vite": "8.1.6",
     "vue-tsc": "3.3.7"
   }
 }
