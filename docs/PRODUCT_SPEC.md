@@ -27,6 +27,8 @@
 | Node administration | Register, edit, order, hide, delete, rotate token, generate one-click Agent install command | Admin API and browser clipboard verification | Implemented |
 | Batch administration | Owned previews, atomic configuration updates, revision conflicts, replayable retries and cross-page selection | Store/API/Agent regressions and `scripts/node_batch_browser_test.cjs`; see `NODE_BATCH_MANAGEMENT.md` | Implemented |
 | Agent intervals | Independent collection/report timers; welcome, live WebSocket and HTTP configuration; cached sample deduplication | Agent/gateway/store configuration tests; requires upgraded Agent | Implemented |
+
+| Node ordering | Keyboard up/down and Alt+arrow movement, cancel/save, atomic conflict detection and replay | Store/API order tests and `scripts/node_order_browser_test.cjs`; see `NODE_ORDERING.md` | Implemented |
 | Target administration | Ping/TCPing target CRUD and assignment from target/node editors | API and scheduler tests | Implemented |
 | Notifications | Encrypted Webhook, Telegram, Discord, and SMTP channels with rules, templates, recovery delivery, cooldowns, and history | Mock receiver and alert-state tests | Implemented |
 | Alerts | Offline/recovery, CPU, bandwidth, cycle traffic and expiry | Deduplication/cooldown tests | Implemented |

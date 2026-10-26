@@ -281,3 +281,6 @@ export interface NodeBatchPreview {
 export interface NodeBatchResult { preview_id: string; applied_at: string; changed_ids: string[]; unchanged_ids: string[] }
 export const previewNodeBatch = (payload: NodeBatchRequest) => request<NodeBatchPreview>('/api/v1/admin/nodes/batch/preview', { method: 'POST', body: JSON.stringify(payload) })
 export const applyNodeBatch = (previewID: string, key: string) => request<NodeBatchResult>('/api/v1/admin/nodes/batch/apply', { method: 'POST', body: JSON.stringify({ preview_id: previewID, idempotency_key: key }) })
+
+export interface NodeOrderEntry { id: string; sort_order: number }
+export const reorderNodes = (expected: NodeOrderEntry[], nodeIDs: string[]) => request<{ changed: boolean }>('/api/v1/admin/nodes/reorder', { method: 'POST', body: JSON.stringify({ expected, node_ids: nodeIDs }) })

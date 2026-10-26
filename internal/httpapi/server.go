@@ -110,6 +110,8 @@ func (s *Server) routes() {
 	admin.POST("/nodes", s.createNode)
 	admin.POST("/nodes/batch/preview", s.previewNodeBatch)
 	admin.POST("/nodes/batch/apply", s.applyNodeBatch)
+
+	admin.POST("/nodes/reorder", s.reorderNodes)
 	admin.PATCH("/nodes/:nodeID", s.updateNode)
 	admin.DELETE("/nodes/:nodeID", s.deleteNode)
 	admin.POST("/nodes/:nodeID/rotate-token", s.rotateNodeToken)
