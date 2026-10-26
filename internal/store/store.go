@@ -835,7 +835,7 @@ const metricHistoryQuery = `WITH history AS (
 		CASE WHEN m.memory_total>0 THEN 100.0*m.memory_used/m.memory_total ELSE 0 END AS memory_sum,
 		CASE WHEN m.disk_total>0 THEN 100.0*m.disk_used/m.disk_total ELSE 0 END AS disk_sum,
 		m.net_rx_rate AS rx_sum,m.net_tx_rate AS tx_sum
-		FROM metric_samples m
+		FROM metric_samples m INDEXED BY idx_metric_samples_history_cover
 		WHERE m.node_id=:node AND ` + historyRawBounds + `
 		UNION ALL
 		SELECT bucket_at,sample_count,cpu_sum,memory_percent_sum,disk_percent_sum,net_rx_rate_sum,net_tx_rate_sum
@@ -918,7 +918,7 @@ const latencyHistoryQuery = `WITH target_series AS MATERIALIZED (
 		COUNT(*) AS sample_count,SUM(success) AS success_count,
 		SUM(CASE WHEN success=1 AND latency_ms IS NOT NULL THEN 1 ELSE 0 END) AS latency_count,
 		SUM(CASE WHEN success=1 THEN COALESCE(latency_ms,0) ELSE 0 END) AS latency_sum
-		FROM target_series CROSS JOIN latency_samples INDEXED BY idx_latency_samples_node_target_capture_ns
+		FROM target_series CROSS JOIN latency_samples INDEXED BY idx_latency_samples_history_cover
 		WHERE target_id=series_target AND node_id=:node AND ` + historyNodeScope + ` AND ` + historyRawBounds + `
 		GROUP BY bucket,series_index,kind
 		UNION ALL

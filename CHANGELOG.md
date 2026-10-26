@@ -9,6 +9,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Read raw metric, latency and traffic history projections through bounded
+  covering indexes, preserving equal-time row order, weights, visibility and
+  counter-reset calculations. Forward migration051 adds disk/raw-write/startup
+  costs; see `docs/RAW_HISTORY_COVERING_READS.md` before upgrading populated data.
+
 - Read retained latency history from a covering time-range index, avoiding a
   table lookup for every retained bucket when switching between nodes. Migration
   050 adds storage and startup index-build work; history statistics, windows and

@@ -10,7 +10,9 @@ Migration `050_history_covering_reads.sql` adds
 node, target, captured kind, retention level and bucket time. The four weighted
 statistics follow them, so the retained part of the history query can read its
 input directly from the index. The query still constrains both time bounds and
-both supported levels. Raw sample reads and metric/traffic queries are unchanged.
+both supported levels. Migration050 leaves raw sample and metric/traffic queries
+unchanged; [migration051](RAW_HISTORY_COVERING_READS.md) subsequently covers the
+raw projections while preserving their statistics and time bounds.
 
 The existing unique constraint, foreign keys and retention indexes remain.
 Weighted counts/sums, successful null latency, historical target kinds, disabled
