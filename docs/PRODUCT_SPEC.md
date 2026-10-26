@@ -196,3 +196,19 @@ continuing-fault summary. Released-version integration and additional release
 evidence remain pending. This work is unreleased and does not complete
 acknowledgement, silence, aggregation or HTTP
 maintenance statistics. See [ALERT_MAINTENANCE.md](ALERT_MAINTENANCE.md).
+
+## Incident silence (SIL-01/SIL-02, unreleased)
+
+Migration 029 introduces incident-scoped, server-timed silence for 60 seconds to
+7 days. Only firing events accept it; observation and condition transitions
+continue. Maintenance OR silence suppresses intent and records exact causes.
+Creation cancels outstanding jobs; expiry/cancel waits for fresh known evidence,
+then sends one continuing-fault summary. Recovery closes active silence without
+catch-up and future episodes are independent. Combined acknowledgement preserves
+an existing first record or atomically creates it with silence. Immutable mutation
+results support original-request replay after expiry, recovery, restart and full
+restore. Protected management API/UI expose deadline, cancel, combined ACK,
+history and exact delivery causes, with original-operation recovery across reload
+and incident selection. Real receiver/browser acceptance covers both themes and
+360/768/1440 px. Release integration and full capacity remain pending; no public fields change.
+See [INCIDENT_SILENCE.md](INCIDENT_SILENCE.md) for semantics and acceptance gates.

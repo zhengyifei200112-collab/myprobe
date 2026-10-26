@@ -220,30 +220,6 @@ type maintenanceQuery interface {
 
 // Called with the delivery writer transaction held; cancellation and resetting
 // the repeat clock must commit together so a fresh post-window observation can notify.
-func suppressMaintenanceDelivery(ctx context.Context, tx *sql.Tx, d NotificationDelivery, now time.Time) (bool, error) {
-	var nodeID string
-	if err := tx.QueryRowContext(ctx, `SELECT node_id FROM alert_incidents WHERE id=?`, d.IncidentID).Scan(&nodeID); err != nil {
-		return false, err
-	}
-	ids, err := matchingMaintenanceIDs(ctx, tx, nodeID, time.Time{}, now, false)
-	if err == nil && len(ids) == 0 && now.After(d.CreatedAt) {
-		// The server may have been stopped for the entire window. An old queued
-		// transition must not be delivered merely because maintenance ended.
-		ids, err = matchingMaintenanceIDs(ctx, tx, nodeID, d.CreatedAt, now, true)
-	}
-	if err != nil || len(ids) == 0 {
-		return false, err
-	}
-	if err := recordMaintenanceDecision(ctx, tx, d.IncidentID, ids, "delivery", now, d.ID); err != nil {
-		return false, err
-	}
-	if err := cancelDelivery(ctx, tx, d.ID, "maintenance", now); err != nil {
-		return false, err
-	}
-	_, err = tx.ExecContext(ctx, `UPDATE alert_incidents SET last_enqueued_at=NULL WHERE id=?`, d.IncidentID)
-	return true, err
-}
-
 func nodeInMaintenance(ctx context.Context, q maintenanceQuery, nodeID string, at time.Time) (bool, error) {
 	if nodeID == "" || at.IsZero() {
 		return false, ErrInvalidMaintenance
