@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -36,14 +35,16 @@ type ChannelConfig struct {
 }
 
 type Notification struct {
-	Title     string    `json:"title"`
-	Message   string    `json:"message"`
-	State     string    `json:"state"`
-	Kind      string    `json:"kind"`
-	NodeID    string    `json:"node_id"`
-	NodeName  string    `json:"node_name"`
-	RuleID    string    `json:"rule_id"`
-	Timestamp time.Time `json:"timestamp"`
+	IncidentID     string    `json:"incident_id,omitempty"`
+	IdempotencyKey string    `json:"-"`
+	Title          string    `json:"title"`
+	Message        string    `json:"message"`
+	State          string    `json:"state"`
+	Kind           string    `json:"kind"`
+	NodeID         string    `json:"node_id"`
+	NodeName       string    `json:"node_name"`
+	RuleID         string    `json:"rule_id"`
+	Timestamp      time.Time `json:"timestamp"`
 }
 
 type Sender interface {
@@ -125,6 +126,9 @@ func (s *HTTPSender) webhook(ctx context.Context, config ChannelConfig, notifica
 		}
 		request.Header.Set(key, value)
 	}
+	if notification.IdempotencyKey != "" {
+		request.Header.Set("Idempotency-Key", notification.IdempotencyKey)
+	}
 	return s.do(request)
 }
 
@@ -199,56 +203,62 @@ func (s *HTTPSender) smtp(ctx context.Context, config ChannelConfig, notificatio
 		conn, err = dialer.DialContext(ctx, "tcp", address)
 	}
 	if err != nil {
-		return errors.New("SMTP connection failed")
+		return classifySMTPFailure(err, "connection", false)
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 	client, err := smtp.NewClient(conn, config.SMTPHost)
 	if err != nil {
-		return errors.New("SMTP handshake failed")
+		return classifySMTPFailure(err, "handshake", false)
 	}
 	defer client.Close()
 	if config.SMTPEncryption == "starttls" {
 		if ok, _ := client.Extension("STARTTLS"); !ok {
-			return errors.New("SMTP server does not support STARTTLS")
+			return &DeliveryError{Class: "smtp_starttls_unavailable", Permanent: true}
 		}
 		if err := client.StartTLS(&tls.Config{ServerName: config.SMTPHost, MinVersion: tls.VersionTLS12}); err != nil {
-			return errors.New("SMTP TLS negotiation failed")
+			return classifySMTPFailure(err, "tls_negotiation", false)
 		}
 	}
 	if config.SMTPUsername != "" {
 		if err := client.Auth(smtp.PlainAuth("", config.SMTPUsername, config.SMTPPassword, config.SMTPHost)); err != nil {
-			return errors.New("SMTP authentication failed")
+			return classifySMTPFailure(err, "authentication", false)
 		}
 	}
-	if err := client.Mail(config.SMTPFrom); err != nil {
-		return errors.New("SMTP sender rejected")
+	return sendSMTPMessage(client, config.SMTPFrom, config.SMTPTo, message)
+}
+
+func sendSMTPMessage(client *smtp.Client, from, to string, message []byte) error {
+	if err := client.Mail(from); err != nil {
+		return classifySMTPFailure(err, "sender", false)
 	}
-	if err := client.Rcpt(config.SMTPTo); err != nil {
-		return errors.New("SMTP recipient rejected")
+	if err := client.Rcpt(to); err != nil {
+		return classifySMTPFailure(err, "recipient", false)
 	}
 	writer, err := client.Data()
 	if err != nil {
-		return errors.New("SMTP message rejected")
+		return classifySMTPFailure(err, "data", false)
 	}
 	if _, err = writer.Write(message); err != nil {
-		return errors.New("SMTP delivery failed")
+		return classifySMTPFailure(err, "delivery", true)
 	}
 	if err = writer.Close(); err != nil {
-		return errors.New("SMTP delivery failed")
+		return classifySMTPFailure(err, "delivery", true)
 	}
-	return client.Quit()
+	// DATA completion already confirmed acceptance. QUIT failure must not retry.
+	_ = client.Quit()
+	return nil
 }
 
 func (s *HTTPSender) do(request *http.Request) error {
 	response, err := s.client.Do(request)
 	if err != nil {
-		return errors.New("notification delivery failed")
+		return &DeliveryError{Class: "transport_error", Ambiguous: true}
 	}
 	defer response.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("notification receiver returned HTTP %d", response.StatusCode)
+		return classifyHTTPFailure(response.StatusCode, response.Header.Get("Retry-After"), time.Now())
 	}
 	return nil
 }

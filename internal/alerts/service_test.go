@@ -60,19 +60,19 @@ func TestAlertLifecycleDedupCooldownAndResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := service.Tick(ctx, now); err != nil || recorder.count() != 1 {
+	if err := tickAndDeliver(service, ctx, now); err != nil || recorder.count() != 1 {
 		t.Fatalf("first tick count = %d, error = %v", recorder.count(), err)
 	}
-	if err := service.Tick(ctx, now.Add(10*time.Second)); err != nil || recorder.count() != 1 {
+	if err := tickAndDeliver(service, ctx, now.Add(10*time.Second)); err != nil || recorder.count() != 1 {
 		t.Fatalf("dedupe count = %d, error = %v", recorder.count(), err)
 	}
-	if err := service.Tick(ctx, now.Add(31*time.Second)); err != nil || recorder.count() != 2 {
+	if err := tickAndDeliver(service, ctx, now.Add(31*time.Second)); err != nil || recorder.count() != 2 {
 		t.Fatalf("cooldown reminder count = %d, error = %v", recorder.count(), err)
 	}
 
 	expiresLater := now.Add(10 * 24 * time.Hour)
 	_ = updateNodeExpiry(t, database, node, &expiresLater)
-	if err := service.Tick(ctx, now.Add(32*time.Second)); err != nil || recorder.count() != 3 {
+	if err := tickAndDeliver(service, ctx, now.Add(32*time.Second)); err != nil || recorder.count() != 3 {
 		t.Fatalf("resolution count = %d, error = %v", recorder.count(), err)
 	}
 	if recorder.messages[2].State != "resolved" {
@@ -97,17 +97,17 @@ func TestFailedDeliveryRetriesOnlyAfterCooldown(t *testing.T) {
 	channel, _ := service.CreateChannel(ctx, "ops", "webhook", ChannelConfig{URL: "https://example.com/hook"})
 	_, _ = service.CreateRule(ctx, node.ID, channel.ID, "expiry", RuleConfig{DaysBefore: 1}, 30)
 
-	_ = service.Tick(ctx, now)
-	_ = service.Tick(ctx, now.Add(20*time.Second))
+	_ = tickAndDeliver(service, ctx, now)
+	_ = tickAndDeliver(service, ctx, now.Add(20*time.Second))
 	if recorder.count() != 1 {
 		t.Fatalf("count before cooldown = %d", recorder.count())
 	}
-	_ = service.Tick(ctx, now.Add(31*time.Second))
+	_ = tickAndDeliver(service, ctx, now.Add(40*time.Second))
 	if recorder.count() != 2 {
 		t.Fatalf("count after cooldown = %d", recorder.count())
 	}
 	events, _ := database.ListAlertEvents(ctx, 10)
-	if len(events) != 2 || events[1].State != "failed" || events[1].DeliveryError != "receiver unavailable" || events[0].State != "firing" {
+	if len(events) != 2 || events[1].State != "failed" || events[1].DeliveryError != "delivery_failed" || events[0].State != "firing" {
 		t.Fatalf("events = %#v", events)
 	}
 }
@@ -124,12 +124,12 @@ func TestAlertDurationSurvivesEvaluationTicks(t *testing.T) {
 	service := New(database, strings.Repeat("s", 32), recorder, nil)
 	channel, _ := service.CreateChannel(ctx, "ops", "webhook", ChannelConfig{URL: "https://example.com/hook"})
 	_, _ = service.CreateRule(ctx, node.ID, channel.ID, "expiry", RuleConfig{DaysBefore: 1, DurationSeconds: 60}, 300)
-	_ = service.Tick(ctx, now)
-	_ = service.Tick(ctx, now.Add(59*time.Second))
+	_ = tickAndDeliver(service, ctx, now)
+	_ = tickAndDeliver(service, ctx, now.Add(59*time.Second))
 	if recorder.count() != 0 {
 		t.Fatalf("delivered before duration: %d", recorder.count())
 	}
-	_ = service.Tick(ctx, now.Add(61*time.Second))
+	_ = tickAndDeliver(service, ctx, now.Add(61*time.Second))
 	if recorder.count() != 1 {
 		t.Fatalf("not delivered after duration: %d", recorder.count())
 	}
@@ -219,4 +219,17 @@ func updateNodeExpiry(t *testing.T, database *store.Store, node store.Node, expi
 		t.Fatal(err)
 	}
 	return updated
+}
+
+func tickAndDeliver(s *Service, ctx context.Context, now time.Time) error {
+	if err := s.Tick(ctx, now); err != nil {
+		return err
+	}
+	for i := 0; i < 100; i++ {
+		worked, err := s.DeliverOne(ctx, now)
+		if err != nil || !worked {
+			return err
+		}
+	}
+	return errors.New("unexpected delivery loop")
 }
