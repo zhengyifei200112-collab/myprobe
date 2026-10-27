@@ -13,7 +13,7 @@ assert(base && password && ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(
   assert.equal(created.status(), 201)
   const { node } = await created.json(), browser = await chromium.launch({ channel: 'msedge', headless: true })
   try {
-    for (const kind of ['incident', 'node']) {
+    for (const kind of ['incident', 'node', 'service', 'absolute-node']) {
       const context = await browser.newContext()
       try {
         await context.addInitScript(({ id }) => {
@@ -22,7 +22,14 @@ assert(base && password && ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(
         }, { id: node.id })
         const page = await context.newPage(), errors = []
         page.on('pageerror', error => errors.push(error.message))
-        await page.goto(base + (kind === 'incident' ? '/admin?incident=missing-fixture' : `/admin/nodes/${node.id}?range=12h`))
+        const end = new Date(Date.now() - 1000).toISOString()
+        const start = new Date(Date.now() - 3600000).toISOString()
+        const bounds = new URLSearchParams({ start, end }).toString()
+        const destination = kind === 'incident' ? '/admin?incident=missing-fixture'
+          : kind === 'service' ? `/admin?service=missing-service&observer=${node.id}&${bounds}`
+          : kind === 'absolute-node' ? `/admin/nodes/${node.id}?${bounds}`
+          : `/admin/nodes/${node.id}?range=12h`
+        await page.goto(base + destination)
         await page.getByRole('heading', { name: '登录管理中心' }).waitFor()
         await page.getByLabel('用户名', { exact: true }).fill('admin')
         await page.getByLabel('密码', { exact: true }).fill(password)
@@ -32,10 +39,19 @@ assert(base && password && ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(
           assert.equal(new URL(page.url()).pathname, '/admin')
           assert.equal(new URL(page.url()).searchParams.get('incident'), 'missing-fixture')
           assert.equal(await page.getByRole('tab', { name: '故障事件', exact: true }).getAttribute('aria-selected'), 'true')
+        } else if (kind === 'service') {
+          await page.getByRole('heading', { name: 'HTTP 服务', exact: true }).waitFor()
+          assert.equal(new URL(page.url()).pathname, '/admin')
+          assert.equal(new URL(page.url()).searchParams.get('service'), 'missing-service')
+          assert.equal(new URL(page.url()).searchParams.get('observer'), node.id)
         } else {
           await page.getByRole('heading', { name: 'Navigation fixture', exact: true }).waitFor()
           assert.equal(new URL(page.url()).pathname, `/admin/nodes/${node.id}`)
-          assert.equal(new URL(page.url()).searchParams.get('range'), '12h')
+          if (kind === 'node') assert.equal(new URL(page.url()).searchParams.get('range'), '12h')
+          else {
+            assert.equal(new URL(page.url()).searchParams.get('start'), start)
+            assert.equal(new URL(page.url()).searchParams.get('end'), end)
+          }
         }
         assert.deepEqual(errors, [])
         if (process.env.PROBE_SCREENSHOT_DIR) {

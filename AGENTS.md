@@ -83,6 +83,9 @@ git diff --check
 ```
 
 - Commit regenerated files under `internal/webui/dist` whenever `web/` changes.
+- Keep edited frontend sources in LF form, matching `.gitattributes`, before
+  building embedded assets. CRLF working files can produce different Vue scope
+  hashes even when Git normalizes the committed source.
 - Add regression tests for bug fixes and boundary tests for time, traffic, retention,
   authentication, migrations, and protocol behavior.
 - Check browser-facing changes in light and dark themes and at 360, 768, and 1440 px.

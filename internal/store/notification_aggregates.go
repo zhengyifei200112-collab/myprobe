@@ -144,7 +144,7 @@ func aggregateDeliveries(ctx context.Context, tx *sql.Tx, id string) ([]Notifica
 	return items, rows.Err()
 }
 func aggregateApplicable(ctx context.Context, tx *sql.Tx, d NotificationDelivery, at time.Time) (bool, error) {
-	valid, err := validDeliveryState(ctx, tx, d)
+	valid, err := validDeliveryState(ctx, tx, d, at)
 	if err != nil {
 		return false, err
 	}

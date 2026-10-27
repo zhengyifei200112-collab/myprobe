@@ -26,7 +26,17 @@ type Executor struct {
 }
 
 func New(policy Policy) *Executor {
-	return &Executor{dialer: guardedDialer{policy: policy}, slots: make(chan struct{}, 4)}
+	return NewWithRootCAs(policy, nil)
+}
+
+// NewWithRootCAs supplies an explicit trust store to an embedded executor. nil
+// retains system trust. The pool is cloned; normal certificate, hostname and
+// address-policy checks remain enabled. Agent configuration does not expose it.
+func NewWithRootCAs(policy Policy, roots *x509.CertPool) *Executor {
+	if roots != nil {
+		roots = roots.Clone()
+	}
+	return &Executor{dialer: guardedDialer{policy: policy}, slots: make(chan struct{}, 4), rootCAs: roots}
 }
 
 func (e *Executor) Execute(ctx context.Context, task httpcheck.Task) (result httpcheck.Result) {

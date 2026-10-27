@@ -35,7 +35,7 @@ const tab = ref<Tab>('nodes')
 const initialNotification = parseNotificationTarget(location.search)
 const notificationTarget = ref<NotificationTarget | null>(initialNotification.target)
 function restoreNotificationNavigation() {
-  if (notificationTarget.value) { tab.value = 'alerts'; history.replaceState(null, '', notificationPath(notificationTarget.value)) }
+  if (notificationTarget.value) { tab.value = notificationTarget.value.kind === 'service' ? 'services' : 'alerts'; history.replaceState(null, '', notificationPath(notificationTarget.value)) }
   rememberNotificationTarget(null)
 }
 const username = ref('admin')
@@ -668,7 +668,7 @@ onMounted(async () => {
         <NotificationCenter :nodes="nodes" :initial-target="notificationTarget" @notice="value => { notice = value; error = '' }" @error="showError" />
       </template>
 
-      <ServiceMonitoring v-else-if="tab === 'services'" :nodes="nodes" />
+      <ServiceMonitoring v-else-if="tab === 'services'" :nodes="nodes" :initial-diagnostic="notificationTarget?.kind === 'service' ? notificationTarget : undefined" @diagnostic="notificationTarget = $event" />
       <template v-else-if="tab === 'shares'">
         <section class="admin-heading"><div><span class="eyebrow">SECURE SHARING</span><h1>图表分享</h1><p>为选定节点生成密码保护的只读历史图表链接。</p></div><span class="count-pill">{{ shares.length }} 个分享</span></section>
         <form class="admin-panel compact-form" @submit.prevent="saveShare"><h2>{{ shareForm.id ? '编辑分享' : '创建分享' }}</h2><div class="form-grid two"><label>名称<input v-model="shareForm.name" required placeholder="客户监控视图"></label><label>{{ shareForm.id ? '新密码（留空保持不变）' : '分享密码' }}<input v-model="shareForm.password" type="password" minlength="8" :required="!shareForm.id" autocomplete="new-password"></label></div><div class="assignment-box share-node-picker"><b>允许查看的节点</b><label v-for="item in nodes" :key="item.id" class="check-chip"><input v-model="shareForm.node_ids" type="checkbox" :value="item.id">{{ item.name }}</label><span v-if="!nodes.length" class="empty-inline">暂无节点</span></div><div v-if="shareForm.id" class="switch-row"><label><input v-model="shareForm.enabled" type="checkbox"> 启用此分享</label></div><div class="form-actions"><button class="primary-button" :disabled="busy || !shareForm.node_ids.length">{{ shareForm.id ? '保存分享' : '创建分享' }}</button><button v-if="shareForm.id" type="button" @click="editShare()">取消</button></div></form>
@@ -679,7 +679,7 @@ onMounted(async () => {
         <section class="admin-heading"><div><span class="eyebrow">PORTABILITY &amp; RECOVERY</span><h1>迁移与备份</h1><p>迁移可审阅配置，或创建包含全部数据的口令加密数据库备份。</p></div><span class="count-pill">配置版本 2</span></section>
         <div class="maintenance-grid">
           <section class="admin-panel maintenance-card">
-            <span class="eyebrow">CONFIGURATION</span><h2>版本化配置</h2><p>JSON 配置包含 HTTP 服务目标 URL、断言和节点关联，请妥善保存。不包含管理员密码、Agent Token、通知密文、分享密码和历史指标。支持导入 v1 / v2 配置，使用合并模式。</p>
+            <span class="eyebrow">CONFIGURATION</span><h2>版本化配置</h2><p>JSON 配置包含 HTTP 服务目标 URL、断言和节点关联，请妥善保存。不包含服务告警配置、范围告警策略、故障及投递历史、管理员密码、Agent Token、通知密文、分享密码和历史指标；这些数据需使用完整数据库备份迁移。支持导入 v1 / v2 配置，使用合并模式。</p>
             <div class="maintenance-actions"><button class="primary-button" :disabled="busy" @click="exportConfigFile">导出配置 JSON</button></div>
             <div class="maintenance-divider"></div>
             <label class="file-field">选择配置文件<input type="file" accept="application/json,.json" @change="selectConfigFile"></label>

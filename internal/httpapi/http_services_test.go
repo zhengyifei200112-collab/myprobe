@@ -69,6 +69,26 @@ func TestHTTPServiceAdminConfiguration(t *testing.T) {
 	if statsDenied.Code != 401 {
 		t.Fatalf("statistics auth: %d", statsDenied.Code)
 	}
+	for _, suffix := range []string{"&exclude_maintenance=true", "&exclude_maintenance=false"} {
+		r := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodGet, statsPath+suffix, "")
+		var response struct {
+			Statistics store.HTTPStatistics `json:"statistics"`
+			Excluded   bool                 `json:"maintenance_excluded"`
+		}
+		if r.Code != 200 || json.Unmarshal(r.Body.Bytes(), &response) != nil || response.Excluded != (suffix == "&exclude_maintenance=true") || response.Statistics.MaintenanceExcluded != response.Excluded || response.Statistics.MaintenancePolicy != "planned_slot_effective_window_v1" || !strings.Contains(r.Body.String(), `"raw"`) || !strings.Contains(r.Body.String(), `"maintenance_excluded_counts"`) || !strings.Contains(r.Header().Get("Cache-Control"), "no-store") {
+			t.Fatal("statistics mode contract")
+		}
+	}
+	for _, suffix := range []string{"&exclude_maintenance=", "&exclude_maintenance=1", "&exclude_maintenance=TRUE", "&exclude_maintenance=true&exclude_maintenance=false", "&node_id=other", "&start=2026-01-01T00:00:00Z", "&end=2026-01-01T01:00:00Z"} {
+		if r := authenticatedRequest(t, handler, cookie, credentials.CSRFToken, http.MethodGet, statsPath+suffix, ""); r.Code != 400 {
+			t.Fatal("invalid statistics mode/query accepted")
+		}
+		denied := httptest.NewRecorder()
+		handler.ServeHTTP(denied, httptest.NewRequest(http.MethodGet, statsPath+suffix, nil))
+		if denied.Code != 401 {
+			t.Fatal("query validated before authentication")
+		}
+	}
 	at := time.Now().UTC()
 	if _, err = db.CreateHTTPTask(context.Background(), response.Service.ID, node.ID, at, at); err != nil {
 		t.Fatal(err)

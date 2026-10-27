@@ -4,7 +4,10 @@ import (
 	"html"
 	"net/url"
 	"strings"
+	"time"
 	"unicode"
+
+	"github.com/zhengyifei200112-collab/myprobe/internal/notificationlink"
 )
 
 func textUnits(s string) int {
@@ -45,7 +48,14 @@ func aggregateContentParts(n Notification) (string, string) {
 func telegramContent(n Notification, mode string) string {
 	text := n.Title + "\n" + n.Message
 	if n.AggregateID == "" {
-		return text + incidentContentSuffix(n.IncidentPath, mode)
+		if n.ServiceID != "" {
+			if mode == "HTML" {
+				text = html.EscapeString(text)
+			} else if mode == "MarkdownV2" {
+				text = escapeMarkdownText(text, "\\_*[]()~`>#+-=|{}.!")
+			}
+		}
+		return text + incidentContentSuffix(n.IncidentPath, mode) + diagnosticContentSuffix(n.ServiceDiagnosticPath, mode)
 	} // Preserve the existing single-template contract.
 	text, link := aggregateContentParts(n)
 	switch mode {
@@ -69,6 +79,9 @@ func telegramContent(n Notification, mode string) string {
 }
 func discordContent(n Notification) string {
 	if n.AggregateID == "" {
+		if n.ServiceID != "" {
+			return escapeMarkdownText(n.Title+"\n"+n.Message, "\\_*[]()~`>#+-=|{}.!") + incidentContentSuffix(n.IncidentPath, "discord") + diagnosticContentSuffix(n.ServiceDiagnosticPath, "discord")
+		}
 		return "**" + n.Title + "**\n" + n.Message + incidentContentSuffix(n.IncidentPath, "discord")
 	}
 	text, link := aggregateContentParts(n)
@@ -82,6 +95,32 @@ func discordContent(n Notification) string {
 // Existing single-message template markup is retained; only the generated URL
 // is formatted. Relative paths remain copyable when no public origin is set.
 func incidentContentSuffix(path, mode string) string {
+	return adminContentSuffix(path, mode, "查看事件", "incident")
+}
+
+func diagnosticContentSuffix(path, mode string) string {
+	u, err := url.Parse(path)
+	if err != nil || u.Path != "/admin" || u.Fragment != "" {
+		return ""
+	}
+	q, err := url.ParseQuery(u.RawQuery)
+	if err != nil || len(q) != 4 {
+		return ""
+	}
+	for _, key := range []string{"service", "observer", "start", "end"} {
+		if len(q[key]) != 1 {
+			return ""
+		}
+	}
+	start, startErr := time.Parse(time.RFC3339Nano, q.Get("start"))
+	end, endErr := time.Parse(time.RFC3339Nano, q.Get("end"))
+	if startErr != nil || endErr != nil || !notificationlink.ValidDiagnosticContext(q.Get("service"), q.Get("observer"), start, end) {
+		return ""
+	}
+	return adminContentSuffix(path, mode, "查看服务诊断", "service")
+}
+
+func adminContentSuffix(path, mode, label, key string) string {
 	if path == "" {
 		return ""
 	}
@@ -90,27 +129,27 @@ func incidentContentSuffix(path, mode string) string {
 		return ""
 	}
 	absolute := (u.Scheme == "https" || u.Scheme == "http") && u.Host != ""
-	if !absolute && !(u.Scheme == "" && u.Host == "" && strings.HasPrefix(path, "/admin?incident=")) {
+	if !absolute && !(u.Scheme == "" && u.Host == "" && u.Path == "/admin" && u.Query().Get(key) != "") {
 		return ""
 	}
 	switch mode {
 	case "HTML":
 		if absolute {
-			return "\n<a href=\"" + html.EscapeString(path) + "\">查看事件</a>"
+			return "\n<a href=\"" + html.EscapeString(path) + "\">" + label + "</a>"
 		}
-		return "\n查看事件：" + html.EscapeString(path)
+		return "\n" + label + "：" + html.EscapeString(path)
 	case "MarkdownV2":
 		if absolute {
-			return "\n[查看事件](" + strings.NewReplacer("\\", "\\\\", ")", "\\)").Replace(path) + ")"
+			return "\n[" + label + "](" + strings.NewReplacer("\\", "\\\\", ")", "\\)").Replace(path) + ")"
 		}
-		return "\n查看事件：" + escapeMarkdownText(path, "\\_*[]()~`>#+-=|{}.!")
+		return "\n" + label + "：" + escapeMarkdownText(path, "\\_*[]()~`>#+-=|{}.!")
 	case "discord":
 		if absolute {
-			return "\n[查看事件](<" + path + ">)"
+			return "\n[" + label + "](<" + path + ">)"
 		}
-		return "\n查看事件：" + escapeMarkdownText(path, "\\_*[]()~`>#+-=|{}.!")
+		return "\n" + label + "：" + escapeMarkdownText(path, "\\_*[]()~`>#+-=|{}.!")
 	default:
-		return "\n查看事件：" + path
+		return "\n" + label + "：" + path
 	}
 }
 

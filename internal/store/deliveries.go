@@ -82,7 +82,7 @@ func cancelDelivery(ctx context.Context, tx *sql.Tx, id, reason string, now time
 	_, err := tx.ExecContext(ctx, `UPDATE notification_deliveries SET status='canceled',lease_token=NULL,lease_until_ms=NULL,finished_at=?,updated_at=?,error_class=? WHERE id=? AND status IN ('pending','inflight')`, formatTime(now), formatTime(now), reason, id)
 	return err
 }
-func validDeliveryState(ctx context.Context, tx *sql.Tx, d NotificationDelivery) (bool, error) {
+func validDeliveryState(ctx context.Context, tx *sql.Tx, d NotificationDelivery, times ...time.Time) (bool, error) {
 	i, err := scanIncident(tx.QueryRowContext(ctx, "SELECT "+incidentColumns+" FROM alert_incidents WHERE id=?", d.IncidentID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
@@ -106,7 +106,7 @@ func validDeliveryState(ctx context.Context, tx *sql.Tx, d NotificationDelivery)
 	if !rule.Enabled || rule.ChannelID != d.ChannelID || !sameSnapshot(i.RuleSnapshot, snapshotRule(rule)) {
 		return false, nil
 	}
-	if valid, err := policyRuleCurrent(ctx, tx, rule); err != nil || !valid {
+	if valid, err := policyRuleCurrent(ctx, tx, rule, times...); err != nil || !valid {
 		return false, err
 	}
 	var enabled bool
@@ -178,7 +178,7 @@ func (s *Store) ClaimDelivery(ctx context.Context, now time.Time, lease time.Dur
 	}
 	for index := range candidates {
 		d := &candidates[index]
-		valid, err := validDeliveryState(ctx, tx, *d)
+		valid, err := validDeliveryState(ctx, tx, *d, now)
 		if err != nil {
 			return nil, err
 		}
@@ -267,7 +267,7 @@ func (s *Store) CheckDeliveryLease(ctx context.Context, id, token string, now ti
 	if d.Status != "inflight" || d.LeaseToken != token || d.LeaseUntil == nil || !now.Before(*d.LeaseUntil) || d.SendAuthorized {
 		return ErrDeliveryLeaseLost
 	}
-	valid, err := validDeliveryState(ctx, tx, d)
+	valid, err := validDeliveryState(ctx, tx, d, now)
 	if err != nil {
 		return err
 	}
@@ -326,6 +326,23 @@ func (s *Store) CheckDeliveryLease(ctx context.Context, id, token string, now ti
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE notification_deliveries SET send_authorized=1 WHERE id=? AND lease_token=?`, id, token); err != nil {
 		return err
+	}
+	var payload struct {
+		Kind string `json:"kind"`
+	}
+	if json.Unmarshal(d.Payload, &payload) != nil {
+		return ErrDeliveryCanceled
+	}
+	if payload.Kind == "service_certificate" {
+		result, err := tx.ExecContext(ctx, `UPDATE http_certificate_reminders SET authorized_once=1,updated_at=? WHERE rule_id=(SELECT rule_id FROM alert_incidents WHERE id=?)`, formatTime(now), d.IncidentID)
+		if err != nil {
+			return err
+		}
+		if n, err := result.RowsAffected(); err != nil {
+			return err
+		} else if n != 1 {
+			return ErrDeliveryCanceled
+		}
 	}
 	return tx.Commit()
 }
@@ -399,7 +416,7 @@ func completeDeliveryWithFence(ctx context.Context, tx *sql.Tx, d NotificationDe
 	// A management write may have revoked this job since final authorization,
 	// before the evaluator next materializes it. Preserve the real receipt but
 	// revoke retry and repeat-clock authority under this same writer snapshot.
-	valid, err := validDeliveryState(ctx, tx, d)
+	valid, err := validDeliveryState(ctx, tx, d, now)
 	if err != nil {
 		return err
 	}

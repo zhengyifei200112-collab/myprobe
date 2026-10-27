@@ -5,13 +5,24 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/alertpolicy"
 )
 
 // policyRuleCurrent checks definitions and node tags in the caller's transaction,
 // not just the materialized rule, which may await the next synchronization.
-func policyRuleCurrent(ctx context.Context, tx *sql.Tx, rule AlertRule) (bool, error) {
+func policyRuleCurrent(ctx context.Context, tx *sql.Tx, rule AlertRule, times ...time.Time) (bool, error) {
+	if rule.Kind == "service_certificate" {
+		at := time.Now().UTC()
+		if len(times) > 0 {
+			at = times[0]
+		}
+		return certificateRuleCurrent(ctx, tx, rule, at)
+	}
+	if rule.Kind == "service_http" {
+		return serviceRuleCurrent(ctx, tx, rule)
+	}
 	var policyID, nodeID string
 	err := tx.QueryRowContext(ctx, `SELECT policy_id,node_id FROM alert_policy_rule_bindings WHERE rule_id=?`, rule.ID).Scan(&policyID, &nodeID)
 	if errors.Is(err, sql.ErrNoRows) {
