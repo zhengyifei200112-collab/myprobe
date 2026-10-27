@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -15,15 +16,29 @@ type DeliveryAttempt struct {
 	ErrorClass  string     `json:"error_class,omitempty"`
 }
 
-// Attempts are bounded by the schema's five-attempt budget. Lease tokens and
-// rendered notification payloads are deliberately excluded from this view.
+// Compatibility helper for internal readers. Administrative clients use the
+// paginated view because known-unsent reservations can outnumber retry budgets.
 func (s *Store) ListDeliveryAttempts(ctx context.Context, deliveryID string) ([]DeliveryAttempt, error) {
-	if _, err := s.Delivery(ctx, deliveryID); err != nil {
-		return nil, err
+	page, err := s.ListDeliveryAttemptPage(ctx, deliveryID, 0, 100)
+	return page.Attempts, err
+}
+
+type DeliveryAttemptPage struct {
+	Attempts   []DeliveryAttempt `json:"attempts"`
+	NextBefore int64             `json:"next_before"`
+}
+
+func (s *Store) ListDeliveryAttemptPage(ctx context.Context, deliveryID string, before int64, limit int) (DeliveryAttemptPage, error) {
+	page := DeliveryAttemptPage{Attempts: []DeliveryAttempt{}}
+	if before < 0 || limit < 1 || limit > 100 {
+		return page, errors.New("invalid attempt pagination")
 	}
-	rows, err := s.db.QueryContext(ctx, "SELECT attempt_number,started_at,completed_at,outcome,error_class FROM delivery_attempts WHERE delivery_id=? ORDER BY attempt_number LIMIT 5", deliveryID)
+	if _, err := s.Delivery(ctx, deliveryID); err != nil {
+		return page, err
+	}
+	rows, err := s.db.QueryContext(ctx, "SELECT attempt_number,started_at,completed_at,outcome,error_class FROM delivery_attempts WHERE delivery_id=? AND (?=0 OR attempt_number<?) ORDER BY attempt_number DESC LIMIT ?", deliveryID, before, before, limit+1)
 	if err != nil {
-		return nil, err
+		return page, err
 	}
 	defer rows.Close()
 	items := make([]DeliveryAttempt, 0)
@@ -32,21 +47,27 @@ func (s *Store) ListDeliveryAttempts(ctx context.Context, deliveryID string) ([]
 		var started string
 		var completed sql.NullString
 		if err := rows.Scan(&item.Number, &started, &completed, &item.Outcome, &item.ErrorClass); err != nil {
-			return nil, err
+			return page, err
 		}
 		if item.StartedAt, err = parseTime(started); err != nil {
-			return nil, err
+			return page, err
 		}
 		if completed.Valid {
 			at, err := parseTime(completed.String)
 			if err != nil {
-				return nil, err
+				return page, err
 			}
 			item.CompletedAt = &at
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	if len(items) > limit {
+		items = items[:limit]
+		page.NextBefore = int64(items[len(items)-1].Number)
+	}
+	slices.Reverse(items)
+	page.Attempts = items
+	return page, rows.Err()
 }
 
 type IncidentFilter struct {

@@ -26,6 +26,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Durable bounded notification aggregates retain member attempts, frozen content and
+  destinations, authenticated incident/aggregate links, and shared channel retry waits.
+
 - Incident silence supports explicit expiry/cancel and acknowledgement-with-silence;
   maintenance and silence combine while evaluation and genuine recovery continue.
 

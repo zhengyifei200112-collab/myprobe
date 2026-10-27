@@ -11,10 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zhengyifei200112-collab/myprobe/internal/notificationlink"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
 type RuleConfig struct {
+	AggregationSeconds      *int    `json:"aggregation_seconds,omitempty"`
 	RecoverySeconds         *int    `json:"recovery_seconds,omitempty"`
 	OfflineSeconds          int     `json:"offline_seconds,omitempty"`
 	ThresholdPercent        float64 `json:"threshold_percent,omitempty"`
@@ -28,18 +30,20 @@ type RuleConfig struct {
 }
 
 type Service struct {
-	store        *store.Store
-	crypto       *cryptoBox
-	cryptoErr    error
-	sender       Sender
-	logger       *slog.Logger
-	interval     time.Duration
-	tickMu       sync.Mutex
-	policyMu     sync.RWMutex
-	policyStatus PolicyEvaluationStatus
+	notificationOrigin string
+	linkErr            error
+	store              *store.Store
+	crypto             *cryptoBox
+	cryptoErr          error
+	sender             Sender
+	logger             *slog.Logger
+	interval           time.Duration
+	tickMu             sync.Mutex
+	policyMu           sync.RWMutex
+	policyStatus       PolicyEvaluationStatus
 }
 
-func New(database *store.Store, encryptionKey string, sender Sender, logger *slog.Logger) *Service {
+func New(database *store.Store, encryptionKey string, sender Sender, logger *slog.Logger, origins ...string) *Service {
 	box, err := newCryptoBox(encryptionKey)
 	if sender == nil {
 		sender = NewHTTPSender(nil)
@@ -47,7 +51,14 @@ func New(database *store.Store, encryptionKey string, sender Sender, logger *slo
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Service{store: database, crypto: box, cryptoErr: err, sender: sender, logger: logger, interval: 15 * time.Second}
+	origin := ""
+	var linkErr error
+	if len(origins) > 1 {
+		linkErr = errors.New("only one notification origin is supported")
+	} else if len(origins) == 1 {
+		origin, linkErr = notificationlink.NormalizeOrigin(origins[0])
+	}
+	return &Service{store: database, crypto: box, cryptoErr: err, sender: sender, logger: logger, interval: 15 * time.Second, notificationOrigin: origin, linkErr: linkErr}
 }
 
 func (s *Service) CreateChannel(ctx context.Context, name, kind string, config ChannelConfig) (store.NotificationChannel, error) {
@@ -155,13 +166,7 @@ func (s *Service) TestChannel(ctx context.Context, id string, now time.Time) err
 	if err != nil {
 		return err
 	}
-	err = s.sender.Deliver(ctx, channel.Kind, config, Notification{Title: "MyProbe 通知测试", Message: "通知通道配置有效。", State: "test", Kind: "test", Timestamp: now.UTC()})
-	message := ""
-	if err != nil {
-		message = err.Error()
-	}
-	_ = s.store.RecordChannelTest(ctx, id, err == nil, message, now.UTC())
-	return err
+	return s.sendChannelTest(ctx, channel, config, Notification{Title: "MyProbe 通知测试", Message: "通知通道配置有效。", State: "test", Kind: "test", Timestamp: now.UTC()}, now)
 }
 
 func (s *Service) TestTemplate(ctx context.Context, templateID, channelID string, now time.Time) error {
@@ -180,13 +185,27 @@ func (s *Service) TestTemplate(ctx context.Context, templateID, channelID string
 	n := Notification{Title: "MyProbe 模板测试", Message: "这是一条模板预览消息。", State: "test", Kind: "test", NodeID: "example-node", NodeName: "Example Node", RuleID: "example-rule", Timestamp: now.UTC()}
 	n.Title = renderTemplate(template.TitleTemplate, n)
 	n.Message = renderTemplate(template.BodyTemplate, n)
-	err = s.sender.Deliver(ctx, channel.Kind, config, n)
-	message := ""
-	if err != nil {
-		message = err.Error()
+	return s.sendChannelTest(ctx, channel, config, n, now)
+}
+
+func (s *Service) sendChannelTest(ctx context.Context, channel store.NotificationChannel, config ChannelConfig, n Notification, now time.Time) error {
+	started := time.Now()
+	if err := s.store.CheckNotificationChannelSend(ctx, channel.ID, channel.DeliveryRevision, now); err != nil {
+		return err
 	}
-	_ = s.store.RecordChannelTest(ctx, channelID, err == nil, message, now.UTC())
-	return err
+	sendCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	err := s.sender.Deliver(sendCtx, channel.Kind, config, n)
+	cancel()
+	finished := now.Add(time.Since(started))
+	outcome := deliveryOutcome(err, 1, finished)
+	outcome.ChannelRevision = channel.DeliveryRevision
+	if err := s.store.CompleteNotificationChannelTest(ctx, channel.ID, outcome, finished); err != nil {
+		return errors.New("failed to persist notification test result")
+	}
+	if err != nil {
+		return &DeliveryError{Class: outcome.ErrorClass, Permanent: outcome.Permanent, Ambiguous: outcome.Ambiguous}
+	}
+	return nil
 }
 
 func (s *Service) CreateRule(ctx context.Context, nodeID, channelID, kind string, config RuleConfig, cooldown int) (store.AlertRule, error) {
@@ -234,6 +253,9 @@ func (s *Service) Run(ctx context.Context) {
 }
 
 func (s *Service) Tick(ctx context.Context, now time.Time) error {
+	if s.linkErr != nil {
+		return s.linkErr
+	}
 	s.tickMu.Lock()
 	defer s.tickMu.Unlock()
 	if _, err := s.store.PrepareAlertPolicyRules(ctx, now); err != nil {
@@ -283,7 +305,7 @@ func (s *Service) Tick(ctx context.Context, now time.Time) error {
 				notification.Message = renderTemplate(template.BodyTemplate, notification)
 			}
 		}
-		_, err = s.store.ObserveAlert(ctx, rule, node, store.AlertObservation{At: now, Known: known, Active: active, Message: message, NotificationTitle: notification.Title, NotificationMessage: notification.Message})
+		_, err = s.store.ObserveAlert(ctx, rule, node, store.AlertObservation{At: now, Known: known, Active: active, Message: message, NotificationTitle: notification.Title, NotificationMessage: notification.Message, NotificationOrigin: s.notificationOrigin})
 		if err != nil && !errors.Is(err, store.ErrObservationObsolete) {
 			failures = append(failures, err)
 		}
@@ -427,6 +449,9 @@ func (s *Service) decryptConfig(channel store.NotificationChannel) (ChannelConfi
 }
 
 func normalizeRuleConfig(kind string, config RuleConfig) (json.RawMessage, error) {
+	if config.AggregationSeconds != nil && (*config.AggregationSeconds < 0 || *config.AggregationSeconds > 300 || (*config.AggregationSeconds > 0 && *config.AggregationSeconds < 5)) {
+		return nil, errors.New("aggregation window must be zero or 5 through 300 seconds")
+	}
 	if config.DurationSeconds < 0 || config.DurationSeconds > 86400*30 || config.RepeatSeconds < 0 || config.RepeatSeconds > 86400*30 {
 		return nil, errors.New("invalid duration or repeat interval")
 	}

@@ -66,6 +66,31 @@ func (s *Service) validatePolicy(ctx context.Context, policy store.AlertPolicy) 
 	if err := decoder.Decode(new(any)); !errors.Is(err, io.EOF) {
 		return store.AlertPolicy{}, store.ErrInvalidAlertPolicy
 	}
+	// Older editors do not know this transport setting. Omission on update
+	// preserves it; explicit zero is the deliberate disable operation.
+	if config.AggregationSeconds == nil && policy.ID != "" {
+		items, err := s.store.ListAlertPolicies(ctx)
+		if err != nil {
+			return store.AlertPolicy{}, err
+		}
+		var current *store.AlertPolicy
+		for index := range items {
+			if items[index].ID == policy.ID {
+				current = &items[index]
+				break
+			}
+		}
+		if current == nil {
+			return store.AlertPolicy{}, store.ErrNotFound
+		}
+		var previous struct {
+			AggregationSeconds *int `json:"aggregation_seconds"`
+		}
+		if err := json.Unmarshal(current.Config, &previous); err != nil {
+			return store.AlertPolicy{}, err
+		}
+		config.AggregationSeconds = previous.AggregationSeconds
+	}
 	raw, err := normalizeRuleConfig(policy.Kind, *config)
 	if err != nil {
 		return store.AlertPolicy{}, store.ErrInvalidAlertPolicy

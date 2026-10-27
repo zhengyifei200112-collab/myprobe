@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"io"
@@ -14,6 +15,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
+
+	"github.com/zhengyifei200112-collab/myprobe/internal/notificationjson"
+	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
 
 type ChannelConfig struct {
@@ -35,16 +40,22 @@ type ChannelConfig struct {
 }
 
 type Notification struct {
-	IncidentID     string    `json:"incident_id,omitempty"`
-	IdempotencyKey string    `json:"-"`
-	Title          string    `json:"title"`
-	Message        string    `json:"message"`
-	State          string    `json:"state"`
-	Kind           string    `json:"kind"`
-	NodeID         string    `json:"node_id"`
-	NodeName       string    `json:"node_name"`
-	RuleID         string    `json:"rule_id"`
-	Timestamp      time.Time `json:"timestamp"`
+	IncidentPath      string `json:"incident_path,omitempty"`
+	templateEventTime string
+	SnapshotID        string                              `json:"snapshot_id,omitempty"`
+	GroupPath         string                              `json:"group_path,omitempty"`
+	AggregateID       string                              `json:"aggregate_id,omitempty"`
+	Members           []store.AggregateNotificationMember `json:"members,omitempty"`
+	IncidentID        string                              `json:"incident_id,omitempty"`
+	IdempotencyKey    string                              `json:"-"`
+	Title             string                              `json:"title"`
+	Message           string                              `json:"message"`
+	State             string                              `json:"state"`
+	Kind              string                              `json:"kind"`
+	NodeID            string                              `json:"node_id"`
+	NodeName          string                              `json:"node_name"`
+	RuleID            string                              `json:"rule_id"`
+	Timestamp         time.Time                           `json:"timestamp"`
 }
 
 type Sender interface {
@@ -55,6 +66,7 @@ type HTTPSender struct {
 	client          *http.Client
 	telegramBaseURL string
 	allowPrivate    bool
+	smtpRoots       *x509.CertPool // nil uses system trust; test fixtures may supply a local CA.
 }
 
 func NewHTTPSender(client *http.Client) *HTTPSender {
@@ -106,9 +118,24 @@ func (s *HTTPSender) webhook(ctx context.Context, config ChannelConfig, notifica
 			return err
 		}
 	}
-	body, _ := json.Marshal(notification)
+	var body []byte
+	var bodyErr error
 	if config.BodyTemplate != "" {
 		body = []byte(renderTemplate(config.BodyTemplate, notification))
+	} else if notification.AggregateID != "" {
+		body, bodyErr = notificationjson.MarshalBounded(notification, store.AggregatePayloadByteLimit)
+	} else {
+		body, bodyErr = json.Marshal(notification)
+	}
+	if bodyErr != nil {
+		class := "invalid_payload"
+		if errors.Is(bodyErr, notificationjson.ErrTooLarge) {
+			class = "aggregate_payload_too_large"
+		}
+		return &DeliveryError{Class: class, Permanent: true}
+	}
+	if notification.AggregateID != "" && len(body) > store.AggregatePayloadByteLimit {
+		return &DeliveryError{Class: "aggregate_payload_too_large", Permanent: true}
 	}
 	method := strings.ToUpper(strings.TrimSpace(config.Method))
 	if method == "" {
@@ -144,14 +171,26 @@ func (s *HTTPSender) discord(ctx context.Context, config ChannelConfig, notifica
 			return err
 		}
 	}
-	body, _ := json.Marshal(map[string]any{"content": "**" + notification.Title + "**\n" + notification.Message, "allowed_mentions": map[string]any{"parse": []string{}}})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, config.URL, bytes.NewReader(body))
+	content := discordContent(notification)
+	length := utf8.RuneCountInString(content)
+	if notification.AggregateID != "" || notification.IncidentPath != "" {
+		length = textUnits(content)
+	}
+	if length > 2000 {
+		return &DeliveryError{Class: "discord_message_too_large", Permanent: true}
+	}
+	body, _ := json.Marshal(map[string]any{"content": content, "allowed_mentions": map[string]any{"parse": []string{}}})
+	endpoint, _ := url.Parse(config.URL)
+	query := endpoint.Query()
+	query.Set("wait", "true")
+	endpoint.RawQuery = query.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "MyProbe/1 notification")
-	return s.do(req)
+	return s.doConfirmed(req, "discord")
 }
 
 func (s *HTTPSender) telegram(ctx context.Context, config ChannelConfig, notification Notification) error {
@@ -159,9 +198,16 @@ func (s *HTTPSender) telegram(ctx context.Context, config ChannelConfig, notific
 		return err
 	}
 	endpoint := strings.TrimRight(s.telegramBaseURL, "/") + "/bot" + url.PathEscape(config.BotToken) + "/sendMessage"
+	content := telegramContent(notification, config.ParseMode)
+	if notification.IncidentPath != "" && textUnits(content) > 4096 {
+		return &DeliveryError{Class: "telegram_message_too_large", Permanent: true}
+	}
+	if (notification.AggregateID != "" && textUnits(notification.Title+"\n"+notification.Message) > 4096) || (config.ParseMode == "" && utf8.RuneCountInString(notification.Title+"\n"+notification.Message) > 4096) {
+		return &DeliveryError{Class: "telegram_message_too_large", Permanent: true}
+	}
 	payload := map[string]any{
 		"chat_id": config.ChatID,
-		"text":    notification.Title + "\n" + notification.Message,
+		"text":    content,
 	}
 	if config.ThreadID != "" {
 		threadID, err := strconv.Atoi(config.ThreadID)
@@ -180,7 +226,7 @@ func (s *HTTPSender) telegram(ctx context.Context, config ChannelConfig, notific
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("User-Agent", "MyProbe/1 notification")
-	return s.do(request)
+	return s.doConfirmed(request, "telegram")
 }
 
 func (s *HTTPSender) smtp(ctx context.Context, config ChannelConfig, notification Notification) error {
@@ -193,12 +239,14 @@ func (s *HTTPSender) smtp(ctx context.Context, config ChannelConfig, notificatio
 	default:
 	}
 	address := net.JoinHostPort(config.SMTPHost, strconv.Itoa(config.SMTPPort))
-	message := []byte("To: " + config.SMTPTo + "\r\nFrom: " + config.SMTPFrom + "\r\nSubject: " + notification.Title + "\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n" + notification.Message)
+	message, err := smtpMessage(config, notification)
+	if err != nil {
+		return err
+	}
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	var conn net.Conn
-	var err error
 	if config.SMTPEncryption == "tls" {
-		conn, err = tls.DialWithDialer(dialer, "tcp", address, &tls.Config{ServerName: config.SMTPHost, MinVersion: tls.VersionTLS12})
+		conn, err = tls.DialWithDialer(dialer, "tcp", address, &tls.Config{ServerName: config.SMTPHost, MinVersion: tls.VersionTLS12, RootCAs: s.smtpRoots})
 	} else {
 		conn, err = dialer.DialContext(ctx, "tcp", address)
 	}
@@ -216,7 +264,7 @@ func (s *HTTPSender) smtp(ctx context.Context, config ChannelConfig, notificatio
 		if ok, _ := client.Extension("STARTTLS"); !ok {
 			return &DeliveryError{Class: "smtp_starttls_unavailable", Permanent: true}
 		}
-		if err := client.StartTLS(&tls.Config{ServerName: config.SMTPHost, MinVersion: tls.VersionTLS12}); err != nil {
+		if err := client.StartTLS(&tls.Config{ServerName: config.SMTPHost, MinVersion: tls.VersionTLS12, RootCAs: s.smtpRoots}); err != nil {
 			return classifySMTPFailure(err, "tls_negotiation", false)
 		}
 	}
@@ -322,6 +370,10 @@ func isPrivateIP(ip net.IP) bool {
 }
 
 func renderTemplate(value string, n Notification) string {
-	replacer := strings.NewReplacer("{{title}}", n.Title, "{{message}}", n.Message, "{{state}}", n.State, "{{event}}", n.Kind, "{{event.type}}", n.Kind, "{{event.status}}", n.State, "{{event.time}}", n.Timestamp.Local().Format("2006-01-02 15:04:05"), "{{node.id}}", n.NodeID, "{{node.name}}", n.NodeName, "{{rule.id}}", n.RuleID)
+	eventTime := n.templateEventTime
+	if n.AggregateID == "" || eventTime == "" {
+		eventTime = n.Timestamp.Local().Format("2006-01-02 15:04:05")
+	}
+	replacer := strings.NewReplacer("{{incident.url}}", n.IncidentPath, "{{title}}", n.Title, "{{message}}", n.Message, "{{state}}", n.State, "{{event}}", n.Kind, "{{event.type}}", n.Kind, "{{event.status}}", n.State, "{{event.time}}", eventTime, "{{node.id}}", n.NodeID, "{{node.name}}", n.NodeName, "{{rule.id}}", n.RuleID)
 	return replacer.Replace(value)
 }
