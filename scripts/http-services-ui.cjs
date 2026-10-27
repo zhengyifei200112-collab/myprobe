@@ -34,7 +34,7 @@ const assert = require('node:assert/strict');
             const observed = (id, result, expires) => ({ task_id: id, node_id: 'node', revision: 1, scheduled_at: '2026-10-05T11:55:00Z', expires_at: expires || '2026-10-05T11:55:05Z', result });
             body = { execution_enabled: false, server_time: now.toISOString(), observations: [
               observed('success', { outcome: 'success', status_code: 200, duration_ms: 42.5, completed_at: '2026-10-05T11:55:01Z', certificates: [{ sha256: 'ab'.repeat(32), not_before: '2026-09-01T00:00:00Z', not_after: '2026-12-01T00:00:00Z', verified: true }] }),
-              observed('failure', { outcome: 'failure', status_code: 500, duration_ms: 12, error_class: 'status_mismatch', completed_at: '2026-10-05T11:55:01Z' }),
+              observed('failure', { outcome: 'failure', status_code: 500, duration_ms: 12, error_class: 'transport', completed_at: '2026-10-05T11:55:01Z' }),
               observed('busy', { outcome: 'unobserved', duration_ms: 0, error_class: 'busy', completed_at: '2026-10-05T11:55:01Z' }),
               observed('missing', null), observed('pending', null, '2026-10-05T12:00:05Z')
             ] };
@@ -74,6 +74,7 @@ const assert = require('node:assert/strict');
       assert.equal(service.spec.timeout_ms, 5000);
       await page.getByRole('button', { name: '最近结果', exact: true }).click();
       const panel = page.getByRole('region', { name: '最近检查结果' });
+      await panel.getByText('连接中断或响应不完整', { exact: false }).waitFor();
       for (const text of ['检查成功', '检查失败', '未执行有效检查', '未收到结果', '等待回报']) await panel.getByText(text, { exact: true }).waitFor();
       await panel.locator('summary').click();
       await panel.getByText('SHA-256 ' + 'ab'.repeat(32), { exact: true }).waitFor();

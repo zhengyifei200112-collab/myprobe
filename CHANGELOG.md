@@ -12,6 +12,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Expired HTTP history drains in bounded batches with retry, preserving its
   monotonic retention floor and existing host history semantics.
 
+- HTTP connection resets, early connection closure and truncated responses now
+  count as failed observations instead of inflating service success rates.
+
 - Empty and future-only notification delivery polling no longer reserves the SQLite
   writer; due jobs and expired leases retain transactional checks and recovery.
 

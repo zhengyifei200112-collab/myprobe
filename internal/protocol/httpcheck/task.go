@@ -99,7 +99,7 @@ func (r Result) ValidateFor(task Task, now time.Time) error {
 		}
 	case "failure":
 		switch r.ErrorClass {
-		case "dns", "refused", "timeout", "tls_invalid", "certificate_expired", "status_mismatch", "content_mismatch", "response_too_large", "redirect_limit":
+		case "dns", "refused", "timeout", "tls_invalid", "certificate_expired", "status_mismatch", "content_mismatch", "response_too_large", "redirect_limit", "transport":
 		default:
 			return errors.New("invalid HTTP failure class")
 		}

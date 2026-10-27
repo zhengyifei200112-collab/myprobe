@@ -177,6 +177,9 @@ func classifyError(ctx context.Context, err error) (string, string) {
 	if errors.Is(err, syscall.ECONNREFUSED) {
 		return "failure", "refused"
 	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || isConnectionInterrupted(err) {
+		return "failure", "transport"
+	}
 	// No raw URL, address, response body or library error is returned.
 	return "unobserved", "internal"
 }
