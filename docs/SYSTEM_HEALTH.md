@@ -35,9 +35,12 @@ The `scheduler` field observes the actual running scheduler supplied by the
 Server entry point. Without an attached observer it explicitly reports unavailable.
 Its process-local job records never-run, running, success, failure and cancellation.
 `last_cycle` includes scheduled time, start delay, assignment-read success, due,
-dispatched, offline and failed counts. A failed assignment read does not establish
+dispatched, offline, failed and skipped counts. A failed assignment read does not establish
 zero configured tasks. Offline Agents do not make a completed dispatch cycle fail;
 other dispatch errors do. These are last-cycle counts, not durable queue totals.
+Network dispatch now reads persistent epoch/slot eligibility; already claimed or
+expired-window tasks are skipped, not classified as target failures. Four workers
+bound slow connections, and expired sending leases become unknown without resend.
 The last completed cycle remains visible while the next cycle is running.
 Both schedulers separately report actual Run-loop entry/exit. HTTP cycles classify
 handoff, offline, unsupported/disabled capability, busy, changed configuration,

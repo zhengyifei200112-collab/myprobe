@@ -15,6 +15,7 @@ type CycleDiagnostics struct {
 	Dispatched        int       `json:"dispatched"`
 	Offline           int       `json:"offline"`
 	Failed            int       `json:"failed"`
+	Skipped           int       `json:"skipped"`
 }
 
 type Snapshot struct {

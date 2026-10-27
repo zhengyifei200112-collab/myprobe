@@ -503,7 +503,12 @@ func (s *Store) CreateTargetGroup(ctx context.Context, name, kind string) (Targe
 }
 
 func (s *Store) AddTargetToGroup(ctx context.Context, groupID, targetID string) error {
-	result, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO target_group_members(group_id, target_id)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO target_group_members(group_id, target_id)
 		SELECT g.id, t.id FROM target_groups g JOIN targets t ON t.id = ? AND t.kind = g.kind WHERE g.id = ?`, targetID, groupID)
 	if err != nil {
 		return err
@@ -511,17 +516,25 @@ func (s *Store) AddTargetToGroup(ctx context.Context, groupID, targetID string) 
 	count, _ := result.RowsAffected()
 	if count == 0 {
 		var exists int
-		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM target_group_members WHERE group_id = ? AND target_id = ?`, groupID, targetID).Scan(&exists); err != nil || exists == 0 {
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM target_group_members WHERE group_id = ? AND target_id = ?`, groupID, targetID).Scan(&exists); err != nil || exists == 0 {
 			return ErrNotFound
 		}
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO node_targets(node_id,target_id)
+	_, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO node_targets(node_id,target_id)
 		SELECT ng.node_id, ? FROM node_target_groups ng WHERE ng.group_id=?`, targetID, groupID)
-	return err
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) AssignTargetGroup(ctx context.Context, nodeID, groupID string) error {
-	result, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO node_target_groups(node_id, group_id)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO node_target_groups(node_id, group_id)
 		SELECT n.id, g.id FROM nodes n CROSS JOIN target_groups g WHERE n.id = ? AND g.id = ?`, nodeID, groupID)
 	if err != nil {
 		return err
@@ -529,13 +542,16 @@ func (s *Store) AssignTargetGroup(ctx context.Context, nodeID, groupID string) e
 	count, _ := result.RowsAffected()
 	if count == 0 {
 		var exists int
-		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM node_target_groups WHERE node_id = ? AND group_id = ?`, nodeID, groupID).Scan(&exists); err != nil || exists == 0 {
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM node_target_groups WHERE node_id = ? AND group_id = ?`, nodeID, groupID).Scan(&exists); err != nil || exists == 0 {
 			return ErrNotFound
 		}
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO node_targets(node_id,target_id)
+	_, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO node_targets(node_id,target_id)
 		SELECT ?, gm.target_id FROM target_group_members gm WHERE gm.group_id=?`, nodeID, groupID)
-	return err
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) AssignTarget(ctx context.Context, nodeID, targetID string) error {
@@ -696,11 +712,17 @@ func (s *Store) SaveLatencyResult(ctx context.Context, nodeID, kind string, resu
 	if err := result.Validate(time.Now().UTC()); err != nil {
 		return err
 	}
+	return insertLatencyResult(ctx, s.db, nodeID, kind, result)
+}
+
+func insertLatencyResult(ctx context.Context, q interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}, nodeID, kind string, result protocol.LatencyResult) error {
 	var latency any
 	if result.Success {
 		latency = result.LatencyMS
 	}
-	stored, err := s.db.ExecContext(ctx, `INSERT INTO latency_samples(node_id, target_id, kind, captured_at, success, latency_ms, error_class)
+	stored, err := q.ExecContext(ctx, `INSERT INTO latency_samples(node_id, target_id, kind, captured_at, success, latency_ms, error_class)
 		SELECT ?, t.id, t.kind, ?, ?, ?, ? FROM targets t
 		WHERE t.id = ? AND t.kind = ? AND EXISTS (
 			SELECT 1 FROM node_targets nt WHERE nt.target_id=t.id AND nt.node_id=?
