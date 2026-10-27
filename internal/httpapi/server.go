@@ -91,6 +91,7 @@ func (s *Server) routes() {
 	public.GET("/nodes", s.publicNodes)
 	public.GET("/nodes/:nodeID", s.publicNode)
 	public.GET("/nodes/:nodeID/history", s.publicNodeHistory)
+	public.GET("/nodes/:nodeID/events", s.publicNodeTimeline)
 
 	s.router.POST("/api/v1/agent/report", gin.WrapF(s.gateway.HTTPReport))
 	s.router.POST("/api/v1/agent/hello", gin.WrapF(s.gateway.HTTPHello))
@@ -132,6 +133,7 @@ func (s *Server) routes() {
 	admin.GET("/nodes", s.adminNodes)
 	admin.GET("/nodes/:nodeID", s.adminNodeDetail)
 	admin.GET("/nodes/:nodeID/history", s.adminNodeHistory)
+	admin.GET("/nodes/:nodeID/events", s.adminNodeTimeline)
 	admin.POST("/nodes", s.createNode)
 	admin.POST("/nodes/batch/preview", s.previewNodeBatch)
 	admin.POST("/nodes/batch/apply", s.applyNodeBatch)

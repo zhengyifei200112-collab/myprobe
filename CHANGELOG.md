@@ -26,6 +26,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Node detail timelines link retained reporting observations, reboot hints and private
+  incident/maintenance/configuration events with pageable, keyboard-accessible curve
+  navigation. New migrations 041 and 047 add exact timestamp indexes without changing
+  original evidence or Agent protocol; back up before index creation.
+
 - Durable bounded notification aggregates retain member attempts, frozen content and
   destinations, authenticated incident/aggregate links, and shared channel retry waits.
 

@@ -44,6 +44,10 @@ async function main() {
         const url = new URL(route.request().url())
         if (url.pathname.endsWith('/settings')) return route.fulfill({ json: { settings: { site_name: 'MyProbe UI acceptance' } } })
         if (hidden) return route.fulfill({ status: 404, json: { error: 'node not found' } })
+        if (url.pathname.endsWith('/events')) {
+          const start = url.searchParams.get('start'), end = url.searchParams.get('end')
+          return route.fulfill({ json: { start, end, gap_threshold_seconds: 20, observations_truncated: false, observation_start: start, events: [{ id: 'fixture-reboot', time: new Date((Date.parse(start) + Date.parse(end)) / 2).toISOString(), kind: 'reboot_hint', approximate: true }] } })
+        }
         if (url.pathname.endsWith('/history')) {
           if (failHistory) return route.fulfill({ status: 503, json: { error: 'test failure' } })
           if (url.searchParams.get('range') === '1d') await new Promise(resolve => setTimeout(resolve, 200))
@@ -54,6 +58,9 @@ async function main() {
       const ready = async () => { await page.locator('.detail-chart canvas').nth(3).waitFor(); await page.getByRole('heading', { name: node.node.name, exact: true }).waitFor() }
       await page.goto(`${base}/nodes/fixture?range=1h`)
       await ready()
+      await page.getByRole('button', { name: '定位曲线：检测到重启迹象', exact: true }).click()
+      await page.getByText(/曲线已定位到/).waitFor()
+      assert.equal(await page.getByRole('link', { name: '查看告警', exact: true }).count(), 0, 'public timeline cannot expose incident links')
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${theme}/${width}: horizontal overflow`)
       await page.getByRole('button', { name: '放大中间时段' }).click()
       await page.getByRole('button', { name: '重置缩放' }).click()
@@ -90,6 +97,7 @@ async function main() {
       await page.reload()
       await page.getByText('节点不存在或已隐藏。', { exact: true }).waitFor()
       assert.equal(await page.locator('.detail-chart canvas').count(), 0)
+      assert.equal(await page.locator('.detail-timeline').count(), 0)
       assert.equal(await page.getByRole('heading', { name: node.node.name, exact: true }).count(), 0)
       assert.deepEqual(errors, [], `${theme}/${width}: browser errors`)
       await context.close()

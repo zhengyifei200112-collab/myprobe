@@ -4,8 +4,9 @@ import type { HistoryResponse } from '../types'
 import { DsButton } from '../design-system'
 import { commonByteUnit } from '../public-dashboard/metrics'
 import { withGaps } from './history-view'
+import { eventViewport } from './timeline-view'
 
-const props = defineProps<{ history: HistoryResponse; theme: string }>()
+const props = defineProps<{ history: HistoryResponse; theme: string; focusTime?: string }>()
 const sections = [
   { key: 'resources', title: '资源使用率', description: 'CPU、内存和磁盘占比', empty: '此范围内没有资源样本' },
   { key: 'rates', title: '网络速率', description: '上传与下载速率', empty: '此范围内没有速率样本' },
@@ -31,6 +32,14 @@ function dispose() {
 function zoom(start: number, end: number) {
   charts.forEach(chart => chart.dispatchAction({ type: 'dataZoom', start, end }))
 }
+function focusEvent() {
+  const view = props.focusTime ? eventViewport(props.focusTime, props.history.start, props.history.end) : undefined
+  charts.forEach(chart => {
+    chart.setOption({ series: [{ markLine: { silent: true, symbol: 'none', label: { show: false }, data: view ? [{ xAxis: view.marker }] : [] } }] })
+    if (view) chart.dispatchAction({ type: 'dataZoom', startValue: view.startValue, endValue: view.endValue })
+  })
+}
+watch(() => props.focusTime, focusEvent)
 async function render() {
   const version = ++generation
   await nextTick()
@@ -71,6 +80,7 @@ async function render() {
     charts.push(chart)
   }
   echarts.connect(group)
+  focusEvent()
 }
 watch(() => [props.history, props.theme], () => void render())
 onMounted(() => {
