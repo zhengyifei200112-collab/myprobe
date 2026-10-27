@@ -75,9 +75,7 @@ func (s *Store) AcknowledgeIncident(ctx context.Context, incidentID, requestID, 
 	if err != nil || !portableID.MatchString(incidentID) || !portableID.MatchString(requestID) || !portableID.MatchString(actor) {
 		return AcknowledgeIncidentResult{}, ErrInvalidAcknowledgement
 	}
-	raw, _ := json.Marshal(struct{ IncidentID, Actor, Note string }{incidentID, actor, note})
-	sum := sha256.Sum256(raw)
-	digest := hex.EncodeToString(sum[:])
+	digest := acknowledgementDigest(incidentID, actor, note)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return AcknowledgeIncidentResult{}, err
@@ -125,20 +123,34 @@ func (s *Store) AcknowledgeIncident(ctx context.Context, incidentID, requestID, 
 	if err != nil {
 		return AcknowledgeIncidentResult{}, err
 	}
-	a.AcknowledgedAt = time.Now().UTC().Truncate(time.Millisecond)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO incident_acknowledgements(incident_id,actor_id,actor_name,acknowledged_at,note,request_id,request_digest) VALUES(?,?,?,?,?,?,?)`, incidentID, actor, a.ActorName, formatTime(a.AcknowledgedAt), note, requestID, digest); err != nil {
-		return AcknowledgeIncidentResult{}, err
-	}
-	details, _ := json.Marshal(struct {
-		HasNote bool `json:"has_note"`
-	}{note != ""})
-	if _, err := tx.ExecContext(ctx, `INSERT INTO audit_log(user_id,action,object_type,object_id,remote_ip,details_json,created_at) VALUES(?,?,?,?,?,?,?)`, actor, "acknowledge", "alert_incident", incidentID, "", string(details), formatTime(a.AcknowledgedAt)); err != nil {
+	a, err = insertAcknowledgement(ctx, tx, incidentID, requestID, note, actor, a.ActorName, time.Now().UTC().Truncate(time.Millisecond))
+	if err != nil {
 		return AcknowledgeIncidentResult{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return AcknowledgeIncidentResult{}, err
 	}
 	return AcknowledgeIncidentResult{Acknowledgement: a}, nil
+}
+
+func acknowledgementDigest(incidentID, actor, note string) string {
+	raw, _ := json.Marshal(struct{ IncidentID, Actor, Note string }{incidentID, actor, note})
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}
+
+// Caller holds the writer and has checked state, normalized note and actor.
+// Combined silence/ACK uses this helper so neither half can commit alone.
+func insertAcknowledgement(ctx context.Context, tx *sql.Tx, incidentID, requestID, note, actor, actorName string, now time.Time) (IncidentAcknowledgement, error) {
+	a := IncidentAcknowledgement{IncidentID: incidentID, ActorID: actor, ActorName: actorName, AcknowledgedAt: now, Note: note}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO incident_acknowledgements(incident_id,actor_id,actor_name,acknowledged_at,note,request_id,request_digest) VALUES(?,?,?,?,?,?,?)`, incidentID, actor, actorName, formatTime(now), note, requestID, acknowledgementDigest(incidentID, actor, note)); err != nil {
+		return a, err
+	}
+	details, _ := json.Marshal(struct {
+		HasNote bool `json:"has_note"`
+	}{note != ""})
+	_, err := tx.ExecContext(ctx, `INSERT INTO audit_log(user_id,action,object_type,object_id,remote_ip,details_json,created_at) VALUES(?,?,?,?,?,?,?)`, actor, "acknowledge", "alert_incident", incidentID, "", string(details), formatTime(now))
+	return a, err
 }
 
 func (s *Store) IncidentAcknowledgement(ctx context.Context, incidentID string) (IncidentAcknowledgementView, error) {

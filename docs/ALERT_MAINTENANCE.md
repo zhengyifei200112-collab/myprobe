@@ -178,7 +178,8 @@ maintaining first/last decision timestamps. `observation` means known-event
 evaluation under active maintenance, not proof that a message was due;
 `observation_gap` means the interval since the last known observation overlapped
 maintenance, not proof of an outage or recovery inside that interval; `delivery`
-means the claim/pre-send path suppressed an old/current queued job. The separate
+means a queued job was suppressed by claim/pre-send or a silence action which
+explicitly checked maintenance while jobs were still outstanding. The separate
 `delivery_maintenance_links` table records exact job/window association while that
 job is about to be canceled. Later post-window jobs do not inherit those links.
 Recording, cancellation, repeat-clock reset and incident changes share the same

@@ -26,6 +26,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Incident silence supports explicit expiry/cancel and acknowledgement-with-silence;
+  maintenance and silence combine while evaluation and genuine recovery continue.
+
 - Private incident acknowledgement records actor, time and note with replay-safe
   actions; acknowledgement does not resolve or silence the fault.
 
