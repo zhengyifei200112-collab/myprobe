@@ -9,7 +9,7 @@ import (
 
 // httpFixtureDir can retain synthetic database files after a failed local run.
 // With no opt-in directory, Go's ordinary test cleanup remains unchanged.
-func httpFixtureDir(t *testing.T) string {
+func httpFixtureDir(t testing.TB) string {
 	t.Helper()
 	root := os.Getenv("MYPROBE_HTTP_TEST_DIR")
 	if root == "" {

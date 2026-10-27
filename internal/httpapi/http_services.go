@@ -24,6 +24,21 @@ type httpServiceRequest struct {
 }
 
 func (s *Server) httpServiceStatistics(c *gin.Context) {
+	values := c.Request.URL.Query()
+	for _, key := range []string{"start", "end", "node_id", "exclude_maintenance"} {
+		if len(values[key]) > 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid repeated statistics parameter"})
+			return
+		}
+	}
+	exclude := false
+	if value, present := values["exclude_maintenance"]; present {
+		if len(value) != 1 || (value[0] != "true" && value[0] != "false") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "exclude_maintenance must be true or false"})
+			return
+		}
+		exclude = value[0] == "true"
+	}
 	start, startErr := time.Parse(time.RFC3339Nano, c.Query("start"))
 	end, endErr := time.Parse(time.RFC3339Nano, c.Query("end"))
 	nodeID := c.Query("node_id")
@@ -34,12 +49,12 @@ func (s *Server) httpServiceStatistics(c *gin.Context) {
 	now := time.Now().UTC()
 	queryCtx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
-	stats, err := s.store.HTTPServiceStatistics(queryCtx, c.Param("serviceID"), nodeID, start, end, now)
+	stats, err := s.store.HTTPServiceStatistics(queryCtx, c.Param("serviceID"), nodeID, start, end, now, exclude)
 	if err != nil {
 		writeHTTPServiceError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"statistics": stats, "node_id": nodeID, "server_time": now, "maintenance_excluded": false, "execution_enabled": s.gateway.HTTPProbesEnabled()})
+	c.JSON(http.StatusOK, gin.H{"statistics": stats, "node_id": nodeID, "server_time": now, "maintenance_excluded": stats.MaintenanceExcluded, "execution_enabled": s.gateway.HTTPProbesEnabled()})
 }
 
 func (s *Server) recentHTTPResults(c *gin.Context) {
@@ -62,12 +77,30 @@ func (s *Server) listHTTPServices(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pagination"})
 		return
 	}
-	items, next, err := s.store.ListHTTPServices(c.Request.Context(), c.Query("after"), limit)
+	now := time.Now().UTC()
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+	items, next, err := s.store.ListHTTPServices(ctx, c.Query("after"), limit)
 	if err != nil {
 		writeHTTPServiceError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"services": items, "next_cursor": next, "execution_enabled": s.gateway.HTTPProbesEnabled()})
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	snapshots, err := s.store.HTTPHealthSnapshots(ctx, ids, now)
+	if err != nil {
+		writeHTTPServiceError(c, err)
+		return
+	}
+	enabled, available := s.gateway.HTTPAvailability(healthNodeIDs(snapshots))
+	visible := make([]serviceHealthListItem, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		summary, _ := assessServiceSnapshot(snapshot, enabled, available, now)
+		visible = append(visible, serviceHealthListItem{HTTPServiceSummary: snapshot.Service, Health: summary})
+	}
+	c.JSON(http.StatusOK, gin.H{"services": visible, "next_cursor": next, "execution_enabled": enabled})
 }
 
 func (s *Server) deleteHTTPService(c *gin.Context) {

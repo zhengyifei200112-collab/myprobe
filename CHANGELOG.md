@@ -9,6 +9,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- HTTP transport failures remain accessible in private diagnostics. Recreated
+  services fence old incident and delivery snapshots even when revisions restart.
+
+- Expired HTTP history drains in bounded batches with retry, preserving its
+  monotonic retention floor and existing host history semantics.
+
 - HTTP connection resets, early connection closure and truncated responses now
   count as failed observations instead of inflating service success rates.
 
@@ -28,6 +34,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
 ### Added
+
+- HTTP service health now distinguishes healthy, degraded and unknown observers;
+  private incidents and certificate reminders reuse durable notification delivery.
+  Maintenance-aware statistics retain both raw and adjusted counts. Migrations
+  034–038 add service-alert, certificate, diagnostics and retention indexes.
 
 - Optional HTTP/HTTPS service checks use negotiated v2 Agents, bounded requests,
   private service configuration and durable observed/missing statistics. The

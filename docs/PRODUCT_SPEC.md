@@ -28,8 +28,9 @@ statistics. Policy rejection counts as unobserved, not a target failure. See
 [HTTP service monitoring](HTTP_SERVICE_MONITORING.md) for contracts and evidence.
 An earlier branch has opt-in live HTTP GET/HEAD and six theme/viewport browser
 CRUD/result evidence; the current integrated head requires its own checks.
-Maintenance-adjusted statistics, HTTP incidents, certificate
-reminders, live HTTPS/browser acceptance and capacity validation remain incomplete.
+The service-integration candidate adds observer-specific incidents, certificate
+reminders and maintenance-adjusted statistics; current integrated-source checks,
+real providers, full capacity and owner review remain required.
 Configuration enablement alone does not start execution; v1 Agents remain supported
 for their existing capabilities and never receive HTTP tasks.
 

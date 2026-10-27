@@ -79,8 +79,14 @@ func TestTLSVerificationAndEvidence(t *testing.T) {
 			if result.Outcome != "failure" || (result.ErrorClass != "tls_invalid" && result.ErrorClass != "certificate_expired") {
 				t.Fatalf("untrusted TLS accepted: %+v", result)
 			}
-			e.rootCAs = x509.NewCertPool()
-			e.rootCAs.AddCert(certificate)
+			roots := x509.NewCertPool()
+			roots.AddCert(certificate)
+			trusted := NewWithRootCAs(Policy{}, roots)
+			if trusted.rootCAs == roots || !trusted.rootCAs.Equal(roots) {
+				t.Fatal("trust pool was not cloned")
+			}
+			trusted.dialer = e.dialer
+			e = trusted
 			result = e.Execute(context.Background(), task)
 			if expired {
 				if result.ErrorClass != "certificate_expired" {

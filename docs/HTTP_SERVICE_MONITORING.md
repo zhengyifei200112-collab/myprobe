@@ -14,7 +14,32 @@ The v2 envelope, mutual-capability helper and Server WebSocket endpoint are
 implemented, with Agent v2-first transport selection and bounded v1 fallback.
 Agent execution, Server ingestion, durable scheduling, configuration transfer,
 management UI and per-observer statistics are connected. Production execution is
-opt-in; maintenance integration, service alerts and release acceptance remain open.
+opt-in. Per-observer service incidents and delivery now reuse the durable alert
+platform; see [service incidents](SERVICE_INCIDENTS.md). Optional maintenance
+statistics now retain raw counts and exclude effective frozen-member window unions
+by planned slot; see [maintenance statistics](HTTP_MAINTENANCE_STATISTICS.md).
+Capacity and release acceptance remain open. Independent certificate reminders
+now persist 14/7/1-day identity and use verified current evidence and the existing
+outbox; see [certificate reminders](CERTIFICATE_REMINDERS.md). Warnings do not
+change service health or add a TLS-verification bypass.
+
+The private service list and current-state endpoint now include per-observer
+health and a declared any-required-observer-failure summary, sharing the incident
+evaluation contract. Partial/missing results cannot produce overall health;
+current observer coverage differs from historical statistics. See
+[current service health](SERVICE_HEALTH.md) for snapshots, privacy and validation.
+Protected historical diagnostics now restore service/observer/time-range context
+through notification and event links; see [service diagnostics](SERVICE_DIAGNOSTICS.md).
+They expose existing failure categories and total duration only, with no target
+URL, response body, raw errors or invented phase timings. Reading never executes
+a new network check. Migration 036 adds a bounded pagination index.
+Service fault/certificate parameters can separately migrate through a private v1
+alert bundle with explicit existing-service/channel mapping, before/after preview,
+atomic revision checks and durable replay. Existing configuration v1/v2 remains
+unchanged; see [service alert transfer](SERVICE_ALERT_TRANSFER.md) for migration 037.
+Mapping and preview rows are paged without truncating the batch; explicit mapping
+files and compact original-request recovery support the 1000-item transfer limit.
+See [transfer capacity evidence](SERVICE_ALERT_CAPACITY.md) for measurement scope.
 Syntax acceptance
 does not allow a network request or waive the Agent address policy below.
 
@@ -213,8 +238,9 @@ A real Agent/Gateway/SQLite/scheduler test verifies negotiation, periodic dispat
 result persistence and statistics for policy denial without opening a target
 socket. Opt-in private-target tests additionally exercise real successful GET/HEAD,
 status/content mismatch, redirect limits, oversized bodies and timeout using the unchanged production executor and
-address policy. Maintenance exclusion, service incidents, certificate notifications,
-historical binary compatibility and capacity acceptance remain release work.
+address policy. Earlier development branches also exercised service fault/recovery
+and trusted live TLS certificate rotation. Integrated-source verification of those
+flows, historical binary compatibility and capacity acceptance remain release work.
 
 ### Reproducible live HTTP acceptance
 
@@ -281,7 +307,7 @@ the new controls. Closing a panel ignores any response arriving after unmount.
 The panel shows success/failure/expected/missing/unobserved counts, success rate and
 coverage, with distinct null-denominator labels. It displays requested/effective
 times, retained-history and known-schedule starts, Server observation time, the
-126-second maturity explanation and the maintenance-not-excluded limitation.
+126-second maturity explanation and the selected maintenance/raw count policy.
 These are per-observer measurements, not a combined multi-node SLA. Browser fixture
 checks cover values, empty denominators, changed ranges and failures in six layouts.
 
@@ -289,10 +315,13 @@ checks cover values, empty denominators, changed ranges and failures in six layo
 
 `GET /api/v1/admin/service-monitors/:serviceID/statistics` requires `node_id`,
 `start` and `end` (RFC3339 timestamps, at most 31 days, a nonempty half-open range).
-It returns the per-observer `statistics`, `server_time`, execution gate and an
-explicit `maintenance_excluded: false` until shared maintenance integration lands.
-This flag must be shown by consumers; these numbers are not maintenance-adjusted
-availability or SLA. The query has a five-second context deadline and requires an
+It accepts optional `exclude_maintenance=true|false`; omission retains raw counts.
+It returns per-observer `statistics`, `server_time`, execution gate and the actual
+`maintenance_excluded` mode. Raw and excluded counts are included in the same read
+snapshot. Effective windows use frozen membership, creation and cancellation
+bounds, and their union excludes each planned slot once. The browser explicitly
+defaults to exclusion and displays both counts; all-excluded rates remain null.
+These numbers are not continuous-time SLA. The query has a five-second deadline and requires an
 existing node and service. Removed assignments can still be queried while their
 node and retained history exist. Unknown resources return 404, invalid ranges 400.
 
@@ -359,7 +388,12 @@ or availability statuses. Deletion confirms removal of configuration and history
 Agent-local address policy is explained without suggesting the form can override it.
 `scripts/http-services-ui.cjs` checks create, numeric round-trip, conflict, cancel
 and delete with intercepted APIs at 360/768/1440 px in both themes. Live-backend UI
-acceptance, result/certificate views, maintenance and alert integration remain.
+acceptance and result/certificate views have since gained live tests; service alert
+settings and incidents are described in [service incidents](SERVICE_INCIDENTS.md).
+Independent certificate reminder settings/history now also have live acceptance;
+see [certificate reminders](CERTIFICATE_REMINDERS.md). Maintenance-adjusted
+statistics also use the shared persistent windows; see
+[maintenance statistics](HTTP_MAINTENANCE_STATISTICS.md).
 
 ### Configuration transfer v2
 
@@ -419,11 +453,14 @@ configuration. The UI must disclose history deletion before submitting the actio
 ### Raw HTTP history retention
 
 Migration `019_http_retention.sql` adds a durable retention floor and a task-time
-index. Existing history maintenance now removes HTTP tasks older than 31 days and
-closed schedule epochs ending before that boundary, up to 10,000 rows of each per
-maintenance pass. Open epochs keep their original anchors. Large backlogs drain
-over successive passes; the retention floor is advanced in the same transaction
-and never moves backwards, even after a clock correction. HTTP currently has no
+index. History maintenance removes HTTP tasks strictly older than 31 days and
+closed schedule epochs ending at or before that boundary, up to 1000 rows of each
+per transaction. Migration 038 adds a partial closed-epoch retention index. The
+Server catches up 100 ms after startup and after periodic retention, yielding
+100 ms between full batches and retrying failures after 5 seconds. The host
+rollup schedule remains independent; open epochs keep their original anchors.
+The floor and both deletions commit atomically per batch, and the published floor
+never regresses. Catchup keeps using that floor after clock rollback. HTTP has no
 long-term rollup; this 31-day policy is separate from host/latency retention.
 
 Statistics return requested start/end, effective start/end and retained-from time.
@@ -433,9 +470,11 @@ an empty effective interval. Raw timestamp deletion uses a whole-second boundary
 that preserves samples exactly on that boundary. The current tests cover partial
 range trimming, deletion and a non-regressing floor after clock rollback.
 
-Capacity testing must verify that bounded cleanup keeps pace with ingestion at the
-supported deployment size. Earlier-than-retained queries are not evidence of past
-availability; future UI must visibly show the actual range and history limitation.
+Local synthetic retention measurements cover 100 observers, 3 service definitions,
+432000 expired tasks and concurrent report writes; see
+[cleanup capacity and contracts](HTTP_RETENTION_CAPACITY.md). Full deployment
+capacity and 24-hour operation remain unverified. Earlier-than-retained queries
+are not evidence of past availability; UI must show the actual range limitation.
 
 ### Per-observer statistics foundation
 
@@ -454,9 +493,10 @@ effective interval, zero counts and null rates. Both bounds are half-open and
 nanosecond timestamps are compared in Go after widened indexed text bounds.
 Queries reject more than 31 days, 10,000 revisions or 100,000 candidate results.
 
-This primitive is not exposed as a public availability endpoint yet. Maintenance
-exclusions, pre-migration unknown coverage, retained-history boundaries and the
-requested-versus-effective range presentation remain required before API/UI use.
+The private API/UI now expose this primitive with schedule/retention boundaries,
+requested/effective ranges and optional maintenance unions. Original and excluded
+counts remain available; exclusion is not a public availability endpoint or a
+continuous-time SLA claim. Full capacity and release validation remain required.
 
 ### Expected-slot history
 
@@ -468,7 +508,8 @@ it does not erase earlier expectations. The internal count primitive uses
 `[start,end)` and counts slots even when no task was dispatched. It bounds queries
 to 31 days and 10,000 overlapping revisions per service/node, rejecting excessive
 ranges rather than silently truncating results. Caller-supplied observation time
-must cap historical queries; maintenance exclusions are not implemented yet.
+must cap historical queries; maintenance exclusion intersects the same epochs
+and mature range, without changing the stored schedule or result history.
 
 On upgrade from migration 017, a transactional Go backfill preserves the exact
 current revision's timestamp without SQLite fractional-second rounding. Older
@@ -493,7 +534,8 @@ revision, and removed assignments are removed from the scheduler's memory.
 Production main starts this scheduler only when the execution flag is true.
 Schedule epochs retain revision/assignment history so offline and missed slots
 count as missing even without task rows. Bounded statistics and retention are
-implemented; maintenance exclusions and sustained-load acceptance remain open.
+implemented, including optional maintenance-window unions. Sustained-load and
+release acceptance remain open.
 
 ### Configuration storage foundation
 

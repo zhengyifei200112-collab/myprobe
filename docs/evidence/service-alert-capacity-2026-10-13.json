@@ -1,0 +1,105 @@
+{
+  "date": "2026-10-13",
+  "scope": "Synthetic single-session local service alert transfer; not Agent throughput or 24-hour acceptance",
+  "baseline_commit": "b83a8ef9a495595fd80ac9d11ed9a6573da191fd",
+  "baseline_environment_recorded": false,
+  "baseline": [
+    {
+      "sourceServices": 10,
+      "sourceChannels": 10,
+      "destinationServices": 1000,
+      "destinationChannels": 1000,
+      "renderMS": 872.9,
+      "elements": 20070,
+      "options": 20020,
+      "heapBytes": 23468062
+    },
+    {
+      "sourceServices": 50,
+      "sourceChannels": 50,
+      "destinationServices": 1000,
+      "destinationChannels": 1000,
+      "renderMS": 4094.3,
+      "elements": 100310,
+      "options": 100100,
+      "heapBytes": 91941497
+    }
+  ],
+  "environment": {
+    "platform": "win32",
+    "osRelease": "10.0.19045",
+    "architecture": "x64",
+    "cpu": "13th Gen Intel(R) Core(TM) i5-13490F",
+    "logicalCPUs": 16,
+    "systemRAMBytes": 34138931200,
+    "node": "v24.19.0",
+    "browser": "155.0.4283.45"
+  },
+  "go": "go1.26.5 windows/amd64",
+  "cgo_enabled": 0,
+  "after": [
+    {
+      "sourceServices": 10,
+      "sourceChannels": 10,
+      "destinationServices": 1000,
+      "destinationChannels": 1000,
+      "renderMS": 52,
+      "elements": 144,
+      "options": 6,
+      "heapBytes": 18251764
+    },
+    {
+      "sourceServices": 50,
+      "sourceChannels": 50,
+      "destinationServices": 1000,
+      "destinationChannels": 1000,
+      "renderMS": 28.8,
+      "elements": 294,
+      "options": 6,
+      "heapBytes": 20912061
+    },
+    {
+      "sourceServices": 1000,
+      "sourceChannels": 1000,
+      "destinationServices": 1000,
+      "destinationChannels": 1000,
+      "renderMS": 71.3,
+      "elements": 294,
+      "options": 6,
+      "heapBytes": 23831452
+    },
+    {
+      "pendingRequestBytes": 480302
+    }
+  ],
+  "api": [
+    {
+      "operation": "preview-1000",
+      "milliseconds": 72.7
+    },
+    {
+      "operation": "preview-1000",
+      "milliseconds": 63.7
+    },
+    {
+      "operation": "preview-1000",
+      "milliseconds": 68.5
+    },
+    {
+      "operation": "preview-1000",
+      "milliseconds": 69.7
+    },
+    {
+      "operation": "preview-1000",
+      "milliseconds": 60.2
+    },
+    {
+      "operation": "apply-1000",
+      "milliseconds": 134.2
+    }
+  ],
+  "assets": {
+    "index-b4b3-ms0.js": "1009ecde056b5a46dfde56e4716eb17c0675068055bc61810850dca68e4b18d0",
+    "index-BdeqydRx.css": "eec1dcb068a5cf06f710a1b5e67f0f53c5bc4f946f9ac8c72c3f884b399ea6fe"
+  }
+}

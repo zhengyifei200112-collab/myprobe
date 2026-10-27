@@ -299,7 +299,31 @@ export interface HTTPServiceConfig {
 }
 export interface HTTPServiceSummary {
   id: string; revision: number; name: string; enabled: boolean; interval_seconds: number; node_count: number; updated_at: string
+  health?: HTTPCurrentHealth
 }
+export interface HTTPCurrentHealth {
+  state: 'healthy' | 'degraded' | 'unknown'
+  policy: 'any_required_observer_failure'
+  required_observers: number
+  success: number
+  failure: number
+  unknown: number
+  current_coverage: number | null
+  as_of: string
+  valid_until?: string
+}
+export interface HTTPObserverHealth {
+  node_id: string; node_name: string; status: 'success' | 'failure' | 'unknown'
+  reason?: string; error_class?: string; valid_until?: string
+  task_id?: string; scheduled_at?: string; completed_at?: string; status_code?: number; duration_ms?: number
+}
+export interface HTTPServiceHealthResponse {
+  service: HTTPServiceSummary
+  health: HTTPCurrentHealth
+  observers: HTTPObserverHealth[]
+  execution_enabled: boolean
+}
+export const loadHTTPServiceHealth = (id: string) => request<HTTPServiceHealthResponse>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/health`)
 export interface HTTPObservation {
   task_id: string; node_id: string; revision: number; scheduled_at: string; expires_at: string
   result: null | {
@@ -308,14 +332,29 @@ export interface HTTPObservation {
   }
 }
 export const loadHTTPObservations = (id: string) => request<{ observations: HTTPObservation[]; execution_enabled: boolean; server_time: string }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/results?limit=50`)
+export interface HTTPDiagnosticObservation {
+  task_id: string; revision: number; scheduled_at: string; expires_at: string
+  status: 'success' | 'failure' | 'unobserved' | 'pending' | 'missing'
+  error_class?: string; completed_at?: string; status_code?: number; duration_ms?: number
+}
+export interface HTTPDiagnosticsResponse {
+  service: HTTPServiceSummary
+  observer: { id: string; name: string; currently_assigned: boolean }
+  statistics: HTTPStatisticsResponse['statistics']
+  observations: HTTPDiagnosticObservation[]; next_cursor: string; server_time: string; execution_enabled: boolean
+}
+export const loadHTTPDiagnostics = (id: string, nodeID: string, start: string, end: string, after = '') => request<HTTPDiagnosticsResponse>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/diagnostics?${new URLSearchParams({ node_id: nodeID, start, end, after, limit: '50' })}`)
+export interface HTTPStatisticsCounts {
+  expected: number; success: number; failure: number; unobserved: number; missing: number; success_rate: number | null; coverage: number | null
+}
 export interface HTTPStatisticsResponse {
   node_id: string; server_time: string; maintenance_excluded: boolean; execution_enabled: boolean
-  statistics: {
+  statistics: HTTPStatisticsCounts & {
     requested_start: string; requested_end: string; start: string; end: string; retained_from: string; schedule_known_from: string
-    expected: number; success: number; failure: number; unobserved: number; missing: number; success_rate: number | null; coverage: number | null
+    raw?: HTTPStatisticsCounts; maintenance_excluded_counts?: HTTPStatisticsCounts; maintenance_policy?: string
   }
 }
-export const loadHTTPStatistics = (id: string, nodeID: string, start: string, end: string) => request<HTTPStatisticsResponse>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/statistics?${new URLSearchParams({ node_id: nodeID, start, end })}`)
+export const loadHTTPStatistics = (id: string, nodeID: string, start: string, end: string, excludeMaintenance = false) => request<HTTPStatisticsResponse>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/statistics?${new URLSearchParams({ node_id: nodeID, start, end, exclude_maintenance: String(excludeMaintenance) })}`)
 export const listHTTPServices = (after = '') => request<{ services: HTTPServiceSummary[]; next_cursor: string; execution_enabled: boolean }>(`/api/v1/admin/service-monitors?limit=50&after=${encodeURIComponent(after)}`)
 export const loadHTTPService = (id: string) => request<{ service: HTTPServiceConfig; execution_enabled: boolean }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}`, {}, text => {
   const result = JSON.parse(text)
@@ -491,8 +530,11 @@ export interface NodeOrderEntry { id: string; sort_order: number }
 export const reorderNodes = (expected: NodeOrderEntry[], nodeIDs: string[]) => request<{ changed: boolean }>('/api/v1/admin/nodes/reorder', { method: 'POST', body: JSON.stringify({ expected, node_ids: nodeIDs }) })
 
 export interface Incident {
+	severity?: 'warning'
+	service_id?: string
+	service_name?: string
   seq: number; id: string; node_id: string; node_name: string; kind: string
-  state: 'pending' | 'firing' | 'resolved'; started_at: string; resolved_at?: string
+  state: 'pending' | 'firing' | 'resolved'; started_at: string; resolved_at?: string; updated_at?: string
   observation_stale: boolean; message: string; origin: string; approximate_start: boolean; resolution_reason?: string
   acknowledgement?: { actor_name: string; acknowledged_at: string }
 }
@@ -558,3 +600,46 @@ export const loadIncidentSilences = (id: string, after = '') => request<SilenceP
 export const loadDeliverySilences = (id: string, after = '') => request<SilencePage>(`/api/v1/admin/notification-deliveries/${encodeURIComponent(id)}/silences?limit=25&after=${encodeURIComponent(after)}`)
 export const createIncidentSilence = (id: string, requestID: string, params: SilenceCreateParams) => request<SilenceMutationResult>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/silences`, { method: 'POST', body: JSON.stringify({ request_id: requestID, ...params }) })
 export const cancelIncidentSilence = (id: string, silenceID: string, requestID: string, revision: number) => request<SilenceMutationResult>(`/api/v1/admin/incidents/${encodeURIComponent(id)}/silences/${encodeURIComponent(silenceID)}/cancel`, { method: 'POST', body: JSON.stringify({ request_id: requestID, revision }) })
+
+export interface ServiceAlertSettings {
+  certificate_reminders_enabled: boolean
+  service_id: string
+  service_revision: number
+  revision: number
+  channel_id: string
+  enabled: boolean
+  duration_seconds: number
+  recovery_seconds: number
+  repeat_seconds: number
+  cooldown_seconds: number
+}
+export interface ServiceAlertParameters {
+  enabled: boolean; certificate_reminders_enabled: boolean; duration_seconds: number; recovery_seconds: number; repeat_seconds: number; cooldown_seconds: number
+}
+export interface ServiceAlertBundle {
+  format: 'myprobe-service-alerts'; version: 1
+  alerts: Array<{ source_id: string; name: string; channel_id: string; settings: ServiceAlertParameters }>
+  channels: Array<{ id: string; name: string; provider: string }>
+}
+export interface ServiceAlertImportMapping { services: Record<string, string>; channels: Record<string, string> }
+export interface ServiceAlertImportItem {
+  source_id: string; service_id: string; service_name: string; service_enabled: boolean; service_revision: number; service_updated_at: string
+  alert_revision: number; alert_updated_at: string; channel_id: string; channel_name: string; channel_provider: string; channel_enabled: boolean; channel_delivery_revision: number
+  before: ServiceAlertParameters | null; before_channel_id?: string; before_channel_name?: string; before_channel_provider?: string; after: ServiceAlertParameters
+}
+export interface ServiceAlertImportPreview { items: ServiceAlertImportItem[]; created: number; updated: number; preview_digest: string }
+export interface ServiceAlertImportResult { service_ids: string[]; created: number; updated: number; replayed: boolean }
+export interface ServiceAlertDestination { id: string; name: string; enabled: boolean; provider?: string }
+export const exportServiceAlertBundle = () => request<ServiceAlertBundle>('/api/v1/admin/service-alert-transfers/export')
+export const loadServiceAlertDestinations = () => request<{ services: ServiceAlertDestination[]; channels: ServiceAlertDestination[]; execution_enabled: boolean }>('/api/v1/admin/service-alert-transfers/destinations')
+export const previewServiceAlertImport = (bundle: ServiceAlertBundle, mapping: ServiceAlertImportMapping) => request<{ preview: ServiceAlertImportPreview; execution_enabled: boolean }>('/api/v1/admin/service-alert-transfers/preview', { method: 'POST', body: JSON.stringify({ bundle, mapping }) })
+export const applyServiceAlertImport = (bundle: ServiceAlertBundle, mapping: ServiceAlertImportMapping, requestID: string, previewDigest: string) => request<ServiceAlertImportResult>('/api/v1/admin/service-alert-transfers/apply', { method: 'POST', body: JSON.stringify({ bundle, mapping, request_id: requestID, preview_digest: previewDigest }) })
+export const loadServiceAlerting = (id: string) => request<{ alerting: ServiceAlertSettings; execution_enabled: boolean }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/alerting`)
+export const saveServiceAlerting = (id: string, v: ServiceAlertSettings) => request<{ alerting: ServiceAlertSettings; execution_enabled: boolean }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/alerting`, { method: 'PUT', body: JSON.stringify({ service_revision: v.service_revision, revision: v.revision, channel_id: v.channel_id, enabled: v.enabled, certificate_reminders_enabled: v.certificate_reminders_enabled, duration_seconds: v.duration_seconds, recovery_seconds: v.recovery_seconds, repeat_seconds: v.repeat_seconds, cooldown_seconds: v.cooldown_seconds }) })
+export const loadServiceIncidents = (id: string, before = 0) => request<{ incidents: Incident[]; next_before: number }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/incidents?limit=25&before=${before}`)
+export interface CertificateReminder {
+  seq: number; certificate_sha256: string; days_before: number; not_before: string; not_after: string
+  queued_once: boolean; authorized_once: boolean; skipped: boolean; incident_id?: string
+  delivery_status: string; observation_stale: boolean; resolution_reason?: string; created_at: string
+}
+export const loadCertificateReminders = (id: string, before = 0) => request<{ reminders: CertificateReminder[]; next_before: number }>(`/api/v1/admin/service-monitors/${encodeURIComponent(id)}/certificate-reminders?limit=25&before=${before}`)

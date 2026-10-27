@@ -8,6 +8,7 @@ const props = defineProps<{ serviceID: string; serviceName: string; nodes: NodeM
 defineEmits<{ close: [] }>()
 const nodeID = ref('')
 const hours = ref(24)
+const excludeMaintenance = ref(true)
 const busy = ref(false)
 const error = ref('')
 const data = ref<HTTPStatisticsResponse | null>(null)
@@ -22,7 +23,7 @@ async function query() {
   const end = new Date()
   const start = new Date(end.getTime() - hours.value * 3600000)
   try {
-    const response = await loadHTTPStatistics(props.serviceID, nodeID.value, start.toISOString(), end.toISOString())
+    const response = await loadHTTPStatistics(props.serviceID, nodeID.value, start.toISOString(), end.toISOString(), excludeMaintenance.value)
     if (active) data.value = response
   } catch (e) { if (active) error.value = e instanceof Error ? e.message : '无法读取统计。' }
   finally { if (active) busy.value = false }
@@ -45,6 +46,7 @@ onMounted(async () => {
       <fieldset :disabled="busy" class="statistics-controls">
         <label>统计观测节点<select v-model="nodeID" @change="clear"><option value="" disabled>请选择节点</option><option v-for="node in nodes" :key="node.id" :value="node.id">{{ node.name }}</option></select></label>
         <label>统计时间范围<select v-model.number="hours" @change="clear"><option :value="1">最近 1 小时</option><option :value="24">最近 24 小时</option><option :value="168">最近 7 天</option><option :value="720">最近 30 天</option></select></label>
+        <label class="switch-row"><input v-model="excludeMaintenance" type="checkbox" @change="clear">排除维护窗口</label>
         <button class="primary-button" :disabled="!nodeID">查询统计</button>
       </fieldset>
     </form>
@@ -52,6 +54,7 @@ onMounted(async () => {
     <p v-if="error" class="form-message error" role="alert">{{ error }}</p>
     <template v-if="data">
       <p v-if="!data.maintenance_excluded" class="form-message">尚未排除维护窗口，以下数据不作为维护调整后的可用率或 SLA。</p>
+      <p v-else class="form-message">当前按计划时刻排除维护窗口并集，重叠只扣一次；这不是连续时间 SLA。新建补记窗口不改写创建前的历史，取消只截断后续区间。</p>
       <p v-if="!data.execution_enabled">服务端自动探测未启用；以下仅反映已记录的历史。</p>
       <dl class="statistics-counts">
         <div><dt>有效检测成功率</dt><dd>{{ rate(data.statistics.success_rate, '无有效样本') }}</dd></div>
@@ -62,6 +65,12 @@ onMounted(async () => {
         <div><dt>缺测</dt><dd>{{ data.statistics.missing }}</dd></div>
         <div><dt>其中未执行有效检查</dt><dd>{{ data.statistics.unobserved }}</dd></div>
       </dl>
+      <template v-if="data.statistics.raw && data.statistics.maintenance_excluded_counts">
+        <h3>原始记录与维护排除量</h3>
+        <p>原始计划 {{ data.statistics.raw.expected }} · 成功 {{ data.statistics.raw.success }} · 失败 {{ data.statistics.raw.failure }} · 缺测 {{ data.statistics.raw.missing }}（其中未执行 {{ data.statistics.raw.unobserved }}）。</p>
+        <p>维护排除计划 {{ data.statistics.maintenance_excluded_counts.expected }} · 成功 {{ data.statistics.maintenance_excluded_counts.success }} · 失败 {{ data.statistics.maintenance_excluded_counts.failure }} · 缺测 {{ data.statistics.maintenance_excluded_counts.missing }}（其中未执行 {{ data.statistics.maintenance_excluded_counts.unobserved }}）。原始检查结果保留。</p>
+        <p v-if="data.maintenance_excluded && data.statistics.expected === 0 && data.statistics.raw.expected > 0">全部成熟计划槽均被维护排除，当前成功率与覆盖率不可用；不表示服务正常。</p>
+      </template>
       <p v-if="data.statistics.start === data.statistics.end">所选范围没有可统计的已保留历史或成熟样本，不表示 100% 正常。</p>
       <dl class="statistics-ranges">
         <dt>请求范围</dt><dd>{{ date(data.statistics.requested_start) }} — {{ date(data.statistics.requested_end) }}</dd>
@@ -81,6 +90,9 @@ onMounted(async () => {
 .http-statistics h2, .http-statistics p, .http-statistics dd { overflow-wrap: anywhere; }
 .statistics-controls { border: 0; padding: 0; margin: 16px 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
 .statistics-controls label { display: grid; gap: 8px; min-width: 0; flex: 1 1 200px; }
+.statistics-controls select { width: 100%; min-height: 40px; padding: 8px 10px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.statistics-controls .switch-row { display: flex; align-items: center; gap: 8px; min-height: 40px; margin: 0; flex: 0 1 auto; font-size: 14px; }
+.statistics-controls .switch-row input { width: 16px; height: 16px; margin: 0; flex-shrink: 0; }
 .statistics-counts { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 16px; margin: 20px 0; }
 .statistics-counts dd { font-size: 1.25rem; font-weight: 600; margin: 6px 0 0; }
 .statistics-ranges dd { margin: 4px 0 14px; }

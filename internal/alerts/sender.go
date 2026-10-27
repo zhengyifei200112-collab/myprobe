@@ -40,22 +40,25 @@ type ChannelConfig struct {
 }
 
 type Notification struct {
-	IncidentPath      string `json:"incident_path,omitempty"`
-	templateEventTime string
-	SnapshotID        string                              `json:"snapshot_id,omitempty"`
-	GroupPath         string                              `json:"group_path,omitempty"`
-	AggregateID       string                              `json:"aggregate_id,omitempty"`
-	Members           []store.AggregateNotificationMember `json:"members,omitempty"`
-	IncidentID        string                              `json:"incident_id,omitempty"`
-	IdempotencyKey    string                              `json:"-"`
-	Title             string                              `json:"title"`
-	Message           string                              `json:"message"`
-	State             string                              `json:"state"`
-	Kind              string                              `json:"kind"`
-	NodeID            string                              `json:"node_id"`
-	NodeName          string                              `json:"node_name"`
-	RuleID            string                              `json:"rule_id"`
-	Timestamp         time.Time                           `json:"timestamp"`
+	ServiceDiagnosticPath string `json:"service_diagnostic_path,omitempty"`
+	ServiceID             string `json:"service_id,omitempty"`
+	ServiceName           string `json:"service_name,omitempty"`
+	IncidentPath          string `json:"incident_path,omitempty"`
+	templateEventTime     string
+	SnapshotID            string                              `json:"snapshot_id,omitempty"`
+	GroupPath             string                              `json:"group_path,omitempty"`
+	AggregateID           string                              `json:"aggregate_id,omitempty"`
+	Members               []store.AggregateNotificationMember `json:"members,omitempty"`
+	IncidentID            string                              `json:"incident_id,omitempty"`
+	IdempotencyKey        string                              `json:"-"`
+	Title                 string                              `json:"title"`
+	Message               string                              `json:"message"`
+	State                 string                              `json:"state"`
+	Kind                  string                              `json:"kind"`
+	NodeID                string                              `json:"node_id"`
+	NodeName              string                              `json:"node_name"`
+	RuleID                string                              `json:"rule_id"`
+	Timestamp             time.Time                           `json:"timestamp"`
 }
 
 type Sender interface {
@@ -374,6 +377,6 @@ func renderTemplate(value string, n Notification) string {
 	if n.AggregateID == "" || eventTime == "" {
 		eventTime = n.Timestamp.Local().Format("2006-01-02 15:04:05")
 	}
-	replacer := strings.NewReplacer("{{incident.url}}", n.IncidentPath, "{{title}}", n.Title, "{{message}}", n.Message, "{{state}}", n.State, "{{event}}", n.Kind, "{{event.type}}", n.Kind, "{{event.status}}", n.State, "{{event.time}}", eventTime, "{{node.id}}", n.NodeID, "{{node.name}}", n.NodeName, "{{rule.id}}", n.RuleID)
+	replacer := strings.NewReplacer("{{service.diagnostic.url}}", n.ServiceDiagnosticPath, "{{incident.url}}", n.IncidentPath, "{{title}}", n.Title, "{{message}}", n.Message, "{{state}}", n.State, "{{event}}", n.Kind, "{{event.type}}", n.Kind, "{{event.status}}", n.State, "{{event.time}}", eventTime, "{{node.id}}", n.NodeID, "{{node.name}}", n.NodeName, "{{rule.id}}", n.RuleID)
 	return replacer.Replace(value)
 }

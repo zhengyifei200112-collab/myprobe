@@ -15,6 +15,9 @@ import (
 var ErrObservationObsolete = errors.New("alert rule changed during evaluation")
 
 type Incident struct {
+	Severity             string                          `json:"severity,omitempty"`
+	ServiceID            string                          `json:"service_id,omitempty"`
+	ServiceName          string                          `json:"service_name,omitempty"`
 	Seq                  int64                           `json:"seq"`
 	ID                   string                          `json:"id"`
 	Fingerprint          string                          `json:"-"`
@@ -42,6 +45,7 @@ type Incident struct {
 }
 
 type AlertObservation struct {
+	EndReason           string
 	NotificationOrigin  string
 	At                  time.Time
 	Known               bool
@@ -53,16 +57,19 @@ type AlertObservation struct {
 
 // DeliveryNotification is a durable rendered payload, never channel credentials.
 type DeliveryNotification struct {
-	IncidentPath string    `json:"incident_path,omitempty"`
-	Title        string    `json:"title"`
-	Message      string    `json:"message"`
-	State        string    `json:"state"`
-	Kind         string    `json:"kind"`
-	NodeID       string    `json:"node_id"`
-	NodeName     string    `json:"node_name"`
-	RuleID       string    `json:"rule_id"`
-	IncidentID   string    `json:"incident_id"`
-	Timestamp    time.Time `json:"timestamp"`
+	ServiceDiagnosticPath string    `json:"service_diagnostic_path,omitempty"`
+	ServiceID             string    `json:"service_id,omitempty"`
+	ServiceName           string    `json:"service_name,omitempty"`
+	IncidentPath          string    `json:"incident_path,omitempty"`
+	Title                 string    `json:"title"`
+	Message               string    `json:"message"`
+	State                 string    `json:"state"`
+	Kind                  string    `json:"kind"`
+	NodeID                string    `json:"node_id"`
+	NodeName              string    `json:"node_name"`
+	RuleID                string    `json:"rule_id"`
+	IncidentID            string    `json:"incident_id"`
+	Timestamp             time.Time `json:"timestamp"`
 }
 
 type incidentRuleSnapshot struct {
@@ -102,6 +109,7 @@ func scanIncident(row rowScanner) (Incident, error) {
 		return i, err
 	}
 	i.RuleSnapshot = json.RawMessage(snapshot)
+	i.loadServiceSubject()
 	if i.StartedAt, err = parseTime(started); err != nil {
 		return i, err
 	}
@@ -121,6 +129,20 @@ func scanIncident(row rowScanner) (Incident, error) {
 		}
 	}
 	return i, nil
+}
+
+func (i *Incident) loadServiceSubject() {
+	if i.Kind != "service_http" && i.Kind != "service_certificate" {
+		return
+	}
+	if i.Kind == "service_certificate" {
+		i.Severity = "warning"
+	}
+	var snapshot incidentRuleSnapshot
+	var config ServiceRuleConfig
+	if json.Unmarshal(i.RuleSnapshot, &snapshot) == nil && json.Unmarshal(snapshot.Config, &config) == nil {
+		i.ServiceID, i.ServiceName = config.ServiceID, config.ServiceName
+	}
 }
 func ruleInTransaction(ctx context.Context, tx *sql.Tx, id string) (AlertRule, error) {
 	var rule AlertRule
@@ -259,7 +281,7 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 	if !current.Enabled || !rule.Enabled || !sameSnapshot(snapshotRule(current), snapshotRule(rule)) {
 		return nil, ErrObservationObsolete
 	}
-	if valid, err := policyRuleCurrent(ctx, tx, current); err != nil {
+	if valid, err := policyRuleCurrent(ctx, tx, current, o.At); err != nil {
 		return nil, err
 	} else if !valid {
 		return nil, ErrObservationObsolete
@@ -282,12 +304,27 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 		if !o.Known || !o.Active {
 			return nil, tx.Commit()
 		}
+		if rule.Kind == "service_certificate" {
+			allowed, err := certificateCanQueue(ctx, tx, rule.ID)
+			if err != nil {
+				return nil, err
+			}
+			if !allowed {
+				return nil, tx.Commit()
+			}
+		}
 		i = Incident{ID: randomID(), Fingerprint: fingerprint, RuleID: rule.ID, NodeID: node.ID, NodeName: node.Name, Kind: rule.Kind, RuleSnapshot: snapshotRule(rule), State: "pending", StartedAt: o.At, UpdatedAt: o.At, TriggerSince: &o.At, Origin: "live"}
+		i.loadServiceSubject()
 		result, err := tx.ExecContext(ctx, `INSERT INTO alert_incidents(id,fingerprint,rule_id,node_id,node_name,kind,rule_snapshot_json,state,started_at,updated_at,trigger_since) VALUES(?,?,?,?,?,?,?,'pending',?,?,?)`, i.ID, i.Fingerprint, i.RuleID, i.NodeID, i.NodeName, i.Kind, string(i.RuleSnapshot), formatTime(o.At), formatTime(o.At), formatTime(o.At))
 		if err != nil {
 			return nil, err
 		}
 		i.Seq, _ = result.LastInsertId()
+		if rule.Kind == "service_certificate" {
+			if _, err := tx.ExecContext(ctx, `UPDATE http_certificate_reminders SET incident_id=?,updated_at=? WHERE rule_id=?`, i.ID, formatTime(o.At), rule.ID); err != nil {
+				return nil, err
+			}
+		}
 	}
 	i.UpdatedAt = o.At
 	i.ObservationStale = !o.Known
@@ -360,7 +397,16 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 				i.RecoverySince = &o.At
 			}
 			if o.At.Sub(*i.RecoverySince) >= time.Duration(recovery)*time.Second {
-				if err := endIncident(ctx, tx, &i, "recovered", o.At); err != nil {
+				reason := "recovered"
+				if rule.Kind == "service_certificate" {
+					switch o.EndReason {
+					case "certificate_expired", "certificate_threshold_advanced", "certificate_no_longer_observed":
+						reason = o.EndReason
+					default:
+						reason = "certificate_no_longer_observed"
+					}
+				}
+				if err := endIncident(ctx, tx, &i, reason, o.At); err != nil {
 					return nil, err
 				}
 				justResolved = true
@@ -368,12 +414,24 @@ func (s *Store) ObserveAlert(ctx context.Context, rule AlertRule, node Node, o A
 		}
 	}
 	notify := i.State == "firing" && o.Active && (i.LastEnqueuedAt == nil || o.At.Sub(*i.LastEnqueuedAt) >= time.Duration(repeat)*time.Second)
-	if justResolved {
-		var attempted int
-		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM notification_deliveries d WHERE d.incident_id=? AND d.notification_type='firing' AND d.attempt_count>0 AND (d.aggregate_id IS NULL OR EXISTS(SELECT 1 FROM notification_aggregate_attempt_members m WHERE m.delivery_id=d.id AND m.included=1))`, i.ID).Scan(&attempted); err != nil {
+	if rule.Kind == "service_certificate" && i.State == "firing" && o.Active {
+		// A canceled, never-authorized intent may rearm after fresh evidence,
+		// including channel re-enable, without waiting for the host repeat clock.
+		notify, err = certificateCanQueue(ctx, tx, rule.ID)
+		if err != nil {
 			return nil, err
 		}
-		notify = attempted > 0 || (i.Origin == "legacy" && i.NotificationSequence > 0)
+	}
+	if justResolved {
+		if rule.Kind == "service_certificate" {
+			notify = false
+		} else {
+			var attempted int
+			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM notification_deliveries d WHERE d.incident_id=? AND d.notification_type='firing' AND d.attempt_count>0 AND (d.aggregate_id IS NULL OR EXISTS(SELECT 1 FROM notification_aggregate_attempt_members m WHERE m.delivery_id=d.id AND m.included=1))`, i.ID).Scan(&attempted); err != nil {
+				return nil, err
+			}
+			notify = attempted > 0 || (i.Origin == "legacy" && i.NotificationSequence > 0)
+		}
 	}
 	if len(activeWindows)+len(activeSilences) > 0 {
 		// Preserve fault transitions while suppressing this notification intent.
@@ -422,6 +480,15 @@ func queueIncidentNotification(ctx context.Context, tx *sql.Tx, i *Incident, cha
 	if !enabled {
 		return nil
 	}
+	if i.Kind == "service_certificate" {
+		allowed, err := certificateCanQueue(ctx, tx, i.RuleID)
+		if err != nil {
+			return err
+		}
+		if !allowed {
+			return nil
+		}
+	}
 	title, message := o.NotificationTitle, o.NotificationMessage
 	if title == "" {
 		title = "MyProbe 告警"
@@ -436,7 +503,7 @@ func queueIncidentNotification(ctx context.Context, tx *sql.Tx, i *Incident, cha
 	if err != nil {
 		return err
 	}
-	payload, err := json.Marshal(DeliveryNotification{Title: title, Message: message, State: i.State, Kind: i.Kind, NodeID: i.NodeID, NodeName: i.NodeName, RuleID: i.RuleID, IncidentID: i.ID, Timestamp: o.At, IncidentPath: notificationlink.Incident(origin, i.ID)})
+	payload, err := json.Marshal(DeliveryNotification{ServiceDiagnosticPath: notificationlink.ServiceDiagnosticAt(origin, i.ServiceID, i.NodeID, o.At), ServiceID: i.ServiceID, ServiceName: i.ServiceName, Title: title, Message: message, State: i.State, Kind: i.Kind, NodeID: i.NodeID, NodeName: i.NodeName, RuleID: i.RuleID, IncidentID: i.ID, Timestamp: o.At, IncidentPath: notificationlink.Incident(origin, i.ID)})
 	if err != nil {
 		return err
 	}
@@ -450,9 +517,13 @@ func queueIncidentNotification(ctx context.Context, tx *sql.Tx, i *Incident, cha
 	if aggregateID != "" {
 		aggregate = aggregateID
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO notification_deliveries(id,incident_id,channel_id,channel_name,provider,notification_type,idempotency_key,payload_json,status,available_at_ms,created_at,updated_at,aggregate_id) VALUES(?,?,?,?,?,?,?,?,'pending',?,?,?,?)`, randomID(), i.ID, channelID, name, provider, i.State, key, string(payload), available.UnixMilli(), formatTime(o.At), formatTime(o.At), aggregate)
+	deliveryID := randomID()
+	_, err = tx.ExecContext(ctx, `INSERT INTO notification_deliveries(id,incident_id,channel_id,channel_name,provider,notification_type,idempotency_key,payload_json,status,available_at_ms,created_at,updated_at,aggregate_id) VALUES(?,?,?,?,?,?,?,?,'pending',?,?,?,?)`, deliveryID, i.ID, channelID, name, provider, i.State, key, string(payload), available.UnixMilli(), formatTime(o.At), formatTime(o.At), aggregate)
 	if err == nil {
 		i.LastEnqueuedAt = &o.At
+		if i.Kind == "service_certificate" {
+			_, err = tx.ExecContext(ctx, `UPDATE http_certificate_reminders SET queued_once=1,incident_id=?,delivery_id=?,updated_at=? WHERE rule_id=?`, i.ID, deliveryID, formatTime(o.At), i.RuleID)
+		}
 	}
 	return err
 }
