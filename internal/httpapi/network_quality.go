@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	quality "github.com/zhengyifei200112-collab/myprobe/internal/networkquality"
@@ -150,7 +151,7 @@ func parseNetworkQualityQuery(raw string, now time.Time) (store.NetworkQualityBa
 	}
 	seen := map[string]bool{}
 	for _, id := range q.NodeIDs {
-		if len(id) < 1 || len(id) > 128 || strings.TrimSpace(id) != id || strings.ContainsAny(id, "\x00\r\n\t") || seen[id] {
+		if len(id) < 1 || len(id) > 128 || strings.TrimSpace(id) != id || strings.IndexFunc(id, unicode.IsControl) >= 0 || seen[id] {
 			return q, "", quality.ErrInvalid
 		}
 		seen[id] = true

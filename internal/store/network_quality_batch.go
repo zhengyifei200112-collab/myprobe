@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode"
 
 	quality "github.com/zhengyifei200112-collab/myprobe/internal/networkquality"
 )
@@ -27,7 +28,7 @@ type NetworkQualityBatch struct {
 }
 
 func validQualityID(id string) bool {
-	return len(id) > 0 && len(id) <= 128 && strings.TrimSpace(id) == id && !strings.ContainsAny(id, "\x00\r\n\t")
+	return len(id) > 0 && len(id) <= 128 && strings.TrimSpace(id) == id && strings.IndexFunc(id, unicode.IsControl) < 0
 }
 
 func (s *Store) PublicNetworkQualityBatch(ctx context.Context, q NetworkQualityBatchQuery) (NetworkQualityBatch, error) {

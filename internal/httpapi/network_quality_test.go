@@ -287,6 +287,23 @@ func TestNetworkQualityAPIAuthAndShareIsolation(t *testing.T) {
 	}
 }
 
+func TestNetworkQualityAPIRejectsControlCharacters(t *testing.T) {
+	f := networkQualityAPIFixture(t)
+	for _, key := range []string{"node_id", "target_id"} {
+		for _, control := range []string{"\x01", "\x7f", "\u0085"} {
+			q, err := url.ParseQuery(f.query(f.nodes[0].ID))
+			if err != nil {
+				t.Fatal(err)
+			}
+			q.Set(key, "synthetic"+control+"id")
+			r := f.get("/api/v1/public/network-quality?"+q.Encode(), nil)
+			if r.Code != http.StatusBadRequest || r.Header().Get("Cache-Control") != "private, no-store" {
+				t.Fatalf("control character in %s treated as a lookup: %d", key, r.Code)
+			}
+		}
+	}
+}
+
 func TestNetworkQualityQueryBoundariesAndTimeZones(t *testing.T) {
 	now := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
 	base := url.Values{"node_id": {"synthetic-node"}, "target_id": {"synthetic-target"}, "kind": {"ping"}}
