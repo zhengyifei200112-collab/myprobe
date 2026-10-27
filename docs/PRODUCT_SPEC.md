@@ -11,6 +11,14 @@
 
 ## Feature parity matrix
 
+Network quality comparison is integrated for verification in the public dashboard, administrator UI
+and authenticated shares. Scoped target discovery and one batched response compare
+up to eight observers using aligned RTT, execution-failure and coverage timelines,
+range quantiles/jitter, actual history bounds and explicit time zones. Real-backend
+browser checks must cover both themes at 360/768/1440 px on this source. Unreported address families and
+packet counts remain unavailable; real IPv6 execution and final integrated capacity
+and long-soak acceptance remain open. See [network quality UI](NETWORK_QUALITY_UI.md).
+
 Scoped alert-policy inheritance (ALT-02) is in development. Its internal resolver
 and revisioned persistence support global, tag and explicit-node scopes, conflict
 validation and snapshot-based effective-policy previews. Each runtime tick maps
@@ -38,7 +46,7 @@ for their existing capabilities and never receive HTTP tasks.
 | Area | Requirement | Acceptance evidence | Status |
 | --- | --- | --- | --- |
 | System health | Private runtime/version/database/retention/transport, both schedulers, durable queue, backup-generation and node diagnostics; configuration acknowledgement/recovery remain separate | `docs/SYSTEM_HEALTH.md`, actual Server/browser/Agent and privacy/lifecycle tests | In progress |
-| Network quality | Persistent task/result identity and bounded retention feed scoped public/share/admin range summaries for at most eight nodes, with explicit quality/availability DTOs and one read snapshot. Time series, comparison UI, family/packet evidence and full acceptance remain in progress | `docs/NETWORK_QUALITY.md`, `docs/NETWORK_QUALITY_API.md`, lifecycle, privacy, batch and restore regressions | In progress |
+| Network quality | Persistent lifecycle, scoped target discovery and same-snapshot series feed comparison dialogs with at most 2000 points per observer and eight nodes per batch. Current verification, family/packet evidence and full acceptance remain in progress | `docs/NETWORK_QUALITY.md`, `docs/NETWORK_QUALITY_API.md`, `docs/NETWORK_QUALITY_UI.md`, point/privacy/restore and actual browser regressions | In progress |
 | Public overview | Current time, online/offline counts, aggregate traffic and rate | Responsive browser tests and live API data | Implemented |
 | Public filtering | Tag/region pills with counts and horizontal mobile scrolling | UI test at 360/768/1440 px | Implemented |
 | Node cards | Bundled country flag artwork, name, status, masked IP, OS, uptime, last update | Metadata persistence, privacy, API contract, and browser rendering tests | Implemented |

@@ -38,6 +38,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Public, private-share and administrator network comparison dialogs select up to
+  eight observers and scoped target aliases, with bounded aligned RTT/failure/coverage
+  charts, explicit unknown evidence, local-time ranges and a completed evening preset.
+
+- Network-quality series share the authorized range snapshot, bound each observer
+  to 2000 UTC-aligned points and retain truthful unknown/clipped/failed gaps.
+  Point distributions retain sample weights; range jitter crosses graph boundaries.
+
 - Scoped public, password-share and administrator network-quality summary routes
   compare up to eight nodes in one read snapshot, with explicit privacy projections,
   availability, sample weights and quantile bounds. Series and comparison UI follow.

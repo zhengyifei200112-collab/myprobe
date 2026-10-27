@@ -16,6 +16,7 @@ var ErrNetworkQualityUnavailable = errors.New("network quality history unavailab
 type NetworkQualityQuery struct {
 	NodeID, TargetID, Kind string
 	Start, End, AsOf       time.Time
+	Series                 bool
 }
 
 // Store results are private. Routes must separately enforce public/share/admin
@@ -30,6 +31,8 @@ type NetworkQualityStats struct {
 	JitterPairs                                                               uint64
 	QuantileMethod                                                            string
 	Totals                                                                    quality.Totals
+	BucketSeconds                                                             int64
+	Points                                                                    []NetworkQualityPoint
 }
 
 func ceilNetworkSecond(ns int64) int64 {
@@ -138,10 +141,18 @@ func readNetworkQualityTx(ctx context.Context, tx *sql.Tx, q NetworkQualityQuery
 			result.Availability = "partial_resolution"
 		}
 	}
-	if !result.EffectiveEnd.After(result.EffectiveStart) {
+	empty := !result.EffectiveEnd.After(result.EffectiveStart)
+	if empty {
 		result.EffectiveStart = result.EffectiveEnd
 		result.Availability = "untracked_history"
-		return result, nil
+	}
+	collector, err := newNetworkPointCollector(q, result)
+	if err != nil {
+		return result, err
+	}
+	if empty {
+		err = collector.finish(&result)
+		return result, err
 	}
 	type epoch struct {
 		id                        string
@@ -188,6 +199,7 @@ func readNetworkQualityTx(ctx context.Context, tx *sql.Tx, q NetworkQualityQuery
 		matured := networkSlotCount(e.anchor, e.interval, startNS, matureEndNS)
 		result.Planned += matured
 		result.Pending += networkSlotCount(e.anchor, e.interval, startNS, endNS) - matured
+		collector.plan(e.id, e.anchor, e.interval, startNS, endNS, matureEndNS)
 		if matureEndNS <= startNS {
 			continue
 		}
@@ -223,14 +235,16 @@ func readNetworkQualityTx(ctx context.Context, tx *sql.Tx, q NetworkQualityQuery
 					break
 				}
 				o.id, o.slot, o.state, o.dispatch = id.String, slot.Int64, state.String, dispatch.String
-				var rtt float64
-				var success bool
-				rtt, success, err = o.add(&segment, q.TargetID)
+				var value networkQualityValue
+				value, err = o.add(&segment, q.TargetID)
 				if err != nil {
 					break
 				}
-				if success {
-					samples = append(samples, rtt)
+				if value.outcome == quality.Success {
+					samples = append(samples, value.rtt)
+				}
+				if err = collector.raw(e.id, e.anchor, e.interval, o.slot, value); err != nil {
+					break
 				}
 			} else {
 				// Empty clipping is allowed; splitting a retained histogram is not.
@@ -250,6 +264,9 @@ func readNetworkQualityTx(ctx context.Context, tx *sql.Tx, q NetworkQualityQuery
 				if err != nil {
 					break
 				}
+				if err = collector.rollup(part); err != nil {
+					break
+				}
 				approximate = true
 			}
 		}
@@ -263,10 +280,23 @@ func readNetworkQualityTx(ctx context.Context, tx *sql.Tx, q NetworkQualityQuery
 		if err = result.Totals.Merge(segment.Totals); err != nil {
 			return result, ErrNetworkQualityUnavailable
 		}
+		if err = collector.finishEpoch(); err != nil {
+			return result, err
+		}
 	}
+	if err = finishNetworkQuality(&result, samples, approximate); err != nil {
+		return result, err
+	}
+	if err = collector.finish(&result); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+func finishNetworkQuality(result *NetworkQualityStats, samples []float64, approximate bool) error {
 	result.Success, result.Failure = result.Totals.Success, result.Totals.Failure
 	if result.Totals.Observed > result.Planned || result.Success+result.Failure > result.Planned {
-		return result, ErrNetworkQualityUnavailable
+		return ErrNetworkQualityUnavailable
 	}
 	result.Missing = result.Planned - result.Success - result.Failure
 	result.NotExecuted, result.ObservedMissing = result.Totals.NotExecuted, result.Totals.Unobserved
@@ -286,11 +316,11 @@ func readNetworkQualityTx(ctx context.Context, tx *sql.Tx, q NetworkQualityQuery
 		if approximate {
 			p50, err := result.Totals.Histogram.Quantile(50)
 			if err != nil {
-				return result, ErrNetworkQualityUnavailable
+				return ErrNetworkQualityUnavailable
 			}
 			p95, err := result.Totals.Histogram.Quantile(95)
 			if err != nil {
-				return result, ErrNetworkQualityUnavailable
+				return ErrNetworkQualityUnavailable
 			}
 			result.P50Bounds, result.P95Bounds = &p50, &p95
 			middle50, middle95 := (p50.LowerMS+p50.UpperMS)/2, (p95.LowerMS+p95.UpperMS)/2
@@ -308,5 +338,5 @@ func readNetworkQualityTx(ctx context.Context, tx *sql.Tx, q NetworkQualityQuery
 		jitter := result.Totals.JitterSum / float64(result.JitterPairs)
 		result.Jitter = &jitter
 	}
-	return result, nil
+	return nil
 }
