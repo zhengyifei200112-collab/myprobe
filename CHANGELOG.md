@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- HTTP transport failures remain accessible in private diagnostics. Recreated
+  services fence old incident and delivery snapshots even when revisions restart.
+
 - Expired HTTP history drains in bounded batches with retry, preserving its
   monotonic retention floor and existing host history semantics.
 
