@@ -52,7 +52,7 @@ func TestCurrentServiceHealthPolicyAndEmptyCoverage(t *testing.T) {
 
 func TestCurrentObserverEvidenceBoundaries(t *testing.T) {
 	now := time.Now().UTC()
-	for _, mode := range []string{"success", "failure", "disabled-service", "disabled-execution", "offline", "online-boundary", "future-host", "future-host-boundary", "no-metadata", "unavailable", "missing", "pending", "pending-grace-boundary", "missing-result", "stale-plan", "freshness-boundary", "stale-completion", "future-completion", "future-completion-boundary", "future-plan", "unobserved", "invalid-class", "invalid-status", "empty-timestamp"} {
+	for _, mode := range []string{"success", "failure", "transport-failure", "disabled-service", "disabled-execution", "offline", "online-boundary", "future-host", "future-host-boundary", "no-metadata", "unavailable", "missing", "pending", "pending-grace-boundary", "missing-result", "stale-plan", "freshness-boundary", "stale-completion", "future-completion", "future-completion-boundary", "future-plan", "unobserved", "invalid-class", "invalid-status", "empty-timestamp"} {
 		t.Run(mode, func(t *testing.T) {
 			seen := now
 			result := &httpcheck.Result{Outcome: "success", StatusCode: 200, CompletedAt: now}
@@ -66,6 +66,9 @@ func TestCurrentObserverEvidenceBoundaries(t *testing.T) {
 				result.Outcome = "failure"
 				result.StatusCode = 503
 				result.ErrorClass = "status_mismatch"
+				want = "failure"
+			case "transport-failure":
+				result.Outcome, result.ErrorClass, result.StatusCode = "failure", "transport", 0
 				want = "failure"
 			case "disabled-service":
 				input.ServiceEnabled = false

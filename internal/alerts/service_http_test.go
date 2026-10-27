@@ -15,6 +15,13 @@ import (
 )
 
 func TestServiceHTTPFaultUnknownRecoveryUsesExistingOutbox(t *testing.T) {
+	for _, class := range []string{"status_mismatch", "transport"} {
+		t.Run(class, func(t *testing.T) { serviceHTTPFaultUnknownRecovery(t, class) })
+	}
+}
+
+func serviceHTTPFaultUnknownRecovery(t *testing.T, failureClass string) {
+	t.Helper()
 	ctx := context.Background()
 	db, err := store.Open(ctx, ":memory:")
 	if err != nil {
@@ -72,7 +79,11 @@ func TestServiceHTTPFaultUnknownRecoveryUsesExistingOutbox(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	save(at.Add(time.Second), "failure", "status_mismatch", 503)
+	status := 503
+	if failureClass == "transport" {
+		status = 0
+	}
+	save(at.Add(time.Second), "failure", failureClass, status)
 	if err := svc.Tick(ctx, at.Add(2*time.Second)); err != nil {
 		t.Fatal(err)
 	}
@@ -87,6 +98,9 @@ func TestServiceHTTPFaultUnknownRecoveryUsesExistingOutbox(t *testing.T) {
 	notice := <-received
 	if notice.ServiceID != service.ID || notice.Kind != "service_http" || notice.IncidentID != original.ID || !strings.Contains(notice.IncidentPath, original.ID) || strings.Contains(notice.Message, "private-marker") {
 		t.Fatal("service notice identity/privacy")
+	}
+	if failureClass == "transport" && !strings.Contains(notice.Message, "连接中断或响应不完整") {
+		t.Fatal("transport failure reason missing from durable notification")
 	}
 	save(at.Add(3*time.Second), "unobserved", "unsupported", 0)
 	if err := svc.Tick(ctx, at.Add(4*time.Second)); err != nil {
