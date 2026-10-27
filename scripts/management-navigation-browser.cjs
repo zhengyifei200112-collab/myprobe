@@ -13,7 +13,7 @@ assert(base && password && ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(
   assert.equal(created.status(), 201)
   const { node } = await created.json(), browser = await chromium.launch({ channel: 'msedge', headless: true })
   try {
-    for (const kind of ['incident', 'node', 'service', 'absolute-node']) {
+    for (const kind of ['incident', 'node', 'service', 'absolute-node', 'health', 'health-oauth']) {
       const context = await browser.newContext()
       try {
         await context.addInitScript(({ id }) => {
@@ -25,7 +25,8 @@ assert(base && password && ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(
         const end = new Date(Date.now() - 1000).toISOString()
         const start = new Date(Date.now() - 3600000).toISOString()
         const bounds = new URLSearchParams({ start, end }).toString()
-        const destination = kind === 'incident' ? '/admin?incident=missing-fixture'
+        const destination = kind.startsWith('health') ? `/admin?tab=health&diagnostic_node=${node.id}${kind === 'health-oauth' ? '&oauth=github' : ''}`
+          : kind === 'incident' ? '/admin?incident=missing-fixture'
           : kind === 'service' ? `/admin?service=missing-service&observer=${node.id}&${bounds}`
           : kind === 'absolute-node' ? `/admin/nodes/${node.id}?${bounds}`
           : `/admin/nodes/${node.id}?range=12h`
@@ -34,7 +35,13 @@ assert(base && password && ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(
         await page.getByLabel('用户名', { exact: true }).fill('admin')
         await page.getByLabel('密码', { exact: true }).fill(password)
         await page.getByRole('button', { name: '使用密码登录', exact: true }).click()
-        if (kind === 'incident') {
+        if (kind.startsWith('health')) {
+          await page.getByRole('heading', { name: '系统健康', exact: true }).waitFor()
+          assert.equal(new URL(page.url()).searchParams.get('tab'), 'health')
+          assert.equal(new URL(page.url()).searchParams.get('diagnostic_node'), node.id)
+          assert.equal(await page.getByLabel('选择节点', { exact: true }).inputValue(), node.id)
+          assert.equal(new URL(page.url()).searchParams.has('oauth'), false)
+        } else if (kind === 'incident') {
           await page.getByRole('tab', { name: '故障事件', exact: true }).waitFor()
           assert.equal(new URL(page.url()).pathname, '/admin')
           assert.equal(new URL(page.url()).searchParams.get('incident'), 'missing-fixture')

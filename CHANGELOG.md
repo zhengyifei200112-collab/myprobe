@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- HTTP scheduler diagnostics measure start delay from the original tick while
+  selecting current valid slots; the health page displays that delay.
+
 - HTTP transport failures remain accessible in private diagnostics. Recreated
   services fence old incident and delivery snapshots even when revisions restart.
 
@@ -34,6 +37,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
 ### Added
+
+- Private system and node diagnostics show actual process identity, database/WAL,
+  scheduler and cleanup observations, Agent connections, notification queues and
+  encrypted-backup generation. Missing evidence remains unavailable; login/reload
+  preserves diagnostic navigation and refresh failures mark old values stale.
 
 - HTTP service health now distinguishes healthy, degraded and unknown observers;
   private incidents and certificate reminders reuse durable notification delivery.

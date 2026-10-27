@@ -41,7 +41,7 @@ jobs:
             arch="${target#*/}"
             suffix=""
             if [ "$os" = windows ]; then suffix=".exe"; fi
-            GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "dist/myprobe-server-${os}-${arch}${suffix}" ./cmd/server
+            GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o "dist/myprobe-server-${os}-${arch}${suffix}" ./cmd/server
             GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o "dist/myprobe-agent-${os}-${arch}${suffix}" ./cmd/agent
           done
           for target in darwin/amd64 darwin/arm64; do

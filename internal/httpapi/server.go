@@ -18,6 +18,7 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/alerts"
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
+	"github.com/zhengyifei200112-collab/myprobe/internal/diagnostics"
 	"github.com/zhengyifei200112-collab/myprobe/internal/sharing"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 	"github.com/zhengyifei200112-collab/myprobe/internal/webui"
@@ -27,25 +28,56 @@ const sessionCookie = "myprobe_session"
 const githubStateCookie = "myprobe_github_state"
 
 type Server struct {
-	config  config.Config
-	store   *store.Store
-	auth    *auth.Service
-	github  *auth.GitHubService
-	gateway *agentgateway.Gateway
-	hub     *agentgateway.Hub
-	alerts  *alerts.Service
-	sharing *sharing.Service
-	router  *gin.Engine
-	handler http.Handler
+	config                config.Config
+	store                 *store.Store
+	auth                  *auth.Service
+	github                *auth.GitHubService
+	gateway               *agentgateway.Gateway
+	hub                   *agentgateway.Hub
+	alerts                *alerts.Service
+	sharing               *sharing.Service
+	router                *gin.Engine
+	handler               http.Handler
+	schedulerHealth       func() any
+	httpSchedulerHealth   func() any
+	alertHealth           func() alerts.EngineDiagnostics
+	buildVersion          string
+	processStartedAt      time.Time
+	backupJob             diagnostics.Job
+	retentionWorkerHealth func() diagnostics.LoopSnapshot
 }
 
-func New(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub) *Server {
-	return NewWithAlertService(cfg, database, authService, gateway, hub, alerts.New(database, cfg.EncryptionKey, nil, nil, cfg.NotificationOrigin))
+type Option func(*Server)
+
+func WithRetentionWorkerHealth(snapshot func() diagnostics.LoopSnapshot) Option {
+	return func(s *Server) { s.retentionWorkerHealth = snapshot }
 }
 
-// NewWithAlertService shares the evaluator used by the application runtime so
-// administrative preparation status describes that evaluator, not a dormant copy.
-func NewWithAlertService(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub, alertService *alerts.Service) *Server {
+func WithAlertHealth(snapshot func() alerts.EngineDiagnostics) Option {
+	return func(s *Server) { s.alertHealth = snapshot }
+}
+
+// WithRuntimeIdentity supplies build evidence and the actual process start time.
+func WithRuntimeIdentity(version string, startedAt time.Time) Option {
+	return func(s *Server) { s.buildVersion, s.processStartedAt = version, startedAt }
+}
+
+// WithSchedulerHealth binds the running scheduler before the HTTP server starts.
+func WithSchedulerHealth(snapshot func() any) Option {
+	return func(s *Server) { s.schedulerHealth = snapshot }
+}
+
+func WithHTTPSchedulerHealth(snapshot func() any) Option {
+	return func(s *Server) { s.httpSchedulerHealth = snapshot }
+}
+
+func New(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub, options ...Option) *Server {
+	return NewWithAlertService(cfg, database, authService, gateway, hub, alerts.New(database, cfg.EncryptionKey, nil, nil, cfg.NotificationOrigin), options...)
+}
+
+// NewWithAlertService shares the evaluator used by the application runtime.
+// Optional observers must be bound to that same runtime before serving HTTP.
+func NewWithAlertService(cfg config.Config, database *store.Store, authService *auth.Service, gateway *agentgateway.Gateway, hub *agentgateway.Hub, alertService *alerts.Service, options ...Option) *Server {
 	alertService.EnableHTTPServiceAlerts(cfg.HTTPProbesEnabled)
 	alertService.SetHTTPAgentAvailability(gateway.SupportsHTTP)
 	gin.SetMode(gin.ReleaseMode)
@@ -57,6 +89,9 @@ func NewWithAlertService(cfg config.Config, database *store.Store, authService *
 	router.Use(gin.Recovery(), securityHeaders())
 	github, _ := auth.NewGitHubService(database, cfg.EncryptionKey, cfg.SessionTTL, nil)
 	server := &Server{config: cfg, store: database, auth: authService, github: github, gateway: gateway, hub: hub, alerts: alertService, sharing: sharing.New(database, 12*time.Hour), router: router}
+	for _, option := range options {
+		option(server)
+	}
 	server.routes()
 	mux := http.NewServeMux()
 	// WebSocket upgrades bypass Gin's wrapped ResponseWriter. coder/websocket uses
@@ -132,6 +167,9 @@ func (s *Server) routes() {
 	policies.POST("", s.saveAlertPolicy)
 	policies.PUT("/:policyID", s.saveAlertPolicy)
 	policies.DELETE("/:policyID", s.deleteAlertPolicy)
+	// Set cache policy before authentication so rejected diagnostics are private too.
+	s.router.GET("/api/v1/admin/system/health", privateNoStore(), s.requireSession(true), s.systemHealth)
+	s.router.GET("/api/v1/admin/nodes/:nodeID/diagnostics", privateNoStore(), s.requireSession(true), s.nodeDiagnostics)
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
 	serviceTransfers := s.router.Group("/api/v1/admin/service-alert-transfers", privateNoStore(), s.requireSession(true))
 	serviceTransfers.GET("/export", s.exportServiceAlerts)

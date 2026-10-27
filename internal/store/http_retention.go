@@ -23,7 +23,9 @@ type HTTPRetentionBatch struct {
 
 // PruneHTTPHistory commits one bounded batch independently of host rollups.
 // Callers must yield between passes so reports and management writes can proceed.
-func (s *Store) PruneHTTPHistory(ctx context.Context, now time.Time) (HTTPRetentionBatch, error) {
+func (s *Store) PruneHTTPHistory(ctx context.Context, now time.Time) (result HTTPRetentionBatch, resultErr error) {
+	complete := s.httpRetentionJob.Begin()
+	defer func() { complete(resultErr) }()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return HTTPRetentionBatch{}, err
