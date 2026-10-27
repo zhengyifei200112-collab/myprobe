@@ -12,6 +12,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - HTTP scheduler diagnostics measure start delay from the original tick while
   selecting current valid slots; the health page displays that delay.
 
+- HTTP transport failures remain accessible in private diagnostics. Recreated
+  services fence old incident and delivery snapshots even when revisions restart.
+
 - Expired HTTP history drains in bounded batches with retry, preserving its
   monotonic retention floor and existing host history semantics.
 

@@ -23,6 +23,9 @@ type ServiceAlertSettings struct {
 	CooldownSeconds             int    `json:"cooldown_seconds"`
 }
 type ServiceRuleConfig struct {
+	// Revisions can restart after deletion and configuration import. Keep the
+	// definition epoch in the snapshot and every final authorization check.
+	ServiceEpoch    string `json:"service_epoch,omitempty"`
 	ServiceID       string `json:"service_id"`
 	ServiceName     string `json:"service_name"`
 	ServiceRevision int64  `json:"service_revision"`
@@ -114,17 +117,18 @@ func saveServiceAlertSettings(ctx context.Context, tx *sql.Tx, v ServiceAlertSet
 func syncServiceAlertRules(ctx context.Context, tx *sql.Tx, now time.Time) error {
 	type selected struct {
 		id, node, channel, name              string
+		epoch                                string
 		serviceRev, alertRev                 int64
 		duration, recovery, repeat, cooldown int
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT s.id,a.node_id,c.channel_id,s.name,s.revision,c.revision,c.duration_seconds,c.recovery_seconds,c.repeat_seconds,c.cooldown_seconds FROM http_services s JOIN http_service_nodes a ON a.service_id=s.id JOIN http_service_alerts c ON c.service_id=s.id WHERE s.enabled=1 AND c.enabled=1 ORDER BY s.id,a.node_id LIMIT 100001`)
+	rows, err := tx.QueryContext(ctx, `SELECT s.id,a.node_id,c.channel_id,s.name,s.updated_at,s.revision,c.revision,c.duration_seconds,c.recovery_seconds,c.repeat_seconds,c.cooldown_seconds FROM http_services s JOIN http_service_nodes a ON a.service_id=s.id JOIN http_service_alerts c ON c.service_id=s.id WHERE s.enabled=1 AND c.enabled=1 ORDER BY s.id,a.node_id LIMIT 100001`)
 	if err != nil {
 		return err
 	}
 	var items []selected
 	for rows.Next() {
 		var v selected
-		if err := rows.Scan(&v.id, &v.node, &v.channel, &v.name, &v.serviceRev, &v.alertRev, &v.duration, &v.recovery, &v.repeat, &v.cooldown); err != nil {
+		if err := rows.Scan(&v.id, &v.node, &v.channel, &v.name, &v.epoch, &v.serviceRev, &v.alertRev, &v.duration, &v.recovery, &v.repeat, &v.cooldown); err != nil {
 			rows.Close()
 			return err
 		}
@@ -164,7 +168,7 @@ func syncServiceAlertRules(ctx context.Context, tx *sql.Tx, now time.Time) error
 		} else if err != nil {
 			return err
 		}
-		raw, err := json.Marshal(ServiceRuleConfig{v.id, v.name, v.serviceRev, v.alertRev, v.duration, v.recovery, v.repeat})
+		raw, err := json.Marshal(ServiceRuleConfig{ServiceEpoch: v.epoch, ServiceID: v.id, ServiceName: v.name, ServiceRevision: v.serviceRev, AlertRevision: v.alertRev, DurationSeconds: v.duration, RecoverySeconds: v.recovery, RepeatSeconds: v.repeat})
 		if err != nil {
 			return err
 		}
@@ -178,11 +182,11 @@ func syncServiceAlertRules(ctx context.Context, tx *sql.Tx, now time.Time) error
 
 func serviceRuleCurrent(ctx context.Context, tx *sql.Tx, rule AlertRule) (bool, error) {
 	var config ServiceRuleConfig
-	if json.Unmarshal(rule.Config, &config) != nil || config.ServiceID == "" || config.ServiceRevision < 1 || config.AlertRevision < 1 {
+	if json.Unmarshal(rule.Config, &config) != nil || config.ServiceID == "" || config.ServiceEpoch == "" || config.ServiceRevision < 1 || config.AlertRevision < 1 {
 		return false, nil
 	}
 	var current bool
-	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM http_services s JOIN http_service_nodes n ON n.service_id=s.id JOIN http_service_alerts a ON a.service_id=s.id JOIN http_service_rule_bindings b ON b.service_id=s.id AND b.node_id=n.node_id WHERE s.id=? AND s.revision=? AND s.enabled=1 AND a.enabled=1 AND a.revision=? AND a.channel_id=? AND n.node_id=? AND b.rule_id=?)`, config.ServiceID, config.ServiceRevision, config.AlertRevision, rule.ChannelID, rule.NodeID, rule.ID).Scan(&current)
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM http_services s JOIN http_service_nodes n ON n.service_id=s.id JOIN http_service_alerts a ON a.service_id=s.id JOIN http_service_rule_bindings b ON b.service_id=s.id AND b.node_id=n.node_id WHERE s.id=? AND s.revision=? AND s.updated_at=? AND s.enabled=1 AND a.enabled=1 AND a.revision=? AND a.channel_id=? AND n.node_id=? AND b.rule_id=?)`, config.ServiceID, config.ServiceRevision, config.ServiceEpoch, config.AlertRevision, rule.ChannelID, rule.NodeID, rule.ID).Scan(&current)
 	return current, err
 }
 

@@ -103,6 +103,24 @@ func TestHTTPDiagnosticsPaginationCountsRetentionAndRestore(t *testing.T) {
 	}
 }
 
+func TestHTTPDiagnosticsAdmittedTransportFailure(t *testing.T) {
+	s, service, _, node, _ := serviceAlertFixture(t)
+	ctx := context.Background()
+	at := time.Now().UTC().Add(time.Second)
+	task, err := s.CreateHTTPTask(ctx, service.ID, node.ID, at, at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httpcheck.Result{TaskID: task.ID, ServiceID: service.ID, Revision: task.Revision, ScheduledAt: at, CompletedAt: at.Add(time.Millisecond), Outcome: "failure", ErrorClass: "transport", DurationMS: 1}
+	if err := s.SaveHTTPResult(ctx, node.ID, r, at.Add(time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	d, err := s.HTTPServiceDiagnostics(ctx, service.ID, node.ID, at, at.Add(time.Second), at.Add(time.Second), 100, "")
+	if err != nil || len(d.Observations) != 1 || d.Observations[0].Status != "failure" || d.Observations[0].ErrorClass != "transport" || d.Statistics.Failure != 1 {
+		t.Fatalf("admitted transport failure is inaccessible: %+v %v", d, err)
+	}
+}
+
 func TestHTTPDiagnosticsNanosecondsPendingAndSafeEvidence(t *testing.T) {
 	s, v, nodes, at := httpMaintenanceFixture(t)
 	ctx := context.Background()
@@ -135,7 +153,7 @@ func TestHTTPDiagnosticsNanosecondsPendingAndSafeEvidence(t *testing.T) {
 			t.Fatal("receipt grace")
 		}
 	}
-	for _, class := range []string{"dns", "refused", "timeout", "tls_invalid", "certificate_expired", "status_mismatch", "content_mismatch", "response_too_large", "redirect_limit", "unsupported", "busy", "cancelled", "invalid_task", "policy_denied", "internal"} {
+	for _, class := range []string{"dns", "refused", "timeout", "transport", "tls_invalid", "certificate_expired", "status_mismatch", "content_mismatch", "response_too_large", "redirect_limit", "unsupported", "busy", "cancelled", "invalid_task", "policy_denied", "internal"} {
 		r := httpcheck.Result{TaskID: first.TaskID, ServiceID: v.ID, Revision: uint64(first.Revision), ScheduledAt: first.ScheduledAt, CompletedAt: first.ScheduledAt, Outcome: "failure", ErrorClass: class, DurationMS: 2, StatusCode: 503}
 		if class == "unsupported" || class == "busy" || class == "cancelled" || class == "invalid_task" || class == "policy_denied" || class == "internal" {
 			r.Outcome, r.StatusCode = "unobserved", 0
