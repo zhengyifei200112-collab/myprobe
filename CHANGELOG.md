@@ -38,6 +38,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Scoped public, password-share and administrator network-quality summary routes
+  compare up to eight nodes in one read snapshot, with explicit privacy projections,
+  availability, sample weights and quantile bounds. Series and comparison UI follow.
+
 - Network quality stores bounded raw/minute/five-minute history with atomic
   archival, weighted histogram quantiles and gap-aware jitter. Migration 044
   preserves monotonic retention floors; private health reports the independent
