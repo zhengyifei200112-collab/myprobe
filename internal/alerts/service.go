@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/zhengyifei200112-collab/myprobe/internal/diagnostics"
 	"github.com/zhengyifei200112-collab/myprobe/internal/notificationlink"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
@@ -31,6 +32,8 @@ type RuleConfig struct {
 }
 
 type Service struct {
+	running            atomic.Bool
+	evaluationJob      diagnostics.Job
 	httpAlertsEnabled  atomic.Bool
 	httpAvailability   atomic.Value // func(string) bool, supplied by the current Gateway.
 	notificationOrigin string
@@ -232,6 +235,8 @@ func (s *Service) Run(ctx context.Context) {
 	defer workers.Wait()
 	workersStarted := false
 	ticker := time.NewTicker(s.interval)
+	s.running.Store(true)
+	defer s.running.Store(false)
 	defer ticker.Stop()
 	for {
 		err := s.Tick(ctx, time.Now().UTC())
@@ -255,7 +260,15 @@ func (s *Service) Run(ctx context.Context) {
 	}
 }
 
-func (s *Service) Tick(ctx context.Context, now time.Time) error {
+func (s *Service) Tick(ctx context.Context, now time.Time) (result error) {
+	complete := s.evaluationJob.Begin()
+	defer func() {
+		if result != nil {
+			complete(result)
+		} else {
+			complete(ctx.Err())
+		}
+	}()
 	if s.linkErr != nil {
 		return s.linkErr
 	}

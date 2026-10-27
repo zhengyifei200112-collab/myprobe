@@ -32,6 +32,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Private system and node diagnostics show actual process identity, database/WAL,
+  scheduler and cleanup observations, Agent connections, notification queues and
+  encrypted-backup generation. Missing evidence remains unavailable; login/reload
+  preserves diagnostic navigation and refresh failures mark old values stale.
+
 - HTTP service health now distinguishes healthy, degraded and unknown observers;
   private incidents and certificate reminders reuse durable notification delivery.
   Maintenance-aware statistics retain both raw and adjusted counts. Migrations
