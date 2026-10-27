@@ -1,7 +1,15 @@
-# Node detail routes and bounded history (DETAIL-01)
+# Node detail routes, bounded history and timeline (DETAIL-01 / DETAIL-02)
 
 Status: implemented on a development branch, with local acceptance evidence below.
 Current-head CI and review are required before delivery. No release claim.
+
+## Timeline integration
+
+DETAIL-02 is being reconciled with current main29dba71 after the approved M2
+merges. See [NODE_TIMELINE.md](NODE_TIMELINE.md) for event evidence, private/public
+projection, pagination, migrations041/047 and upgrade/rollback. The foundation
+history notes below record DETAIL-01 and its original validation separately.
+Current integrated-source checks and review are required; no production release.
 
 ## Scope
 
@@ -17,9 +25,9 @@ APIs validate both bounds, enforce maximum one-year ranges, choose bucket sizes,
 and return explicit start/end/bucket metadata. Samples beyond the selected end
 must not affect output. Gaps are displayed as gaps rather than smooth continuity.
 
-Event timeline integration belongs to DETAIL-02 and depends on incident delivery
-PR #50. This independent work does not copy private incident/audit data into public
-responses or claim maintenance and event timeline features before implementation.
+Event timelines now use the existing incident delivery and maintenance model.
+Public events remain report observations only; private incident/audit payloads
+are never copied into their projections.
 
 ## Acceptance
 
@@ -34,7 +42,7 @@ responses or claim maintenance and event timeline features before implementation
 - Check keyboard operation, 360/768/1440 light/dark rendering and stale requests;
   regenerate embedded assets and run repository checks before review readiness.
 
-No schema or Agent protocol change is intended. Existing public list serialization
+The DETAIL-01 foundation required no schema or Agent protocol change. Existing public list serialization
 is the privacy authority for single-node detail. Any necessary history query
 extensions must preserve that boundary and existing chart-share authorization.
 
