@@ -35,9 +35,12 @@ The `scheduler` field observes the actual running scheduler supplied by the
 Server entry point. Without an attached observer it explicitly reports unavailable.
 Its process-local job records never-run, running, success, failure and cancellation.
 `last_cycle` includes scheduled time, start delay, assignment-read success, due,
-dispatched, offline and failed counts. A failed assignment read does not establish
+dispatched, offline, failed and skipped counts. A failed assignment read does not establish
 zero configured tasks. Offline Agents do not make a completed dispatch cycle fail;
 other dispatch errors do. These are last-cycle counts, not durable queue totals.
+Network dispatch now reads persistent epoch/slot eligibility; already claimed or
+expired-window tasks are skipped, not classified as target failures. Four workers
+bound slow connections, and expired sending leases become unknown without resend.
 The last completed cycle remains visible while the next cycle is running.
 Both schedulers separately report actual Run-loop entry/exit. HTTP cycles classify
 handoff, offline, unsupported/disabled capability, busy, changed configuration,
@@ -64,6 +67,13 @@ extra HTTP batches separately; it excludes the HTTP batch embedded in full
 retention. `retention.worker` observes actual loop entry/exit and the last
 scheduled wake, bound by main. An old successful job does not prove the worker
 is still running. Restart resets observations; an unattached worker is unavailable.
+
+Network quality archival has its own bounded catch-up loop. The private health
+response reports `retention.network_catchup_job` and `network_worker`; diagnostic
+exports contain the sanitized `network_retention` job and worker. A successful
+job means one batch committed, not that all history has been compacted. The loop
+yields 100 ms between full batches, retries errors after 5 seconds, and otherwise
+waits for the configured retention interval. See [network quality](NETWORK_QUALITY.md).
 
 Transport diagnostics include negotiated v1/v2 counts and separate HTTP receipt
 grace counts. Expired HTTP entries mean grace has elapsed, not a confirmed target

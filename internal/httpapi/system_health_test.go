@@ -96,8 +96,12 @@ func TestSystemHealthAuthorizationAndEvidence(t *testing.T) {
 	var body struct {
 		Database  store.DatabaseDiagnostics `json:"database"`
 		Retention struct {
-			Scope string                  `json:"observation_scope"`
-			Job   diagnostics.JobSnapshot `json:"job"`
+			Scope         string                  `json:"observation_scope"`
+			Job           diagnostics.JobSnapshot `json:"job"`
+			NetworkJob    diagnostics.JobSnapshot `json:"network_catchup_job"`
+			NetworkWorker struct {
+				Status string `json:"status"`
+			} `json:"network_worker"`
 		} `json:"retention"`
 		BrowserSubscriptions int `json:"browser_subscriptions"`
 		NotificationQueue    struct {
@@ -109,6 +113,9 @@ func TestSystemHealthAuthorizationAndEvidence(t *testing.T) {
 	}
 	if body.Database.Status != "ok" || body.Database.SchemaVersion == "" || body.Retention.Scope != "process" || body.Retention.Job.State != "never_run" || body.BrowserSubscriptions != 1 || body.NotificationQueue.Status != "available" {
 		t.Fatalf("incorrect evidence: %+v", body)
+	}
+	if body.Retention.NetworkJob.State != "never_run" || body.Retention.NetworkWorker.Status != "not_attached" {
+		t.Fatal("network retention evidence was fabricated")
 	}
 	for _, secret := range []string{dbPath, "private-health-database", token, "health-test-password"} {
 		if strings.Contains(response.Body.String(), secret) {
