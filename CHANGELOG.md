@@ -26,6 +26,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Optional HTTP/HTTPS service checks use negotiated v2 Agents, bounded requests,
+  private service configuration and durable observed/missing statistics. The
+  five forward-only migrations 016–020 require a verified pre-upgrade backup.
+  Service incident notifications, maintenance accounting and certificate reminders
+  remain separate follow-up work.
+
 - Node detail timelines link retained reporting observations, reboot hints and private
   incident/maintenance/configuration events with pageable, keyboard-accessible curve
   navigation. New migrations 041 and 047 add exact timestamp indexes without changing
@@ -85,6 +91,7 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and attempt storage, with compatibility import of existing active/pending states.
   This foundation must ship together with the new evaluation and delivery engine;
   it is not yet a completed incident-center release.
+
 
 
 - A server-persisted Settings Center for site identity, dashboard copy, browser title,

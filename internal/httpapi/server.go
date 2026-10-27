@@ -60,6 +60,7 @@ func NewWithAlertService(cfg config.Config, database *store.Store, authService *
 	// WebSocket upgrades bypass Gin's wrapped ResponseWriter. coder/websocket uses
 	// net/http hijacking directly, which avoids frame corruption through middleware wrappers.
 	mux.HandleFunc("/api/v1/agent/ws", gateway.WebSocket)
+	mux.HandleFunc("/api/v2/agent/ws", gateway.WebSocketV2)
 	mux.HandleFunc("/api/v1/public/ws", server.publicWebSocket)
 	ui := webui.NewHandler()
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -130,6 +131,14 @@ func (s *Server) routes() {
 	policies.PUT("/:policyID", s.saveAlertPolicy)
 	policies.DELETE("/:policyID", s.deleteAlertPolicy)
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
+	services := s.router.Group("/api/v1/admin/service-monitors", privateNoStore(), s.requireSession(true))
+	services.POST("", s.createHTTPService)
+	services.GET("", s.listHTTPServices)
+	services.DELETE("/:serviceID", s.deleteHTTPService)
+	services.GET("/:serviceID", s.getHTTPService)
+	services.GET("/:serviceID/results", s.recentHTTPResults)
+	services.GET("/:serviceID/statistics", s.httpServiceStatistics)
+	services.PUT("/:serviceID", s.replaceHTTPService)
 	admin.GET("/nodes", s.adminNodes)
 	admin.GET("/nodes/:nodeID", s.adminNodeDetail)
 	admin.GET("/nodes/:nodeID/history", s.adminNodeHistory)
