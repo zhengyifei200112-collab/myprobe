@@ -12,9 +12,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      MYPROBE_HTTP_TEST_DIR: ${{ runner.temp }}/myprobe-test-fixtures/http
-      MYPROBE_NETWORK_TEST_DIR: ${{ runner.temp }}/myprobe-test-fixtures/network
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,6 +39,9 @@ jobs:
 
       - name: Test and vet
         run: |
+          export MYPROBE_HTTP_TEST_DIR="$RUNNER_TEMP/myprobe-test-fixtures/http"
+          export MYPROBE_NETWORK_TEST_DIR="$RUNNER_TEMP/myprobe-test-fixtures/network"
+          printf 'MYPROBE_HTTP_TEST_DIR=%s\nMYPROBE_NETWORK_TEST_DIR=%s\n' "$MYPROBE_HTTP_TEST_DIR" "$MYPROBE_NETWORK_TEST_DIR" >> "$GITHUB_ENV"
           mkdir -p "$MYPROBE_HTTP_TEST_DIR" "$MYPROBE_NETWORK_TEST_DIR"
           go test ./...
           go vet ./...

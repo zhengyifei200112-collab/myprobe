@@ -46,7 +46,13 @@ func releasedNetworkFixture(t *testing.T) string {
 // Build the unchanged pinned release source instead of simulating an old hello.
 func buildReleasedNetworkAgent(t *testing.T, ctx context.Context, root string) string {
 	t.Helper()
-	archive, err := exec.CommandContext(ctx, "git", "archive", "--format=tar", releasedNetworkAgentRef).Output()
+	repository, err := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		t.Fatal("release source repository unavailable", err)
+	}
+	command := exec.CommandContext(ctx, "git", "archive", "--format=tar", releasedNetworkAgentRef)
+	command.Dir = strings.TrimSpace(string(repository))
+	archive, err := command.Output()
 	if err != nil || len(archive) > 16<<20 {
 		t.Fatalf("pinned release source unavailable: %v", err)
 	}
@@ -90,6 +96,9 @@ func buildReleasedNetworkAgent(t *testing.T, ctx context.Context, root string) s
 		if err := os.WriteFile(name, body, 0o600); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if _, err := os.Stat(filepath.Join(source, "go.mod")); err != nil {
+		t.Fatal("release archive did not contain the repository root", err)
 	}
 	binary := filepath.Join(root, "released-agent")
 	if runtime.GOOS == "windows" {
