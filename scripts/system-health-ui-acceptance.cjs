@@ -9,7 +9,7 @@ const job = { state: 'success', completed_runs: 3, failed_runs: 0, last_success_
 const health = {
   observed_at: '2026-10-04T00:00:00Z', server: { version: 'acceptance-fixture', uptime_seconds: 3600, os: 'linux', arch: 'amd64' },
   database: { status: 'ok', schema_version: '013', database_file: { status: 'ok', bytes: 1048576 }, wal_file: { status: 'absent', bytes: 0 } },
-  retention: { job, configuration: { status: 'available', raw_seconds: 604800, one_minute_seconds: 2592000, five_minute_seconds: 31536000, run_interval_seconds: 3600 } }, backup: { job: { ...job, state: 'never_run', completed_runs: 0, last_success_at: undefined } }, scheduler: { job },
+  retention: { job, configuration: { status: 'available', raw_seconds: 604800, one_minute_seconds: 2592000, five_minute_seconds: 31536000, run_interval_seconds: 3600 } }, backup: { job: { ...job, state: 'never_run', completed_runs: 0, last_success_at: undefined } }, scheduler: { job, last_cycle: { assignments_loaded: true, due: 3, dispatched: 1, offline: 1, failed: 0, skipped: 1, start_delay_seconds: 0 } },
   transport: { agent_connections: 2, pending_results: 3, expired_results: 1 }, browser_subscriptions: 1,
   notification_engine: { status: 'running', delivery_configuration: 'unavailable', reason: 'encryption_configuration_unavailable', evaluation: { ...job, state: 'never_run', completed_runs: 0, last_success_at: undefined } },
   http_execution_enabled: true,
@@ -41,6 +41,7 @@ const health = {
       await page.getByText('acceptance-fixture', { exact: true }).waitFor()
       await page.getByLabel('选择节点').selectOption('fixture')
       await page.getByText('fixture-agent', { exact: true }).waitFor()
+      await page.getByRole('heading', { name: '最近调度周期', exact: true }).locator('..').getByText('调度跳过 1').waitFor()
       await page.getByRole('heading',{name:'持久通知队列',exact:true}).waitFor()
       await page.getByRole('heading', { name: 'HTTP 调度状态', exact: true }).locator('..').getByText('启动延迟 2.50 秒', { exact: true }).waitFor()
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `overflow ${theme}/${width}`)
