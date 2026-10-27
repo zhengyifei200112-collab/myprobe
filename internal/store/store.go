@@ -31,10 +31,11 @@ var migrations embed.FS
 var ErrNotFound = errors.New("not found")
 
 type Store struct {
-	db               *sql.DB
-	path             string
-	retentionJob     diagnostics.Job
-	httpRetentionJob diagnostics.Job
+	db                  *sql.DB
+	path                string
+	retentionJob        diagnostics.Job
+	httpRetentionJob    diagnostics.Job
+	networkRetentionJob diagnostics.Job
 }
 
 func Open(ctx context.Context, path string) (*Store, error) {

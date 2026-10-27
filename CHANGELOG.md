@@ -35,6 +35,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Network quality stores bounded raw/minute/five-minute history with atomic
+  archival, weighted histogram quantiles and gap-aware jitter. Migration 044
+  preserves monotonic retention floors; private health reports the independent
+  catch-up worker. Public quality routes, comparison UI and capacity remain pending.
+
 - Network probes keep immutable assignment epochs and unique current-slot tasks
   across restart, atomically accept and acknowledge results, and distinguish
   offline retry from uncertain sends. Historical coverage and quality statistics

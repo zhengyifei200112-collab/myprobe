@@ -68,6 +68,13 @@ retention. `retention.worker` observes actual loop entry/exit and the last
 scheduled wake, bound by main. An old successful job does not prove the worker
 is still running. Restart resets observations; an unattached worker is unavailable.
 
+Network quality archival has its own bounded catch-up loop. The private health
+response reports `retention.network_catchup_job` and `network_worker`; diagnostic
+exports contain the sanitized `network_retention` job and worker. A successful
+job means one batch committed, not that all history has been compacted. The loop
+yields 100 ms between full batches, retries errors after 5 seconds, and otherwise
+waits for the configured retention interval. See [network quality](NETWORK_QUALITY.md).
+
 Transport diagnostics include negotiated v1/v2 counts and separate HTTP receipt
 grace counts. Expired HTTP entries mean grace has elapsed, not a confirmed target
 failure. Diagnostics try the HTTP session mutex without waiting for dispatch IO;

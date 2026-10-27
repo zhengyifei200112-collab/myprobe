@@ -34,6 +34,10 @@ func (s *Store) HTTPRetentionDiagnostics() diagnostics.JobSnapshot {
 	return s.httpRetentionJob.Snapshot()
 }
 
+func (s *Store) NetworkRetentionDiagnostics() diagnostics.JobSnapshot {
+	return s.networkRetentionJob.Snapshot()
+}
+
 // DatabaseDiagnostics inspects cheap metadata only. It must never checkpoint,
 // VACUUM, run an integrity scan, or count samples as a side effect of polling.
 func (s *Store) DatabaseDiagnostics(ctx context.Context) DatabaseDiagnostics {

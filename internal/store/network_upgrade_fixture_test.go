@@ -13,7 +13,7 @@ import (
 )
 
 // Reconstruct the actual parent schema, including already-applied 041/047.
-// Only the two network migrations are absent; old receipts are not renumbered.
+// Network ledger/rollup migrations are absent; old receipts are not renumbered.
 func preNetworkLedgerStore(t *testing.T) *Store {
 	t.Helper()
 	file := filepath.Join(httpFixtureDir(t), "pre-network.db")
@@ -28,7 +28,7 @@ func preNetworkLedgerStore(t *testing.T) *Store {
 	}
 	for _, entry := range entries {
 		name := entry.Name()
-		if entry.IsDir() || name == "042_network_schedule_epochs.sql" || name == "043_network_probe_tasks.sql" {
+		if entry.IsDir() || name == "042_network_schedule_epochs.sql" || name == "043_network_probe_tasks.sql" || name == "044_network_quality_rollups.sql" {
 			continue
 		}
 		body, err := migrations.ReadFile("migrations/" + name)

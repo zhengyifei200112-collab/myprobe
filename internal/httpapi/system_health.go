@@ -63,16 +63,25 @@ func (s *Server) systemHealth(c *gin.Context) {
 		"observed_at":            time.Now().UTC(),
 		"database":               s.store.DatabaseDiagnostics(ctx),
 		"retention": gin.H{
-			"configuration":     s.retentionConfiguration(),
-			"observation_scope": "process",
-			"job":               s.store.RetentionDiagnostics(),
-			"http_catchup_job":  s.store.HTTPRetentionDiagnostics(),
-			"worker":            retentionWorker,
+			"configuration":       s.retentionConfiguration(),
+			"observation_scope":   "process",
+			"job":                 s.store.RetentionDiagnostics(),
+			"http_catchup_job":    s.store.HTTPRetentionDiagnostics(),
+			"network_catchup_job": s.store.NetworkRetentionDiagnostics(),
+			"network_worker":      s.networkRetentionWorkerSnapshot(),
+			"worker":              retentionWorker,
 		},
 		"transport":             s.gateway.Diagnostics(),
 		"browser_subscriptions": s.hub.SubscriberCount(),
 		"notification_queue":    s.store.NotificationQueueDiagnostics(ctx, time.Now().UTC()),
 	})
+}
+
+func (s *Server) networkRetentionWorkerSnapshot() any {
+	if s.networkRetentionWorkerHealth == nil {
+		return map[string]string{"status": "not_attached"}
+	}
+	return s.networkRetentionWorkerHealth()
 }
 
 func (s *Server) retentionConfiguration() gin.H {

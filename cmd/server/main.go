@@ -85,9 +85,12 @@ func main() {
 	go alertService.Run(runCtx)
 	retentionLoop := &diagnostics.Loop{}
 	go runRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger, retentionLoop)
+	networkRetentionLoop := &diagnostics.Loop{}
+	go runNetworkRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger, networkRetentionLoop)
 	api := httpapi.NewWithAlertService(cfg, database, authService, gateway, hub, alertService,
 		httpapi.WithRuntimeIdentity(version, startedAt),
 		httpapi.WithRetentionWorkerHealth(retentionLoop.Snapshot),
+		httpapi.WithNetworkRetentionWorkerHealth(networkRetentionLoop.Snapshot),
 		httpapi.WithAlertHealth(alertService.Diagnostics),
 		httpapi.WithHTTPSchedulerHealth(func() any {
 			if httpScheduler == nil {
