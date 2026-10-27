@@ -169,7 +169,7 @@ func validDiagnosticEvidence(r httpcheck.Result, item HTTPDiagnosticObservation,
 		return r.ErrorClass == "" && r.StatusCode != 0
 	case "failure":
 		switch r.ErrorClass {
-		case "dns", "refused", "timeout", "tls_invalid", "certificate_expired", "response_too_large", "redirect_limit":
+		case "dns", "refused", "timeout", "transport", "tls_invalid", "certificate_expired", "response_too_large", "redirect_limit":
 			return true
 		case "status_mismatch", "content_mismatch":
 			return r.StatusCode != 0
