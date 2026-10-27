@@ -109,7 +109,6 @@ async function main() {
         const name = `timeline-${theme}-${width}.png`
         await page.evaluate(() => window.scrollTo(0, 0))
         await page.screenshot({ path: path.join(process.env.PROBE_SCREENSHOT_DIR, name), fullPage: true, animations: 'disabled' })
-        screenshots.push(name)
       }
       await page.goto(base + target)
       await ready()
