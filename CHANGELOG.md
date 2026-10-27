@@ -9,6 +9,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- HTTP scheduler diagnostics measure start delay from the original tick while
+  selecting current valid slots; the health page displays that delay.
+
 - Expired HTTP history drains in bounded batches with retry, preserving its
   monotonic retention floor and existing host history semantics.
 

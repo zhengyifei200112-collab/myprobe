@@ -45,6 +45,10 @@ not queued and dispatch errors. Cancelled/error cycles can be partial. Handoff
 does not prove execution or service health. The current execution gate is sampled
 from the Gateway independently of the observer and last cycle.
 
+The HTTP cycle retains the scheduled ticker time for start-delay diagnostics but
+uses the actual current cycle time to select valid HTTP slots. A delayed cycle
+does not replay an expired slot merely to measure its delay.
+
 `retention.configuration` reports effective raw/minute/five-minute retention and
 run interval in seconds, displayed as days/hours. Missing configuration is
 unavailable. `notification_engine` observes the same service used for runtime and

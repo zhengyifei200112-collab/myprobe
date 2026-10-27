@@ -46,19 +46,29 @@ func (s *HTTPScheduler) Run(ctx context.Context) {
 	defer s.running.Store(false)
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	now := time.Now().UTC()
+	s.dispatchAt(ctx, now, now)
 	for {
-		s.dispatch(ctx, time.Now().UTC())
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case scheduledAt := <-ticker.C:
+			if ctx.Err() != nil {
+				return
+			}
+			s.dispatchAt(ctx, scheduledAt.UTC(), time.Now().UTC())
 		}
 	}
 }
 
 func (s *HTTPScheduler) dispatch(ctx context.Context, now time.Time) {
+	s.dispatchAt(ctx, now, now)
+}
+
+// The ticker time measures delay; the actual cycle time chooses live HTTP slots.
+func (s *HTTPScheduler) dispatchAt(ctx context.Context, scheduledAt, now time.Time) {
 	complete := s.cycleJob.Begin()
-	cycle := HTTPCycleDiagnostics{ScheduledAt: now, StartDelaySeconds: max(0, time.Since(now).Seconds())}
+	cycle := HTTPCycleDiagnostics{ScheduledAt: scheduledAt, StartDelaySeconds: max(0, now.Sub(scheduledAt).Seconds())}
 	var cycleError error
 	var cycleMu sync.Mutex
 	defer func() {

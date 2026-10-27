@@ -13,7 +13,7 @@ const health = {
   transport: { agent_connections: 2, pending_results: 3, expired_results: 1 }, browser_subscriptions: 1,
   notification_engine: { status: 'running', delivery_configuration: 'unavailable', reason: 'encryption_configuration_unavailable', evaluation: { ...job, state: 'never_run', completed_runs: 0, last_success_at: undefined } },
   http_execution_enabled: true,
-  http_scheduler: { running: true, job, last_cycle: { assignments_loaded:true, due:3, dispatched:1, offline:1, unavailable:1, busy:0, rejected:0, not_queued:0, failed:0, start_delay_seconds:0 } },
+  http_scheduler: { running: true, job, last_cycle: { assignments_loaded:true, due:3, dispatched:1, offline:1, unavailable:1, busy:0, rejected:0, not_queued:0, failed:0, start_delay_seconds:2.5 } },
   notification_queue: { status:'available', observed_at:'2026-10-14T00:00:00Z', deliveries:{pending:2,pending_due_by_time:1,pending_future:1,inflight:1,expired_leases:1,aggregate_members:2},aggregates:{pending:1,pending_due_by_time:0,pending_future:1,inflight:0,expired_leases:0,collecting:1} },
 }
 ;(async () => {
@@ -42,6 +42,7 @@ const health = {
       await page.getByLabel('选择节点').selectOption('fixture')
       await page.getByText('fixture-agent', { exact: true }).waitFor()
       await page.getByRole('heading',{name:'持久通知队列',exact:true}).waitFor()
+      await page.getByRole('heading', { name: 'HTTP 调度状态', exact: true }).locator('..').getByText('启动延迟 2.50 秒', { exact: true }).waitFor()
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `overflow ${theme}/${width}`)
       await page.screenshot({ path: path.join(output, `${theme}-${width}.png`), fullPage: true })
       await page.getByRole('heading',{name:'持久通知队列',exact:true}).scrollIntoViewIfNeeded()
