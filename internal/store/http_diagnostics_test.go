@@ -106,7 +106,7 @@ func TestHTTPDiagnosticsPaginationCountsRetentionAndRestore(t *testing.T) {
 func TestHTTPDiagnosticsAdmittedTransportFailure(t *testing.T) {
 	s, service, _, node, _ := serviceAlertFixture(t)
 	ctx := context.Background()
-	at := time.Now().UTC().Add(time.Second)
+	at := service.UpdatedAt
 	task, err := s.CreateHTTPTask(ctx, service.ID, node.ID, at, at)
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +115,7 @@ func TestHTTPDiagnosticsAdmittedTransportFailure(t *testing.T) {
 	if err := s.SaveHTTPResult(ctx, node.ID, r, at.Add(time.Millisecond)); err != nil {
 		t.Fatal(err)
 	}
-	d, err := s.HTTPServiceDiagnostics(ctx, service.ID, node.ID, at, at.Add(time.Second), at.Add(time.Second), 100, "")
+	d, err := s.HTTPServiceDiagnostics(ctx, service.ID, node.ID, at, at.Add(time.Second), at.Add(3*time.Minute), 100, "")
 	if err != nil || len(d.Observations) != 1 || d.Observations[0].Status != "failure" || d.Observations[0].ErrorClass != "transport" || d.Statistics.Failure != 1 {
 		t.Fatalf("admitted transport failure is inaccessible: %+v %v", d, err)
 	}
