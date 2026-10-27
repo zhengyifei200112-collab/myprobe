@@ -11,7 +11,7 @@ const observations = ref<HTTPObservation[]>([])
 const observedService = ref<HTTPServiceSummary | null>(null)
 const statisticsService = ref<HTTPServiceSummary | null>(null)
 const observedAt = ref(0)
-const reasons: Record<string, string> = { dns: 'DNS 解析失败', refused: '连接被拒绝', timeout: '请求超时', tls_invalid: 'TLS 验证失败', certificate_expired: '证书已过期', status_mismatch: '状态码不符合要求', content_mismatch: '内容断言不符合要求', response_too_large: '响应超过大小限制', redirect_limit: '重定向超过限制', unsupported: 'Agent 不支持', busy: 'Agent 繁忙', cancelled: '任务已取消', invalid_task: '任务无效', policy_denied: 'Agent 本地策略拒绝', internal: '执行器内部错误' }
+const reasons: Record<string, string> = { dns: 'DNS 解析失败', transport: '连接中断或响应不完整', refused: '连接被拒绝', timeout: '请求超时', tls_invalid: 'TLS 验证失败', certificate_expired: '证书已过期', status_mismatch: '状态码不符合要求', content_mismatch: '内容断言不符合要求', response_too_large: '响应超过大小限制', redirect_limit: '重定向超过限制', unsupported: 'Agent 不支持', busy: 'Agent 繁忙', cancelled: '任务已取消', invalid_task: '任务无效', policy_denied: 'Agent 本地策略拒绝', internal: '执行器内部错误' }
 function timeLabel(value: string) { const date = new Date(value); return Number.isFinite(date.getTime()) ? date.toLocaleString() : '未知时间' }
 function nodeLabel(id: string) { return props.nodes.find(node => node.id === id)?.name || id }
 function outcomeLabel(item: HTTPObservation) {

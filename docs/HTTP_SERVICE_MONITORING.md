@@ -192,7 +192,8 @@ These options configure Agent policy independently of the Server execution flag
 `MYPROBE_HTTP_PROBES_ENABLED` described below.
 
 Classify DNS, refused connection, timeout, TLS failure, expired certificate,
-status mismatch, content mismatch, oversized response and internal execution
+connection reset/early EOF/truncated response (`transport`), status mismatch,
+content mismatch, oversized response and internal execution
 failure without returning raw library errors. Return no body, credentials,
 resolved addresses, redirect URLs or response headers. Certificate evidence is
 bounded and excludes arbitrary certificate subject strings.
