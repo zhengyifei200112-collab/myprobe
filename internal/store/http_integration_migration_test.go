@@ -28,7 +28,8 @@ func TestHTTPUpgradeAfterTimelinePreservesEvidenceAndRollsBackSeed(t *testing.T)
 	}
 	for _, entry := range entries {
 		name := entry.Name()
-		if entry.IsDir() || name >= "016_" && name <= "020_z" {
+		// Service migrations depend on the HTTP tables absent in this fixture.
+		if entry.IsDir() || name >= "016_" && name <= "020_z" || name >= "034_" && name < "039_" {
 			continue
 		}
 		body, err := migrations.ReadFile("migrations/" + name)
