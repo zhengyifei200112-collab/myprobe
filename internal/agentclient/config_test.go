@@ -107,6 +107,12 @@ func TestWelcomeAppliesConfiguration(t *testing.T) {
 	for _, invalid := range []bool{false, true} {
 		t.Run(map[bool]string{false: "valid", true: "invalid"}[invalid], func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// A legacy Server has no v2 endpoint. Returning 404 lets the
+				// Agent exercise its real v2-to-v1 fallback before the welcome.
+				if r.URL.Path != "/api/v1/agent/ws" {
+					http.NotFound(w, r)
+					return
+				}
 				conn, err := websocket.Accept(w, r, nil)
 				if err != nil {
 					t.Error(err)
