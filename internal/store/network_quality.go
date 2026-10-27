@@ -60,19 +60,32 @@ func (s *Store) AdminNetworkQuality(ctx context.Context, q NetworkQualityQuery) 
 	return s.readNetworkQuality(ctx, q, true)
 }
 
-func (s *Store) readNetworkQuality(ctx context.Context, q NetworkQualityQuery, includeHidden bool) (NetworkQualityStats, error) {
-	result := NetworkQualityStats{RequestedStart: q.Start.UTC(), RequestedEnd: q.End.UTC(), QuantileMethod: "unavailable", GranularitySeconds: 1}
-	// UnixNano is defined only within this range. Reject wider Go time values
-	// before arithmetic, including their otherwise plausible wrapped nanoseconds.
+func validNetworkQualityWindow(kind string, start, end, asOf time.Time) bool {
 	validTime := func(t time.Time) bool { return t.Unix() >= 0 && t.Unix() <= 9223372035 }
-	if q.NodeID == "" || q.TargetID == "" || (q.Kind != protocol.TaskKindPing && q.Kind != protocol.TaskKindTCPing) || !validTime(q.Start) || !validTime(q.End) || !validTime(q.AsOf) || !q.End.After(q.Start) || q.End.Sub(q.Start) > 365*24*time.Hour {
-		return result, quality.ErrInvalid
-	}
+	return (kind == protocol.TaskKindPing || kind == protocol.TaskKindTCPing) && validTime(start) && validTime(end) && validTime(asOf) && end.After(start) && end.Sub(start) <= 365*24*time.Hour
+}
+
+func (s *Store) readNetworkQuality(ctx context.Context, q NetworkQualityQuery, includeHidden bool) (NetworkQualityStats, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return NetworkQualityStats{}, err
+	}
+	defer tx.Rollback()
+	result, err := readNetworkQualityTx(ctx, tx, q, includeHidden)
 	if err != nil {
 		return result, err
 	}
-	defer tx.Rollback()
+	return result, tx.Commit()
+}
+
+func readNetworkQualityTx(ctx context.Context, tx *sql.Tx, q NetworkQualityQuery, includeHidden bool) (NetworkQualityStats, error) {
+	result := NetworkQualityStats{RequestedStart: q.Start.UTC(), RequestedEnd: q.End.UTC(), QuantileMethod: "unavailable", GranularitySeconds: 1}
+	// UnixNano is defined only within this range. Reject wider Go time values
+	// before arithmetic, including their otherwise plausible wrapped nanoseconds.
+	if q.NodeID == "" || q.TargetID == "" || !validNetworkQualityWindow(q.Kind, q.Start, q.End, q.AsOf) {
+		return result, quality.ErrInvalid
+	}
+	var err error
 	var allowed int
 	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM nodes WHERE id=? AND (? OR hidden=0)`, q.NodeID, includeHidden).Scan(&allowed); err != nil {
 		return result, err
@@ -89,6 +102,11 @@ func (s *Store) readNetworkQuality(ctx context.Context, q NetworkQualityQuery, i
 	var plansKnown, resultsKnown, rawFloor, minuteFloor, retained int64
 	if err = tx.QueryRowContext(ctx, `SELECT m.known_since,m.known_results_since,h.raw_floor,h.minute_floor,h.retained_from FROM network_schedule_metadata m CROSS JOIN network_quality_history_state h WHERE m.singleton=1 AND h.singleton=1`).Scan(&plansKnown, &resultsKnown, &rawFloor, &minuteFloor, &retained); err != nil {
 		return result, err
+	}
+	for _, boundary := range []int64{plansKnown, resultsKnown, rawFloor, minuteFloor, retained} {
+		if boundary < 0 || boundary > 9223372035 {
+			return result, ErrNetworkQualityUnavailable
+		}
 	}
 	result.AvailableFrom = time.Unix(max(plansKnown, resultsKnown, retained), 0).UTC()
 	result.EffectiveStart = q.Start.UTC()
@@ -123,7 +141,7 @@ func (s *Store) readNetworkQuality(ctx context.Context, q NetworkQualityQuery, i
 	if !result.EffectiveEnd.After(result.EffectiveStart) {
 		result.EffectiveStart = result.EffectiveEnd
 		result.Availability = "untracked_history"
-		return result, tx.Commit()
+		return result, nil
 	}
 	type epoch struct {
 		id                        string
@@ -138,6 +156,10 @@ func (s *Store) readNetworkQuality(ctx context.Context, q NetworkQualityQuery, i
 	for rows.Next() {
 		var e epoch
 		if err = rows.Scan(&e.id, &e.anchor, &e.interval, &e.timeout, &e.end); err != nil {
+			break
+		}
+		if e.anchor < 0 || e.anchor > 9223372035 || e.interval < 5 || e.interval > 86400 || e.timeout < 100 || e.timeout > 60000 || (e.end.Valid && (e.end.Int64 < e.anchor || e.end.Int64 > 9223372035)) {
+			err = ErrNetworkQualityUnavailable
 			break
 		}
 		epochs = append(epochs, e)
@@ -286,5 +308,5 @@ func (s *Store) readNetworkQuality(ctx context.Context, q NetworkQualityQuery, i
 		jitter := result.Totals.JitterSum / float64(result.JitterPairs)
 		result.Jitter = &jitter
 	}
-	return result, tx.Commit()
+	return result, nil
 }
