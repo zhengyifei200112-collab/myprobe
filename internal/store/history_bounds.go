@@ -16,15 +16,21 @@ func (s *Store) NodeExists(ctx context.Context, nodeID string) (bool, error) {
 }
 
 // Stored sample timestamps are UTC RFC3339Nano, whose optional fractions do not
-// sort chronologically as text within one second. Use indexed coarse bounds,
-// then compare fixed-width fractions without SQLite's millisecond rounding.
-const historyRawTime = `(substr(captured_at,1,19)||'.'||substr(rtrim(substr(captured_at,21),'Z')||'000000000',1,9)||'Z')`
-const historyRawBounds = `captured_at>=:scan_start AND captured_at<:scan_end
-	AND ` + historyRawTime + `>=:start AND ` + historyRawTime + `<:end`
+// sort chronologically as text within one second. Reuse migration 041's exact
+// indexed UTC key, keeping both bounds as direct index predicates.
+const historyRawBounds = `captured_sort_ns>=:start AND captured_sort_ns<:end`
+
+// Every source already fixes node_id=:node. An uncorrelated visibility check
+// avoids looking up the same node for each historical row, while still excluding
+// orphaned records and preserving the administrator's hidden-node scope.
+const historyNodeScope = `EXISTS(SELECT 1 FROM nodes WHERE id=:node AND (hidden=0 OR :include_hidden))`
 
 // Retention buckets start on whole seconds. Only include complete buckets: a
 // partially overlapping aggregate cannot be separated into its original samples.
-const historyRollupBounds = `bucket_at>=:rollup_start AND bucket_at<:scan_end
+// Both supported levels are explicit so the existing (node,level,time) indexes
+// can seek the time range. Without the level predicate SQLite scans every
+// retained bucket for the node before applying the requested dates.
+const historyRollupBounds = `bucket_seconds IN (60,300) AND bucket_at>=:rollup_start AND bucket_at<:scan_end
 	AND unixepoch(bucket_at)+bucket_seconds<=:end_second`
 
 func historyQueryArgs(nodeID string, start, end time.Time, bucketSeconds int, includeHidden bool) ([]any, error) {
@@ -42,7 +48,6 @@ func historyQueryArgs(nodeID string, start, end time.Time, bucketSeconds int, in
 		sql.Named("node", nodeID),
 		sql.Named("include_hidden", includeHidden),
 		sql.Named("bucket", bucketSeconds),
-		sql.Named("scan_start", start.Format(seconds)),
 		sql.Named("scan_end", end.Truncate(time.Second).Add(time.Second).Format(seconds)),
 		sql.Named("start", start.Format(fixed)),
 		sql.Named("end", end.Format(fixed)),
