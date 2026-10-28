@@ -2,6 +2,11 @@
 
 Status: health PR #52, service PR #59 and runtime PR #137 are merged. This follow-up adds the optional scheduled-backup worker and system-reminder queue while preserving negotiated sampling acknowledgement, committed report ingress, schedulers, retention and privacy. See [AGENT_RUNTIME_EVIDENCE.md](AGENT_RUNTIME_EVIDENCE.md) and [SCHEDULED_BACKUPS.md](SCHEDULED_BACKUPS.md). Historical checks below do not prove the final combined source. Production deployment and complete SYS-01–03/M5 acceptance remain separate.
 
+The dependent diagnostic-export branch adds a separately reviewed, private JSON
+preview and an audited download of frozen bytes. It does not serialize this health
+response as a file. See [diagnostic export](DIAGNOSTIC_EXPORT.md) for the stricter
+field projections, session binding, expiry and exact-byte/privacy acceptance.
+
 ## Current API contract
 
 `GET /api/v1/admin/system/health` requires an active administrator session.
@@ -220,8 +225,7 @@ go test ./cmd/server -run '^TestLiveSystemHealthMainBrowser$' -v -count=1
 Negotiated sampling acknowledgement and actual report transport are provided by
 [AGENT_RUNTIME_EVIDENCE.md](AGENT_RUNTIME_EVIDENCE.md), preserving current-connection fences.
 Optional scheduled backups and isolated recovery are described in
-[SCHEDULED_BACKUPS.md](SCHEDULED_BACKUPS.md). Upstream version discovery, diagnostic
-export, full backup/failover acceptance and full-system capacity/
+[SCHEDULED_BACKUPS.md](SCHEDULED_BACKUPS.md). Upstream version discovery, full diagnostic-export acceptance, full backup/failover acceptance and full-system capacity/
 24-hour operation remain separate roadmap work. This integration and local
 checks do not establish complete SYS-01–03 or M5 acceptance. The original health
 branch's CI references above are historical evidence, not latest integration CI.

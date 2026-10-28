@@ -155,6 +155,10 @@ TLS；请在 HTTPS 反代可用或明确接受直接 HTTP 风险后再设置。�
 
 “系统健康 → 节点诊断”可查看采样设置确认与最后成功入库通道。旧 Agent 不支持确认时明确标注不可用；历史确认与当前连接分开。见 [Agent 运行证据](docs/AGENT_RUNTIME_EVIDENCE.md)。
 
+系统健康页可先预览脱敏诊断，再下载当前会话绑定的固定 JSON；下载前必须写入审计，
+不包含数据库、秘密材料或基础设施标识。范围、期限与验证说明见
+[诊断导出](docs/DIAGNOSTIC_EXPORT.md)。
+
 一键安装脚本同样默认提供 `http://服务器IP:25775`。如果从安装时就准备使用域名反代，
 请执行 `sudo ./install.sh server --reverse-proxy`。
 
