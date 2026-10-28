@@ -18,6 +18,7 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
 	"github.com/zhengyifei200112-collab/myprobe/internal/diagnostics"
 	"github.com/zhengyifei200112-collab/myprobe/internal/httpapi"
+	"github.com/zhengyifei200112-collab/myprobe/internal/releasecheck"
 	"github.com/zhengyifei200112-collab/myprobe/internal/scheduler"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
@@ -96,7 +97,10 @@ func main() {
 	go runRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger, retentionLoop)
 	networkRetentionLoop := &diagnostics.Loop{}
 	go runNetworkRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger, networkRetentionLoop)
+	releases := releasecheck.New(runCtx, cfg.ReleaseChecksAuto, nil)
+	go releases.Run()
 	api := httpapi.NewWithAlertService(cfg, database, authService, gateway, hub, alertService,
+		httpapi.WithReleaseChecker(releases),
 		httpapi.WithRuntimeIdentity(version, startedAt),
 		httpapi.WithBackupScheduler(backupWorker),
 		httpapi.WithRetentionWorkerHealth(retentionLoop.Snapshot),

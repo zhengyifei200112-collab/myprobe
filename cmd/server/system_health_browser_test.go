@@ -30,7 +30,7 @@ func TestLiveSystemHealthMainBrowser(t *testing.T) {
 	address := browserFixtureAddress(t)
 	serverCtx, stopServer := context.WithCancel(ctx)
 	server := exec.CommandContext(serverCtx, binary)
-	server.Env = append(os.Environ(), "MYPROBE_LISTEN="+address, "MYPROBE_DATABASE="+filepath.Join(httpFixtureDir(t), "health.db"), "MYPROBE_ADMIN_USERNAME=admin", "MYPROBE_ADMIN_PASSWORD=health-local-test-password", "MYPROBE_ENCRYPTION_KEY="+strings.Repeat("s", 32), "MYPROBE_HTTP_PROBES_ENABLED=true")
+	server.Env = append(os.Environ(), "MYPROBE_RELEASE_CHECKS_AUTO=false", "MYPROBE_LISTEN="+address, "MYPROBE_DATABASE="+filepath.Join(httpFixtureDir(t), "health.db"), "MYPROBE_ADMIN_USERNAME=admin", "MYPROBE_ADMIN_PASSWORD=health-local-test-password", "MYPROBE_ENCRYPTION_KEY="+strings.Repeat("s", 32), "MYPROBE_HTTP_PROBES_ENABLED=true")
 	server.Stdout, server.Stderr = io.Discard, io.Discard
 	if err := server.Start(); err != nil {
 		stopServer()

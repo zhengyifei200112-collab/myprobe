@@ -35,7 +35,7 @@ func TestLiveScheduledBackupMainBrowser(t *testing.T) {
 	}
 	serverCtx, stopServer := context.WithCancel(ctx)
 	server := exec.CommandContext(serverCtx, binary)
-	server.Env = append(os.Environ(), "MYPROBE_LISTEN="+address, "MYPROBE_DATABASE="+filepath.Join(baseDir, "source.db"), "MYPROBE_ADMIN_USERNAME=admin", "MYPROBE_ADMIN_PASSWORD=backup-local-test-password", "MYPROBE_ENCRYPTION_KEY="+strings.Repeat("synthetic-key-", 4), "MYPROBE_BACKUP_PASSPHRASE_FILE="+passFile)
+	server.Env = append(os.Environ(), "MYPROBE_RELEASE_CHECKS_AUTO=false", "MYPROBE_LISTEN="+address, "MYPROBE_DATABASE="+filepath.Join(baseDir, "source.db"), "MYPROBE_ADMIN_USERNAME=admin", "MYPROBE_ADMIN_PASSWORD=backup-local-test-password", "MYPROBE_ENCRYPTION_KEY="+strings.Repeat("synthetic-key-", 4), "MYPROBE_BACKUP_PASSPHRASE_FILE="+passFile)
 	server.Stdout, server.Stderr = io.Discard, io.Discard
 	if err := server.Start(); err != nil {
 		stopServer()

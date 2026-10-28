@@ -225,7 +225,7 @@ go test ./cmd/server -run '^TestLiveSystemHealthMainBrowser$' -v -count=1
 Negotiated sampling acknowledgement and actual report transport are provided by
 [AGENT_RUNTIME_EVIDENCE.md](AGENT_RUNTIME_EVIDENCE.md), preserving current-connection fences.
 Optional scheduled backups and isolated recovery are described in
-[SCHEDULED_BACKUPS.md](SCHEDULED_BACKUPS.md). Upstream version discovery, full diagnostic-export acceptance, full backup/failover acceptance and full-system capacity/
+[SCHEDULED_BACKUPS.md](SCHEDULED_BACKUPS.md). Official stable release awareness is described in [RELEASE_AWARENESS.md](RELEASE_AWARENESS.md). Full diagnostic-export acceptance, full backup/failover acceptance and full-system capacity/
 24-hour operation remain separate roadmap work. This integration and local
 checks do not establish complete SYS-01–03 or M5 acceptance. The original health
 branch's CI references above are historical evidence, not latest integration CI.

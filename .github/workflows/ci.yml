@@ -55,6 +55,8 @@ jobs:
           go test -race ./internal/agentclient ./internal/agentgateway ./internal/store ./internal/alerts -run '^Test(ActualAgentContact|Heartbeat|AgentContact|AgentHello|HTTPHello|PublicFreshness|OfflineUsesContact)' -count=1
           python3 scripts/native-network-evidence-test.py
           go test -race ./internal/diagnostics -count=1
+          go test -race ./internal/releasecheck -count=1
+          go test -race ./internal/httpapi -run '^TestReleaseStatusAdminContract$' -count=1
           go test -race ./internal/store ./internal/httpapi ./internal/agentgateway -run 'Diagnostic|Export' -count=1
           go test -race ./internal/backup -count=1
           go test -race ./internal/store ./internal/alerts ./internal/httpapi -run '^Test(ScheduledBackup|SystemNotification|IdleSystem)' -count=1
@@ -165,6 +167,7 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/myprobe-browsers
           MYPROBE_TEST_NETWORK_QUALITY_BROWSER: '1'
           MYPROBE_TEST_DIAGNOSTIC_EXPORT: '1'
+          MYPROBE_TEST_RELEASE_BROWSER: '1'
           MYPROBE_TEST_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
           QA_ARTIFACT_DIR: ${{ runner.temp }}/myprobe-network-comparison
         run: |
@@ -172,6 +175,7 @@ jobs:
           mkdir -p "$MYPROBE_HTTP_TEST_DIR"
           go test ./internal/httpapi -run '^TestNetwork(QualityLiveComparison|DefinitionLive)Browser$' -timeout 8m -count=1 -v
           go test ./cmd/server -run '^TestLiveDiagnosticExportMainBrowser$' -timeout 4m -count=1 -v
+          go test ./internal/httpapi -run '^TestReleaseAwarenessLiveBrowser$' -timeout 4m -count=1 -v
 
       - name: Preserve synthetic comparison screenshots and result
         if: always()
