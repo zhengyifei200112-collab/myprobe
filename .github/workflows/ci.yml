@@ -52,6 +52,7 @@ jobs:
           go test -race ./internal/protocol/networkcheck -count=1
           go test -race ./internal/agentclient -run '^TestNetworkProbe' -count=1
           go test -race ./internal/agentclient -run '^TestNetwork(Delivery|ResultDelivery)' -count=1
+          go test -race ./internal/agentclient ./internal/agentgateway ./internal/store ./internal/alerts -run '^Test(ActualAgentContact|Heartbeat|AgentContact|AgentHello|HTTPHello|PublicFreshness|OfflineUsesContact)' -count=1
           python3 scripts/native-network-evidence-test.py
           go test -race ./internal/diagnostics -count=1
           go test -race ./internal/store ./internal/httpapi ./internal/agentgateway -run 'Diagnostic|Export' -count=1

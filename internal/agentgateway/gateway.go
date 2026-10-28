@@ -136,6 +136,7 @@ func (g *Gateway) HTTPHello(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to store agent metadata"})
 		return
 	}
+	g.publishNode(r.Context(), node.ID)
 	writeJSON(w, http.StatusOK, protocol.Acknowledgement{Sequence: envelope.Sequence, Config: &protocol.Config{CollectionSeconds: node.CollectionSeconds, ReportSeconds: node.ReportSeconds}})
 }
 
@@ -308,6 +309,14 @@ func (g *Gateway) webSocketVersion(w http.ResponseWriter, r *http.Request, versi
 				return
 			}
 		case protocol.TypeHeartbeat:
+			if err := g.recordHeartbeat(ctx, node.ID, session); err != nil {
+				g.writeProtocolError(ctx, session, "contact_rejected", "heartbeat contact could not be stored for this connection")
+				if errors.Is(err, store.ErrConfigurationSuperseded) {
+					return
+				}
+				continue
+			}
+			g.publishNode(ctx, node.ID)
 			ack, _ := protocol.NewEnvelope(protocol.TypeAcknowledged, envelope.Sequence, protocol.Acknowledgement{Sequence: envelope.Sequence})
 			if err := session.write(ctx, ack); err != nil {
 				return
@@ -543,21 +552,36 @@ func (g *Gateway) sendNetworkTask(ctx context.Context, session *agentSession, ta
 }
 
 func (g *Gateway) register(nodeID string, session *agentSession) {
+	g.registrationMu.Lock()
 	g.sessionsMu.Lock()
 	previous := g.sessions[nodeID]
 	g.sessions[nodeID] = session
 	g.sessionsMu.Unlock()
+	g.registrationMu.Unlock()
 	if previous != nil && previous != session {
 		_ = previous.connection.Close(websocket.StatusPolicyViolation, "replaced by a newer connection")
 	}
 }
 
 func (g *Gateway) unregister(nodeID string, expected *agentSession) {
+	g.registrationMu.Lock()
+	defer g.registrationMu.Unlock()
 	g.sessionsMu.Lock()
 	if g.sessions[nodeID] == expected {
 		delete(g.sessions, nodeID)
 	}
 	g.sessionsMu.Unlock()
+}
+
+func (g *Gateway) recordHeartbeat(ctx context.Context, nodeID string, session *agentSession) error {
+	g.registrationMu.Lock()
+	defer g.registrationMu.Unlock()
+	if !g.isCurrentSession(nodeID, session) {
+		return store.ErrConfigurationSuperseded
+	}
+	operationCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return g.store.RecordAgentHeartbeat(operationCtx, nodeID, session.epoch, time.Now().UTC())
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

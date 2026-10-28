@@ -152,6 +152,13 @@ unchanged.
 
 ## Retention
 
+Agent contact and sample freshness are independent. Authenticated current-session
+heartbeats and HTTP hellos refresh contact without fabricating metric history,
+report ingress or configuration application. Current Agents keep five-second
+contact during long collection periods and stalled socket dialing. Dashboard
+freshness uses capture time and both configured periods; contact-only nodes still
+await their first sample. See [runtime evidence](AGENT_RUNTIME_EVIDENCE.md).
+
 History API queries accept the existing range presets or paired RFC3339 `start`
 and `end` parameters (maximum 365 days, no future end). Responses describe the
 half-open interval, bucket width and complete-retention-buckets-only policy.

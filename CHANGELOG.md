@@ -12,6 +12,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add administrator previews of explicitly redacted diagnostic snapshots and audited downloads of the same frozen bytes, bound to one login session with five-minute expiry and bounded memory.
 - Keep credentials, paths, addresses, names, payloads and arbitrary version labels out of exports; busy observers remain unavailable. Full current-source verification and production acceptance are tracked separately.
 
+### Agent contact and metric freshness
+
+- Persist authenticated current-session heartbeats and independent HTTP fallback contact without generating metric samples or report receipts.
+- Separate contact time, capture freshness and report ingress in node status and pages, preserving resource-alert freshness requirements.
+
 ### Network probe evidence
 
 - Add mutually negotiated v2 address-family and bounded ICMP packet execution, durable connection-fenced receipts, migration045 and configuration-v3 requested profiles.

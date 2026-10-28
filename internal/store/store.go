@@ -411,13 +411,16 @@ func (s *Store) listNodeSnapshots(ctx context.Context, now time.Time, id string,
 		if node.LastSeenAt != nil {
 			threshold := time.Duration(max(node.ReportSeconds*3, 20)) * time.Second
 			item.Online = now.Sub(*node.LastSeenAt) <= threshold
-			item.Stale = now.Sub(*node.LastSeenAt) > time.Duration(max(node.ReportSeconds*2, 12))*time.Second
 		}
 		if reportJSON.Valid {
 			var report protocol.Report
 			if json.Unmarshal([]byte(reportJSON.String), &report) == nil {
 				report.PublicIP = maskPublicIP(report.PublicIP)
 				item.Report = &report
+				// Authenticated contact can stay current while collection is stuck,
+				// delayed or replayed. Freshness belongs to the capture itself.
+				period := max(node.CollectionSeconds, node.ReportSeconds)
+				item.Stale = report.CapturedAt.IsZero() || report.CapturedAt.After(now.Add(30*time.Second)) || now.Sub(report.CapturedAt) > time.Duration(max(period*2, 12))*time.Second
 			}
 		}
 		result = append(result, item)

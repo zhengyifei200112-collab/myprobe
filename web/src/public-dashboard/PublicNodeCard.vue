@@ -11,6 +11,7 @@ import {
   formatBytesInUnit,
   formatUptime,
   lastReport,
+  lastContact,
   latencyText,
   maskedIP,
   commonByteUnit,
@@ -36,7 +37,7 @@ const statusLabel = computed(() => stateLabels[currentState.value])
 const healthTitle = computed(() => reasons.value.length ? '需要关注' : currentState.value === 'waiting' ? '等待接入' : '运行正常')
 const healthDescription = computed(() => {
   if (currentState.value === 'waiting') return '等待 Agent 首次上报'
-  if (currentState.value === 'interrupted') return `上报已中断 ${offlineDuration(props.item, props.now)}，尚不能确认主机不可达`
+  if (currentState.value === 'interrupted') return `Agent 联系已中断 ${offlineDuration(props.item, props.now)}，尚不能确认主机不可达`
   if (currentState.value === 'stale') return `数据已陈旧 · ${lastReport(props.item)}`
   return `运行时间 ${formatUptime(props.item.report?.uptime_seconds)}`
 })
@@ -85,8 +86,8 @@ function countryCode(code: string) {
       </section>
 
       <div v-if="!item.online" class="public-node-card__offline" role="status">
-        <span>最后上报</span>
-        <strong>{{ lastReport(item) }}</strong>
+        <span>最近联系</span>
+        <strong>{{ lastContact(item) }}</strong>
       </div>
 
       <dl class="public-node-card__facts">
@@ -157,7 +158,7 @@ function countryCode(code: string) {
       </div>
 
       <footer class="public-node-card__footer">
-        <span>{{ item.report?.captured_at ? `最后更新 ${lastReport(item)}` : '暂无上报数据' }}</span>
+        <span>{{ item.report?.captured_at ? `最近采样 ${lastReport(item)}` : '暂无上报数据' }}</span>
         <button type="button" :aria-label="`查看 ${item.node.name} 的历史数据`" @click="$emit('open')">
           查看历史
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg>

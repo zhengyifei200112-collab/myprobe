@@ -89,7 +89,7 @@ const filterTabs = computed(() => [
 const visibleNodes = computed(() => sortedNodes.value.filter(item => matchesQuery(item, query, now.value.getTime())))
 const interruptedCount = computed(() => visibleNodes.value.filter(item => nodeState(item) === 'interrupted').length)
 const waitingCount = computed(() => visibleNodes.value.filter(item => nodeState(item) === 'waiting').length)
-const onlineCount = computed(() => visibleNodes.value.filter((item) => item.online).length)
+const onlineCount = computed(() => visibleNodes.value.filter((item) => item.online && nodeState(item) !== 'waiting').length)
 const totalRate = computed(() => sumNetwork(visibleNodes.value, 'rate'))
 const totalTraffic = computed(() => sumNetwork(visibleNodes.value, 'total'))
 const totalRateUnit = computed(() => commonByteUnit([totalRate.value.up, totalRate.value.down]))

@@ -26,9 +26,9 @@ export function queryURL(url: URL, query: DiscoveryQuery): string {
   return url.pathname + url.search + url.hash
 }
 export function nodeState(item: PublicNode): NodeState {
-  if (!item.report && !item.node.last_seen_at) return 'waiting'
+  if (!item.report) return 'waiting'
   if (!item.online) return 'interrupted'
-  if (item.stale || !item.report) return 'stale'
+  if (item.stale) return 'stale'
   return 'online'
 }
 export const stateLabels: Record<NodeState, string> = { waiting: '等待接入', interrupted: '上报中断', stale: '数据陈旧', online: '在线' }
