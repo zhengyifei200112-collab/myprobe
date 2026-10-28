@@ -7,6 +7,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Bounded historical queries
+
+- Aggregate latency sources before metadata joins, seek explicit historical target/kind/time ranges and avoid repeated visibility lookups.
+- Overlap node-history components under a shared two-reader limit; retain cancellation and join all readers before returning. Sort traffic counters once with exact-time/text/row-order ties.
+- Preserve weighted statistics, null observations, hidden-node scopes, time bounds, traffic resets and integer totals. Current20-node performance and same-source24h remain separate acceptance gates.
+
 ### Official release awareness
 
 - Add private stable-release comparisons for Server and last-advertised Agent versions, bounded shared cache/cooldown and optional daily checks.
