@@ -27,6 +27,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Retain at most32 immutable completed network-result envelopes until exact current-socket application ACK or original task expiry. Retry unchanged results after loss/reconnect without re-executing probes, and reject unsupported-channel replay, overflow and late shutdown completion.
+
 - HTTP scheduler diagnostics measure start delay from the original tick while
   selecting current valid slots; the health page displays that delay.
 
