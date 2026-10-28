@@ -3,8 +3,11 @@ package store
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"io/fs"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -150,19 +153,36 @@ func TestNetworkDefinitionConfigVersionAndRoundTrip(t *testing.T) {
 
 func TestNetworkDefinitionMigrationRollbackKeepsLegacyProofUnknown(t *testing.T) {
 	ctx := context.Background()
-	s := preHistoryIndexStore(t)
-	for _, version := range []string{"041_history_retention_indexes.sql", "042_network_schedule_epochs.sql", "043_network_probe_tasks.sql", "044_network_quality_rollups.sql"} {
+	// Seed the actual current-main predecessor, including039/040/047. The
+	// historical retention-index fixture is not part of this integration.
+	file := filepath.Join(httpFixtureDir(t), "pre-network-evidence.db")
+	db, err := sql.Open("sqlite", sqliteDSN(file))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	entries, err := fs.ReadDir(migrations, "migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		version := entry.Name()
+		if entry.IsDir() || version == "045_network_probe_evidence.sql" {
+			continue
+		}
 		body, err := migrations.ReadFile("migrations/" + version)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = s.db.Exec(string(body)); err != nil {
+		if _, err = db.ExecContext(ctx, string(body)); err != nil {
 			t.Fatal(err)
 		}
-		if _, err = s.db.Exec(`INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)`, version, nowText()); err != nil {
+		if _, err = db.ExecContext(ctx, `INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)`, version, nowText()); err != nil {
 			t.Fatal(err)
 		}
 	}
+	s := &Store{db: db, path: file}
+	assertCount(t, s, `SELECT COUNT(*) FROM schema_migrations WHERE version IN ('039_scheduled_backups.sql','040_agent_runtime_evidence.sql','041_history_retention_indexes.sql','042_network_schedule_epochs.sql','043_network_probe_tasks.sql','044_network_quality_rollups.sql','047_node_timeline_indexes.sql')`, 7)
 	node, _, err := s.CreateNode(ctx, CreateNodeParams{Name: "Synthetic pre-family observer"})
 	if err != nil {
 		t.Fatal(err)
@@ -192,6 +212,9 @@ func TestNetworkDefinitionMigrationRollbackKeepsLegacyProofUnknown(t *testing.T)
 		t.Fatal("expected upgrade rollback")
 	}
 	assertCount(t, s, `SELECT COUNT(*) FROM pragma_table_info('targets') WHERE name='address_family'`, 0)
+	assertCount(t, s, `SELECT COUNT(*) FROM pragma_table_info('network_schedule_epochs') WHERE name='address_family'`, 0)
+	assertCount(t, s, `SELECT COUNT(*) FROM pragma_table_info('network_probe_tasks') WHERE name='result_format'`, 0)
+	assertCount(t, s, `SELECT COUNT(*) FROM schema_migrations WHERE version='045_network_probe_evidence.sql'`, 0)
 	if _, err = s.db.Exec(`DROP TRIGGER synthetic_045_failure`); err != nil {
 		t.Fatal(err)
 	}
