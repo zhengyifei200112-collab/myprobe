@@ -27,7 +27,7 @@ func TestVersionedSocketHandshakeAndIsolation(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer db.Close()
-			_, token, err := db.CreateNode(ctx, store.CreateNodeParams{Name: "fixture"})
+			node, token, err := db.CreateNode(ctx, store.CreateNodeParams{Name: "fixture"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -57,9 +57,24 @@ func TestVersionedSocketHandshakeAndIsolation(t *testing.T) {
 			}
 			if version == 2 {
 				welcome, err := v1.DecodePayload[v2.Welcome](reply)
-				if err != nil || v2.AllowsHTTP(welcome.Capabilities) {
+				if err != nil || v2.AllowsHTTP(welcome.Capabilities) || v2.AllowsConfiguration(welcome.Capabilities) || welcome.RuntimeConfig != nil {
 					t.Fatal("advertised incomplete executor")
 				}
+			}
+			evidence, err := db.SamplingConfigurationEvidence(ctx, node.ID)
+			if err != nil || evidence.Status != "acknowledgement_unsupported" || evidence.AppliedRevision != nil {
+				t.Fatal("unnegotiated sampling welcome was claimed applied")
+			}
+			unnegotiated, _ := v2.NewEnvelope(v2.TypeConfigurationApplied, 2, v2.ConfigurationApplied{Scope: v2.SamplingConfigurationScope, Revision: 1, Nonce: strings.Repeat("a", 32), CollectionSeconds: 5, ReportSeconds: 5})
+			unnegotiated.Version = version
+			if err := wsjson.Write(ctx, connection, unnegotiated); err != nil {
+				t.Fatal(err)
+			}
+			if err := wsjson.Read(ctx, connection, &reply); err != nil {
+				t.Fatal(err)
+			}
+			if reply.Type != v1.TypeError {
+				t.Fatal("unnegotiated configuration acknowledgement accepted")
 			}
 			heartbeat, _ := v1.NewEnvelope(v1.TypeHeartbeat, 2, struct{}{})
 			heartbeat.Version = version

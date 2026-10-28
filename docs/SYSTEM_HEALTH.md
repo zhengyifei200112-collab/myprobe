@@ -1,6 +1,6 @@
 # System health and node diagnostics (SYS-01)
 
-Status: health PR52 and service PR59 are merged. This follow-up adds the optional scheduled-backup worker and system-reminder queue to the private health surface on current main. Historical source/CI references below do not prove this integration. Full recovery, capacity and production acceptance remain separate.
+Status: health PR #52, service PR #59 and runtime PR #137 are merged. This follow-up adds the optional scheduled-backup worker and system-reminder queue while preserving negotiated sampling acknowledgement, committed report ingress, schedulers, retention and privacy. See [AGENT_RUNTIME_EVIDENCE.md](AGENT_RUNTIME_EVIDENCE.md) and [SCHEDULED_BACKUPS.md](SCHEDULED_BACKUPS.md). Historical checks below do not prove the final combined source. Production deployment and complete SYS-01–03/M5 acceptance remain separate.
 
 ## Current API contract
 
@@ -100,8 +100,10 @@ time, configured reporting interval, advertised Agent version/capabilities and
 the Server receipt time of the last hello. It excludes hostname, machine ID,
 addresses and credentials. No hello is explicitly unavailable, not an empty
 capability claim; a hello is not evidence of a live connection. Current WebSocket
-presence is sampled separately. Last-report transport is unknown and configuration
-acknowledgement remains unavailable until that provider is integrated. The
+presence is sampled separately. The subsequent [runtime-evidence extension](AGENT_RUNTIME_EVIDENCE.md)
+records actual report ingress and sampling application acknowledgements. Prepared,
+sent, current confirmation and offline historical confirmation remain distinct;
+old Agents without the optional capability are explicitly unsupported. The
 advertised metadata can be older than the current session; its timestamp matters.
 Missing nodes return 404 only after administrator authentication.
 
@@ -215,8 +217,11 @@ $env:PLAYWRIGHT_MODULE = '<absolute Playwright module path>'
 go test ./cmd/server -run '^TestLiveSystemHealthMainBrowser$' -v -count=1
 ```
 
-Compatibility alerts, configuration acknowledgement, actual last-report transport,
-diagnostic export, full scheduled-backup/failover acceptance and full-system capacity/
+Negotiated sampling acknowledgement and actual report transport are provided by
+[AGENT_RUNTIME_EVIDENCE.md](AGENT_RUNTIME_EVIDENCE.md), preserving current-connection fences.
+Optional scheduled backups and isolated recovery are described in
+[SCHEDULED_BACKUPS.md](SCHEDULED_BACKUPS.md). Upstream version discovery, diagnostic
+export, full backup/failover acceptance and full-system capacity/
 24-hour operation remain separate roadmap work. This integration and local
 checks do not establish complete SYS-01–03 or M5 acceptance. The original health
 branch's CI references above are historical evidence, not latest integration CI.

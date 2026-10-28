@@ -153,6 +153,8 @@ TLS；请在 HTTPS 反代可用或明确接受直接 HTTP 风险后再设置。�
 的隔离恢复演练结果与任务历史分别展示；完整恢复须保留原始口令和应用密钥。
 目录权限、容器挂载、调度/重启及验收范围见 [定时备份说明](docs/SCHEDULED_BACKUPS.md)。
 
+“系统健康 → 节点诊断”可查看采样设置确认与最后成功入库通道。旧 Agent 不支持确认时明确标注不可用；历史确认与当前连接分开。见 [Agent 运行证据](docs/AGENT_RUNTIME_EVIDENCE.md)。
+
 一键安装脚本同样默认提供 `http://服务器IP:25775`。如果从安装时就准备使用域名反代，
 请执行 `sudo ./install.sh server --reverse-proxy`。
 

@@ -24,28 +24,34 @@ type networkObservation struct {
 	received            sql.NullInt64
 }
 
-func (o networkObservation) add(segment *quality.Segment, target string) (float64, bool, error) {
+type networkQualityValue struct {
+	outcome quality.Outcome
+	rtt     float64
+	reason  string
+}
+
+func (o networkObservation) add(segment *quality.Segment, target string) (networkQualityValue, error) {
 	kind, reason, rtt := quality.Unobserved, o.dispatch, 0.0
 	if o.state == "completed" {
 		if !o.raw.Valid || !o.received.Valid || !o.outcome.Valid || !o.sha.Valid {
-			return 0, false, ErrNetworkQualityUnavailable
+			return networkQualityValue{}, ErrNetworkQualityUnavailable
 		}
 		var r protocol.LatencyResult
 		if json.Unmarshal([]byte(o.raw.String), &r) != nil || r.Validate(time.Unix(0, o.received.Int64)) != nil || r.TaskID != o.id || r.TargetID != target {
-			return 0, false, ErrNetworkQualityUnavailable
+			return networkQualityValue{}, ErrNetworkQualityUnavailable
 		}
 		sum := sha256.Sum256([]byte(o.raw.String))
 		if hex.EncodeToString(sum[:]) != o.sha.String {
-			return 0, false, ErrNetworkQualityUnavailable
+			return networkQualityValue{}, ErrNetworkQualityUnavailable
 		}
 		kind, reason = quality.Outcome(o.outcome.String), r.ErrorClass
 		if r.Success {
 			if kind != quality.Success {
-				return 0, false, ErrNetworkQualityUnavailable
+				return networkQualityValue{}, ErrNetworkQualityUnavailable
 			}
 			rtt = r.LatencyMS
 		} else if kind == quality.Success {
-			return 0, false, ErrNetworkQualityUnavailable
+			return networkQualityValue{}, ErrNetworkQualityUnavailable
 		}
 	} else if reason == "" {
 		reason = "missing"
@@ -54,9 +60,9 @@ func (o networkObservation) add(segment *quality.Segment, target string) (float6
 		}
 	}
 	if err := segment.Add(o.slot, kind, rtt, reason); err != nil {
-		return 0, false, ErrNetworkQualityUnavailable
+		return networkQualityValue{}, ErrNetworkQualityUnavailable
 	}
-	return rtt, kind == quality.Success, nil
+	return networkQualityValue{outcome: kind, rtt: rtt, reason: reason}, nil
 }
 
 func readNetworkRawSegment(ctx context.Context, tx *sql.Tx, epoch, target string, anchor, interval, start, end int64) (quality.Segment, error) {
@@ -74,7 +80,7 @@ func readNetworkRawSegment(ctx context.Context, tx *sql.Tx, epoch, target string
 		if err := rows.Scan(&o.id, &o.slot, &o.state, &o.dispatch, &o.outcome, &o.raw, &o.sha, &o.received); err != nil {
 			return segment, err
 		}
-		if _, _, err := o.add(&segment, target); err != nil {
+		if _, err := o.add(&segment, target); err != nil {
 			return segment, err
 		}
 	}

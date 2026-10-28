@@ -13,6 +13,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Isolated restore verifies database integrity and notification-credential decryption before recording recovery evidence; interrupted jobs generate durable failure reminders.
 - Original migration039 adds backup jobs and system notifications. Current source validation and full recovery/capacity acceptance remain separate.
 
+### Agent runtime evidence
+
+- Negotiate sampling configuration application with current-connection/revision/nonce fences; show actual committed report transport in private node diagnostics.
+- Keep sampling and upload independent, discard old-generation samples and retain legacy HTTP acknowledgement configuration without recursive sampling locks.
+- Add forward-only migration040 without inventing historical configuration or ingress evidence. Full recovery, capacity and production acceptance remain separate.
+
 ### Fixed
 
 - HTTP scheduler diagnostics measure start delay from the original tick while
@@ -43,6 +49,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
 ### Added
+
+- Public, private-share and administrator network comparison dialogs select up to
+  eight observers and scoped target aliases, with bounded aligned RTT/failure/coverage
+  charts, explicit unknown evidence, local-time ranges and a completed evening preset.
+
+- Network-quality series share the authorized range snapshot, bound each observer
+  to 2000 UTC-aligned points and retain truthful unknown/clipped/failed gaps.
+  Point distributions retain sample weights; range jitter crosses graph boundaries.
 
 - Scoped public, password-share and administrator network-quality summary routes
   compare up to eight nodes in one read snapshot, with explicit privacy projections,

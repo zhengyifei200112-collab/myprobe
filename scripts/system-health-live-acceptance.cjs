@@ -53,7 +53,7 @@ if (!['127.0.0.1', 'localhost'].includes(new URL(base).hostname)) throw new Erro
     assert.equal(health.scheduler.observation_scope, 'process')
     assert.ok(health.scheduler.job.completed_runs > 0)
     assert.equal(health.backup.job.state, 'never_run')
-    const output = path.join(os.tmpdir(), 'myprobe-health-live-ui')
+    const output = process.env.QA_ARTIFACT_DIR ? path.join(process.env.QA_ARTIFACT_DIR, 'health') : path.join(os.tmpdir(), 'myprobe-health-live-ui')
     await fs.mkdir(output, { recursive: true })
     for (const theme of ['light', 'dark']) for (const width of [360, 768, 1440]) {
       await page.setViewportSize({ width, height: 1000 })

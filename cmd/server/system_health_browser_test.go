@@ -63,4 +63,21 @@ func TestLiveSystemHealthMainBrowser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if os.Getenv("MYPROBE_TEST_AGENT_RUNTIME_BROWSER") == "1" {
+		agentBinary := filepath.Join(httpFixtureDir(t), "runtime-agent")
+		if runtime.GOOS == "windows" {
+			agentBinary += ".exe"
+		}
+		buildAgent := exec.CommandContext(ctx, "go", "build", "-ldflags", "-X main.version=runtime-evidence-acceptance", "-o", agentBinary, "../agent")
+		if output, err := buildAgent.CombinedOutput(); err != nil {
+			t.Fatalf("Agent fixture build: %s %v", output, err)
+		}
+		command := exec.CommandContext(ctx, "node", "../../scripts/agent-runtime-live-acceptance.cjs")
+		command.Env = append(os.Environ(), "HEALTH_TEST_URL="+base, "HEALTH_TEST_PASSWORD=health-local-test-password", "RUNTIME_TEST_AGENT="+agentBinary)
+		output, err := command.CombinedOutput()
+		t.Log(string(output))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 }

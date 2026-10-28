@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "vite",
     "test": "node --experimental-strip-types --test src/forms/*.test.ts src/public-dashboard/*.test.ts src/node-details/*.test.mjs src/admin-api.test.ts",
-    "build": "node scripts/notification-links-test.cjs && vue-tsc --noEmit && vite build",
-
+    "build": "node scripts/notification-links-test.cjs && node scripts/network-quality-time-test.cjs && vue-tsc --noEmit && vite build",
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {

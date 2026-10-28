@@ -23,11 +23,34 @@ func (s *Server) nodeDiagnostics(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read node diagnostics"})
 		return
 	}
+	configuration, configurationErr := s.store.SamplingConfigurationEvidence(ctx, node.NodeID)
+	var configurationEvidence any = gin.H{"status": "unavailable", "reason": "configuration_evidence_query_failed"}
+	if configurationErr == nil {
+		epoch, connected, available := s.gateway.RuntimeConnectionEpoch(node.NodeID)
+		if !available {
+			configuration.Status = "connection_observation_unavailable"
+		} else if connected && configuration.ConnectionEpoch != epoch {
+			configuration.Status = "connection_evidence_not_current"
+		} else if !connected && configuration.Status == "agent_confirmed" {
+			configuration.Status = "confirmed_no_active_connection"
+		}
+		configurationEvidence = configuration
+	}
+	ingress, ingressErr := s.store.LastReportIngress(ctx, node.NodeID)
+	var reportIngress any = gin.H{"status": "unavailable"}
+	if ingressErr == nil {
+		reportIngress = ingress
+	}
+	transport := "unknown"
+	if ingressErr == nil && ingress.Status == "observed" {
+		transport = ingress.Transport
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"observed_at": time.Now().UTC(), "node": node,
 		"websocket_connected":           s.gateway.NodeConnected(node.NodeID),
-		"configuration_acknowledgement": gin.H{"status": "unavailable", "reason": "acknowledgement_not_integrated"},
-		"last_report_transport":         "unknown",
+		"configuration_acknowledgement": configurationEvidence,
+		"last_report_ingress":           reportIngress,
+		"last_report_transport":         transport,
 	})
 }
 
