@@ -11,13 +11,15 @@
 
 ## Feature parity matrix
 
-Network quality comparison is integrated for verification in the public dashboard, administrator UI
-and authenticated shares. Scoped target discovery and one batched response compare
-up to eight observers using aligned RTT, execution-failure and coverage timelines,
-range quantiles/jitter, actual history bounds and explicit time zones. Real-backend
-browser checks must cover both themes at 360/768/1440 px on this source. Unreported address families and
-packet counts remain unavailable; real IPv6 execution and final integrated capacity
-and long-soak acceptance remain open. See [network quality UI](NETWORK_QUALITY_UI.md).
+本轮接入明确协商的network_probe.v1、原始迁移045与配置v3请求选项，
+连接代次约束的事务回执及NQS2证据保留。旧数据实际地址族/包数保持未知，
+不完整ICMP覆盖标为partial，TCP丢包不适用；不向旧连接静默发送不受约束的高级任务。
+见 [network probe evidence](NETWORK_PROBE_EVIDENCE.md)。
+
+Network comparison is integrated in public/admin/authenticated-share contexts with
+scoped discovery, at most eight observers and 2000 aligned points per node. The new
+family/count projections require current-source protocol, native, browser and race checks.
+Final 20-node performance, same-source24h, reference hardware and recovery remain open.
 
 Scoped alert-policy inheritance (ALT-02) is in development. Its internal resolver
 and revisioned persistence support global, tag and explicit-node scopes, conflict

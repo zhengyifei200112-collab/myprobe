@@ -413,7 +413,8 @@ or returning generated Agent tokens. Exports and imports cap HTTP services at 1,
 An unassigned service left by node deletion can round-trip with no assignments; it
 cannot dispatch until nodes are selected. Normal create/edit APIs still require
 at least one node. The maintenance UI displays the HTTP create/update preview
-counts (zero for older responses), identifies configuration version 2, and explains
+counts (zero for older responses), identifies configuration version 3 (which adds
+requested network family/packet options and still accepts v1/v2), and explains
 assignment replacement before confirmation. `scripts/config-import-ui.cjs` verifies
 preview-only behavior, cancellation, and six light/dark viewport combinations
 against intercepted APIs. Real backend transfer behavior is covered separately by

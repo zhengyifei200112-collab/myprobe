@@ -29,12 +29,15 @@ func (s Segment) MarshalBinary() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	raw := []byte{'N', 'Q', 'S', 1}
+	raw := []byte{'N', 'Q', 'S', 2}
 	t := s.Totals
 	for _, count := range []uint64{t.Observed, t.Success, t.Failure, t.NotExecuted, t.Unobserved, t.JitterPairs} {
 		raw = binary.AppendUvarint(raw, count)
 	}
 	for _, count := range t.Causes {
+		raw = binary.AppendUvarint(raw, count)
+	}
+	for _, count := range []uint64{t.Evidence.IPv4, t.Evidence.IPv6, t.Evidence.PacketSuccess, t.Evidence.PacketFailure, t.Evidence.Sent, t.Evidence.Received} {
 		raw = binary.AppendUvarint(raw, count)
 	}
 	for _, value := range []float64{t.RTTSum, t.RTTMin, t.RTTMax, t.JitterSum} {
@@ -90,13 +93,14 @@ func DecodeSegment(epoch string, anchor, interval int64, raw []byte) (Segment, e
 	if err != nil {
 		return s, err
 	}
-	if len(raw) < 8 || len(raw) > MaxSegmentBytes || string(raw[:4]) != "NQS\x01" {
+	if len(raw) < 8 || len(raw) > MaxSegmentBytes || string(raw[:3]) != "NQS" || raw[3] != 1 && raw[3] != 2 {
 		return Segment{}, ErrInvalid
 	}
 	if segmentChecksum(epoch, anchor, interval, raw[:len(raw)-4]) != binary.LittleEndian.Uint32(raw[len(raw)-4:]) {
 		return Segment{}, ErrInvalid
 	}
 	raw = raw[:len(raw)-4]
+	version := raw[3]
 	r := statReader{raw: raw, offset: 4}
 	t := &s.Totals
 	for _, count := range []*uint64{&t.Observed, &t.Success, &t.Failure, &t.NotExecuted, &t.Unobserved, &t.JitterPairs} {
@@ -106,9 +110,20 @@ func DecodeSegment(epoch string, anchor, interval int64, raw []byte) (Segment, e
 		}
 	}
 	for i := range t.Causes {
+		if version == 1 && i >= LegacyCauseCount {
+			break
+		}
 		t.Causes[i], err = r.uint()
 		if err != nil {
 			return Segment{}, err
+		}
+	}
+	if version == 2 {
+		for _, count := range []*uint64{&t.Evidence.IPv4, &t.Evidence.IPv6, &t.Evidence.PacketSuccess, &t.Evidence.PacketFailure, &t.Evidence.Sent, &t.Evidence.Received} {
+			*count, err = r.uint()
+			if err != nil {
+				return Segment{}, err
+			}
 		}
 	}
 	for _, value := range []*float64{&t.RTTSum, &t.RTTMin, &t.RTTMax, &t.JitterSum} {

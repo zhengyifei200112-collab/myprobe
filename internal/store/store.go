@@ -487,16 +487,17 @@ func (s *Store) CreateTarget(ctx context.Context, params CreateTargetParams) (Ta
 		port = *params.Port
 	}
 	task := protocol.Task{ID: "validation", TargetID: "validation", Kind: params.Kind, Host: params.Host, Port: port, TimeoutMS: params.TimeoutMS, ExpiresAt: time.Now().UTC().Add(time.Minute)}
-	if err := task.Validate(time.Now().UTC()); err != nil {
-		return Target{}, err
+	params.AddressFamily, params.PacketCount = networkDefinition(params.Kind, params.AddressFamily, params.PacketCount)
+	if !validNetworkDefinition(task, params.AddressFamily, params.PacketCount) {
+		return Target{}, errors.New("invalid network target definition")
 	}
 	if params.IntervalSeconds < 5 || params.IntervalSeconds > 86400 {
 		return Target{}, errors.New("target interval must be between 5 and 86400 seconds")
 	}
 	now := time.Now().UTC()
-	target := Target{ID: randomID(), Name: params.Name, Kind: params.Kind, Host: params.Host, Port: params.Port, IntervalSeconds: params.IntervalSeconds, TimeoutMS: params.TimeoutMS, Enabled: true, CreatedAt: now, UpdatedAt: now}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO targets(id, name, kind, host, port, interval_seconds, timeout_ms, enabled, created_at, updated_at)
-		VALUES(?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`, target.ID, target.Name, target.Kind, target.Host, target.Port, target.IntervalSeconds, target.TimeoutMS, formatTime(now), formatTime(now))
+	target := Target{ID: randomID(), Name: params.Name, Kind: params.Kind, Host: params.Host, Port: params.Port, IntervalSeconds: params.IntervalSeconds, TimeoutMS: params.TimeoutMS, Enabled: true, CreatedAt: now, UpdatedAt: now, AddressFamily: params.AddressFamily, PacketCount: params.PacketCount}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO targets(id, name, kind, host, port, interval_seconds, timeout_ms, enabled, created_at, updated_at,address_family,packet_count)
+		VALUES(?, ?, ?, ?, ?, ?, ?, 1, ?, ?,?,?)`, target.ID, target.Name, target.Kind, target.Host, target.Port, target.IntervalSeconds, target.TimeoutMS, formatTime(now), formatTime(now), target.AddressFamily, target.PacketCount)
 	return target, err
 }
 
@@ -601,7 +602,7 @@ func (s *Store) ListNodeTargets(ctx context.Context) ([]NodeTarget, error) {
 }
 
 func (s *Store) ListTargets(ctx context.Context) ([]Target, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, kind, host, port, interval_seconds, timeout_ms, enabled, sort_order, created_at, updated_at FROM targets ORDER BY sort_order, name`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, kind, host, port, interval_seconds, timeout_ms, enabled, sort_order, created_at, updated_at,address_family,packet_count FROM targets ORDER BY sort_order, name`)
 	if err != nil {
 		return nil, err
 	}
@@ -612,7 +613,7 @@ func (s *Store) ListTargets(ctx context.Context) ([]Target, error) {
 		var port sql.NullInt64
 		var enabled int
 		var created, updated string
-		if err := rows.Scan(&item.ID, &item.Name, &item.Kind, &item.Host, &port, &item.IntervalSeconds, &item.TimeoutMS, &enabled, &item.SortOrder, &created, &updated); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name, &item.Kind, &item.Host, &port, &item.IntervalSeconds, &item.TimeoutMS, &enabled, &item.SortOrder, &created, &updated, &item.AddressFamily, &item.PacketCount); err != nil {
 			return nil, err
 		}
 		item.Enabled = enabled != 0
@@ -683,7 +684,7 @@ func (s *Store) ListNodeTargetGroups(ctx context.Context) ([]NodeTargetGroup, er
 
 func (s *Store) ListTargetAssignments(ctx context.Context) ([]TargetAssignment, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT nt.node_id, t.id, t.name, t.kind, t.host, t.port,
-		t.interval_seconds, t.timeout_ms, t.enabled, t.sort_order, t.created_at, t.updated_at
+		t.interval_seconds, t.timeout_ms, t.enabled, t.sort_order, t.created_at, t.updated_at,t.address_family,t.packet_count
 		FROM node_targets nt
 		JOIN targets t ON t.id = nt.target_id
 		WHERE t.enabled = 1 ORDER BY nt.node_id, t.sort_order, t.name`)
@@ -699,7 +700,7 @@ func (s *Store) ListTargetAssignments(ctx context.Context) ([]TargetAssignment, 
 		var created, updated string
 		if err := rows.Scan(&assignment.NodeID, &assignment.Target.ID, &assignment.Target.Name, &assignment.Target.Kind,
 			&assignment.Target.Host, &port, &assignment.Target.IntervalSeconds, &assignment.Target.TimeoutMS, &enabled,
-			&assignment.Target.SortOrder, &created, &updated); err != nil {
+			&assignment.Target.SortOrder, &created, &updated, &assignment.Target.AddressFamily, &assignment.Target.PacketCount); err != nil {
 			return nil, err
 		}
 		assignment.Target.Enabled = enabled != 0

@@ -210,7 +210,7 @@ func readNetworkQualityTx(ctx context.Context, tx *sql.Tx, q NetworkQualityQuery
 		// An atomic archive guarantees one source per bucket. UNION order restores
 		// epoch adjacency across both levels and raw data without a second snapshot.
 		observations, err := tx.QueryContext(ctx, `SELECT scheduled_at AS at,0 AS level,`+networkObservationColumns+`,NULL AS summary FROM network_probe_tasks WHERE epoch_id=? AND source='scheduled' AND scheduled_at>=? AND scheduled_at<?
-   UNION ALL SELECT bucket_at AS at,bucket_seconds AS level,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,CASE WHEN length(summary)<=? THEN summary END FROM network_quality_rollups WHERE epoch_id=? AND bucket_at>=? AND bucket_at<?
+   UNION ALL SELECT bucket_at AS at,bucket_seconds AS level,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,CASE WHEN length(summary)<=? THEN summary END FROM network_quality_rollups WHERE epoch_id=? AND bucket_at>=? AND bucket_at<?
    ORDER BY at,level LIMIT ?`, e.id, ceilNetworkSecond(startNS), ceilNetworkSecond(matureEndNS), quality.MaxSegmentBytes, e.id, startNS/int64(time.Second)/300*300, ceilNetworkSecond(matureEndNS), remaining+1)
 		if err != nil {
 			return result, err
@@ -226,7 +226,7 @@ func readNetworkQualityTx(ctx context.Context, tx *sql.Tx, q NetworkQualityQuery
 			var id, state, dispatch sql.NullString
 			var slot sql.NullInt64
 			var payload []byte
-			if err = observations.Scan(&at, &level, &id, &slot, &state, &dispatch, &o.outcome, &o.raw, &o.sha, &o.received, &payload); err != nil {
+			if err = observations.Scan(&at, &level, &id, &slot, &state, &dispatch, &o.outcome, &o.raw, &o.sha, &o.received, &o.format, &payload); err != nil {
 				break
 			}
 			if level == 0 {

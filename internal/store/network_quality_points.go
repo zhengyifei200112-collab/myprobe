@@ -125,7 +125,7 @@ func (c *networkPointCollector) raw(epoch string, anchor, interval, slot int64, 
 	if err != nil {
 		return err
 	}
-	if err = segment.Add(slot, value.outcome, value.rtt, value.reason); err != nil {
+	if err = segment.AddEvidence(slot, value.outcome, value.rtt, value.reason, value.evidence); err != nil {
 		return ErrNetworkQualityUnavailable
 	}
 	if value.outcome == quality.Success {

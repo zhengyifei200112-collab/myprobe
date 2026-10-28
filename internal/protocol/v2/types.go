@@ -8,14 +8,17 @@ import (
 	"time"
 
 	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/httpcheck"
+	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/networkcheck"
 	v1 "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 )
 
 const (
-	Version         = 2
-	MaxMessageBytes = v1.MaxMessageBytes
-	TypeHTTPTask    = "http_task"
-	TypeHTTPResult  = "http_result"
+	Version           = 2
+	MaxMessageBytes   = v1.MaxMessageBytes
+	TypeHTTPTask      = "http_task"
+	TypeHTTPResult    = "http_result"
+	TypeNetworkTask   = "network_task"
+	TypeNetworkResult = "network_result"
 )
 
 type Envelope v1.Envelope
@@ -34,7 +37,7 @@ func (e Envelope) Validate(now time.Time) error {
 	}
 	base := v1.Envelope(e)
 	base.Version = v1.Version
-	if e.Type == TypeHTTPTask || e.Type == TypeHTTPResult || e.Type == TypeConfigurationApplied {
+	if e.Type == TypeHTTPTask || e.Type == TypeHTTPResult || e.Type == TypeConfigurationApplied || e.Type == TypeNetworkTask || e.Type == TypeNetworkResult {
 		base.Type = v1.TypeTask
 	}
 	if err := base.Validate(now); err != nil {
@@ -57,7 +60,7 @@ type Welcome struct {
 // NegotiateCapabilities returns only explicitly supported common extensions.
 // Unknown future capabilities do not imply permission to send new message kinds.
 func NegotiateCapabilities(agent, server []string) []string {
-	result := make([]string, 0, 2)
+	result := make([]string, 0, 3)
 	contains := func(values []string, want string) bool {
 		for _, value := range values {
 			if value == want {
@@ -72,7 +75,19 @@ func NegotiateCapabilities(agent, server []string) []string {
 	if contains(agent, ConfigurationCapability) && contains(server, ConfigurationCapability) {
 		result = append(result, ConfigurationCapability)
 	}
+	if contains(agent, networkcheck.Capability) && contains(server, networkcheck.Capability) {
+		result = append(result, networkcheck.Capability)
+	}
 	return result
+}
+
+func AllowsNetwork(capabilities []string) bool {
+	for _, value := range capabilities {
+		if value == networkcheck.Capability {
+			return true
+		}
+	}
+	return false
 }
 
 func AllowsHTTP(capabilities []string) bool {

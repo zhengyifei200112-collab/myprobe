@@ -31,7 +31,7 @@ func TestHTTPConfigurationTransfer(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshot, err := source.ExportConfig(ctx, time.Now())
-	if err != nil || snapshot.Version != 2 || len(snapshot.HTTPServices) != 1 {
+	if err != nil || snapshot.Version != ConfigSnapshotVersion || len(snapshot.HTTPServices) != 1 {
 		t.Fatalf("export: %+v %v", snapshot, err)
 	}
 	preview, err := target.ImportConfig(ctx, snapshot, true)

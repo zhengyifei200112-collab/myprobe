@@ -9,6 +9,8 @@ import (
 	"errors"
 	"time"
 
+	check "github.com/zhengyifei200112-collab/myprobe/internal/protocol/networkcheck"
+
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 )
 
@@ -24,9 +26,19 @@ type NetworkAssignment struct {
 }
 
 type NetworkTask struct {
+	AddressFamily               string
+	PacketCount                 int
 	Task                        protocol.Task
 	NodeID, EpochID, LeaseToken string
 	ScheduledAt, DispatchUntil  time.Time
+}
+
+func (t NetworkTask) ProbeTask() check.Task {
+	task := t.Task
+	if task.Kind == protocol.TaskKindPing {
+		task.Port = 0
+	}
+	return check.Task{Task: task, AddressFamily: t.AddressFamily, PacketCount: t.PacketCount}
 }
 
 // A crashed sender may have written the task before it disappeared. Expired
@@ -99,7 +111,9 @@ func (s *Store) ClaimNetworkTask(ctx context.Context, epochID string, slot, now 
 	var port sql.NullInt64
 	var start int64
 	var interval, timeout int
-	err = tx.QueryRowContext(ctx, `SELECT node_id,target_id,kind,host,port,starts_at,interval_seconds,timeout_ms FROM network_schedule_epochs WHERE id=? AND ends_at IS NULL`, epochID).Scan(&node, &target, &kind, &host, &port, &start, &interval, &timeout)
+	var family string
+	var packets int
+	err = tx.QueryRowContext(ctx, `SELECT node_id,target_id,kind,host,port,starts_at,interval_seconds,timeout_ms,address_family,packet_count FROM network_schedule_epochs WHERE id=? AND ends_at IS NULL`, epochID).Scan(&node, &target, &kind, &host, &port, &start, &interval, &timeout, &family, &packets)
 	if errors.Is(err, sql.ErrNoRows) {
 		return NetworkTask{}, ErrNetworkTaskRejected
 	}
@@ -114,6 +128,7 @@ func (s *Store) ClaimNetworkTask(ctx context.Context, epochID string, slot, now 
 		return NetworkTask{}, ErrNetworkTaskRejected
 	}
 	result := NetworkTask{NodeID: node, EpochID: epochID, ScheduledAt: slot.UTC(), DispatchUntil: dispatchUntil, LeaseToken: randomID(), Task: protocol.Task{ID: randomID(), TargetID: target, Kind: kind, Host: host, Port: int(port.Int64), TimeoutMS: timeout, ExpiresAt: slot.Add(time.Duration(timeout)*time.Millisecond + 15*time.Second)}}
+	result.AddressFamily, result.PacketCount = family, packets
 	var state string
 	var retry int64
 	err = tx.QueryRowContext(ctx, `SELECT id,state,retry_after_ns FROM network_probe_tasks WHERE epoch_id=? AND scheduled_at=?`, epochID, slot.Unix()).Scan(&result.Task.ID, &state, &retry)
@@ -123,8 +138,8 @@ func (s *Store) ClaimNetworkTask(ctx context.Context, epochID string, slot, now 
 		}
 		_, err = tx.ExecContext(ctx, `UPDATE network_probe_tasks SET state='sending',lease_token=?,lease_until_ns=? WHERE id=?`, result.LeaseToken, dispatchUntil.UnixNano(), result.Task.ID)
 	} else if errors.Is(err, sql.ErrNoRows) {
-		_, err = tx.ExecContext(ctx, `INSERT INTO network_probe_tasks(id,source,epoch_id,node_id,target_id,scheduled_at,kind,host,port,timeout_ms,dispatch_until_ns,expires_at_ns,created_at_ns,state,lease_token,lease_until_ns)
- VALUES(?,'scheduled',?,?,?,?,?,?,?,?,?,?,?,'sending',?,?)`, result.Task.ID, epochID, node, target, slot.Unix(), kind, host, port, timeout, dispatchUntil.UnixNano(), result.Task.ExpiresAt.UnixNano(), now.UnixNano(), result.LeaseToken, dispatchUntil.UnixNano())
+		_, err = tx.ExecContext(ctx, `INSERT INTO network_probe_tasks(id,source,epoch_id,node_id,target_id,scheduled_at,kind,host,port,timeout_ms,dispatch_until_ns,expires_at_ns,created_at_ns,state,lease_token,lease_until_ns,address_family,packet_count)
+ VALUES(?,'scheduled',?,?,?,?,?,?,?,?,?,?,?,'sending',?,?,?,?)`, result.Task.ID, epochID, node, target, slot.Unix(), kind, host, port, timeout, dispatchUntil.UnixNano(), result.Task.ExpiresAt.UnixNano(), now.UnixNano(), result.LeaseToken, dispatchUntil.UnixNano(), family, packets)
 	}
 	if err != nil {
 		return NetworkTask{}, err
@@ -161,8 +176,9 @@ func (s *Store) RecordManualNetworkTask(ctx context.Context, node string, task p
 		return NetworkTask{}, ErrNetworkTaskDispatched
 	}
 	result := NetworkTask{NodeID: node, Task: task, LeaseToken: randomID(), DispatchUntil: task.ExpiresAt}
-	_, err = tx.ExecContext(ctx, `INSERT INTO network_probe_tasks(id,source,node_id,target_id,kind,host,port,timeout_ms,dispatch_until_ns,expires_at_ns,created_at_ns,state,lease_token,lease_until_ns)
- VALUES(?,'manual',?,?,?,?,?,?,?,?,?,'sending',?,?)`, task.ID, node, task.TargetID, task.Kind, task.Host, sqlPort(task.Port), task.TimeoutMS, task.ExpiresAt.UnixNano(), task.ExpiresAt.UnixNano(), now.UnixNano(), result.LeaseToken, task.ExpiresAt.UnixNano())
+	result.AddressFamily, result.PacketCount = networkDefinition(task.Kind, "", 0)
+	_, err = tx.ExecContext(ctx, `INSERT INTO network_probe_tasks(id,source,node_id,target_id,kind,host,port,timeout_ms,dispatch_until_ns,expires_at_ns,created_at_ns,state,lease_token,lease_until_ns,address_family,packet_count)
+ VALUES(?,'manual',?,?,?,?,?,?,?,?,?,'sending',?,?,?,?)`, task.ID, node, task.TargetID, task.Kind, task.Host, sqlPort(task.Port), task.TimeoutMS, task.ExpiresAt.UnixNano(), task.ExpiresAt.UnixNano(), now.UnixNano(), result.LeaseToken, task.ExpiresAt.UnixNano(), result.AddressFamily, result.PacketCount)
 	if err != nil {
 		return NetworkTask{}, err
 	}
@@ -236,10 +252,11 @@ func (s *Store) AcceptNetworkResult(ctx context.Context, node, kind string, resu
 		return false, err
 	}
 	defer tx.Rollback()
-	var boundNode, target, boundKind, state string
+	var boundNode, target, boundKind, state, resultFormat string
+	var evidenceRequired int
 	var epoch, previous sql.NullString
 	var expiry int64
-	err = tx.QueryRowContext(ctx, `SELECT node_id,target_id,kind,state,epoch_id,expires_at_ns,result_sha FROM network_probe_tasks WHERE id=?`, result.TaskID).Scan(&boundNode, &target, &boundKind, &state, &epoch, &expiry, &previous)
+	err = tx.QueryRowContext(ctx, `SELECT node_id,target_id,kind,state,epoch_id,expires_at_ns,result_sha,result_format,evidence_required FROM network_probe_tasks WHERE id=?`, result.TaskID).Scan(&boundNode, &target, &boundKind, &state, &epoch, &expiry, &previous, &resultFormat, &evidenceRequired)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, ErrNetworkTaskRejected
 	}
@@ -247,6 +264,9 @@ func (s *Store) AcceptNetworkResult(ctx context.Context, node, kind string, resu
 		return false, err
 	}
 	if boundNode != node || target != result.TargetID || boundKind != kind {
+		return false, ErrNetworkTaskRejected
+	}
+	if resultFormat != "v1" || evidenceRequired != 0 {
 		return false, ErrNetworkTaskRejected
 	}
 	if state == "completed" {
