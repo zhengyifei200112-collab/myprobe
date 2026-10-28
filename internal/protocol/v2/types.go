@@ -1,4 +1,4 @@
-// Package v2 defines the opt-in HTTP-capable wire contract. Runtime transport
+// Package v2 defines explicitly negotiated optional wire extensions. Transport
 // must negotiate this version separately; v1 messages remain version 1.
 package v2
 
@@ -34,7 +34,7 @@ func (e Envelope) Validate(now time.Time) error {
 	}
 	base := v1.Envelope(e)
 	base.Version = v1.Version
-	if e.Type == TypeHTTPTask || e.Type == TypeHTTPResult {
+	if e.Type == TypeHTTPTask || e.Type == TypeHTTPResult || e.Type == TypeConfigurationApplied {
 		base.Type = v1.TypeTask
 	}
 	if err := base.Validate(now); err != nil {
@@ -50,13 +50,14 @@ func DecodePayload[T any](e Envelope) (T, error) { return v1.DecodePayload[T](v1
 
 type Welcome struct {
 	v1.Welcome
-	Capabilities []string `json:"capabilities"`
+	Capabilities  []string              `json:"capabilities"`
+	RuntimeConfig *RuntimeConfiguration `json:"runtime_config,omitempty"`
 }
 
 // NegotiateCapabilities returns only explicitly supported common extensions.
 // Unknown future capabilities do not imply permission to send new message kinds.
 func NegotiateCapabilities(agent, server []string) []string {
-	result := make([]string, 0, 1)
+	result := make([]string, 0, 2)
 	contains := func(values []string, want string) bool {
 		for _, value := range values {
 			if value == want {
@@ -67,6 +68,9 @@ func NegotiateCapabilities(agent, server []string) []string {
 	}
 	if contains(agent, httpcheck.Capability) && contains(server, httpcheck.Capability) {
 		result = append(result, httpcheck.Capability)
+	}
+	if contains(agent, ConfigurationCapability) && contains(server, ConfigurationCapability) {
+		result = append(result, ConfigurationCapability)
 	}
 	return result
 }

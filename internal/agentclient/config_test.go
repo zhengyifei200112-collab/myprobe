@@ -49,9 +49,15 @@ func TestCollectionIntervalChangeInterruptsOldDeadline(t *testing.T) {
 		}
 		c.applyConfig(protocol.Config{CollectionSeconds: 2, ReportSeconds: 5})
 		synctest.Wait()
+		// A managed change immediately starts the new generation, then uses
+		// the shortened period rather than retaining the old hour deadline.
+		before := source.calls.Load()
+		if before != 2 {
+			t.Fatalf("new sampling generation did not start: %d", before)
+		}
 		time.Sleep(2100 * time.Millisecond)
 		synctest.Wait()
-		if source.calls.Load() != 2 {
+		if source.calls.Load() != before+1 {
 			t.Fatalf("collection count = %d", source.calls.Load())
 		}
 		c.applyConfig(protocol.Config{CollectionSeconds: 0, ReportSeconds: 3601})
@@ -62,6 +68,7 @@ func TestCollectionIntervalChangeInterruptsOldDeadline(t *testing.T) {
 }
 func TestReportingUsesCachedSampleWithoutCollecting(t *testing.T) {
 	received := make(chan protocol.Report, 4)
+	var attempts atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var envelope protocol.Envelope
 		if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
@@ -77,13 +84,17 @@ func TestReportingUsesCachedSampleWithoutCollecting(t *testing.T) {
 		case received <- report:
 		default:
 		}
+		if attempts.Add(1) < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 		_ = json.NewEncoder(w).Encode(protocol.Acknowledgement{Sequence: envelope.Sequence})
 	}))
 	defer server.Close()
 	source := &fakeMetrics{}
 	c := configClient(t, server.URL, source)
 	captured := time.Now().UTC().Add(-time.Minute)
-	c.sample = &protocol.Report{CapturedAt: captured}
+	c.sample = &collectedSample{id: 1, report: protocol.Report{CapturedAt: captured}}
 	c.reportNS.Store(int64(5 * time.Millisecond))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -101,6 +112,10 @@ func TestReportingUsesCachedSampleWithoutCollecting(t *testing.T) {
 	}
 	if source.calls.Load() != 0 {
 		t.Fatal("reporting invoked collection")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if attempts.Load() != 3 {
+		t.Fatal("successfully sent cached sample was sent again")
 	}
 }
 func TestWelcomeAppliesConfiguration(t *testing.T) {

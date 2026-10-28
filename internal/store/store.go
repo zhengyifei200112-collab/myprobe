@@ -265,6 +265,10 @@ func (s *Store) AuthenticateAgent(ctx context.Context, token string) (Node, erro
 }
 
 func (s *Store) SaveReport(ctx context.Context, nodeID string, report protocol.Report) error {
+	return s.saveReport(ctx, nodeID, report, nil)
+}
+
+func (s *Store) saveReport(ctx context.Context, nodeID string, report protocol.Report, source *ingressSource) error {
 	if err := report.Validate(); err != nil {
 		return err
 	}
@@ -293,7 +297,8 @@ func (s *Store) SaveReport(ctx context.Context, nodeID string, report protocol.R
 	// Reserve the SQLite writer before checking the previous sample. Retries and
 	// exact cached replays prove liveness without adding history or making
 	// traffic counters move backwards.
-	if _, err = tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", nowText(), nowText(), nodeID); err != nil {
+	observed := time.Now().UTC()
+	if _, err = tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", formatTime(observed), formatTime(observed), nodeID); err != nil {
 		return err
 	}
 	// A distinct late capture must remain in history. Deduplicate only exact
@@ -342,6 +347,9 @@ func (s *Store) SaveReport(ctx context.Context, nodeID string, report protocol.R
 		if err = s.updateTrafficState(ctx, tx, nodeID, report.CapturedAt, rxTotal, txTotal); err != nil {
 			return err
 		}
+	}
+	if err = recordReportIngress(ctx, tx, nodeID, report.CapturedAt, observed, source); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

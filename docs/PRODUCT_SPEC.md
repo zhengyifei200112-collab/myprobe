@@ -37,7 +37,7 @@ for their existing capabilities and never receive HTTP tasks.
 
 | Area | Requirement | Acceptance evidence | Status |
 | --- | --- | --- | --- |
-| System health | Private runtime/version/database/retention/transport, both schedulers, durable queue, backup-generation and node diagnostics; configuration acknowledgement/recovery remain separate | `docs/SYSTEM_HEALTH.md`, actual Server/browser/Agent and privacy/lifecycle tests | In progress |
+| System health | Private runtime/version/database/retention/transport, both schedulers, durable queue, backup-generation and node diagnostics; negotiated sampling confirmation and actual report-ingress evidence; recovery remains separate | `docs/SYSTEM_HEALTH.md`, `docs/AGENT_RUNTIME_EVIDENCE.md`, actual Server/browser/Agent and privacy/lifecycle tests | In progress |
 | Network quality | Persistent task/result identity and bounded retention feed scoped public/share/admin range summaries for at most eight nodes, with explicit quality/availability DTOs and one read snapshot. Time series, comparison UI, family/packet evidence and full acceptance remain in progress | `docs/NETWORK_QUALITY.md`, `docs/NETWORK_QUALITY_API.md`, lifecycle, privacy, batch and restore regressions | In progress |
 | Public overview | Current time, online/offline counts, aggregate traffic and rate | Responsive browser tests and live API data | Implemented |
 | Public filtering | Tag/region pills with counts and horizontal mobile scrolling | UI test at 360/768/1440 px | Implemented |
