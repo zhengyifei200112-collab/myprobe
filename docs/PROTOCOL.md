@@ -7,6 +7,13 @@ array in its welcome. HTTP capability requires `MYPROBE_HTTP_PROBES_ENABLED=true
 on the Server and explicit Agent support; do not send HTTP tasks
 to v1 Agents or assume that a v2 connection establishes HTTP execution support.
 
+The independent `config_apply.v1` optional v2 capability manages sampling periods
+only. Mutually negotiated peers receive `welcome.runtime_config` and live `config`,
+then acknowledge actual application with `config_applied`. Revision, connection
+generation, nonce and exact values fence current proof. Unnegotiated v1/v2 peers
+receive no new frames. See [Agent runtime evidence](AGENT_RUNTIME_EVIDENCE.md) for
+the payload, independent collection/report semantics and released-Agent checks.
+
 Private service diagnostics use already admitted HTTP results, not a new Agent
 request. Failure categories identify available evidence; the Agent still reports
 only total duration, not DNS/TCP/TLS phase timing or resolved addresses. See

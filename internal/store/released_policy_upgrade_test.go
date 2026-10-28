@@ -68,6 +68,18 @@ func TestReleased021SchemaUpgradeToPolicies(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer upgraded.Close()
+	configuration, err := upgraded.DesiredSamplingConfiguration(ctx, "node")
+	if err != nil || configuration.Revision != 1 {
+		t.Fatal("runtime migration did not give the released node its initial revision")
+	}
+	configurationEvidence, err := upgraded.SamplingConfigurationEvidence(ctx, "node")
+	if err != nil || configurationEvidence.Status != "no_connection_evidence" || configurationEvidence.AppliedRevision != nil {
+		t.Fatal("upgrade invented a historical Agent application")
+	}
+	ingress, err := upgraded.LastReportIngress(ctx, "node")
+	if err != nil || ingress.Status != "unavailable" {
+		t.Fatal("upgrade inferred a historical report transport")
+	}
 	for i, want := range []int{1, 0} {
 		count, err := upgraded.PrepareAlertPolicyRules(ctx, at.Add(time.Duration(i+1)*time.Second))
 		if err != nil || count != want {

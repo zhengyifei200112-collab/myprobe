@@ -7,6 +7,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Agent runtime evidence
+
+- Negotiate sampling configuration application with current-connection/revision/nonce fences; show actual committed report transport in private node diagnostics.
+- Keep sampling and upload independent, discard old-generation samples and retain legacy HTTP acknowledgement configuration without recursive sampling locks.
+- Add forward-only migration040 without inventing historical configuration or ingress evidence. Full recovery, capacity and production acceptance remain separate.
+
 ### Fixed
 
 - HTTP scheduler diagnostics measure start delay from the original tick while

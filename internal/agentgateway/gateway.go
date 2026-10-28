@@ -27,6 +27,7 @@ type Gateway struct {
 	hub            *Hub
 	sessionsMu     sync.RWMutex
 	sessions       map[string]*agentSession
+	registrationMu sync.Mutex
 	pendingMu      sync.Mutex
 	pending        map[string]pendingTask
 	trustedProxies []netip.Prefix
@@ -53,12 +54,16 @@ func New(database *store.Store, hub *Hub) *Gateway {
 var ErrAgentOffline = errors.New("agent is offline")
 
 type agentSession struct {
-	httpAllowed bool
-	httpMu      sync.Mutex
-	httpPending map[string]time.Time
-	version     int
-	connection  *websocket.Conn
-	writeMu     sync.Mutex
+	configAllowed  bool
+	epoch          string
+	configMu       sync.Mutex
+	configRevision int64
+	httpAllowed    bool
+	httpMu         sync.Mutex
+	httpPending    map[string]time.Time
+	version        int
+	connection     *websocket.Conn
+	writeMu        sync.Mutex
 }
 
 func (s *agentSession) write(ctx context.Context, envelope protocol.Envelope) error {
@@ -99,7 +104,7 @@ func (g *Gateway) HTTPReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	report.PublicIP = g.clientIP(r)
-	if err := g.persistAndPublish(r.Context(), node, report); err != nil {
+	if err := g.persistAndPublishWithIngress(r.Context(), node, report, "http", protocol.Version); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to store report"})
 		return
 	}
@@ -190,25 +195,42 @@ func (g *Gateway) webSocketVersion(w http.ResponseWriter, r *http.Request, versi
 	var capabilities []string
 	if version == protocolv2.Version {
 		payload, _ := protocol.DecodePayload[protocol.Welcome](welcome)
-		var offered []string
+		offered := []string{protocolv2.ConfigurationCapability}
 		if g.httpEnabled.Load() {
-			offered = []string{httpcheck.Capability}
+			offered = append(offered, httpcheck.Capability)
 		}
 		capabilities = protocolv2.NegotiateCapabilities(hello.Capabilities, offered)
 		welcome.Payload, _ = json.Marshal(protocolv2.Welcome{Welcome: payload, Capabilities: capabilities})
 		welcome.Version = protocolv2.Version
 	}
 	session := &agentSession{connection: connection, version: version, httpAllowed: protocolv2.AllowsHTTP(capabilities), httpPending: make(map[string]time.Time)}
+	session.configAllowed = version == protocolv2.Version && protocolv2.AllowsConfiguration(capabilities)
 	// Publish the session while holding its writer lock. A scheduler can discover
 	// it immediately, but its first task cannot overtake the welcome frame.
 	session.writeMu.Lock()
-	g.register(node.ID, session)
+	runtimeConfig, registrationErr := g.registerRuntimeSession(ctx, node.ID, session)
+	if registrationErr != nil {
+		session.writeMu.Unlock()
+		_ = connection.Close(websocket.StatusInternalError, "runtime evidence unavailable")
+		return
+	}
+	if runtimeConfig != nil {
+		payload, _ := protocol.DecodePayload[protocolv2.Welcome](welcome)
+		payload.RuntimeConfig = runtimeConfig
+		welcome.Payload, _ = json.Marshal(payload)
+	}
 	err = wsjson.Write(ctx, connection, welcome)
 	session.writeMu.Unlock()
+	if runtimeConfig != nil {
+		_ = g.store.CompleteSamplingDispatch(ctx, node.ID, session.epoch, runtimeConfig.Nonce, err == nil, time.Now().UTC())
+	}
 	if err != nil {
 		g.unregister(node.ID, session)
 		return
 	}
+	sessionCtx, stopSession := context.WithCancel(ctx)
+	defer stopSession()
+	go g.refreshSamplingConfiguration(sessionCtx, node.ID, session)
 	defer g.unregister(node.ID, session)
 
 	for {
@@ -238,6 +260,16 @@ func (g *Gateway) webSocketVersion(w http.ResponseWriter, r *http.Request, versi
 			}
 		}
 		switch envelope.Type {
+		case protocolv2.TypeConfigurationApplied:
+			applied, decodeErr := protocol.DecodePayload[protocolv2.ConfigurationApplied](envelope)
+			if decodeErr != nil || !session.configAllowed || !g.isCurrentSession(node.ID, session) || g.store.AcknowledgeSamplingConfiguration(ctx, node.ID, session.epoch, applied, time.Now().UTC()) != nil {
+				g.writeProtocolError(ctx, session, "configuration_ack_rejected", "configuration acknowledgement rejected")
+				continue
+			}
+			ack, _ := protocol.NewEnvelope(protocol.TypeAcknowledged, envelope.Sequence, protocol.Acknowledgement{Sequence: envelope.Sequence})
+			if session.write(ctx, ack) != nil {
+				return
+			}
 		case protocolv2.TypeHTTPResult:
 			result, err := protocol.DecodePayload[httpcheck.Result](envelope)
 			if err != nil || !session.httpAllowed || !g.httpEnabled.Load() {
@@ -259,7 +291,7 @@ func (g *Gateway) webSocketVersion(w http.ResponseWriter, r *http.Request, versi
 				continue
 			}
 			report.PublicIP = sourceIP
-			if err := g.persistAndPublish(ctx, node, report); err != nil {
+			if err := g.persistAndPublishWithIngress(ctx, node, report, "websocket", version); err != nil {
 				g.writeProtocolError(ctx, session, "storage_error", "report could not be stored")
 				continue
 			}
@@ -309,6 +341,14 @@ func (g *Gateway) webSocketVersion(w http.ResponseWriter, r *http.Request, versi
 
 func (g *Gateway) persistAndPublish(ctx context.Context, node store.Node, report protocol.Report) error {
 	if err := g.store.SaveReport(ctx, node.ID, report); err != nil {
+		return err
+	}
+	g.publishNode(ctx, node.ID)
+	return nil
+}
+
+func (g *Gateway) persistAndPublishWithIngress(ctx context.Context, node store.Node, report protocol.Report, transport string, version int) error {
+	if err := g.store.SaveReportWithIngress(ctx, node.ID, report, transport, version); err != nil {
 		return err
 	}
 	g.publishNode(ctx, node.ID)

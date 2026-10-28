@@ -1,10 +1,12 @@
 # System health and node diagnostics (SYS-01)
 
-Status: health PR #52 is being reconciled on service candidate `67a3eb8`, which
-includes actual main `cdf9eaf`. This reuses original integration `ef6d5e7` and
-standalone health source `12b5bba`. Validation is recorded against the current
-pull request head; historical checks below do not prove the new integration.
-Neither this candidate nor service PR #59 is approved for production deployment.
+Status: health PR #52 and service PR #59 are merged. This follow-up adds
+negotiated sampling acknowledgement and committed report-ingress evidence on
+current main, preserving its schedulers, queues, retention and privacy contracts.
+See [AGENT_RUNTIME_EVIDENCE.md](AGENT_RUNTIME_EVIDENCE.md) for the new connection,
+revision and nonce fences. Historical checks below do not prove this new source;
+current validation and merge status are recorded against its own pull request.
+Production deployment and complete SYS-01/M5 acceptance remain separate.
 
 ## Current API contract
 
@@ -103,8 +105,10 @@ time, configured reporting interval, advertised Agent version/capabilities and
 the Server receipt time of the last hello. It excludes hostname, machine ID,
 addresses and credentials. No hello is explicitly unavailable, not an empty
 capability claim; a hello is not evidence of a live connection. Current WebSocket
-presence is sampled separately. Last-report transport is unknown and configuration
-acknowledgement remains unavailable until that provider is integrated. The
+presence is sampled separately. The subsequent [runtime-evidence extension](AGENT_RUNTIME_EVIDENCE.md)
+records actual report ingress and sampling application acknowledgements. Prepared,
+sent, current confirmation and offline historical confirmation remain distinct;
+old Agents without the optional capability are explicitly unsupported. The
 advertised metadata can be older than the current session; its timestamp matters.
 Missing nodes return 404 only after administrator authentication.
 
@@ -218,8 +222,9 @@ $env:PLAYWRIGHT_MODULE = '<absolute Playwright module path>'
 go test ./cmd/server -run '^TestLiveSystemHealthMainBrowser$' -v -count=1
 ```
 
-Compatibility alerts, configuration acknowledgement, actual last-report transport,
-diagnostic export, scheduled backup/verified recovery and full-system capacity/
+Negotiated sampling acknowledgement and actual report transport are added by
+[AGENT_RUNTIME_EVIDENCE.md](AGENT_RUNTIME_EVIDENCE.md), preserving current-connection fences.
+Upstream version discovery, diagnostic export, scheduled backup/verified recovery and full-system capacity/
 24-hour operation remain separate roadmap work. This integration and local
 checks do not establish complete SYS-01–03 or M5 acceptance. The original health
 branch's CI references above are historical evidence, not latest integration CI.

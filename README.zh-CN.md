@@ -148,6 +148,8 @@ TLS；请在 HTTPS 反代可用或明确接受直接 HTTP 风险后再设置。�
 备份。`MYPROBE_ENCRYPTION_KEY` 应与数据库分开备份，否则通知渠道中的加密凭据无法
 恢复。
 
+“系统健康 → 节点诊断”可查看采样设置确认与最后成功入库通道。旧 Agent 不支持确认时明确标注不可用；历史确认与当前连接分开。见 [Agent 运行证据](docs/AGENT_RUNTIME_EVIDENCE.md)。
+
 一键安装脚本同样默认提供 `http://服务器IP:25775`。如果从安装时就准备使用域名反代，
 请执行 `sudo ./install.sh server --reverse-proxy`。
 

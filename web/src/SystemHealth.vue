@@ -25,6 +25,8 @@ interface NodeEvidence {
   observed_at: string
   websocket_connected: boolean
   node: { agent_evidence_status: string; agent_version?: string; capabilities?: string[]; hello_received_at?: string; last_seen_at?: string; report_seconds: number }
+  configuration_acknowledgement?: { status: string; scope?: string; desired_revision?: number; applied_revision?: number; collection_seconds?: number; report_seconds?: number; dispatched_at?: string; acknowledged_at?: string }
+  last_report_ingress?: { status: string; transport?: string; wire_version?: number; observed_at?: string; captured_at?: string }
 }
 const selectedNode = ref(new URLSearchParams(location.search).get('diagnostic_node') || '')
 const nodeData = ref<NodeEvidence | null>(null)
@@ -67,6 +69,7 @@ let generation = 0
 const states: Record<string, string> = { never_run: '本次启动后尚未运行', running: '运行中', success: '成功', failed: '失败', cancelled: '已取消' }
 const engineStates: Record<string, string> = { running: '运行中', not_running: '未运行', disabled: '已停用', unavailable: '不可用' }
 const workerStates: Record<string, string> = { never_started: '本次启动后尚未进入循环', running: '运行中', not_running: '已退出', unavailable: '未接入观察' }
+const configurationStates: Record<string, string> = { no_connection_evidence: '尚无连接配置证据', acknowledgement_unsupported: '该通道不支持配置确认', prepared: '配置已准备，尚无发送证据', awaiting_dispatch: '等待下发当前版本', awaiting_agent_ack: '已发送，等待 Agent 确认', dispatch_failed: '配置发送失败', agent_confirmed: 'Agent 已确认应用设置', confirmed_no_active_connection: '历史设置已确认，当前未连接', connection_evidence_not_current: '存储证据属于其他连接', connection_observation_unavailable: '当前连接观察不可用', unavailable: '配置证据读取不可用' }
 const date = (value?: string) => value ? new Date(value).toLocaleString() : '暂无记录'
 const size = (value?: number) => value === undefined ? '不可用' : `${(value / 1048576).toFixed(2)} MiB`
 const days = (value?: number) => value === undefined ? '不可用' : `${value / 86400} 天`
@@ -133,7 +136,11 @@ onUnmounted(() => { generation++; controller?.abort(); nodeGeneration++; nodeCon
       <template v-if="nodeData">
         <p class="health-note">采样时间：{{ date(nodeData.observed_at) }}</p>
         <dl><dt>WebSocket 连接</dt><dd>{{ nodeData.websocket_connected ? '已连接' : '未连接' }}</dd><dt>最近报告</dt><dd>{{ date(nodeData.node.last_seen_at) }}</dd><dt>配置上报间隔</dt><dd>{{ nodeData.node.report_seconds }} 秒</dd><dt>Agent 版本</dt><dd>{{ nodeData.node.agent_version || '暂无声明' }}</dd><dt>最近握手</dt><dd>{{ date(nodeData.node.hello_received_at) }}</dd><dt>声明能力</dt><dd>{{ nodeData.node.agent_evidence_status === 'advertised' ? (nodeData.node.capabilities?.join('、') || '未声明能力') : '尚未收到握手' }}</dd></dl>
-        <p class="health-note">握手信息可能早于当前连接。未连接 WebSocket 不代表没有 HTTP 上报；最近报告所用通道未知。配置确认诊断尚未集成。</p>
+        <h3>采集与上报配置</h3>
+        <dl><dt>确认状态</dt><dd>{{ configurationStates[nodeData.configuration_acknowledgement?.status || 'unavailable'] || '状态不可用' }}</dd><dt>期望版本</dt><dd>{{ nodeData.configuration_acknowledgement?.desired_revision ?? '尚无证据' }}</dd><dt>期望采集周期</dt><dd>{{ nodeData.configuration_acknowledgement?.collection_seconds === undefined ? '不可用' : `${nodeData.configuration_acknowledgement.collection_seconds} 秒` }}</dd><dt>期望上报周期</dt><dd>{{ nodeData.configuration_acknowledgement?.report_seconds === undefined ? '不可用' : `${nodeData.configuration_acknowledgement.report_seconds} 秒` }}</dd><dt>已确认版本</dt><dd>{{ nodeData.configuration_acknowledgement?.applied_revision ?? '尚未确认' }}</dd><dt>确认接收时间</dt><dd>{{ date(nodeData.configuration_acknowledgement?.acknowledged_at) }}</dd></dl>
+        <h3>最后成功入库的上报</h3>
+        <dl><dt>实际通道</dt><dd>{{ nodeData.last_report_ingress?.status === 'observed' ? `${nodeData.last_report_ingress.transport === 'websocket' ? 'WebSocket' : 'HTTP'} / v${nodeData.last_report_ingress.wire_version}` : '尚无通道证据' }}</dd><dt>Server 观察时间</dt><dd>{{ date(nodeData.last_report_ingress?.observed_at) }}</dd><dt>样本采集时间</dt><dd>{{ date(nodeData.last_report_ingress?.captured_at) }}</dd></dl>
+        <p class="health-note">握手信息可能早于当前连接。未连接 WebSocket 不代表没有 HTTP 上报；最后入库通道不证明现在仍在线，也不推断 TLS。配置确认仅证明 Agent 已应用采集/上报周期设置，不保证设备采集成功；没有确认能力的旧通道保留未知状态。</p>
       </template>
     </section>
   </section>

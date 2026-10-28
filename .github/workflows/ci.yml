@@ -49,6 +49,8 @@ jobs:
           go test -race ./internal/store ./internal/scheduler ./internal/agentgateway -run '^TestNetwork' -count=1
           go test -race ./internal/httpapi -run '^TestNetworkQuality' -count=1
           go test -race ./internal/networkquality -count=1
+          go test -race ./internal/agentclient -run '^Test(Sampling|ReportPeriod|LegacySampling|HTTPFallback|ActualAgent|InvalidManaged|CollectionInterval|ReportingUses|WelcomeApplies)' -count=1
+          go test -race ./internal/agentgateway ./internal/store ./internal/protocol/v2 -run '^Test(Sampling|ReportIngress|NegotiatedSampling|Configuration)' -count=1
           go test -race ./cmd/server -run '^TestNetworkRetention' -count=1
 
       - name: Verify released database upgrade
@@ -58,6 +60,16 @@ jobs:
           git fetch --no-tags --depth=1 origin 532352963ab47aed4af730c400f25163d0e6ed45
           go test ./internal/store -run '^TestReleased021SchemaUpgradeToPolicies$' -count=1 -v
           MYPROBE_TEST_RELEASE_AGENT=1 go test ./internal/agentgateway -run '^TestNetworkReleasedAgentCompatibility$' -count=1 -v
+
+      - name: Verify published Agent compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          released_agent="${RUNNER_TEMP}/myprobe-agent-v0.2.1-linux-amd64"
+          curl --fail --location --retry 3 --output "$released_agent" https://github.com/zhengyifei200112-collab/myprobe/releases/download/v0.2.1/myprobe-agent-linux-amd64
+          printf '%s  %s\n' '006fc5b316d3168ed22b1578bdc37012c1b13b82bab740116824ffc71b43b8dc' "$released_agent" | sha256sum --check --strict
+          chmod 700 "$released_agent"
+          MYPROBE_TEST_RELEASED_AGENT="$released_agent" go test ./internal/agentclient -run '^TestReleased021AgentRuntimeCompatibility$' -count=1 -v
 
       - name: Build and validate container images
         shell: bash
