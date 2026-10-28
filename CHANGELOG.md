@@ -7,6 +7,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Covering historical reads
+
+- Add original forward migrations050/051 for retained latency and raw metric/latency/traffic covering indexes; preserve source rows, existing unique/retention indexes and exact equal-time order.
+- Read bounded projections from indexes while retaining weights, nulls, scopes, counter resets and integer totals. Index creation adds startup/write/disk costs on populated data; current native20-node performance is verified separately.
+
 ### Bounded historical queries
 
 - Aggregate latency sources before metadata joins, seek explicit historical target/kind/time ranges and avoid repeated visibility lookups.
