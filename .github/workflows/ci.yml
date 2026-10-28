@@ -49,6 +49,8 @@ jobs:
           go test -race ./internal/store ./internal/scheduler ./internal/agentgateway -run '^TestNetwork' -count=1
           go test -race ./internal/httpapi -run '^TestNetworkQuality' -count=1
           go test -race ./internal/networkquality -count=1
+          go test -race ./internal/agentclient -run '^Test(Sampling|ReportPeriod|LegacySampling|HTTPFallback|ActualAgent|InvalidManaged|CollectionInterval|ReportingUses|WelcomeApplies)' -count=1
+          go test -race ./internal/agentgateway ./internal/store ./internal/protocol/v2 -run '^Test(Sampling|ReportIngress|NegotiatedSampling|Configuration)' -count=1
           go test -race ./cmd/server -run '^TestNetworkRetention' -count=1
 
       - name: Verify released database upgrade
