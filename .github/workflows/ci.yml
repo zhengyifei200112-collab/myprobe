@@ -49,6 +49,9 @@ jobs:
           go test -race ./internal/store ./internal/scheduler ./internal/agentgateway -run '^TestNetwork' -count=1
           go test -race ./internal/httpapi -run '^TestNetworkQuality' -count=1
           go test -race ./internal/networkquality -count=1
+          go test -race ./internal/backup -count=1
+          go test -race ./internal/store ./internal/alerts ./internal/httpapi -run '^Test(ScheduledBackup|SystemNotification|IdleSystem)' -count=1
+
           go test -race ./internal/agentclient -run '^Test(Sampling|ReportPeriod|LegacySampling|HTTPFallback|ActualAgent|InvalidManaged|CollectionInterval|ReportingUses|WelcomeApplies)' -count=1
           go test -race ./internal/agentgateway ./internal/store ./internal/protocol/v2 -run '^Test(Sampling|ReportIngress|NegotiatedSampling|Configuration)' -count=1
           go test -race ./cmd/server -run '^TestNetworkRetention' -count=1
@@ -60,6 +63,12 @@ jobs:
           git fetch --no-tags --depth=1 origin 532352963ab47aed4af730c400f25163d0e6ed45
           go test ./internal/store -run '^TestReleased021SchemaUpgradeToPolicies$' -count=1 -v
           MYPROBE_TEST_RELEASE_AGENT=1 go test ./internal/agentgateway -run '^TestNetworkReleasedAgentCompatibility$' -count=1 -v
+
+      - name: Verify backups on an exhausted filesystem
+        shell: bash
+        run: |
+          go test -c ./internal/backup -o "${RUNNER_TEMP}/myprobe-backup-linux.test"
+          sudo sh scripts/run-backup-enospc.sh "${RUNNER_TEMP}/myprobe-backup-linux.test"
 
       - name: Verify published Agent compatibility
         shell: bash
@@ -92,6 +101,8 @@ jobs:
           sudo apt-get install --yes shellcheck
           bash -n install.sh scripts/install_test.sh
           shellcheck install.sh scripts/install_test.sh
+          sh -n scripts/run-backup-enospc.sh
+          shellcheck scripts/run-backup-enospc.sh
           bash scripts/install_test.sh
           bash install.sh --help >/dev/null
 

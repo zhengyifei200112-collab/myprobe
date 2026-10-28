@@ -1,0 +1,5 @@
+export interface BackupSchedule { enabled: boolean; directory: string; daily_time: string; timezone: string; keep: number; failure_channel_ids: string[] }
+export interface BackupArtifact { id: string; file_name: string; bytes: number; sha256: string; archive_verified: boolean; recovery_verified: boolean; recovery_verified_at?: string; recovery_evidence?: { nodes: number; users: number; reports: number; channels: number } }
+export interface BackupRun { id: string; trigger: string; status: string; started_at: string; finished_at?: string; error_code?: string; artifact: BackupArtifact | null }
+export interface BackupNotification { id: string; backup_run_id: string; channel_name: string; provider: string; status: string; attempt_count: number; available_at: string; occurred_at: string; error_code: string; error_class?: string }
+export interface BackupStatus { config: BackupSchedule; passphrase_ready: boolean; runtime: { available: boolean; running: boolean; operation?: string; error_code?: string }; runs: BackupRun[]; notifications: BackupNotification[] }

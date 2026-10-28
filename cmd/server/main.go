@@ -14,6 +14,7 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/agentgateway"
 	"github.com/zhengyifei200112-collab/myprobe/internal/alerts"
 	"github.com/zhengyifei200112-collab/myprobe/internal/auth"
+	"github.com/zhengyifei200112-collab/myprobe/internal/backup"
 	"github.com/zhengyifei200112-collab/myprobe/internal/config"
 	"github.com/zhengyifei200112-collab/myprobe/internal/diagnostics"
 	"github.com/zhengyifei200112-collab/myprobe/internal/httpapi"
@@ -83,12 +84,20 @@ func main() {
 	alertService.SetHTTPAgentAvailability(gateway.SupportsHTTP)
 
 	go alertService.Run(runCtx)
+	backupWorker, backupErr := backup.NewScheduler(runCtx, database, cfg.BackupPassphraseFile, alertService.VerifyRecoveryChannels, alertService.ValidateBackupFailureChannels)
+	if backupErr != nil {
+		logger.Warn("scheduled backup worker unavailable", "error_code", backupErr.Error())
+	} else {
+		defer backupWorker.Close()
+		go backupWorker.Run(runCtx)
+	}
 	retentionLoop := &diagnostics.Loop{}
 	go runRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger, retentionLoop)
 	networkRetentionLoop := &diagnostics.Loop{}
 	go runNetworkRetention(runCtx, database, retentionPolicy, cfg.Retention.Interval, logger, networkRetentionLoop)
 	api := httpapi.NewWithAlertService(cfg, database, authService, gateway, hub, alertService,
 		httpapi.WithRuntimeIdentity(version, startedAt),
+		httpapi.WithBackupScheduler(backupWorker),
 		httpapi.WithRetentionWorkerHealth(retentionLoop.Snapshot),
 		httpapi.WithNetworkRetentionWorkerHealth(networkRetentionLoop.Snapshot),
 		httpapi.WithAlertHealth(alertService.Diagnostics),
