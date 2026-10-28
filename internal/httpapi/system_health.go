@@ -50,8 +50,13 @@ func (s *Server) systemHealth(c *gin.Context) {
 	if s.retentionWorkerHealth != nil {
 		retentionWorker = s.retentionWorkerHealth()
 	}
+	var backupRuntime any = gin.H{"available": false, "running": false, "error_code": "observer_not_attached"}
+	if s.scheduledBackups != nil {
+		backupRuntime = s.scheduledBackups.Diagnostics()
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"notification_engine": engine,
+		"notification_engine":     engine,
+		"scheduled_backup_worker": backupRuntime,
 		"backup": gin.H{
 			"observation_scope": "process", "operation": "encrypted_file_generation",
 			"job": s.backupJob.Snapshot(), "download_saved": "unknown", "recovery_verified": "unknown",

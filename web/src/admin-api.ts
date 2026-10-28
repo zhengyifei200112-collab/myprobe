@@ -1,4 +1,5 @@
 import type { NodeMetadata, SiteSettings } from './types'
+import type { BackupSchedule, BackupStatus } from './backup-api'
 export type { SiteSettings } from './types'
 
 export interface AdminTarget {
@@ -396,6 +397,11 @@ async function request<T>(path: string, options: RequestInit = {}, decode?: (tex
   return response.json() as Promise<T>
 }
 
+export const loadBackupStatus = (signal?: AbortSignal) => request<BackupStatus>('/api/v1/admin/maintenance/backup-schedule', { signal })
+export const saveBackupSchedule = (config: BackupSchedule) => request<{ saved: boolean }>('/api/v1/admin/maintenance/backup-schedule', { method: 'PUT', body: JSON.stringify(config) })
+export const runScheduledBackup = () => request<{ accepted: boolean }>('/api/v1/admin/maintenance/backup-schedule/run', { method: 'POST' })
+export const verifyBackupRecovery = (id: string) => request<{ accepted: boolean }>(`/api/v1/admin/maintenance/backup-schedule/runs/${encodeURIComponent(id)}/verify`, { method: 'POST' })
+
 export async function restoreSession(): Promise<boolean> {
   try {
     const result = await request<{ csrf_token: string }>('/api/v1/auth/me')
@@ -442,7 +448,7 @@ export const setGroupTarget = (groupID: string, targetID: string, assigned: bool
 export const setNodeGroup = (nodeID: string, groupID: string, assigned: boolean) => request<void>(`/api/v1/admin/nodes/${encodeURIComponent(nodeID)}/target-groups/${encodeURIComponent(groupID)}`, { method: assigned ? 'PUT' : 'DELETE' })
 export const setNodeTarget = (nodeID: string, targetID: string, assigned: boolean) => request<void>(`/api/v1/admin/nodes/${encodeURIComponent(nodeID)}/targets/${encodeURIComponent(targetID)}`, { method: assigned ? 'PUT' : 'DELETE' })
 
-export const loadChannels = () => request<{ channels: NotificationChannel[] }>('/api/v1/admin/notification-channels')
+export const loadChannels = (signal?: AbortSignal) => request<{ channels: NotificationChannel[] }>('/api/v1/admin/notification-channels', { signal })
 export const createChannel = (payload: unknown) => request<{ channel: NotificationChannel }>('/api/v1/admin/notification-channels', { method: 'POST', body: JSON.stringify(payload) })
 export const updateChannel = (id: string, payload: unknown) => request<{ channel: NotificationChannel }>(`/api/v1/admin/notification-channels/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) })
 export const deleteChannel = (id: string) => request<void>(`/api/v1/admin/notification-channels/${encodeURIComponent(id)}`, { method: 'DELETE' })

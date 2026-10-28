@@ -86,6 +86,13 @@ see `./install.sh --help`.
    WebSocket upgrades and should pass `X-Forwarded-For`.
 
 The named `myprobe-data` volume contains SQLite and must be included in host backups.
+
+Daily encrypted local backups can also be configured in the administrator
+maintenance page. Set `MYPROBE_BACKUP_PASSPHRASE_FILE` to an independently managed
+secret file, and mount both that file and the archive directory when using Docker.
+Use container paths in the configuration; setting the environment variable alone
+does not create mounts. Keep the original passphrase and application encryption
+key separately. See [scheduled backup contracts and recovery boundaries](../docs/SCHEDULED_BACKUPS.md).
 Keep `MYPROBE_ENCRYPTION_KEY` in a separate secret backup because encrypted notification
 credentials cannot be recovered without it.
 

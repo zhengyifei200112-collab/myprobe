@@ -7,6 +7,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Scheduled backups
+
+- Optional daily encrypted local backups use independent passphrase files, durable date claims, owned retention and asynchronous private controls.
+- Isolated restore verifies database integrity and notification-credential decryption before recording recovery evidence; interrupted jobs generate durable failure reminders.
+- Original migration039 adds backup jobs and system notifications. Current source validation and full recovery/capacity acceptance remain separate.
+
 ### Fixed
 
 - HTTP scheduler diagnostics measure start delay from the original tick while

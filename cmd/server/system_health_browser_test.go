@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -28,12 +27,7 @@ func TestLiveSystemHealthMainBrowser(t *testing.T) {
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("fixture build: %s %v", output, err)
 	}
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	address := listener.Addr().String()
-	listener.Close()
+	address := browserFixtureAddress(t)
 	serverCtx, stopServer := context.WithCancel(ctx)
 	server := exec.CommandContext(serverCtx, binary)
 	server.Env = append(os.Environ(), "MYPROBE_LISTEN="+address, "MYPROBE_DATABASE="+filepath.Join(httpFixtureDir(t), "health.db"), "MYPROBE_ADMIN_USERNAME=admin", "MYPROBE_ADMIN_PASSWORD=health-local-test-password", "MYPROBE_ENCRYPTION_KEY="+strings.Repeat("s", 32), "MYPROBE_HTTP_PROBES_ENABLED=true")

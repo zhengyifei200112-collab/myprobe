@@ -13,18 +13,19 @@ import (
 )
 
 type Config struct {
-	NotificationOrigin string
-	ListenAddress      string
-	DatabasePath       string
-	AdminUsername      string
-	AdminPassword      string
-	EncryptionKey      string
-	SessionTTL         time.Duration
-	CookieSecure       bool
-	TrustedProxies     []string
-	Retention          Retention
-	PublicHTTPAck      bool
-	HTTPProbesEnabled  bool
+	NotificationOrigin   string
+	ListenAddress        string
+	DatabasePath         string
+	AdminUsername        string
+	AdminPassword        string
+	EncryptionKey        string
+	BackupPassphraseFile string
+	SessionTTL           time.Duration
+	CookieSecure         bool
+	TrustedProxies       []string
+	Retention            Retention
+	PublicHTTPAck        bool
+	HTTPProbesEnabled    bool
 }
 
 type Retention struct {
@@ -36,14 +37,15 @@ type Retention struct {
 
 func Load() (Config, error) {
 	cfg := Config{
-		ListenAddress: env("MYPROBE_LISTEN", ":25775"),
-		DatabasePath:  env("MYPROBE_DATABASE", filepath.Join("data", "myprobe.db")),
-		AdminUsername: env("MYPROBE_ADMIN_USERNAME", "admin"),
-		AdminPassword: os.Getenv("MYPROBE_ADMIN_PASSWORD"),
-		EncryptionKey: os.Getenv("MYPROBE_ENCRYPTION_KEY"),
-		SessionTTL:    24 * time.Hour,
-		CookieSecure:  envBool("MYPROBE_COOKIE_SECURE", false),
-		PublicHTTPAck: envBool("MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED", false),
+		ListenAddress:        env("MYPROBE_LISTEN", ":25775"),
+		DatabasePath:         env("MYPROBE_DATABASE", filepath.Join("data", "myprobe.db")),
+		AdminUsername:        env("MYPROBE_ADMIN_USERNAME", "admin"),
+		AdminPassword:        os.Getenv("MYPROBE_ADMIN_PASSWORD"),
+		EncryptionKey:        os.Getenv("MYPROBE_ENCRYPTION_KEY"),
+		BackupPassphraseFile: os.Getenv("MYPROBE_BACKUP_PASSPHRASE_FILE"),
+		SessionTTL:           24 * time.Hour,
+		CookieSecure:         envBool("MYPROBE_COOKIE_SECURE", false),
+		PublicHTTPAck:        envBool("MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED", false),
 		Retention: Retention{
 			Raw:        7 * 24 * time.Hour,
 			OneMinute:  30 * 24 * time.Hour,

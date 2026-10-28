@@ -14,6 +14,7 @@ import { adminDetailDestination } from './node-details/navigation'
 import { notificationPath, parseNotificationTarget, pendingNotificationTarget, rememberNotificationTarget, type NotificationTarget } from './notification-links'
 import ServiceMonitoring from './service-monitoring/ServiceMonitoring.vue'
 import SystemHealth from './SystemHealth.vue'
+import ScheduledBackups from './ScheduledBackups.vue'
 import { applyAppearance, backgroundVariables, cacheAppearance } from './appearance'
 import { fetchSiteSettings } from './api'
 import { defaultSiteSettings, normalizeSiteSettings } from './types'
@@ -33,7 +34,8 @@ const error = ref('')
 const notice = ref('')
 const initialNotification = parseNotificationTarget(location.search)
 const initialHealth = !initialNotification.explicit && new URLSearchParams(location.search).get('tab') === 'health'
-const tab = ref<Tab>(initialHealth ? 'health' : 'nodes')
+const initialMaintenance = !initialNotification.explicit && new URLSearchParams(location.search).get('tab') === 'maintenance'
+const tab = ref<Tab>(initialHealth ? 'health' : initialMaintenance ? 'maintenance' : 'nodes')
 const notificationTarget = ref<NotificationTarget | null>(initialNotification.target)
 function restoreNotificationNavigation() {
   if (notificationTarget.value) { tab.value = notificationTarget.value.kind === 'service' ? 'services' : 'alerts'; history.replaceState(null, '', notificationPath(notificationTarget.value)) }
@@ -42,15 +44,16 @@ function restoreNotificationNavigation() {
 let restoringHistory = false
 watch(tab, (value, previous) => {
   if (restoringHistory) { restoringHistory = false; return }
-  if (value === 'health') {
+  if (value === 'health' || value === 'maintenance') {
     notificationTarget.value = null; rememberNotificationTarget(null)
-    history.pushState(null, '', '/admin?tab=health')
-  } else if (previous === 'health') history.pushState(null, '', '/admin')
+    history.pushState(null, '', `/admin?tab=${value}`)
+  } else if (previous === 'health' || previous === 'maintenance') history.pushState(null, '', '/admin')
 })
 function restoreHealthNavigation() {
   const parsed = parseNotificationTarget(location.search)
   notificationTarget.value = parsed.target
-  const next = parsed.target ? (parsed.target.kind === 'service' ? 'services' : 'alerts') : !parsed.explicit && new URLSearchParams(location.search).get('tab') === 'health' ? 'health' : 'nodes'
+  const destination = new URLSearchParams(location.search).get('tab')
+  const next = parsed.target ? (parsed.target.kind === 'service' ? 'services' : 'alerts') : !parsed.explicit && destination === 'health' ? 'health' : !parsed.explicit && destination === 'maintenance' ? 'maintenance' : 'nodes'
   if (tab.value !== next) { restoringHistory = true; tab.value = next }
 }
 window.addEventListener('popstate', restoreHealthNavigation)
@@ -718,6 +721,7 @@ onMounted(async () => {
             <div class="maintenance-actions"><button class="danger-button" :disabled="busy || !restoreFile || restorePassphrase.length < 12" @click="stageRestore">校验并暂存恢复</button></div>
           </section>
         </div>
+        <ScheduledBackups @unauthorized="authenticated = false" />
       </template>
 
       <template v-else>

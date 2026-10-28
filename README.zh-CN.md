@@ -148,6 +148,11 @@ TLS；请在 HTTPS 反代可用或明确接受直接 HTTP 风险后再设置。�
 备份。`MYPROBE_ENCRYPTION_KEY` 应与数据库分开备份，否则通知渠道中的加密凭据无法
 恢复。
 
+可在“设置 → 维护 → 打开迁移与备份”启用每日加密备份、保留清理和失败提醒。
+先设置 `MYPROBE_BACKUP_PASSPHRASE_FILE` 为独立口令文件的服务端路径。每份文件
+的隔离恢复演练结果与任务历史分别展示；完整恢复须保留原始口令和应用密钥。
+目录权限、容器挂载、调度/重启及验收范围见 [定时备份说明](docs/SCHEDULED_BACKUPS.md)。
+
 一键安装脚本同样默认提供 `http://服务器IP:25775`。如果从安装时就准备使用域名反代，
 请执行 `sudo ./install.sh server --reverse-proxy`。
 
@@ -260,6 +265,7 @@ Server 通过 `MYPROBE_*` 环境变量配置。常用项目如下：
 | `MYPROBE_ADMIN_USERNAME` | `admin` | 初始管理员用户名 |
 | `MYPROBE_ADMIN_PASSWORD` | 随机生成 | 首次启动管理员密码，生产环境应显式设置 |
 | `MYPROBE_ENCRYPTION_KEY` | 空 | 通知渠道加密密钥，至少 32 个字符 |
+| `MYPROBE_BACKUP_PASSPHRASE_FILE` | 空 | 独立备份口令文件的服务端路径；不设置时不可启用定时备份 |
 | `MYPROBE_SESSION_HOURS` | `24` | 管理会话有效小时数 |
 | `MYPROBE_COOKIE_SECURE` | `false` | 仅通过 HTTPS 发送 Cookie |
 | `MYPROBE_TRUSTED_PROXIES` | 空 | 允许提供转发客户端 IP 的明确 IP/CIDR 列表 |
