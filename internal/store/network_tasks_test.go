@@ -217,7 +217,7 @@ func TestNetworkTaskUpgradeKeepsSeparateResultBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	target, err := s.CreateTarget(ctx, CreateTargetParams{Name: "Synthetic pre-ledger target", Kind: protocol.TaskKindPing, Host: "example.test", IntervalSeconds: 30, TimeoutMS: 1000})
+	target, err := createLegacyNetworkTarget(ctx, s, CreateTargetParams{Name: "Synthetic pre-ledger target", Kind: protocol.TaskKindPing, Host: "example.test", IntervalSeconds: 30, TimeoutMS: 1000})
 	if err != nil {
 		t.Fatal(err)
 	}

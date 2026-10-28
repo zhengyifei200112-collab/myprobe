@@ -1,9 +1,10 @@
 # 网络质量汇总与有界时序 API（NET-02）
 
-本阶段提供一个请求比较最多八个节点的范围汇总及有界时序。原路径返回
-`aggregation=range_summary`，后缀 `/series` 返回同快照汇总与时间点。比较页面正在当前候选中整合，见 [界面契约](NETWORK_QUALITY_UI.md)。
-统计及保留口径见 [网络质量](NETWORK_QUALITY.md)。本轮重新整合和验证，不引用旧一年合成
-台账作为当前验收；完整容量、参考硬件与连续运行门槛继续保留。无协议变更或新迁移。
+本阶段提供最多八节点的范围汇总及同快照有界时序，三种权限比较已接入main。
+统计与保留见 [网络质量](NETWORK_QUALITY.md)，页面见 [界面契约](NETWORK_QUALITY_UI.md)。
+本轮通过原始迁移045和明确协商的v2 [network_probe.v1](NETWORK_PROBE_EVIDENCE.md)
+加入实际证据投影；v1 wire不变。不引用历史一年/扩展节点实验作为当前验收，
+完整容量、原参考硬件与同源连续运行门槛不变。
 
 ## 路由与权限
 
@@ -51,7 +52,7 @@ requested_start/end、AsOf、显示时区及有序 nodes。每个节点包含：
 
 - 节点 id/name、availability、AvailableFrom、实际 EffectiveStart/End 和统计粒度秒数。
   旧计划或可信结果起点以前是 unknown；触及汇总层时向内对齐，并返回实际范围。
-- counts：成熟 planned、pending、执行 success/failure、missing、Agent 回报
+- counts：成熟 planned、pending、执行 success/failure、missing、确认
   not_executed、以及有任务但没有可信结果的 unobserved_tasks。最后两个是 missing
   的子集；未创建任务的缺测通过差额解释，不重复加入分母。
 - coverage_pct、execution_failure_pct，以及成功 RTT mean/min/max/P50/P95（毫秒）。
@@ -66,9 +67,14 @@ requested_start/end、AsOf、显示时区及有序 nodes。每个节点包含：
 计数和相应指标为 null，不把未知表现为零次或 100% 健康。已知范围中真实零分母允许
 计数为 0，但百分比仍为 null。客户端必须展示实际可用起点和对齐后的范围。
 
-当前任务结果没有协商地址族或 sent/received 包计数，因此无论目标字符串长什么样，
-`address_family.status=unknown`，`packet_loss.value_pct=null` 且说明未上报包计数。
-不按主机名、字面地址或错误分类猜测这些证据。
+节点与点新增 `address_family`：status 为 ipv4/ipv6/mixed/partial/unknown，包含
+ipv4_tasks、ipv6_tasks、unknown_tasks，仅对真实已执行任务计数。部分执行缺少实际
+family 时为 partial，绝不根据请求 family、主机名或错误分类补证据。
+`packet_loss` 包含 value_pct、status、reason、measured_tasks、unknown_tasks、sent、
+received。仅可信 ICMP 包数按实际已发包加权；已执行任务中缺少计数时为 partial。
+完全没有计数时 sent/received/value 为 null；未知历史的所有计数均为 null。
+TCP status=not_applicable。顶层仅保留能力提示：有证据时 status=per_node、value=null，
+各节点有独立的实际窗口，不合并节点百分比。旧历史仍 unknown/unavailable。
 
 响应使用独立 DTO，包括独立分位数边界投影。不会直接序列化 Store/Target/任务对象，
 不包含目标地址/端口、epoch/task ID、hash、原始 payload、租约、备注、凭据或数据库路径。
@@ -84,8 +90,8 @@ requested_start/end、AsOf、显示时区及有序 nodes。每个节点包含：
 CI 增加对应 HTTP 合约 race 检查；当前完整基线和按20节点的必需容量验收分别核对，
 不自动重跑历史扩展负载。
 
-目标发现、八节点页面和晚高峰预设正在整合验证；IPv4/IPv6的可协商证据、
-实际请求量和完整容量仍需后续验收。
+目标发现、最多八节点页面、晚高峰及六种视图已有主线验证；本轮证据投影需以当前源重验，
+最终整合源20节点性能与同源24小时、恢复和真实渠道验收仍待。
 本 API 的实现不代表 NET-02 或完整路线已经交付。
 
 ## 同一快照的时间序列

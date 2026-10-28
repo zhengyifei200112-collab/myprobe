@@ -49,6 +49,9 @@ jobs:
           go test -race ./internal/store ./internal/scheduler ./internal/agentgateway -run '^TestNetwork' -count=1
           go test -race ./internal/httpapi -run '^TestNetworkQuality' -count=1
           go test -race ./internal/networkquality -count=1
+          go test -race ./internal/protocol/networkcheck -count=1
+          go test -race ./internal/agentclient -run '^TestNetworkProbe' -count=1
+          python3 scripts/native-network-evidence-test.py
           go test -race ./internal/backup -count=1
           go test -race ./internal/store ./internal/alerts ./internal/httpapi -run '^Test(ScheduledBackup|SystemNotification|IdleSystem)' -count=1
 
@@ -103,6 +106,8 @@ jobs:
           shellcheck install.sh scripts/install_test.sh
           sh -n scripts/run-backup-enospc.sh
           shellcheck scripts/run-backup-enospc.sh
+          sh -n scripts/run-network-evidence-loss.sh
+          shellcheck scripts/run-network-evidence-loss.sh
           bash scripts/install_test.sh
           bash install.sh --help >/dev/null
 
@@ -160,7 +165,7 @@ jobs:
         run: |
           export MYPROBE_HTTP_TEST_DIR="${RUNNER_TEMP}/myprobe-test-fixtures/http"
           mkdir -p "$MYPROBE_HTTP_TEST_DIR"
-          go test ./internal/httpapi -run '^TestNetworkQualityLiveComparisonBrowser$' -timeout 8m -count=1 -v
+          go test ./internal/httpapi -run '^TestNetwork(QualityLiveComparison|DefinitionLive)Browser$' -timeout 8m -count=1 -v
 
       - name: Preserve synthetic comparison screenshots and result
         if: always()
@@ -177,5 +182,97 @@ jobs:
         with:
           name: failed-comparison-fixtures-${{ github.run_id }}
           path: ${{ runner.temp }}/myprobe-test-fixtures
+          if-no-files-found: ignore
+          retention-days: 30
+
+  network-probe-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact probe source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: go.sum
+      - name: Prepare bounded native ICMP fixture
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes iputils-ping iproute2
+          ping -V
+      - name: Verify actual IPv4 and IPv6 TCP and ICMP
+        env:
+          MYPROBE_TEST_NETWORK_EVIDENCE_NATIVE: '1'
+          MYPROBE_HTTP_TEST_DIR: ${{ runner.temp }}/myprobe-native-fixtures/http
+          MYPROBE_NETWORK_TEST_DIR: ${{ runner.temp }}/myprobe-native-fixtures/network
+        run: |
+          mkdir -p "$MYPROBE_HTTP_TEST_DIR" "$MYPROBE_NETWORK_TEST_DIR"
+          go test ./internal/agentclient -run '^TestNetworkProbe' -count=1 -timeout 2m -v
+      - name: Verify actual transmitted packets with replies silenced in owned namespace
+        run: |
+          go test -c ./internal/agentclient -o "${RUNNER_TEMP}/myprobe-network-evidence.test"
+          sudo sh scripts/run-network-evidence-loss.sh "${RUNNER_TEMP}/myprobe-network-evidence.test"
+
+      - name: Preserve failed native database fixtures
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: failed-native-fixtures-${{ github.run_id }}
+          path: ${{ runner.temp }}/myprobe-native-fixtures
+          if-no-files-found: ignore
+          retention-days: 30
+
+  network-probe-darwin:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: amd64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact native source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up native Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: go.sum
+      - name: Verify native loopback execution and durable receipt
+        env:
+          MYPROBE_TEST_NETWORK_EVIDENCE_NATIVE: '1'
+          MYPROBE_HTTP_TEST_DIR: ${{ runner.temp }}/darwin-network/fixtures/http
+          MYPROBE_NETWORK_TEST_DIR: ${{ runner.temp }}/darwin-network/fixtures/network
+          EXPECTED_SOURCE: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/darwin-network" "$MYPROBE_HTTP_TEST_DIR" "$MYPROBE_NETWORK_TEST_DIR"
+          python3 scripts/native-network-evidence-test.py
+          go test ./internal/agentclient -run '^TestNetworkProbe' -count=1 -timeout 2m -json | tee "${RUNNER_TEMP}/darwin-network/events.jsonl"
+          python3 scripts/native-network-evidence.py "${RUNNER_TEMP}/darwin-network/events.jsonl" "${RUNNER_TEMP}/darwin-network/result.json" --source "$EXPECTED_SOURCE" --arch '${{ matrix.arch }}'
+          go test -race ./internal/agentclient -run '^TestNetworkProbe' -count=1 -timeout 3m
+      - name: Preserve synthetic native events and source-bound evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: darwin-network-${{ matrix.arch }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/darwin-network
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Preserve failed Darwin database fixtures
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: failed-darwin-fixtures-${{ matrix.arch }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/darwin-network/fixtures
           if-no-files-found: ignore
           retention-days: 30

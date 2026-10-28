@@ -154,8 +154,9 @@ let originalExpiry: string | undefined
 let editingExpiry = ''
 const nodeTargetIDs = ref<string[]>([])
 const customEdit = ref<NodeMetadata | null>(null)
-const emptyTarget = (): Omit<AdminTarget, 'id'> => ({ name: '', kind: 'ping', host: '', interval_seconds: 60, timeout_ms: 3000, enabled: true, sort_order: 0 })
+const emptyTarget = (): Omit<AdminTarget, 'id'> => ({ name: '', kind: 'ping', host: '', interval_seconds: 60, timeout_ms: 3000, enabled: true, sort_order: 0, address_family: 'auto', packet_count: 1 })
 const targetForm = reactive({ ...emptyTarget(), node_ids: [] as string[] } as Omit<AdminTarget, 'id'> & { id?: string; node_ids: string[] })
+watch(() => targetForm.kind, kind => { if (kind === 'ping' && !targetForm.packet_count) targetForm.packet_count = 1 })
 const emptyShare = () => ({ id: '', name: '', password: '', node_ids: [] as string[], enabled: true })
 const shareForm = reactive(emptyShare())
 
@@ -379,7 +380,7 @@ async function copyAvailableToken(item: NodeMetadata) {
 }
 
 function editTarget(item?: AdminTarget) {
-  Object.assign(targetForm, item ? { ...item } : emptyTarget(), {
+  Object.assign(targetForm, emptyTarget(), item || {}, {
     id: item?.id,
     node_ids: item ? config.value.node_targets.filter(x => x.target_id === item.id).map(x => x.node_id) : [],
   })
@@ -399,7 +400,7 @@ async function syncNodeTargets(nodeID: string, wanted: string[]) {
 
 async function saveTarget() {
   await run(async () => {
-    const payload = { ...targetForm, port: targetForm.kind === 'tcping' ? Number(targetForm.port || 0) : null }
+    const payload = { ...targetForm, port: targetForm.kind === 'tcping' ? Number(targetForm.port || 0) : null, packet_count: targetForm.kind === 'ping' ? Number(targetForm.packet_count || 1) : 0 }
     let targetID = targetForm.id
     if (targetID) await updateTarget(targetID, payload)
     else targetID = (await createTarget(payload)).target.id
@@ -675,12 +676,13 @@ onMounted(async () => {
       <template v-else-if="tab === 'targets'">
         <section class="admin-heading"><div><span class="eyebrow">LATENCY PROBES</span><h1>探测目标</h1><p>配置由 Agent 执行的 ICMP Ping 或 TCPing 目标。</p></div><span class="count-pill">{{ config.targets.length }} 个目标</span></section>
         <form class="admin-panel compact-form" @submit.prevent="saveTarget">
-          <h2>{{ targetForm.id ? '编辑目标' : '添加目标' }}</h2><div class="form-grid six"><label>名称<input v-model="targetForm.name" required></label><label>类型<select v-model="targetForm.kind"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label><label>主机<input v-model="targetForm.host" required placeholder="example.com"></label><label>端口<input v-model.number="targetForm.port" type="number" min="1" max="65535" :required="targetForm.kind === 'tcping'" :disabled="targetForm.kind === 'ping'"></label><label>间隔（秒）<input v-model.number="targetForm.interval_seconds" type="number" min="5" max="86400"></label><label>超时（毫秒）<input v-model.number="targetForm.timeout_ms" type="number" min="1"></label><label>排序<input v-model.number="targetForm.sort_order" type="number"></label></div>
+          <h2>{{ targetForm.id ? '编辑目标' : '添加目标' }}</h2><div class="form-grid six"><label>名称<input v-model="targetForm.name" required></label><label>类型<select v-model="targetForm.kind"><option value="ping">Ping</option><option value="tcping">TCPing</option></select></label><label>主机<input v-model="targetForm.host" required placeholder="example.com"></label><label>请求地址族<select v-model="targetForm.address_family" aria-label="请求地址族"><option value="auto">自动选择</option><option value="ipv4">仅 IPv4</option><option value="ipv6">仅 IPv6</option></select></label><label v-if="targetForm.kind === 'ping'">每次 ICMP 包数<input v-model.number="targetForm.packet_count" type="number" min="1" max="5"></label><label>端口<input v-model.number="targetForm.port" type="number" min="1" max="65535" :required="targetForm.kind === 'tcping'" :disabled="targetForm.kind === 'ping'"></label><label>间隔（秒）<input v-model.number="targetForm.interval_seconds" type="number" min="5" max="86400"></label><label>超时（毫秒）<input v-model.number="targetForm.timeout_ms" type="number" min="100" max="60000"></label><label>排序<input v-model.number="targetForm.sort_order" type="number"></label></div>
+          <p class="muted">超时为整项探测预算，包含解析、发包和等待。显式地址族与多包需 Agent 支持；不支持时记为未执行，不会自动改用其他地址族。</p>
           <div class="assignment-box"><b>应用于节点</b><label v-for="item in nodes" :key="item.id" class="check-chip"><input v-model="targetForm.node_ids" type="checkbox" :value="item.id">{{ item.name }}</label><span v-if="!nodes.length" class="empty-inline">暂无可分配节点</span></div>
           <div v-if="targetForm.id" class="switch-row"><label><input v-model="targetForm.enabled" type="checkbox"> 启用此目标</label></div>
           <div class="form-actions"><button class="primary-button" :disabled="busy">{{ targetForm.id ? '保存修改' : '创建目标' }}</button><button v-if="targetForm.id" type="button" @click="editTarget()">取消</button></div>
         </form>
-        <section class="admin-list"><article v-for="item in config.targets" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ item.name }}</strong><code>{{ item.host }}{{ item.port ? `:${item.port}` : '' }}</code></div><span class="status-label active">{{ item.kind.toUpperCase() }}</span></div><div class="entity-meta"><span>每 {{ item.interval_seconds }} 秒</span><span>超时 {{ item.timeout_ms }}ms</span><span>{{ item.enabled ? '已启用' : '已停用' }}</span></div><div class="entity-actions"><button @click="editTarget(item)">编辑</button><button class="danger" @click="removeTarget(item)">删除</button></div></article></section>
+        <section class="admin-list"><article v-for="item in config.targets" :key="item.id" class="admin-panel entity-card"><div class="entity-title"><div><strong>{{ item.name }}</strong><code>{{ item.host.includes(':') ? `[${item.host}]` : item.host }}{{ item.port ? `:${item.port}` : '' }}</code></div><span class="status-label active">{{ item.kind.toUpperCase() }}</span></div><div class="entity-meta"><span>请求 {{ item.address_family === 'ipv4' ? 'IPv4' : item.address_family === 'ipv6' ? 'IPv6' : '自动地址族' }}</span><span v-if="item.kind === 'ping'">每次最多 {{ item.packet_count || 1 }} 包</span><span>每 {{ item.interval_seconds }} 秒</span><span>超时 {{ item.timeout_ms }}ms</span><span>{{ item.enabled ? '已启用' : '已停用' }}</span></div><div class="entity-actions"><button @click="editTarget(item)">编辑</button><button class="danger" @click="removeTarget(item)">删除</button></div></article></section>
       </template>
 
       <template v-else-if="tab === 'settings'">
@@ -702,10 +704,10 @@ onMounted(async () => {
         <SystemHealth :nodes="nodes" @unauthorized="authenticated = false" />
       </template>
       <template v-else-if="tab === 'maintenance'">
-        <section class="admin-heading"><div><span class="eyebrow">PORTABILITY &amp; RECOVERY</span><h1>迁移与备份</h1><p>迁移可审阅配置，或创建包含全部数据的口令加密数据库备份。</p></div><span class="count-pill">配置版本 2</span></section>
+        <section class="admin-heading"><div><span class="eyebrow">PORTABILITY &amp; RECOVERY</span><h1>迁移与备份</h1><p>迁移可审阅配置，或创建包含全部数据的口令加密数据库备份。</p></div><span class="count-pill">配置版本 3</span></section>
         <div class="maintenance-grid">
           <section class="admin-panel maintenance-card">
-            <span class="eyebrow">CONFIGURATION</span><h2>版本化配置</h2><p>JSON 配置包含 HTTP 服务目标 URL、断言和节点关联，请妥善保存。不包含服务告警配置、范围告警策略、故障及投递历史、管理员密码、Agent Token、通知密文、分享密码和历史指标；这些数据需使用完整数据库备份迁移。支持导入 v1 / v2 配置，使用合并模式。</p>
+            <span class="eyebrow">CONFIGURATION</span><h2>版本化配置</h2><p>JSON 配置包含网络目标的请求地址族和包数、HTTP 服务目标 URL、断言和节点关联，请妥善保存。不包含服务告警配置、范围告警策略、故障及投递历史、管理员密码、Agent Token、通知密文、分享密码和历史指标；这些数据需使用完整数据库备份迁移。支持导入 v1 / v2 / v3 配置，使用合并模式；旧配置保持自动地址族和单包语义。</p>
             <div class="maintenance-actions"><button class="primary-button" :disabled="busy" @click="exportConfigFile">导出配置 JSON</button></div>
             <div class="maintenance-divider"></div>
             <label class="file-field">选择配置文件<input type="file" accept="application/json,.json" @change="selectConfigFile"></label>

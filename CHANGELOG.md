@@ -7,6 +7,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Network probe evidence
+
+- Add mutually negotiated v2 address-family and bounded ICMP packet execution, durable connection-fenced receipts, migration045 and configuration-v3 requested profiles.
+- Preserve actual family/count coverage in NQS2 archives and scoped comparison; legacy history stays unknown, incomplete ICMP counts remain partial and TCP packet loss is inapplicable.
+- Keep legacy auto/single-packet paths and explicit unsupported-session provenance. Current-source native/browser/race, capacity and continuous-operation acceptance are checked separately.
+
 ### Scheduled backups
 
 - Optional daily encrypted local backups use independent passphrase files, durable date claims, owned retention and asynchronous private controls.

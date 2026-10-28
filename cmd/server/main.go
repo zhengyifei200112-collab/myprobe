@@ -67,6 +67,7 @@ func main() {
 
 	hub := agentgateway.NewHub()
 	gateway := agentgateway.New(database, hub)
+	gateway.EnableNetworkProbes(true)
 	runCtx, cancelRun := context.WithCancel(context.Background())
 	defer cancelRun()
 	latencyScheduler := scheduler.New(database, gateway, logger)

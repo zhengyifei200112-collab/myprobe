@@ -22,6 +22,7 @@ import (
 	"github.com/zhengyifei200112-collab/myprobe/internal/collector"
 	"github.com/zhengyifei200112-collab/myprobe/internal/httpprobe"
 	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/httpcheck"
+	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/networkcheck"
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 	protocolv2 "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v2"
 )
@@ -157,7 +158,7 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 	}
 	envelope, err := protocol.NewEnvelope(protocol.TypeHello, c.sequence.Add(1), hello)
 	if version == 2 {
-		hello.Capabilities = append(hello.Capabilities, httpcheck.Capability, protocolv2.ConfigurationCapability)
+		hello.Capabilities = append(hello.Capabilities, httpcheck.Capability, protocolv2.ConfigurationCapability, networkcheck.Capability)
 		envelope, err = protocol.NewEnvelope(protocol.TypeHello, envelope.Sequence, hello)
 	}
 	envelope.Version = version
@@ -174,6 +175,7 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("server did not send welcome: read_error=%v message_type=%q extensions=%q", err, welcome.Type, negotiatedExtensions)
 	}
 	httpAllowed := false
+	networkAllowed := false
 	configurationAllowed := false
 	var managedConfiguration *protocolv2.RuntimeConfiguration
 	baseWelcome, baseDecodeErr := protocol.DecodePayload[protocol.Welcome](welcome)
@@ -188,6 +190,7 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 			return false, errors.New("invalid v2 welcome")
 		}
 		httpAllowed = protocolv2.AllowsHTTP(protocolv2.NegotiateCapabilities(hello.Capabilities, negotiated.Capabilities))
+		networkAllowed = protocolv2.AllowsNetwork(protocolv2.NegotiateCapabilities(hello.Capabilities, negotiated.Capabilities))
 		configurationAllowed = protocolv2.AllowsConfiguration(protocolv2.NegotiateCapabilities(hello.Capabilities, negotiated.Capabilities))
 		if configurationAllowed {
 			managedConfiguration = negotiated.RuntimeConfig
@@ -232,6 +235,14 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 			return true, err
 		}
 		switch message.Type {
+		case protocolv2.TypeNetworkTask:
+			if !networkAllowed {
+				continue
+			}
+			task, err := networkcheck.DecodeTask(message.Payload, time.Now().UTC())
+			if err == nil {
+				c.startNetworkTask(connectionCtx, connection, task)
+			}
 		case protocolv2.TypeHTTPTask:
 			if !httpAllowed {
 				continue

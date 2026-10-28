@@ -21,6 +21,7 @@ func TestNetworkQualityLiveComparisonBrowser(t *testing.T) {
 		t.Skip("opt-in real backend comparison browser")
 	}
 	f := networkQualityAPIFixture(t)
+	seedNetworkQualityAPIEvidence(t, f)
 	ctx := context.Background()
 	for i, n := range f.nodes {
 		if _, err := f.db.UpdateNode(ctx, n.ID, store.UpdateNodeParams{Name: fmt.Sprintf("观测节点 %02d", i+1), LatencyMode: "ping", CollectionSeconds: 15, ReportSeconds: 15}); err != nil {

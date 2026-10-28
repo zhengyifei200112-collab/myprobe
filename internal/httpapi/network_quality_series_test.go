@@ -69,7 +69,7 @@ func TestNetworkQualitySeriesAPIGridPopulationAndProjection(t *testing.T) {
 	if err := json.Unmarshal(r.Body.Bytes(), &raw); err != nil {
 		t.Fatal(err)
 	}
-	allowed := strings.Fields("time end availability effective_start effective_end counts coverage_pct execution_failure_pct rtt_mean_ms rtt_min_ms rtt_max_ms rtt_p50_ms rtt_p95_ms rtt_p50_bounds rtt_p95_bounds quantile_method")
+	allowed := strings.Fields("time end availability effective_start effective_end counts coverage_pct execution_failure_pct rtt_mean_ms rtt_min_ms rtt_max_ms rtt_p50_ms rtt_p95_ms rtt_p50_bounds rtt_p95_bounds quantile_method address_family packet_loss")
 	for _, node := range raw["nodes"].([]any) {
 		for _, point := range node.(map[string]any)["points"].([]any) {
 			fields := point.(map[string]any)

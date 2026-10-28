@@ -829,20 +829,38 @@ func (s *Server) latencyConfig(c *gin.Context) {
 func (s *Server) createTarget(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
 	var request struct {
-		Name            string `json:"name"`
-		Kind            string `json:"kind"`
-		Host            string `json:"host"`
-		Port            *int   `json:"port"`
-		IntervalSeconds int    `json:"interval_seconds"`
-		TimeoutMS       int    `json:"timeout_ms"`
+		AddressFamily   *string `json:"address_family"`
+		PacketCount     *int    `json:"packet_count"`
+		Name            string  `json:"name"`
+		Kind            string  `json:"kind"`
+		Host            string  `json:"host"`
+		Port            *int    `json:"port"`
+		IntervalSeconds int     `json:"interval_seconds"`
+		TimeoutMS       int     `json:"timeout_ms"`
 	}
 	if err := json.NewDecoder(c.Request.Body).Decode(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
+	family, packets := "", 0
+	if request.AddressFamily != nil {
+		family = *request.AddressFamily
+		if family == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid address family"})
+			return
+		}
+	}
+	if request.PacketCount != nil {
+		packets = *request.PacketCount
+		if request.Kind == "ping" && packets < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid packet count"})
+			return
+		}
+	}
 	target, err := s.store.CreateTarget(c.Request.Context(), store.CreateTargetParams{
 		Name: request.Name, Kind: request.Kind, Host: request.Host, Port: request.Port,
 		IntervalSeconds: request.IntervalSeconds, TimeoutMS: request.TimeoutMS,
+		AddressFamily: family, PacketCount: packets,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -855,20 +873,30 @@ func (s *Server) createTarget(c *gin.Context) {
 func (s *Server) updateTarget(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
 	var r struct {
-		Name            string `json:"name"`
-		Kind            string `json:"kind"`
-		Host            string `json:"host"`
-		Port            *int   `json:"port"`
-		IntervalSeconds int    `json:"interval_seconds"`
-		TimeoutMS       int    `json:"timeout_ms"`
-		Enabled         bool   `json:"enabled"`
-		SortOrder       int    `json:"sort_order"`
+		AddressFamily   *string `json:"address_family"`
+		PacketCount     *int    `json:"packet_count"`
+		Name            string  `json:"name"`
+		Kind            string  `json:"kind"`
+		Host            string  `json:"host"`
+		Port            *int    `json:"port"`
+		IntervalSeconds int     `json:"interval_seconds"`
+		TimeoutMS       int     `json:"timeout_ms"`
+		Enabled         bool    `json:"enabled"`
+		SortOrder       int     `json:"sort_order"`
 	}
 	if json.NewDecoder(c.Request.Body).Decode(&r) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-	target, err := s.store.UpdateTarget(c.Request.Context(), c.Param("targetID"), store.UpdateTargetParams{Name: r.Name, Kind: r.Kind, Host: r.Host, Port: r.Port, IntervalSeconds: r.IntervalSeconds, TimeoutMS: r.TimeoutMS, Enabled: r.Enabled, SortOrder: r.SortOrder})
+	family := ""
+	if r.AddressFamily != nil {
+		family = *r.AddressFamily
+		if family == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid address family"})
+			return
+		}
+	}
+	target, err := s.store.UpdateTarget(c.Request.Context(), c.Param("targetID"), store.UpdateTargetParams{Name: r.Name, Kind: r.Kind, Host: r.Host, Port: r.Port, IntervalSeconds: r.IntervalSeconds, TimeoutMS: r.TimeoutMS, Enabled: r.Enabled, SortOrder: r.SortOrder, AddressFamily: family, PacketCount: r.PacketCount})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
