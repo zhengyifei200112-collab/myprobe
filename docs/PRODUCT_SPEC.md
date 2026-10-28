@@ -11,6 +11,8 @@
 
 ## Feature parity matrix
 
+Private System Health compares official stable releases with Server and last-advertised Agent versions. Unknown/stale states, bounded shared checks and cooldown are explicit; daily checks can be disabled. Software ordering does not infer capabilities or protocol compatibility. See [release awareness](RELEASE_AWARENESS.md).
+
 本轮接入明确协商的network_probe.v1、原始迁移045与配置v3请求选项，
 连接代次约束的事务回执及NQS2证据保留。旧数据实际地址族/包数保持未知，
 不完整ICMP覆盖标为partial，TCP丢包不适用；不向旧连接静默发送不受约束的高级任务。

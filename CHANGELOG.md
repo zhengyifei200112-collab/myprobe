@@ -7,6 +7,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Official release awareness
+
+- Add private stable-release comparisons for Server and last-advertised Agent versions, bounded shared cache/cooldown and optional daily checks.
+- Keep unavailable, stale and unknown evidence explicit; software ordering does not assert protocol compatibility. Release links and installer guidance remain advisory.
+
 ### Private diagnostic exports
 
 - Add administrator previews of explicitly redacted diagnostic snapshots and audited downloads of the same frozen bytes, bound to one login session with five-minute expiry and bounded memory.

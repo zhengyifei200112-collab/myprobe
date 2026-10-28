@@ -26,6 +26,7 @@ type Config struct {
 	Retention            Retention
 	PublicHTTPAck        bool
 	HTTPProbesEnabled    bool
+	ReleaseChecksAuto    bool
 }
 
 type Retention struct {
@@ -46,6 +47,7 @@ func Load() (Config, error) {
 		SessionTTL:           24 * time.Hour,
 		CookieSecure:         envBool("MYPROBE_COOKIE_SECURE", false),
 		PublicHTTPAck:        envBool("MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED", false),
+		ReleaseChecksAuto:    true,
 		Retention: Retention{
 			Raw:        7 * 24 * time.Hour,
 			OneMinute:  30 * 24 * time.Hour,
@@ -54,6 +56,13 @@ func Load() (Config, error) {
 		},
 	}
 	var originErr error
+	if raw := strings.TrimSpace(os.Getenv("MYPROBE_RELEASE_CHECKS_AUTO")); raw != "" {
+		var err error
+		cfg.ReleaseChecksAuto, err = strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, errors.New("MYPROBE_RELEASE_CHECKS_AUTO must be a boolean")
+		}
+	}
 	cfg.NotificationOrigin, originErr = notificationlink.NormalizeOrigin(os.Getenv("MYPROBE_NOTIFICATION_ORIGIN"))
 	if originErr != nil {
 		return Config{}, errors.New("invalid MYPROBE_NOTIFICATION_ORIGIN; expected an HTTP(S) origin without credentials, path, query or fragment")

@@ -32,7 +32,7 @@ func TestLiveDiagnosticExportMainBrowser(t *testing.T) {
 	serverCtx, stopServer := context.WithCancel(ctx)
 	server := exec.CommandContext(serverCtx, binary)
 	key := strings.Repeat("synthetic-diagnostic-key-", 3)
-	server.Env = append(os.Environ(), "MYPROBE_LISTEN="+address, "MYPROBE_DATABASE="+filepath.Join(baseDir, "private-source.db"), "MYPROBE_ADMIN_USERNAME=admin", "MYPROBE_ADMIN_PASSWORD=diagnostic-local-test-password", "MYPROBE_ENCRYPTION_KEY="+key, "MYPROBE_BACKUP_PASSPHRASE_FILE="+filepath.Join(baseDir, "private-secret-file"), "MYPROBE_NOTIFICATION_ORIGIN=https://example.invalid")
+	server.Env = append(os.Environ(), "MYPROBE_RELEASE_CHECKS_AUTO=false", "MYPROBE_LISTEN="+address, "MYPROBE_DATABASE="+filepath.Join(baseDir, "private-source.db"), "MYPROBE_ADMIN_USERNAME=admin", "MYPROBE_ADMIN_PASSWORD=diagnostic-local-test-password", "MYPROBE_ENCRYPTION_KEY="+key, "MYPROBE_BACKUP_PASSPHRASE_FILE="+filepath.Join(baseDir, "private-secret-file"), "MYPROBE_NOTIFICATION_ORIGIN=https://example.invalid")
 	server.Stdout, server.Stderr = io.Discard, io.Discard
 	if err := server.Start(); err != nil {
 		stopServer()
