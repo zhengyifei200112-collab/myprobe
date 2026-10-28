@@ -3,12 +3,55 @@ package alerts
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 	"github.com/zhengyifei200112-collab/myprobe/internal/store"
 )
+
+func TestOfflineUsesContactWhileResourceRecoveryStillRequiresFreshCapture(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	node, _, err := db.CreateNode(ctx, store.CreateNodeParams{Name: "synthetic independent clocks"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if err := db.SaveReport(ctx, node.ID, protocol.Report{CapturedAt: now.Add(-5 * time.Minute), CPU: protocol.CPUMetric{UsagePercent: 0}}); err != nil {
+		t.Fatal(err)
+	}
+	epoch := strings.Repeat("c", 32)
+	if _, err := db.BeginAgentConnection(ctx, node.ID, epoch, 2, false, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RecordAgentHeartbeat(ctx, node.ID, epoch, now.Add(10*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := db.ListNodes(ctx)
+	if err != nil || len(nodes) != 1 {
+		t.Fatal("contact node unavailable", err)
+	}
+	s := New(db, "", &recordingSender{}, nil)
+	offline := store.AlertRule{Kind: "offline", Config: json.RawMessage(`{"offline_seconds":15}`)}
+	active, _, known, err := s.evaluate(ctx, offline, nodes[0], now.Add(20*time.Second))
+	if err != nil || !known || active {
+		t.Fatal("healthy contact triggered false offline", err)
+	}
+	active, _, known, err = s.evaluate(ctx, offline, nodes[0], now.Add(26*time.Second))
+	if err != nil || !known || !active {
+		t.Fatal("stopped contact hid actual timeout", err)
+	}
+	_, _, known, err = s.evaluate(ctx, store.AlertRule{Kind: "cpu", Config: json.RawMessage(`{"threshold_percent":90}`)}, nodes[0], now.Add(20*time.Second))
+	if err != nil || known {
+		t.Fatal("heartbeat supplied false CPU recovery", err)
+	}
+}
 
 func TestObservationFreshBoundaries(t *testing.T) {
 	now := time.Now().UTC()

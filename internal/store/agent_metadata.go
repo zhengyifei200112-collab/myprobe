@@ -15,9 +15,21 @@ func (s *Store) SaveAgentMetadata(ctx context.Context, nodeID string, hello prot
 		return err
 	}
 	capabilities, _ := json.Marshal(hello.Capabilities)
-	_, err := s.db.ExecContext(ctx, `INSERT INTO node_agent_metadata(node_id,hostname,operating_system,platform,platform_version,kernel_version,architecture,agent_version,capabilities_json,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(node_id) DO UPDATE SET hostname=excluded.hostname,operating_system=excluded.operating_system,platform=excluded.platform,platform_version=excluded.platform_version,kernel_version=excluded.kernel_version,architecture=excluded.architecture,agent_version=excluded.agent_version,capabilities_json=excluded.capabilities_json,updated_at=excluded.updated_at`,
-		nodeID, strings.TrimSpace(hello.Hostname), strings.TrimSpace(hello.OS), strings.TrimSpace(hello.Platform), strings.TrimSpace(hello.PlatformVersion), strings.TrimSpace(hello.KernelVersion), strings.TrimSpace(hello.Architecture), strings.TrimSpace(hello.AgentVersion), string(capabilities), nowText())
-	return err
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	now := nowText()
+	if _, err = tx.ExecContext(ctx, `UPDATE nodes SET last_seen_at=? WHERE id=?`, now, nodeID); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO node_agent_metadata(node_id,hostname,operating_system,platform,platform_version,kernel_version,architecture,agent_version,capabilities_json,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(node_id) DO UPDATE SET hostname=excluded.hostname,operating_system=excluded.operating_system,platform=excluded.platform,platform_version=excluded.platform_version,kernel_version=excluded.kernel_version,architecture=excluded.architecture,agent_version=excluded.agent_version,capabilities_json=excluded.capabilities_json,updated_at=excluded.updated_at`,
+		nodeID, strings.TrimSpace(hello.Hostname), strings.TrimSpace(hello.OS), strings.TrimSpace(hello.Platform), strings.TrimSpace(hello.PlatformVersion), strings.TrimSpace(hello.KernelVersion), strings.TrimSpace(hello.Architecture), strings.TrimSpace(hello.AgentVersion), string(capabilities), now)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) agentMetadata(ctx context.Context) (map[string]AgentMetadata, error) {

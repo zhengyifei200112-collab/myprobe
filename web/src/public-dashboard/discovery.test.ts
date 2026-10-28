@@ -25,6 +25,9 @@ test('waiting, interrupted and stale data remain distinct; stale resources do no
   node.report = undefined; node.node.last_seen_at = undefined
   assert.equal(nodeState(node), 'waiting')
   assert.deepEqual(attentionReasons(node, now), [])
+  node.node.last_seen_at = '2030-01-01T00:00:00Z'; node.online = true
+  assert.equal(nodeState(node), 'waiting', 'contact alone is not the first metric sample')
+  assert.deepEqual(attentionReasons(node, now), [])
 })
 test('expiry boundary is inclusive at seven days; past dates are attention only', () => {
   const node = fixture('a')

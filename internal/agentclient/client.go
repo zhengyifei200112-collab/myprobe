@@ -101,7 +101,7 @@ func New(config Config, source metricsSource, logger *slog.Logger) (*Client, err
 func (c *Client) Run(ctx context.Context) error {
 	var wait sync.WaitGroup
 	c.networkResults.start()
-	wait.Add(4)
+	wait.Add(5)
 	go func() { defer wait.Done(); c.networkResultLoop(ctx) }()
 	go func() { defer wait.Done(); c.collectionLoop(ctx) }()
 	go func() {
@@ -112,6 +112,7 @@ func (c *Client) Run(ctx context.Context) error {
 		defer wait.Done()
 		c.reportLoop(ctx)
 	}()
+	go func() { defer wait.Done(); c.fallbackContactLoop(ctx) }()
 	<-ctx.Done()
 	c.clearConnection(nil)
 	wait.Wait()
@@ -286,7 +287,7 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 }
 
 func (c *Client) heartbeatLoop(ctx context.Context, expected *websocket.Conn, version int) {
-	ticker := time.NewTicker(25 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
@@ -306,6 +307,30 @@ func (c *Client) heartbeatLoop(ctx context.Context, expected *websocket.Conn, ve
 			if err != nil {
 				c.clearConnection(expected)
 				return
+			}
+		}
+	}
+}
+
+// HTTP-only transport still needs contact when a long collection period leaves
+// no new generation to report. Reuse the existing authenticated v1 hello rather
+// than manufacture metric samples or introduce an unnegotiated wire extension.
+func (c *Client) fallbackContactLoop(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if c.currentConnection() != nil {
+				continue
+			}
+			operationCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			err := c.sendHelloHTTP(operationCtx)
+			cancel()
+			if err != nil && ctx.Err() == nil {
+				c.logger.Debug("HTTP contact unavailable", "error", err)
 			}
 		}
 	}

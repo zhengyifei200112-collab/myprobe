@@ -23,7 +23,9 @@ const os = require('node:os');
       traffic: { rx_bytes: 0, tx_bytes: 0 },
       latency: [{ target_id: 'target-a', name: 'Test target A', kind: 'ping', success: true, latency_ms: i + 1, updated_at: now.toISOString() }],
     }));
-    nodes[0].report = undefined; nodes[0].node.last_seen_at = undefined; nodes[0].online = false;
+    // Authenticated contact alone is not a first sample or an extra online
+    // dashboard row. Keep the waiting state even while the Agent is reachable.
+    nodes[0].report = undefined;
     nodes[1].online = false;
     nodes[2].stale = true;
     const payload = { nodes, server_time: now.toISOString() };

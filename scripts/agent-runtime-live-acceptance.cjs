@@ -69,6 +69,9 @@ if (!base || !['127.0.0.1','localhost'].includes(new URL(base).hostname) || !pro
       await page.getByRole('button',{name:'刷新节点诊断',exact:true}).focus()
       await page.keyboard.press('Enter')
       await page.getByText('Agent 已确认应用设置',{exact:true}).waitFor()
+      await page.getByText('最近联系',{exact:true}).waitFor()
+      await page.getByText('最近报告入库',{exact:true}).waitFor()
+      await page.getByText('报告采样时间',{exact:true}).waitFor()
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
       await page.getByRole('heading',{name:'节点诊断',exact:true}).scrollIntoViewIfNeeded()
       await page.locator('section.admin-panel').filter({has:page.getByRole('heading',{name:'节点诊断',exact:true})}).screenshot({path:path.join(output,`${theme}-${width}.png`)})
@@ -87,6 +90,7 @@ if (!base || !['127.0.0.1','localhost'].includes(new URL(base).hostname) || !pro
     await page.getByRole('heading',{name:'登录管理中心',exact:true}).waitFor()
     assert.equal(await page.getByText('runtime-evidence-acceptance',{exact:true}).count(),0)
     assert.deepEqual(errors,[])
+    if(process.env.QA_ARTIFACT_DIR || process.env.PROBE_SCREENSHOT_DIR) await fs.writeFile(path.join(output,'result.json'),JSON.stringify({format:'myprobe.agent-runtime-browser.v1',passed:true,browser:browser.version(),fixture:'actual disposable Server and CLI Agent, applied settings/ingress/contact labels, reconnect and revoked session',screenshots:['light','dark'].flatMap(theme=>[360,768,1440].map(width=>`${theme}-${width}.png`))},null,2),{mode:0o600,flag:'wx'})
     console.log(`PASS: real CLI Agent welcome/live revision, persisted WS/v2, offline history, reconnect, six themes/viewports and revoked session. Screenshots: ${output}`)
   } finally {
     await stopAgent()
