@@ -51,6 +51,7 @@ jobs:
           go test -race ./internal/networkquality -count=1
           go test -race ./internal/protocol/networkcheck -count=1
           go test -race ./internal/agentclient -run '^TestNetworkProbe' -count=1
+          go test -race ./internal/agentclient -run '^TestNetwork(Delivery|ResultDelivery)' -count=1
           python3 scripts/native-network-evidence-test.py
           go test -race ./internal/backup -count=1
           go test -race ./internal/store ./internal/alerts ./internal/httpapi -run '^Test(ScheduledBackup|SystemNotification|IdleSystem)' -count=1
