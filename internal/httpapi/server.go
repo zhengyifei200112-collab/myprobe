@@ -48,6 +48,7 @@ type Server struct {
 	retentionWorkerHealth        func() diagnostics.LoopSnapshot
 	networkRetentionWorkerHealth func() diagnostics.LoopSnapshot
 	scheduledBackups             *backup.Scheduler
+	diagnosticExports            diagnostics.ExportPreviews
 }
 
 type Option func(*Server)
@@ -186,6 +187,9 @@ func (s *Server) routes() {
 	s.router.GET("/api/v1/admin/network-quality/series", privateNoStore(), s.requireSession(true), s.adminNetworkQualitySeries)
 	s.router.GET("/api/v1/admin/network-quality/targets", privateNoStore(), s.requireSession(true), s.adminNetworkQualityTargets)
 	s.router.GET("/api/v1/admin/nodes/:nodeID/diagnostics", privateNoStore(), s.requireSession(true), s.nodeDiagnostics)
+	diagnosticExports := s.router.Group("/api/v1/admin/system/diagnostic-exports", privateNoStore(), s.requireSession(true))
+	diagnosticExports.POST("/preview", s.prepareDiagnosticExport)
+	diagnosticExports.POST("/download", s.downloadDiagnosticExport)
 	admin := s.router.Group("/api/v1/admin", s.requireSession(true))
 	serviceTransfers := s.router.Group("/api/v1/admin/service-alert-transfers", privateNoStore(), s.requireSession(true))
 	serviceTransfers.GET("/export", s.exportServiceAlerts)

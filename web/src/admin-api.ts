@@ -1,5 +1,6 @@
 import type { NodeMetadata, SiteSettings } from './types'
 import type { BackupSchedule, BackupStatus } from './backup-api'
+import type { DiagnosticMetadata, DiagnosticPreview } from './diagnostic-api'
 export type { SiteSettings } from './types'
 
 export interface AdminTarget {
@@ -400,6 +401,20 @@ async function request<T>(path: string, options: RequestInit = {}, decode?: (tex
 }
 
 export const loadBackupStatus = (signal?: AbortSignal) => request<BackupStatus>('/api/v1/admin/maintenance/backup-schedule', { signal })
+export const prepareDiagnosticExport = (signal?: AbortSignal) => request<DiagnosticPreview>('/api/v1/admin/system/diagnostic-exports/preview', { method: 'POST', body: '{}', signal })
+export async function downloadDiagnosticExport(metadata: DiagnosticMetadata, signal?: AbortSignal): Promise<Blob> {
+  const headers = new Headers({ 'Content-Type': 'application/json', Accept: 'application/json' })
+  if (csrfToken) headers.set('X-CSRF-Token', csrfToken)
+  const response = await fetch('/api/v1/admin/system/diagnostic-exports/download', { method: 'POST', headers, body: JSON.stringify({ preview_id: metadata.preview_id }), credentials: 'same-origin', cache: 'no-store', signal })
+  if (!response.ok) { const payload = await response.json().catch(() => ({})) as { error?: string }; throw new AdminAPIError(payload.error || 'diagnostic_download_failed', response.status) }
+  const bytes = await response.arrayBuffer()
+  if (metadata.bytes > 128 * 1024 || bytes.byteLength !== metadata.bytes || response.headers.get('X-Content-SHA256') !== metadata.sha256 || !/^myprobe-diagnostics-[0-9TZ]+-[a-f0-9]{32}\.json$/.test(metadata.file_name)) throw new Error('diagnostic_download_mismatch')
+  if (globalThis.crypto?.subtle) {
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), value => value.toString(16).padStart(2, '0')).join('')
+    if (hash !== metadata.sha256) throw new Error('diagnostic_download_mismatch')
+  }
+  return new Blob([bytes], { type: 'application/json' })
+}
 export const saveBackupSchedule = (config: BackupSchedule) => request<{ saved: boolean }>('/api/v1/admin/maintenance/backup-schedule', { method: 'PUT', body: JSON.stringify(config) })
 export const runScheduledBackup = () => request<{ accepted: boolean }>('/api/v1/admin/maintenance/backup-schedule/run', { method: 'POST' })
 export const verifyBackupRecovery = (id: string) => request<{ accepted: boolean }>(`/api/v1/admin/maintenance/backup-schedule/runs/${encodeURIComponent(id)}/verify`, { method: 'POST' })
