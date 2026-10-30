@@ -11,7 +11,7 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - File history uses at most two short-lived read-only connections, keeping the four primary connections available for reports and workers; in-memory stores retain the existing pool.
 - On64-bit Linux, bounded mappings close with readers. MYPROBE_HISTORY_MMAP_ENABLED=false keeps buffered reads with the same read-only pool and bounds. Existing queries, payloads, migrations and retention remain unchanged.
-- Upgrade the SQLite Go driver from v1.39.1 to v1.40.1 to close Rows cancelled while returning the first result, preventing leaked read transactions from pinning the WAL. SQLite engine sources and transitive dependency versions are unchanged.
+- Upgrade the SQLite Go driver from v1.39.1 to v1.42.2 to close Rows cancelled while returning the first result and finish the interrupt before reusing a connection, preventing pinned WAL readers and cancellation leaking into the next query. SQLite remains 3.50.4 and transitive dependency versions are unchanged.
 
 ### Covering historical reads
 

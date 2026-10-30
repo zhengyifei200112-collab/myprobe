@@ -59,19 +59,24 @@ database conversion for this connection policy.
 
 ## First-row cancellation and driver ownership
 
-The driver is upgraded from `modernc.org/sqlite` v1.39.1 to v1.40.1. A query
+The driver is upgraded from `modernc.org/sqlite` v1.39.1 to v1.42.2. A query
 cancelled after creating its first Rows could previously discard that object
 without closing it. Its read transaction survived even when `database/sql`
 reported no open connections, preventing a complete WAL checkpoint. The
 [upstream fix](https://gitlab.com/cznic/sqlite/-/merge_requests/81) closes the
-discarded Rows before returning the context error. No cancellation is suppressed,
+discarded Rows before returning the context error. Version v1.42.2 also includes
+[interrupt completion serialization](https://gitlab.com/cznic/sqlite/-/merge_requests/86),
+so a late interrupt cannot reach the next user of a pooled connection.
+No cancellation is suppressed,
 checkpoint assertion relaxed or query retried. The existing regression performs
 80 first-row cancellations with an immediate passive checkpoint after each.
 
-All 23 generated SQLite engine Go files and the driver's module dependency
-requirements are byte-identical between these two versions. This keeps SQLite
-3.50.4 and the existing transitive dependency versions. It is a driver lifecycle
-fix, with no database conversion or new driver hooks enabled by MyProbe.
+The driver's effective transitive dependency versions are unchanged, and SQLite
+remains 3.50.4. Generated engine files differ, including support for driver hooks
+added upstream; byte-identical engine code is not claimed for v1.42.2. MyProbe
+does not enable those hooks or require a database conversion. A second regression
+performs 400 cancellations on retained primary connections and immediately reuses
+them without sleep, retry or reopening. See [cancellation and WAL readers](SQLITE_CANCELLATION.md). These checks complement the short-lived history-reader test.
 
 ## Validation scope
 
