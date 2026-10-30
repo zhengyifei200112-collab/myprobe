@@ -276,7 +276,7 @@ func (s *Store) trafficSamples(ctx context.Context, nodeID string, start, end ti
 	return queryTrafficSamples(ctx, s.db, nodeID, start, end)
 }
 func queryTrafficSamples(ctx context.Context, q sqlQueryer, nodeID string, start, end time.Time) ([]trafficSample, error) {
-	rows, err := q.QueryContext(ctx, `SELECT m.captured_at,m.net_rx_total,m.net_tx_total FROM metric_samples m JOIN nodes n ON n.id=m.node_id WHERE m.node_id=? AND n.hidden=0 AND m.captured_at>=? AND m.captured_at<=? ORDER BY m.captured_at`, nodeID, formatTime(start), formatTime(end))
+	rows, err := q.QueryContext(ctx, `SELECT m.captured_at,m.net_rx_total,m.net_tx_total FROM metric_samples m JOIN nodes n ON n.id=m.node_id WHERE m.node_id=? AND n.hidden=0 AND m.captured_sort_ns>=? AND m.captured_sort_ns<=? ORDER BY m.captured_sort_ns,m.id`, nodeID, formatCapturedTime(start), formatCapturedTime(end))
 	if err != nil {
 		return nil, err
 	}
