@@ -154,7 +154,7 @@ func (s *Store) trafficHistoryRange(ctx context.Context, nodeID string, start, e
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, trafficHistoryRangeQuery, args...)
+	rows, err := s.historyQueryDB().QueryContext(ctx, trafficHistoryRangeQuery, args...)
 	if err != nil {
 		return nil, err
 	}

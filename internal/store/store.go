@@ -32,6 +32,7 @@ var ErrNotFound = errors.New("not found")
 
 type Store struct {
 	db                  *sql.DB
+	historyDB           *sql.DB
 	path                string
 	retentionJob        diagnostics.Job
 	httpRetentionJob    diagnostics.Job
@@ -39,6 +40,12 @@ type Store struct {
 }
 
 func Open(ctx context.Context, path string) (*Store, error) {
+	return OpenWithOptions(ctx, path, OpenOptions{})
+}
+
+// OpenWithOptions preserves the normal writer and migration path. File history
+// readers use a separate, bounded, read-only pool after migration succeeds.
+func OpenWithOptions(ctx context.Context, path string, options OpenOptions) (*Store, error) {
 	if path == "" {
 		return nil, errors.New("database path is required")
 	}
@@ -63,6 +70,11 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	store.historyDB, err = openHistoryReadDB(path, options)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("open history readers: %w", err)
+	}
 	return store, nil
 }
 
@@ -75,7 +87,13 @@ func sqliteDSN(path string) string {
 		"?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)"
 }
 
-func (s *Store) Close() error { return s.db.Close() }
+func (s *Store) Close() error {
+	var historyErr error
+	if s.historyDB != nil && s.historyDB != s.db {
+		historyErr = s.historyDB.Close()
+	}
+	return errors.Join(historyErr, s.db.Close())
+}
 
 func (s *Store) DatabasePath() string { return s.path }
 
@@ -834,7 +852,7 @@ func (s *Store) metricHistoryRange(ctx context.Context, nodeID string, start, en
 	// transaction. Reading both sources with UNION ALL is therefore sufficient;
 	// a per-sample NOT EXISTS scan is redundant and becomes quadratic on long-lived
 	// installations with tens of thousands of rollup buckets.
-	rows, err := s.db.QueryContext(ctx, metricHistoryQuery, args...)
+	rows, err := s.historyQueryDB().QueryContext(ctx, metricHistoryQuery, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -911,7 +929,7 @@ func (s *Store) latencyHistoryRange(ctx context.Context, nodeID string, start, e
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, latencyHistoryQuery, args...)
+	rows, err := s.historyQueryDB().QueryContext(ctx, latencyHistoryQuery, args...)
 	if err != nil {
 		return nil, err
 	}

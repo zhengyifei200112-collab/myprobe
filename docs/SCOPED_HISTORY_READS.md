@@ -3,6 +3,14 @@
 Current integration scope: personal use around15 nodes, required5→20 short test and same-source20×24h. The historical50-node investigations below are retained context, not a new workload or current acceptance. The original6d2297d20-node30d P95 failure remains unresolved; no threshold or native success is changed by these query improvements. Current-source complete tests and integration evidence are required.
 
 
+The checkpoint below records the original shared-pool implementation and its
+historical comparison. Later migrations050/051 cover the current projections;
+[short-lived file history readers](HISTORY_READ_CONNECTIONS.md) now provide a
+separate two-connection read-only pool and the mapped/buffered-read option. The
+current personal-use acceptance scale is five-to-twenty short checks followed
+by twenty nodes for24hours; historical50/100 runs below do not change that scope
+or grant the current candidate a pass.
+
 The native `84e27cd` fifty-node/five-page dense-year run completed its functional
 paths, but thirty-day history P95 was 5342.27 ms, above the fixed 2000 ms gate.
 The capacity acceptance therefore failed. The load harness now enforces that

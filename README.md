@@ -131,6 +131,12 @@ published image instead of building locally, set
 `docker compose pull` and `docker compose up -d --no-build`. The SQLite database is
 stored in the `myprobe-data` volume.
 
+File-backed history uses two short-lived read-only connections. On 64-bit Linux,
+readers use memory-mapped I/O by default; set
+`MYPROBE_HISTORY_MMAP_ENABLED=false` for buffered reads. See the
+[history connection/resource and I/O-error guidance](docs/HISTORY_READ_CONNECTIONS.md)
+before changing this operational setting.
+
 For a domain with HTTPS, set `MYPROBE_BIND_ADDRESS=127.0.0.1`,
 `MYPROBE_COOKIE_SECURE=true`, and `MYPROBE_TRUSTED_PROXIES` to the exact reverse-proxy
 address or CIDR. The proxy must support WebSocket upgrades. The one-click installer
