@@ -50,6 +50,8 @@ func historyRows(t *testing.T, s *Store, table string) []string {
 	query := `SELECT * FROM ` + table + ` ORDER BY 1,2,3,4,5`
 	if table == "metric_samples" {
 		query = `SELECT id,node_id,captured_at,net_rx_total,net_tx_total FROM metric_samples ORDER BY id`
+	} else if table == "history_retention_anchors" {
+		query = `SELECT node_id,sample_id FROM history_retention_anchors ORDER BY node_id`
 	}
 	rows, err := s.db.Query(query)
 	if err != nil {
