@@ -11,7 +11,7 @@ require (
 	golang.org/x/net v0.56.0
 	golang.org/x/sys v0.47.0
 	golang.org/x/text v0.40.0
-	modernc.org/sqlite v1.39.1
+	modernc.org/sqlite v1.40.1
 )
 
 require (

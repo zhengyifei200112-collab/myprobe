@@ -27,6 +27,7 @@ type Config struct {
 	PublicHTTPAck        bool
 	HTTPProbesEnabled    bool
 	ReleaseChecksAuto    bool
+	HistoryMmapEnabled   bool
 }
 
 type Retention struct {
@@ -48,6 +49,7 @@ func Load() (Config, error) {
 		CookieSecure:         envBool("MYPROBE_COOKIE_SECURE", false),
 		PublicHTTPAck:        envBool("MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED", false),
 		ReleaseChecksAuto:    true,
+		HistoryMmapEnabled:   true,
 		Retention: Retention{
 			Raw:        7 * 24 * time.Hour,
 			OneMinute:  30 * 24 * time.Hour,
@@ -56,6 +58,13 @@ func Load() (Config, error) {
 		},
 	}
 	var originErr error
+	if raw := strings.TrimSpace(os.Getenv("MYPROBE_HISTORY_MMAP_ENABLED")); raw != "" {
+		var err error
+		cfg.HistoryMmapEnabled, err = strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, errors.New("MYPROBE_HISTORY_MMAP_ENABLED must be a boolean")
+		}
+	}
 	if raw := strings.TrimSpace(os.Getenv("MYPROBE_RELEASE_CHECKS_AUTO")); raw != "" {
 		var err error
 		cfg.ReleaseChecksAuto, err = strconv.ParseBool(raw)
