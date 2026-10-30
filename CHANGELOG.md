@@ -7,6 +7,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Bounded report writer reservation
+
+- Report ingestion retries exact SQLITE_BUSY only while acquiring its initial writer, at most three attempts with cancellable waits. No reads, business mutations, COMMIT or other error classes are replayed; traffic/deduplication and ACK-after-commit remain unchanged.
+
 ### Isolated historical read connections
 
 - File history uses at most two short-lived read-only connections, keeping the four primary connections available for reports and workers; in-memory stores retain the existing pool.
