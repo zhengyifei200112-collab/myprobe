@@ -231,3 +231,32 @@ func retentionFixtureDir(t *testing.T) string {
 	}
 	return dir
 }
+
+func TestRetentionWorkerHostFailureStillRunsIndependentHTTPBatch(t *testing.T) {
+	pruned := make(chan struct{}, 1)
+	var hostCalls atomic.Int64
+	cancel, done := retentionWorker(t, retentionFixture{
+		apply: func(context.Context, time.Time, store.RetentionPolicy) (store.HistoryRetentionBatch, error) {
+			hostCalls.Add(1)
+			return store.HistoryRetentionBatch{}, errors.New("synthetic host batch failure")
+		},
+		prune: func(context.Context, time.Time) (store.HTTPRetentionBatch, error) {
+			pruned <- struct{}{}
+			return store.HTTPRetentionBatch{}, nil
+		},
+	}, time.Hour)
+	select {
+	case <-pruned:
+		if hostCalls.Load() != 1 {
+			t.Fatal("HTTP batch did not follow the failed host batch")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("host failure prevented independent HTTP retention")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("worker ignored cancellation during its retry wait")
+	}
+}
