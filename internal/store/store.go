@@ -801,7 +801,7 @@ const metricHistoryQuery = `WITH history AS (
 		CASE WHEN m.memory_total>0 THEN 100.0*m.memory_used/m.memory_total ELSE 0 END AS memory_sum,
 		CASE WHEN m.disk_total>0 THEN 100.0*m.disk_used/m.disk_total ELSE 0 END AS disk_sum,
 		m.net_rx_rate AS rx_sum,m.net_tx_rate AS tx_sum
-		FROM metric_samples m
+		FROM metric_samples m INDEXED BY idx_metric_samples_history_cover
 		WHERE m.node_id=:node AND ` + historyRawBounds + `
 		UNION ALL
 		SELECT bucket_at,sample_count,cpu_sum,memory_percent_sum,disk_percent_sum,net_rx_rate_sum,net_tx_rate_sum
@@ -873,6 +873,8 @@ func (s *Store) AdminLatencyHistoryRange(ctx context.Context, nodeID string, sta
 // Within this statement, use the target table's integer row identity as the
 // grouping key. Public IDs and ordering are restored at the final metadata join;
 // no row identity is persisted or used as an API/foreign key.
+// The retained source uses migration 050's covering index so a cold history
+// read does not fetch the aggregate values from the table for every bucket.
 const latencyHistoryQuery = `WITH target_series AS MATERIALIZED (
 		SELECT rowid AS series_index,id AS series_target FROM targets
 	), retained_kinds AS (
@@ -882,14 +884,14 @@ const latencyHistoryQuery = `WITH target_series AS MATERIALIZED (
 		COUNT(*) AS sample_count,SUM(success) AS success_count,
 		SUM(CASE WHEN success=1 AND latency_ms IS NOT NULL THEN 1 ELSE 0 END) AS latency_count,
 		SUM(CASE WHEN success=1 THEN COALESCE(latency_ms,0) ELSE 0 END) AS latency_sum
-		FROM target_series CROSS JOIN latency_samples INDEXED BY idx_latency_samples_node_target_capture_ns
+		FROM target_series CROSS JOIN latency_samples INDEXED BY idx_latency_samples_history_cover
 		WHERE target_id=series_target AND node_id=:node AND ` + historyNodeScope + ` AND ` + historyRawBounds + `
 		GROUP BY bucket,series_index,kind
 		UNION ALL
 		SELECT (unixepoch(substr(bucket_at,1,19)||'Z')/:bucket)*:bucket AS bucket,series_index,kind,
 		SUM(sample_count),SUM(success_count),SUM(latency_count),SUM(latency_sum)
 		FROM target_series CROSS JOIN retained_kinds
-		CROSS JOIN latency_rollups INDEXED BY sqlite_autoindex_latency_rollups_1
+		CROSS JOIN latency_rollups INDEXED BY idx_latency_rollups_history_cover
 		WHERE target_id=series_target AND kind=series_kind AND node_id=:node
 		AND ` + historyNodeScope + ` AND ` + historyRollupBounds + `
 		GROUP BY bucket,series_index,kind
