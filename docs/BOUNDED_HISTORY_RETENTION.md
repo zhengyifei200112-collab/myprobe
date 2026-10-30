@@ -38,6 +38,17 @@ reopen and consistent backup. Existing migrations, including 050/051, are not
 modified. Migration tests exercise the actual main predecessor with those
 covering indexes already present.
 
+Previously processed anchors are excluded from new aggregate output while
+remaining in traffic LAG input. Raw rows covered by an existing five-minute
+rollup do not recreate minute rows, including first-time catch-up with an empty
+marker table after full maintenance. This prevents inactive nodes from exposing
+both old five-minute and recreated minute data between bounded passes.
+Metric history excludes the counter-only marker from raw sample weights through
+one small lookup per node request. Traffic keeps that sample as its baseline.
+Full maintenance updates the same markers; the first batch after legacy full
+maintenance initializes known covered anchors with one indexed candidate per
+unmarked node, without scanning its raw backlog for a match.
+
 Statement failure or cancellation rolls back the batch. If COMMIT itself fails,
 the connection stays reserved until an explicit native rollback; unusable
 connections are discarded. Failed batches report no successful work. Restart

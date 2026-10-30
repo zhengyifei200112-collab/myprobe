@@ -57,25 +57,23 @@ func (s *Store) RetainHistory(ctx context.Context, now time.Time, policy Retenti
 	}); err != nil {
 		return batch, err
 	}
+	if err = initializeHistoryAnchors(ctx, tx, rawCutoff); err != nil {
+		return batch, err
+	}
 	next, err := nextRawRetention(ctx, tx, rawCutoff)
 	if err != nil {
 		return batch, err
 	}
 	if !next.IsZero() {
 		end := minTime(floorTime(next, time.Minute).Add(time.Minute), rawCutoff)
-		for _, query := range []string{rollupRawMetricsQuery, rollupRawLatencyQuery, rollupRawTrafficQuery} {
+		for _, query := range []string{historyBatchRawMetricsQuery, historyBatchRawLatencyQuery, historyBatchRawTrafficQuery} {
 			if _, err = tx.ExecContext(ctx, query, formatCapturedTime(end)); err != nil {
 				return batch, err
 			}
 		}
 		// All earlier rows are previous anchors plus this one closed minute.
 		// Publish precisely the same last-sample-per-node rule as full retention.
-		if _, err = tx.ExecContext(ctx, `INSERT INTO history_retention_anchors(node_id,sample_id)
-			SELECT node_id,id FROM (
-				SELECT node_id,id,ROW_NUMBER() OVER (PARTITION BY node_id ORDER BY captured_sort_ns DESC,id DESC) AS position
-				FROM metric_samples INDEXED BY idx_metric_samples_retention_time WHERE captured_sort_ns<?
-			) WHERE position=1
-			ON CONFLICT(node_id) DO UPDATE SET sample_id=excluded.sample_id`, formatCapturedTime(end)); err != nil {
+		if err = updateHistoryAnchors(ctx, tx, end); err != nil {
 			return batch, err
 		}
 		if _, err = tx.ExecContext(ctx, pruneRawMetricsQuery, formatCapturedTime(end), formatCapturedTime(end)); err != nil {

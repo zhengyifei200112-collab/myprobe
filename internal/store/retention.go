@@ -93,6 +93,9 @@ func (s *Store) applyRetentionStatements(ctx context.Context, now time.Time, pol
 	if _, err := tx.ExecContext(ctx, latencyPrune, rawText); err != nil {
 		return err
 	}
+	if err := updateHistoryAnchors(ctx, tx, rawCutoff); err != nil {
+		return err
+	}
 	for _, table := range []string{"metric_rollups", "latency_rollups", "traffic_rollups"} {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE bucket_seconds = 60 AND bucket_at < ?", formatTime(minuteCutoff)); err != nil {
 			return err

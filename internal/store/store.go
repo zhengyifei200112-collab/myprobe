@@ -824,6 +824,7 @@ const metricHistoryQuery = `WITH history AS (
 		m.net_rx_rate AS rx_sum,m.net_tx_rate AS tx_sum
 		FROM metric_samples m INDEXED BY idx_metric_samples_history_cover
 		WHERE m.node_id=:node AND ` + historyRawBounds + `
+		AND m.id NOT IN (SELECT sample_id FROM history_retention_anchors WHERE node_id=:node AND sample_id IS NOT NULL)
 		UNION ALL
 		SELECT bucket_at,sample_count,cpu_sum,memory_percent_sum,disk_percent_sum,net_rx_rate_sum,net_tx_rate_sum
 		FROM metric_rollups WHERE node_id=:node AND ` + historyRollupBounds + `
@@ -853,7 +854,7 @@ func (s *Store) metricHistoryRange(ctx context.Context, nodeID string, start, en
 	}
 	// ApplyRetention writes rollups and removes the covered raw rows in the same
 	// transaction. Reading both sources with UNION ALL is therefore sufficient;
-	// a per-sample NOT EXISTS scan is redundant and becomes quadratic on long-lived
+	// a per-sample rollup NOT EXISTS scan is redundant and becomes quadratic on long-lived
 	// installations with tens of thousands of rollup buckets.
 	rows, err := s.historyQueryDB().QueryContext(ctx, metricHistoryQuery, args...)
 	if err != nil {
