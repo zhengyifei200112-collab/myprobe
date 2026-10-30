@@ -7,6 +7,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Bounded report writer reservation
+
+- Report ingestion retries exact SQLITE_BUSY only while acquiring its initial writer, at most three attempts with cancellable waits. No reads, business mutations, COMMIT or other error classes are replayed; traffic/deduplication and ACK-after-commit remain unchanged.
+
 ### Covering historical reads
 
 - Add original forward migrations050/051 for retained latency and raw metric/latency/traffic covering indexes; preserve source rows, existing unique/retention indexes and exact equal-time order.

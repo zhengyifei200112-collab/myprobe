@@ -298,7 +298,10 @@ func (s *Store) saveReport(ctx context.Context, nodeID string, report protocol.R
 	// exact cached replays prove liveness without adding history or making
 	// traffic counters move backwards.
 	observed := time.Now().UTC()
-	if _, err = tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", formatTime(observed), formatTime(observed), nodeID); err != nil {
+	if err = reserveWriter(ctx, func() error {
+		_, reserveErr := tx.ExecContext(ctx, "UPDATE nodes SET last_seen_at = ?, updated_at = ? WHERE id = ?", formatTime(observed), formatTime(observed), nodeID)
+		return reserveErr
+	}); err != nil {
 		return err
 	}
 	// A distinct late capture must remain in history. Deduplicate only exact
