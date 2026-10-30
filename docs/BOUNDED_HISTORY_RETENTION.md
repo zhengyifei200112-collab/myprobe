@@ -60,4 +60,6 @@ retention across raw/minute/five-minute tiers, gaps, fractional timestamps and
 counter resets, including reopen partway through. They inject statement and
 deferred-constraint COMMIT failures, cancellation, migration receipt rejection,
 bounded expiry, per-node group splits and independent host/HTTP catch-up. These
-fixtures are not native capacity, long-run memory or complete recovery evidence.
+also resume a consistent backup taken partway through catch-up and require the
+same anchor identities and exact final history. These fixtures are not native
+capacity, long-run memory or complete recovery evidence.

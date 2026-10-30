@@ -326,3 +326,57 @@ func TestHistoryBatchMigrationRollsBackWithoutBackfillingRawHistory(t *testing.T
 		t.Fatal("anchor migration backfilled or modified raw history")
 	}
 }
+
+func TestHistoryBatchConsistentBackupResumesAnchorsAndExactHistory(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
+	policy := RetentionPolicy{Raw: 5 * time.Minute, OneMinute: 10 * time.Minute, FiveMinute: 30 * time.Minute}
+	source, err := Open(ctx, filepath.Join(httpFixtureDir(t), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { source.Close() })
+	seedHistoryBatch(t, source, now)
+	for range 2 {
+		if batch, err := source.RetainHistory(ctx, now, policy); err != nil || !batch.More {
+			t.Fatal("fixture did not stop partway through catch-up", batch, err)
+		}
+	}
+	anchors := historyRows(t, source, "history_retention_anchors")
+	if len(anchors) != 2 {
+		t.Fatal("snapshot must contain both durable node anchors", anchors)
+	}
+	snapshot := filepath.Join(httpFixtureDir(t), "consistent # ' backup.db")
+	if err := source.ConsistentBackup(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := Open(ctx, snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { restored.Close() })
+	if !reflect.DeepEqual(anchors, historyRows(t, restored, "history_retention_anchors")) {
+		t.Fatal("backup did not preserve the committed anchor identities")
+	}
+	for _, database := range []*Store{source, restored} {
+		drained := false
+		for range 200 {
+			batch, err := database.RetainHistory(ctx, now, policy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !batch.More {
+				drained = true
+				break
+			}
+		}
+		if !drained {
+			t.Fatal("restored catch-up did not finish")
+		}
+	}
+	for _, table := range []string{"metric_samples", "latency_samples", "metric_rollups", "latency_rollups", "traffic_rollups", "history_retention_anchors"} {
+		if got, want := historyRows(t, restored, table), historyRows(t, source, table); !reflect.DeepEqual(got, want) {
+			t.Fatalf("restored %s lost or repeated work: got %v want %v", table, got, want)
+		}
+	}
+}
