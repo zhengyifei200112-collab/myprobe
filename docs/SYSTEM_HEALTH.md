@@ -64,9 +64,12 @@ return, including policy/certificate/reconciliation and joined rule errors. Raw
 errors, origins and keys are excluded. Success does not prove delivery or valid
 provider credentials.
 
-`retention.job` observes full host/latency retention. `http_catchup_job` observes
-extra HTTP batches separately; it excludes the HTTP batch embedded in full
-retention. `retention.worker` observes actual loop entry/exit and the last
+`retention.job` observes one committed host/latency batch during normal startup
+and background catch-up, or the full operation during explicit maintenance.
+A successful batch does not establish that the backlog has drained.
+`http_catchup_job` observes the separate HTTP batch. See
+[bounded history catch-up](BOUNDED_HISTORY_RETENTION.md).
+`retention.worker` observes actual loop entry/exit and the last
 scheduled wake, bound by main. An old successful job does not prove the worker
 is still running. Restart resets observations; an unattached worker is unavailable.
 

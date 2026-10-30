@@ -777,7 +777,7 @@ func (s *Store) ListLatestLatency(ctx context.Context, nodeID string) ([]LatestL
 	)
 	SELECT a.id, a.name, a.kind, l.captured_at, l.success, l.latency_ms, l.error_class
 	FROM assigned a LEFT JOIN latency_samples l ON l.id = (
-		SELECT id FROM latency_samples WHERE node_id = ? AND target_id = a.id ORDER BY captured_at DESC LIMIT 1
+		SELECT id FROM latency_samples WHERE node_id = ? AND target_id = a.id ORDER BY captured_sort_ns DESC,id DESC LIMIT 1
 	) ORDER BY a.sort_order, a.name`, nodeID, nodeID)
 	if err != nil {
 		return nil, err
