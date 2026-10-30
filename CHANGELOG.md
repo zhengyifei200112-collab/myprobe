@@ -12,6 +12,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Start after one closed raw minute, up to eight complete node/five-minute groups and bounded expiry pruning; continue host and HTTP catch-up in separate transactions with yields and error backoff.
 - Add forward migration049 for durable traffic-anchor identities without raw-history backfill; retain fractional capture ordering, atomic rollup/prune/anchor commits and rollback of failed batches.
 
+
+### Bounded report writer reservation
+
+- Report ingestion retries exact SQLITE_BUSY only while acquiring its initial writer, at most three attempts with cancellable waits. No reads, business mutations, COMMIT or other error classes are replayed; traffic/deduplication and ACK-after-commit remain unchanged.
+
 ### Isolated historical read connections
 
 - File history uses at most two short-lived read-only connections, keeping the four primary connections available for reports and workers; in-memory stores retain the existing pool.

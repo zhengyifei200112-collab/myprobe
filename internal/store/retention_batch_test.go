@@ -380,3 +380,36 @@ func TestHistoryBatchConsistentBackupResumesAnchorsAndExactHistory(t *testing.T)
 		}
 	}
 }
+
+func TestRetentionSurvivesWriterBusyTimeout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	db, err := Open(ctx, filepath.Join(httpFixtureDir(t), "retention.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	lock, err := db.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Rollback()
+	if _, err = lock.ExecContext(ctx, "UPDATE history_retention_anchors SET sample_id=sample_id WHERE 0"); err != nil {
+		t.Fatal(err)
+	}
+	finished := make(chan error, 1)
+	go func() { _, err := db.RetainHistory(ctx, time.Now().UTC(), DefaultRetentionPolicy()); finished <- err }()
+	timer := time.NewTimer(6 * time.Second)
+	defer timer.Stop()
+	select {
+	case err := <-finished:
+		t.Fatalf("returned before writer released: %v", err)
+	case <-timer.C:
+	}
+	if err = lock.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	if err = <-finished; err != nil {
+		t.Fatal(err)
+	}
+}

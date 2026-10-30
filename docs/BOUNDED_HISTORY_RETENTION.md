@@ -16,7 +16,9 @@ are not scheduled by this change. The earlier 20-node P95 failure stays failed.
 
 ## Data consistency and exact times
 
-Each pass reserves the writer before selecting a window. Rollups, covered-row
+Each pass reserves the writer before selecting a window. Its first reservation
+uses the existing exact-BUSY helper with at most three attempts and caller
+cancellation, without retrying any business statements or COMMIT. Rollups, covered-row
 deletion and traffic-anchor updates commit together. A five-minute group is not
 promoted while eligible raw minutes in it remain. Whole groups are processed per
 node so a pass cannot publish a partially aggregated group. Unprocessed raw and
