@@ -11,6 +11,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Report ingestion retries exact SQLITE_BUSY only while acquiring its initial writer, at most three attempts with cancellable waits. No reads, business mutations, COMMIT or other error classes are replayed; traffic/deduplication and ACK-after-commit remain unchanged.
 
+### Isolated historical read connections
+
+- File history uses at most two short-lived read-only connections, keeping the four primary connections available for reports and workers; in-memory stores retain the existing pool.
+- On64-bit Linux, bounded mappings close with readers. MYPROBE_HISTORY_MMAP_ENABLED=false keeps buffered reads with the same read-only pool and bounds. Existing queries, payloads, migrations and retention remain unchanged.
+- Upgrade the SQLite Go driver from v1.39.1 to v1.42.2 to close Rows cancelled while returning the first result and finish the interrupt before reusing a connection, preventing pinned WAL readers and cancellation leaking into the next query. SQLite remains 3.50.4 and transitive dependency versions are unchanged.
+
 ### Covering historical reads
 
 - Add original forward migrations050/051 for retained latency and raw metric/latency/traffic covering indexes; preserve source rows, existing unique/retention indexes and exact equal-time order.

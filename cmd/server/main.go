@@ -42,7 +42,7 @@ func main() {
 	if recovery != "" {
 		logger.Warn("pending database restore applied; previous database preserved", "recovery_path", recovery)
 	}
-	database, err := store.Open(ctx, cfg.DatabasePath)
+	database, err := store.OpenWithOptions(ctx, cfg.DatabasePath, store.OpenOptions{DisableHistoryMmap: !cfg.HistoryMmapEnabled})
 	if err != nil {
 		logger.Error("open database", "error", err)
 		os.Exit(1)

@@ -56,7 +56,8 @@ jobs:
           python3 scripts/native-network-evidence-test.py
           go test -race ./internal/diagnostics -count=1
           go test -race ./internal/releasecheck -count=1
-          go test -race ./internal/store ./internal/httpapi -run 'History|Traffic|Covering' -count=1
+          go test -race ./internal/store ./internal/httpapi -run 'History|Traffic|Covering|CanceledQuery' -count=1
+          go test -race ./internal/store -run '^Test(WriterReservation|ReportSurvivesWriterBusyTimeout)' -count=1
           go test -race ./internal/httpapi -run '^TestReleaseStatusAdminContract$' -count=1
           go test -race ./internal/store ./internal/httpapi ./internal/agentgateway -run 'Diagnostic|Export' -count=1
           go test -race ./internal/backup -count=1
