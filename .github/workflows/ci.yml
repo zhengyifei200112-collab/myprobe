@@ -56,8 +56,9 @@ jobs:
           python3 scripts/native-network-evidence-test.py
           go test -race ./internal/diagnostics -count=1
           go test -race ./internal/releasecheck -count=1
-          go test -race ./internal/store ./internal/httpapi -run 'History|Traffic|Covering|CanceledQuery' -count=1
+          go test -race ./internal/store ./internal/httpapi -run 'History|Traffic|Covering|CanceledQuery|Subsecond|CapturedSort' -count=1
           go test -race ./internal/store -run '^Test(WriterReservation|ReportSurvivesWriterBusyTimeout)' -count=1
+          go test -race ./internal/store -run '^TestRetentionSurvivesWriterBusyTimeout$' -count=1
           go test -race ./internal/httpapi -run '^TestReleaseStatusAdminContract$' -count=1
           go test -race ./internal/store ./internal/httpapi ./internal/agentgateway -run 'Diagnostic|Export' -count=1
           go test -race ./internal/backup -count=1
@@ -65,7 +66,7 @@ jobs:
 
           go test -race ./internal/agentclient -run '^Test(Sampling|ReportPeriod|LegacySampling|HTTPFallback|ActualAgent|InvalidManaged|CollectionInterval|ReportingUses|WelcomeApplies)' -count=1
           go test -race ./internal/agentgateway ./internal/store ./internal/protocol/v2 -run '^Test(Sampling|ReportIngress|NegotiatedSampling|Configuration)' -count=1
-          go test -race ./cmd/server -run '^TestNetworkRetention' -count=1
+          go test -race ./cmd/server -run '^Test(NetworkRetention|Retention)' -count=1
 
       - name: Verify released database upgrade
         env:

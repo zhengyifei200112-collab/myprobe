@@ -11,6 +11,14 @@
 
 ## Feature parity matrix
 
+Host history starts after one bounded raw/minute/expiry batch and one separate
+HTTP batch. The background worker continues both backlogs with yields and error
+backoff. Forward migration 049 persists counter-anchor identities without raw
+backfill; exact nanosecond cutoffs and ordering preserve counter and latency
+boundaries. Job success describes one committed batch, not backlog exhaustion.
+See [bounded history catch-up](BOUNDED_HISTORY_RETENTION.md). Current-source
+20-node performance, same-source 24-hour, recovery and hardware gates remain open.
+
 Private System Health compares official stable releases with Server and last-advertised Agent versions. Unknown/stale states, bounded shared checks and cooldown are explicit; daily checks can be disabled. Software ordering does not infer capabilities or protocol compatibility. See [release awareness](RELEASE_AWARENESS.md).
 
 本轮接入明确协商的network_probe.v1、原始迁移045与配置v3请求选项，

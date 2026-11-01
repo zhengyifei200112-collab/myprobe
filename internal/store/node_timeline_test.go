@@ -312,7 +312,16 @@ func TestNodeTimelineRawTimeDependencyRollbackAndEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := time.Date(2026, 1, 1, 0, 0, 0, 1, time.UTC)
-	if err := s.SaveReport(ctx, node.ID, protocol.Report{CapturedAt: at, Uptime: 100}); err != nil {
+	// Seed the actual pre-041 row shape. The current report writer correctly
+	// requires migrated nanosecond columns for its inclusive traffic lookup.
+	raw, err := json.Marshal(protocol.Report{CapturedAt: at, Uptime: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO metric_samples(
+		node_id,captured_at,cpu_usage,memory_used,memory_total,disk_used,disk_total,
+		net_rx_rate,net_tx_rate,net_rx_total,net_tx_total,report_json)
+		VALUES(?,?,0,0,0,0,0,0,0,0,0,?)`, node.ID, formatTime(at), string(raw)); err != nil {
 		t.Fatal(err)
 	}
 	var originalStamp, originalPayload string

@@ -780,7 +780,7 @@ func (s *Store) ListLatestLatency(ctx context.Context, nodeID string) ([]LatestL
 	)
 	SELECT a.id, a.name, a.kind, l.captured_at, l.success, l.latency_ms, l.error_class
 	FROM assigned a LEFT JOIN latency_samples l ON l.id = (
-		SELECT id FROM latency_samples WHERE node_id = ? AND target_id = a.id ORDER BY captured_at DESC LIMIT 1
+		SELECT id FROM latency_samples WHERE node_id = ? AND target_id = a.id ORDER BY captured_sort_ns DESC,id DESC LIMIT 1
 	) ORDER BY a.sort_order, a.name`, nodeID, nodeID)
 	if err != nil {
 		return nil, err
@@ -824,6 +824,7 @@ const metricHistoryQuery = `WITH history AS (
 		m.net_rx_rate AS rx_sum,m.net_tx_rate AS tx_sum
 		FROM metric_samples m INDEXED BY idx_metric_samples_history_cover
 		WHERE m.node_id=:node AND ` + historyRawBounds + `
+		AND m.id NOT IN (SELECT sample_id FROM history_retention_anchors WHERE node_id=:node AND sample_id IS NOT NULL)
 		UNION ALL
 		SELECT bucket_at,sample_count,cpu_sum,memory_percent_sum,disk_percent_sum,net_rx_rate_sum,net_tx_rate_sum
 		FROM metric_rollups WHERE node_id=:node AND ` + historyRollupBounds + `
@@ -853,7 +854,7 @@ func (s *Store) metricHistoryRange(ctx context.Context, nodeID string, start, en
 	}
 	// ApplyRetention writes rollups and removes the covered raw rows in the same
 	// transaction. Reading both sources with UNION ALL is therefore sufficient;
-	// a per-sample NOT EXISTS scan is redundant and becomes quadratic on long-lived
+	// a per-sample rollup NOT EXISTS scan is redundant and becomes quadratic on long-lived
 	// installations with tens of thousands of rollup buckets.
 	rows, err := s.historyQueryDB().QueryContext(ctx, metricHistoryQuery, args...)
 	if err != nil {
