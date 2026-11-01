@@ -29,7 +29,7 @@ func TestHTTPUpgradeAfterTimelinePreservesEvidenceAndRollsBackSeed(t *testing.T)
 	for _, entry := range entries {
 		name := entry.Name()
 		// Service migrations depend on the HTTP tables absent in this fixture.
-		if entry.IsDir() || name >= "016_" && name <= "020_z" || name >= "034_" && name < "039_" {
+		if entry.IsDir() || name >= "016_" && name <= "020_z" || name >= "034_" && name < "039_" || name == "048_certificate_runtime_indexes.sql" {
 			continue
 		}
 		body, err := migrations.ReadFile("migrations/" + name)
@@ -74,6 +74,8 @@ func TestHTTPUpgradeAfterTimelinePreservesEvidenceAndRollsBackSeed(t *testing.T)
 	assertCount(t, s, "SELECT count(*) FROM schema_migrations WHERE version IN ('018_http_schedule_epochs.sql','019_http_retention.sql','020_http_result_order.sql')", 0)
 	assertCount(t, s, "SELECT count(*) FROM sqlite_master WHERE name='http_schedule_epochs'", 0)
 	assertCount(t, s, "SELECT count(*) FROM schema_migrations WHERE version IN ('041_history_retention_indexes.sql','047_node_timeline_indexes.sql')", 2)
+	assertCount(t, s, "SELECT count(*) FROM schema_migrations WHERE version='048_certificate_runtime_indexes.sql'", 0)
+	assertCount(t, s, "SELECT count(*) FROM sqlite_master WHERE name IN ('idx_alert_rules_enabled_created','idx_certificate_reminders_unskipped_service')", 0)
 	// A previously saved service must be seeded atomically with the 018 receipt.
 	spec := "{\"url\":\"https://example.com\",\"method\":\"GET\",\"status_codes\":[200],\"timeout_ms\":5000,\"max_body_bytes\":1024}"
 	if _, err = db.Exec("INSERT INTO http_services(id,name,revision,enabled,interval_seconds,spec_json,created_at,updated_at) VALUES('existing-service','fixture',3,1,60,?,?,?)", spec, formatTime(at), formatTime(at)); err != nil {
@@ -96,6 +98,8 @@ func TestHTTPUpgradeAfterTimelinePreservesEvidenceAndRollsBackSeed(t *testing.T)
 		t.Fatal(err)
 	}
 	assertCount(t, s, "SELECT count(*) FROM schema_migrations WHERE version IN ('016_http_services.sql','017_http_tasks.sql','018_http_schedule_epochs.sql','019_http_retention.sql','020_http_result_order.sql')", 5)
+	assertCount(t, s, "SELECT count(*) FROM schema_migrations WHERE version='048_certificate_runtime_indexes.sql'", 1)
+	assertCount(t, s, "SELECT count(*) FROM sqlite_master WHERE name IN ('idx_alert_rules_enabled_created','idx_certificate_reminders_unskipped_service')", 2)
 	var start int64
 	var revision, interval int
 	if err = db.QueryRow("SELECT revision,start_ns,interval_seconds FROM http_schedule_epochs WHERE service_id='existing-service' AND node_id=?", node.ID).Scan(&revision, &start, &interval); err != nil {

@@ -28,7 +28,7 @@ func TestServiceUpgradeAfterTimelinePreservesIncidentAndOutbox(t *testing.T) {
 	}
 	for _, entry := range entries {
 		name := entry.Name()
-		if entry.IsDir() || name >= "034_" && name < "039_" {
+		if entry.IsDir() || name >= "034_" && name < "039_" || name == "048_certificate_runtime_indexes.sql" {
 			continue
 		}
 		raw, err := migrations.ReadFile("migrations/" + name)
@@ -78,6 +78,8 @@ func TestServiceUpgradeAfterTimelinePreservesIncidentAndOutbox(t *testing.T) {
 	assertCount(t, s, "SELECT count(*) FROM sqlite_master WHERE name='http_service_alerts'", 0)
 	assertCount(t, s, "SELECT count(*) FROM schema_migrations WHERE version IN ('034_service_alerts.sql','035_certificate_reminders.sql','036_http_diagnostics_index.sql','037_service_alert_imports.sql','038_http_retention_catchup.sql')", 0)
 	assertCount(t, s, "SELECT count(*) FROM schema_migrations WHERE version IN ('041_history_retention_indexes.sql','047_node_timeline_indexes.sql')", 2)
+	assertCount(t, s, "SELECT count(*) FROM schema_migrations WHERE version='048_certificate_runtime_indexes.sql'", 0)
+	assertCount(t, s, "SELECT count(*) FROM sqlite_master WHERE name IN ('idx_alert_rules_enabled_created','idx_certificate_reminders_unskipped_service')", 0)
 	afterFailure, err := s.ListIncidentDeliveries(ctx, incident.ID, 0, 10)
 	if err != nil || !reflect.DeepEqual(before, afterFailure) {
 		t.Fatalf("rollback changed outbox: %+v %v", afterFailure, err)
@@ -92,6 +94,8 @@ func TestServiceUpgradeAfterTimelinePreservesIncidentAndOutbox(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertCount(t, s, "SELECT count(*) FROM schema_migrations WHERE version IN ('034_service_alerts.sql','035_certificate_reminders.sql','036_http_diagnostics_index.sql','037_service_alert_imports.sql','038_http_retention_catchup.sql')", 5)
+	assertCount(t, s, "SELECT count(*) FROM schema_migrations WHERE version='048_certificate_runtime_indexes.sql'", 1)
+	assertCount(t, s, "SELECT count(*) FROM sqlite_master WHERE name IN ('idx_alert_rules_enabled_created','idx_certificate_reminders_unskipped_service')", 2)
 	after, err := s.ListIncidentDeliveries(ctx, incident.ID, 0, 10)
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatalf("upgrade changed outbox: %+v %v", after, err)
