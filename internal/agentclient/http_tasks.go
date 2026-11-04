@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 	"github.com/zhengyifei200112-collab/myprobe/internal/protocol/httpcheck"
 	v2 "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v2"
 )
@@ -31,14 +30,16 @@ func (c *Client) sendHTTPTaskResult(ctx context.Context, connection *websocket.C
 	if ctx.Err() != nil {
 		return
 	}
-	envelope, err := v2.NewEnvelope(v2.TypeHTTPResult, c.sequence.Add(1), result)
+	sequence := c.nextSequence(v2.TypeHTTPResult)
+	envelope, err := v2.NewEnvelope(v2.TypeHTTPResult, sequence, result)
 	if err != nil {
+		c.observeEnvelopeRejection(v2.TypeHTTPResult, sequence, "encoding")
 		return
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	c.writeMu.Lock()
-	err = wsjson.Write(writeCtx, connection, envelope)
+	err = c.writeV2Envelope(writeCtx, connection, envelope)
 	c.writeMu.Unlock()
 	if err != nil {
 		c.clearConnection(connection)
