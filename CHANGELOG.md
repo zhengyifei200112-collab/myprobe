@@ -7,6 +7,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Current certificate reminder work
+
+- Evaluate enabled alert rules and synchronize current certificate definitions without revisiting closed, disabled history on every tick. Administrative history and permanent fingerprint deduplication remain complete.
+- Add original forward migration048 partial indexes; retain the global new-identity limit, receipt history and backup/recovery behavior.
+
 ### Bounded host history catch-up
 
 - Start after one closed raw minute, up to eight complete node/five-minute groups and bounded expiry pruning; continue host and HTTP catch-up in separate transactions with yields and error backoff.

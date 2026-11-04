@@ -100,8 +100,19 @@ func certificatePool(snapshot HTTPHealthSnapshot, available map[string]bool, at 
 	return pool
 }
 
-func loadCertificateLedgers(ctx context.Context, tx *sql.Tx, serviceID string) ([]certificateLedger, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT service_id,certificate_sha256,days_before,not_before,not_after,rule_id,queued_once,authorized_once,skipped,COALESCE(incident_id,''),COALESCE(delivery_id,'') FROM http_certificate_reminders WHERE service_id=? ORDER BY seq LIMIT 100001`, serviceID)
+func loadCertificateLedgers(ctx context.Context, tx *sql.Tx, serviceID string, fingerprints []string) ([]certificateLedger, error) {
+	encoded, err := json.Marshal(fingerprints)
+	if err != nil {
+		return nil, err
+	}
+	// Keep current subjects and point-look up all permanent levels of observed
+	// fingerprints. A skipped identity must never be mistaken for a new reminder.
+	rows, err := tx.QueryContext(ctx, `SELECT seq,service_id,certificate_sha256,days_before,not_before,not_after,rule_id,queued_once,authorized_once,skipped,COALESCE(incident_id,''),COALESCE(delivery_id,'')
+FROM http_certificate_reminders WHERE service_id=? AND skipped=0
+UNION ALL
+SELECT seq,service_id,certificate_sha256,days_before,not_before,not_after,rule_id,queued_once,authorized_once,skipped,COALESCE(incident_id,''),COALESCE(delivery_id,'')
+FROM http_certificate_reminders WHERE service_id=? AND skipped=1 AND certificate_sha256 IN (SELECT value FROM json_each(?))
+ORDER BY seq LIMIT 100001`, serviceID, serviceID, string(encoded))
 	if err != nil {
 		return nil, err
 	}
@@ -109,8 +120,9 @@ func loadCertificateLedgers(ctx context.Context, tx *sql.Tx, serviceID string) (
 	items := []certificateLedger{}
 	for rows.Next() {
 		var item certificateLedger
+		var seq int64
 		var before, after string
-		if err := rows.Scan(&item.ServiceID, &item.SHA256, &item.DaysBefore, &before, &after, &item.RuleID, &item.Queued, &item.Authorized, &item.Skipped, &item.IncidentID, &item.DeliveryID); err != nil {
+		if err := rows.Scan(&seq, &item.ServiceID, &item.SHA256, &item.DaysBefore, &before, &after, &item.RuleID, &item.Queued, &item.Authorized, &item.Skipped, &item.IncidentID, &item.DeliveryID); err != nil {
 			return nil, err
 		}
 		if item.NotBefore, err = parseTime(before); err != nil {
@@ -143,7 +155,12 @@ func upsertCertificateRule(ctx context.Context, tx *sql.Tx, record certificateLe
 // synchronizeCertificateDefinitions updates existing owned rules even when HTTP
 // execution is disabled; no stale definition retains send authority.
 func synchronizeCertificateDefinitions(ctx context.Context, tx *sql.Tx, at time.Time) error {
-	rows, err := tx.QueryContext(ctx, `SELECT l.service_id,l.certificate_sha256,l.days_before,l.not_before,l.not_after,l.rule_id,l.skipped,r.node_id,COALESCE(s.name,''),COALESCE(s.revision,0),COALESCE(s.enabled,0),COALESCE(a.revision,0),COALESCE(a.channel_id,r.channel_id),COALESCE(a.certificate_reminders_enabled,0),EXISTS(SELECT 1 FROM http_service_nodes n WHERE n.service_id=l.service_id AND n.node_id=r.node_id),COALESCE(s.updated_at,'') FROM http_certificate_reminders l JOIN alert_rules r ON r.id=l.rule_id LEFT JOIN http_services s ON s.id=l.service_id LEFT JOIN http_service_alerts a ON a.service_id=s.id LIMIT 100001`)
+	rows, err := tx.QueryContext(ctx, `WITH current_rules AS (
+SELECT rule_id FROM http_certificate_reminders WHERE skipped=0
+UNION
+SELECT id FROM alert_rules WHERE enabled=1 AND kind='service_certificate'
+)
+SELECT l.service_id,l.certificate_sha256,l.days_before,l.not_before,l.not_after,l.rule_id,l.skipped,r.node_id,COALESCE(s.name,''),COALESCE(s.revision,0),COALESCE(s.enabled,0),COALESCE(a.revision,0),COALESCE(a.channel_id,r.channel_id),COALESCE(a.certificate_reminders_enabled,0),EXISTS(SELECT 1 FROM http_service_nodes n WHERE n.service_id=l.service_id AND n.node_id=r.node_id),COALESCE(s.updated_at,'') FROM current_rules c JOIN http_certificate_reminders l ON l.rule_id=c.rule_id JOIN alert_rules r ON r.id=l.rule_id LEFT JOIN http_services s ON s.id=l.service_id LEFT JOIN http_service_alerts a ON a.service_id=s.id LIMIT 100001`)
 	if err != nil {
 		return err
 	}
@@ -231,7 +248,12 @@ func (s *Store) PrepareCertificateReminders(ctx context.Context, target Certific
 	}
 	pool := certificatePool(snapshots[0], available, at)
 	pool.AlertRevision = revision
-	records, err := loadCertificateLedgers(ctx, tx, target.ServiceID)
+	fingerprints := make([]string, 0, len(pool.Certificates))
+	for sha := range pool.Certificates {
+		fingerprints = append(fingerprints, sha)
+	}
+	sort.Strings(fingerprints)
+	records, err := loadCertificateLedgers(ctx, tx, target.ServiceID, fingerprints)
 	if err != nil {
 		return nil, err
 	}
@@ -244,15 +266,11 @@ func (s *Store) PrepareCertificateReminders(ctx context.Context, target Certific
 		}
 	}
 	var count int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM http_certificate_reminders`).Scan(&count); err != nil {
-		return nil, err
-	}
-	hashes := make([]string, 0, len(pool.Certificates))
-	for sha := range pool.Certificates {
-		hashes = append(hashes, sha)
-	}
-	sort.Strings(hashes)
-	for _, sha := range hashes {
+	counted := false
+	for _, sha := range fingerprints {
+		if _, valid := pool.Certificates[sha]; !valid {
+			continue
+		}
 		candidate := pool.Certificates[sha]
 		due := servicehealth.CertificateDueDays(candidate.Certificate.NotAfter, at)
 		if due == 0 {
@@ -265,6 +283,12 @@ func (s *Store) PrepareCertificateReminders(ctx context.Context, target Certific
 			key := certificateLedgerKey(sha, days)
 			record, exists := byKey[key]
 			if !exists {
+				if !counted {
+					if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM http_certificate_reminders`).Scan(&count); err != nil {
+						return nil, err
+					}
+					counted = true
+				}
 				count++
 				if count > 100000 {
 					return nil, errors.New("certificate reminder limit exceeded")

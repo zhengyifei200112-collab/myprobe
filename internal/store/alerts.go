@@ -302,7 +302,21 @@ func (s *Store) AlertRule(ctx context.Context, id string) (AlertRule, error) {
 }
 
 func (s *Store) ListAlertRules(ctx context.Context) ([]AlertRule, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,node_id,channel_id,kind,config_json,enabled,cooldown_seconds,created_at,updated_at,COALESCE((SELECT policy_id FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id),'') FROM alert_rules ORDER BY created_at`)
+	return s.listAlertRules(ctx, false)
+}
+
+// ListEnabledAlertRules is the evaluator's current workset. Administrative
+// history continues to use ListAlertRules, including disabled owned rules.
+func (s *Store) ListEnabledAlertRules(ctx context.Context) ([]AlertRule, error) {
+	return s.listAlertRules(ctx, true)
+}
+
+func (s *Store) listAlertRules(ctx context.Context, enabledOnly bool) ([]AlertRule, error) {
+	query := `SELECT id,node_id,channel_id,kind,config_json,enabled,cooldown_seconds,created_at,updated_at,COALESCE((SELECT policy_id FROM alert_policy_rule_bindings WHERE rule_id=alert_rules.id),'') FROM alert_rules`
+	if enabledOnly {
+		query += ` WHERE enabled=1`
+	}
+	rows, err := s.db.QueryContext(ctx, query+` ORDER BY created_at`)
 	if err != nil {
 		return nil, err
 	}
