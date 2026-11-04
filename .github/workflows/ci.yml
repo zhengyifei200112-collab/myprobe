@@ -139,6 +139,8 @@ jobs:
           shellcheck scripts/run-backup-enospc.sh
           sh -n scripts/run-network-evidence-loss.sh
           shellcheck scripts/run-network-evidence-loss.sh
+          sh -n scripts/run-joint-load.sh
+          shellcheck scripts/run-joint-load.sh
           bash scripts/install_test.sh
           bash install.sh --help >/dev/null
 
@@ -250,6 +252,13 @@ jobs:
         run: |
           go test -c ./internal/agentclient -o "${RUNNER_TEMP}/myprobe-network-evidence.test"
           sudo sh scripts/run-network-evidence-loss.sh "${RUNNER_TEMP}/myprobe-network-evidence.test"
+
+      - name: Verify real Server startup failure evidence
+        run: |
+          go build -o "${RUNNER_TEMP}/myprobe-startup-evidence-server" ./cmd/server
+          export MYPROBE_TEST_LOAD_SERVER_BINARY="${RUNNER_TEMP}/myprobe-startup-evidence-server"
+          cd internal/agentclient
+          "${RUNNER_TEMP}/myprobe-network-evidence.test" -test.run='^TestJointStartupFailureEvidence$' -test.timeout=45s -test.count=1 -test.v
 
       - name: Preserve failed native database fixtures
         if: failure()

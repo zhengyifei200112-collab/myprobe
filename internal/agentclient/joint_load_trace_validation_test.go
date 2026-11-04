@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -284,5 +286,105 @@ func TestEnvelopeTraceRefusesExistingFile(t *testing.T) {
 	raw, err := os.ReadFile(file)
 	if err != nil || string(raw) != "keep" {
 		t.Fatal("existing evidence changed")
+	}
+}
+
+func TestClientObservationCanceledReportRetainsRawGap(t *testing.T) {
+	var requests atomic.Int64
+	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests.Add(1); w.WriteHeader(200) }))
+	defer receiver.Close()
+	client := observedTestClient(t, receiver.URL)
+	trace, err := newJointEnvelopeTrace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &jointReportObserver{trace: trace}
+	p.observeClient(client, "private-node-name")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	report := protocol.Report{CapturedAt: time.Date(2026, 10, 23, 0, 0, 0, 1, time.UTC), PublicIP: "198.51.100.99", CPU: protocol.CPUMetric{UsagePercent: 17.125}}
+	err = client.sendReport(ctx, report)
+	if !errors.Is(err, context.Canceled) || requests.Load() != 0 || client.sequence.Load() != 1 {
+		t.Fatal("observation changed cancellation behavior")
+	}
+	var account jointReportAccounting
+	p.sequenceAccounting(&account, map[string]uint64{"private-node-name": client.sequence.Load()})
+	if account.UnobservedGeneratedEnvelopes != 1 || account.GeneratedEnvelopes != 1 {
+		t.Fatal("local failure silently exempted from original accounting")
+	}
+	summary := p.finishTrace()
+	if summary.WriteErrors != 0 || !summary.SyncedAndClosed || summary.Format != "myprobe.joint-envelope-trace.v2" {
+		t.Fatal("trace incomplete")
+	}
+	raw, err := os.ReadFile(trace.file.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := map[string]map[string]any{}
+	for _, line := range bytes.Split(bytes.TrimSpace(raw), []byte{'\n'}) {
+		var event map[string]any
+		if json.Unmarshal(line, &event) != nil {
+			t.Fatal("invalid trace")
+		}
+		events[event["event"].(string)] = event
+		if event["sequence"] != "1" {
+			t.Fatal("wrong sequence attribution")
+		}
+	}
+	if events["client_generated"]["type"] != protocol.TypeReport || events["client_write_returned"]["error_class"] != "canceled" || events["client_write_returned"]["transport"] != "http" || events["sequence_gap"] == nil {
+		t.Fatal("client-local failure not correlated with observer gap")
+	}
+	payload, err := json.Marshal(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := sha256.Sum256(payload)
+	if events["client_report"]["payload_sha256"] != hex.EncodeToString(hash[:]) || events["client_report"]["captured_at"] != report.CapturedAt.Format(time.RFC3339Nano) {
+		t.Fatal("report metadata not exact")
+	}
+	for _, secret := range []string{"owned-token-not-for-trace", "private-node-name", "198.51.100.99", "usage_percent", "Authorization", receiver.URL} {
+		if bytes.Contains(raw, []byte(secret)) {
+			t.Fatal("trace exposed private data")
+		}
+	}
+}
+
+func TestClientObservationServerRejectionDoesNotExposeMessage(t *testing.T) {
+	trace, err := newJointEnvelopeTrace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &jointReportObserver{trace: trace}
+	for _, code := range []string{"storage_error", "private-credential-in-unknown-code"} {
+		envelope, err := protocol.NewEnvelope(protocol.TypeError, 0, protocol.ProtocolError{Code: code, Message: "private rejection message must never be logged"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.observeServerEnvelope("owned", envelope)
+	}
+	summary := p.finishTrace()
+	if summary.WriteErrors != 0 || summary.Events != 2 {
+		t.Fatal("server rejection trace missing")
+	}
+	raw, err := os.ReadFile(trace.file.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(raw, []byte("private")) {
+		t.Fatal("server-controlled error text leaked")
+	}
+	classes := []string{}
+	for _, line := range bytes.Split(bytes.TrimSpace(raw), []byte{'\n'}) {
+		var event map[string]any
+		if json.Unmarshal(line, &event) != nil {
+			t.Fatal("invalid trace")
+		}
+		if event["sequence"] != "0" || event["event"] != "server_protocol_error" {
+			t.Fatal("server error falsely attributed to client request")
+		}
+		classes = append(classes, event["error_class"].(string))
+	}
+	if len(classes) != 2 || classes[0] != "storage_error" || classes[1] != "unclassified" {
+		t.Fatal("server rejection classification changed")
 	}
 }

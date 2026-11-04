@@ -34,23 +34,28 @@ func main() {
 		os.Exit(1)
 	}
 	ctx := context.Background()
+	phaseDone := startupPhase(logger, "pending_restore")
 	recovery, err := store.ApplyPendingRestore(ctx, cfg.DatabasePath, time.Now().UTC())
 	if err != nil {
 		logger.Error("apply pending database restore", "error", err)
 		os.Exit(1)
 	}
+	phaseDone()
 	if recovery != "" {
 		logger.Warn("pending database restore applied; previous database preserved", "recovery_path", recovery)
 	}
+	phaseDone = startupPhase(logger, "database_open")
 	database, err := store.OpenWithOptions(ctx, cfg.DatabasePath, store.OpenOptions{DisableHistoryMmap: !cfg.HistoryMmapEnabled})
 	if err != nil {
 		logger.Error("open database", "error", err)
 		os.Exit(1)
 	}
+	phaseDone()
 	defer database.Close()
 	retentionPolicy := store.RetentionPolicy{
 		Raw: cfg.Retention.Raw, OneMinute: cfg.Retention.OneMinute, FiveMinute: cfg.Retention.FiveMinute,
 	}
+	phaseDone = startupPhase(logger, "history_retention")
 	if _, err := database.RetainHistory(ctx, time.Now().UTC(), retentionPolicy); err != nil {
 		logger.Error("apply history retention", "error", err)
 		os.Exit(1)
@@ -60,6 +65,7 @@ func main() {
 		logger.Error("prune HTTP history", "error", err)
 		os.Exit(1)
 	}
+	phaseDone()
 
 	authService := auth.New(database, cfg.SessionTTL)
 	generatedPassword, err := authService.Bootstrap(ctx, cfg.AdminUsername, cfg.AdminPassword)
@@ -127,6 +133,7 @@ func main() {
 		logger.Warn("public HTTP listener has no TLS; place MyProbe behind HTTPS or explicitly acknowledge direct HTTP", "environment", "MYPROBE_PUBLIC_HTTP_ACKNOWLEDGED")
 	}
 	go func() {
+		logger.Info("startup phase", "phase", "http_listen", "state", "starting")
 		logger.Info("MyProbe server started", "address", cfg.ListenAddress)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("HTTP server stopped", "error", err)
@@ -142,6 +149,16 @@ func main() {
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("graceful shutdown failed", "error", err)
+	}
+}
+
+// Startup markers carry only the fixed phase, state, and elapsed time.
+// HTTP health determines readiness after the listener starts.
+func startupPhase(logger *slog.Logger, phase string) func() {
+	started := time.Now()
+	logger.Info("startup phase", "phase", phase, "state", "started")
+	return func() {
+		logger.Info("startup phase", "phase", phase, "state", "completed", "elapsed_ms", time.Since(started).Milliseconds())
 	}
 }
 

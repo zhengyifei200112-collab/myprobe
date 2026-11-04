@@ -7,6 +7,11 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Joint runtime and startup evidence
+
+- Server startup logs include restore, database open, initial retention, and listener phases with elapsed times for completed phases.
+- The opt-in joint harness reconciles Agent messages with receipts and database rows, records request timings by fixture node, and checks owned Server processes have exited before releasing test data.
+
 ### Agent test observation
 
 - Complete private message lifecycle observations for transport diagnostics while retaining existing wire sequences, HTTP fallback sampling and reliable network-result delivery. Production observation remains disabled.
