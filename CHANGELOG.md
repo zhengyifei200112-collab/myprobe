@@ -7,6 +7,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Agent test observation
+
+- Complete private message lifecycle observations for transport diagnostics while retaining existing wire sequences, HTTP fallback sampling and reliable network-result delivery. Production observation remains disabled.
+
 ### Current certificate reminder work
 
 - Evaluate enabled alert rules and synchronize current certificate definitions without revisiting closed, disabled history on every tick. Administrative history and permanent fingerprint deduplication remain complete.

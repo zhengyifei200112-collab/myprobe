@@ -162,13 +162,17 @@ func (c *Client) connectAndRead(ctx context.Context) (bool, error) {
 		connection.Close(websocket.StatusInternalError, "host discovery failed")
 		return false, err
 	}
-	envelope, err := protocol.NewEnvelope(protocol.TypeHello, c.sequence.Add(1), hello)
+	sequence := c.nextSequence(protocol.TypeHello)
+	envelope, err := protocol.NewEnvelope(protocol.TypeHello, sequence, hello)
 	if version == 2 {
 		hello.Capabilities = append(hello.Capabilities, httpcheck.Capability, protocolv2.ConfigurationCapability, networkcheck.Capability)
 		envelope, err = protocol.NewEnvelope(protocol.TypeHello, envelope.Sequence, hello)
 	}
 	envelope.Version = version
-	if err != nil || wsjson.Write(ctx, connection, envelope) != nil {
+	if err != nil {
+		c.observeEnvelopeRejection(protocol.TypeHello, sequence, "encoding")
+	}
+	if err != nil || c.writeV1Envelope(ctx, connection, envelope) != nil {
 		connection.Close(websocket.StatusInternalError, "hello failed")
 		return false, errors.New("send hello")
 	}
@@ -294,14 +298,16 @@ func (c *Client) heartbeatLoop(ctx context.Context, expected *websocket.Conn, ve
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			envelope, err := protocol.NewEnvelope(protocol.TypeHeartbeat, c.sequence.Add(1), struct{}{})
+			sequence := c.nextSequence(protocol.TypeHeartbeat)
+			envelope, err := protocol.NewEnvelope(protocol.TypeHeartbeat, sequence, struct{}{})
 			envelope.Version = version
 			if err != nil {
+				c.observeEnvelopeRejection(protocol.TypeHeartbeat, sequence, "encoding")
 				continue
 			}
 			writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			c.writeMu.Lock()
-			err = wsjson.Write(writeCtx, expected, envelope)
+			err = c.writeV1Envelope(writeCtx, expected, envelope)
 			c.writeMu.Unlock()
 			cancel()
 			if err != nil {
@@ -359,19 +365,22 @@ func (c *Client) sendLatencyResult(ctx context.Context, kind string, result prot
 	if kind == protocol.TaskKindTCPing {
 		messageType = protocol.TypeTCPingResult
 	}
-	envelope, err := protocol.NewEnvelope(messageType, c.sequence.Add(1), result)
+	sequence := c.nextSequence(messageType)
+	envelope, err := protocol.NewEnvelope(messageType, sequence, result)
 	if err != nil {
+		c.observeEnvelopeRejection(messageType, sequence, "encoding")
 		return err
 	}
 	connection, version := c.currentConnectionVersion()
 	envelope.Version = version
 	if connection == nil {
+		c.observeEnvelopeRejection(envelope.Type, envelope.Sequence, "disconnected")
 		return errors.New("agent websocket is disconnected")
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	c.writeMu.Lock()
-	err = wsjson.Write(writeCtx, connection, envelope)
+	err = c.writeV1Envelope(writeCtx, connection, envelope)
 	c.writeMu.Unlock()
 	if err != nil {
 		c.clearConnection(connection)
@@ -423,17 +432,19 @@ func (c *Client) sendReport(ctx context.Context, report protocol.Report) error {
 // Return an HTTP configuration to callers that hold settingsMu. Application
 // happens only after they release it, so a fallback ACK cannot lock recursively.
 func (c *Client) sendReportWithConfiguration(ctx context.Context, report protocol.Report) (*protocol.Config, error) {
-	sequence := c.sequence.Add(1)
+	sequence := c.nextSequence(protocol.TypeReport)
 	envelope, err := protocol.NewEnvelope(protocol.TypeReport, sequence, report)
 	if err != nil {
+		c.observeEnvelopeRejection(protocol.TypeReport, sequence, "encoding")
 		return nil, err
 	}
+	c.observeReportEnvelope(sequence, report.CapturedAt, envelope.Payload)
 	if connection, version := c.currentConnectionVersion(); connection != nil {
 		wireEnvelope := envelope
 		wireEnvelope.Version = version
 		writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		c.writeMu.Lock()
-		err = wsjson.Write(writeCtx, connection, wireEnvelope)
+		err = c.writeV1Envelope(writeCtx, connection, wireEnvelope)
 		c.writeMu.Unlock()
 		cancel()
 		if err == nil {
@@ -461,15 +472,22 @@ func (c *Client) sendHTTPWithConfiguration(ctx context.Context, envelope protoco
 	endpoint.Path = path.Join(endpoint.Path, endpointPath)
 	body, err := json.Marshal(envelope)
 	if err != nil {
+		c.observeEnvelopeRejection(envelope.Type, envelope.Sequence, "encoding")
 		return nil, err
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), strings.NewReader(string(body)))
 	if err != nil {
+		c.observeEnvelopeRejection(envelope.Type, envelope.Sequence, "request")
 		return nil, err
 	}
 	request.Header.Set("Authorization", "Bearer "+c.config.Token)
 	request.Header.Set("Content-Type", "application/json")
 	response, err := c.http.Do(request)
+	status := 0
+	if response != nil {
+		status = response.StatusCode
+	}
+	c.observeEnvelopeReturn(envelope.Type, envelope.Sequence, "http", err, status)
 	if err != nil {
 		return nil, err
 	}
@@ -492,8 +510,10 @@ func (c *Client) sendHelloHTTP(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	envelope, err := protocol.NewEnvelope(protocol.TypeHello, c.sequence.Add(1), hello)
+	sequence := c.nextSequence(protocol.TypeHello)
+	envelope, err := protocol.NewEnvelope(protocol.TypeHello, sequence, hello)
 	if err != nil {
+		c.observeEnvelopeRejection(protocol.TypeHello, sequence, "encoding")
 		return err
 	}
 	return c.sendHTTP(ctx, envelope)
