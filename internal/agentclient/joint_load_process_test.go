@@ -1,0 +1,276 @@
+package agentclient
+
+import (
+	"context"
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+)
+
+type jointServer struct {
+	binary, database string
+	env              []string
+	cmd              *exec.Cmd
+	done             chan error
+	stopCommand      context.CancelFunc
+	unit, cgroup     string
+	pid              int
+	limits           map[string]string
+	capture          *jointProcessLog
+}
+
+func (s *jointServer) start(t *testing.T, ctx context.Context, base string) {
+	t.Helper()
+	childCtx, stop := context.WithCancel(ctx)
+	s.stopCommand = stop
+	s.limits = map[string]string{"mode": "unrestricted"}
+	if os.Getenv("MYPROBE_TEST_LOAD_SYSTEMD") == "1" {
+		if runtime.GOOS != "linux" {
+			t.Fatal("systemd resource control requires Linux")
+		}
+		s.unit = "myprobe-joint-load-" + strings.ToLower(rand.Text())
+		// A transient unit contains only this Server. Agents, receiver, sampler and
+		// subscriptions stay outside it. No global service configuration is changed.
+		args := []string{"--quiet", "--unit=" + s.unit, "--property=MemoryMax=2G", "--property=MemorySwapMax=0", "--property=CPUQuota=200%", "--property=AllowedCPUs=0,1", "--wait", "--collect", "--pipe"}
+		if os.Getenv("MYPROBE_TEST_LOAD_NETWORK_NAMESPACE") == "1" {
+			args = append(args, fmt.Sprintf("--property=NetworkNamespacePath=/proc/%d/ns/net", os.Getpid()))
+		}
+		for _, env := range s.env {
+			args = append(args, "--setenv="+env)
+		}
+		args = append(args, s.binary)
+		s.cmd = exec.CommandContext(childCtx, "systemd-run", args...)
+	} else {
+		s.cmd = exec.CommandContext(childCtx, s.binary)
+	}
+	// Do not inherit the operator's MyProbe production configuration into a fixture.
+	for _, env := range os.Environ() {
+		if !strings.HasPrefix(env, "MYPROBE_") {
+			s.cmd.Env = append(s.cmd.Env, env)
+		}
+	}
+	s.cmd.Env = append(s.cmd.Env, s.env...)
+	s.cmd.WaitDelay = 5 * time.Second
+	s.cmd.Stdout, s.cmd.Stderr = io.Discard, io.Discard
+	capture, err := openJointProcessLog(os.Getenv("MYPROBE_TEST_LOAD_PROCESS_LOG_DIR"))
+	if err != nil {
+		stop()
+		t.Fatal(err)
+	}
+	s.capture = capture
+	if capture != nil {
+		s.cmd.Stdout, s.cmd.Stderr = capture, capture
+	}
+	if err := s.cmd.Start(); err != nil {
+		stop()
+		if capture != nil {
+			fmt.Fprintf(capture, "fixture exec start failed: %v\n", err)
+			capture.close()
+			_ = capture.recordStartup("exec_start_failed", 0, false, nil)
+		}
+		s.capture = nil
+		s.cmd = nil
+		t.Fatalf("start disposable Server: %v", err)
+	}
+	s.done = make(chan error, 1)
+	go func(cmd *exec.Cmd, done chan error) { done <- cmd.Wait() }(s.cmd, s.done)
+	s.pid = s.cmd.Process.Pid
+	client := &http.Client{Timeout: time.Second}
+	readiness := waitJointReadiness(ctx, client, base, s.done, 30*time.Second)
+	var exitCode *int
+	if readiness.exited {
+		// stop must still observe the one command completion it normally owns.
+		s.done <- readiness.err
+		code := 0
+		if readiness.err != nil {
+			code = -1
+			var exit *exec.ExitError
+			if errors.As(readiness.err, &exit) {
+				code = exit.ExitCode()
+			}
+		}
+		exitCode = &code
+	}
+	if readiness.class != "ready" {
+		s.stop(t)
+		if err := capture.recordStartup(readiness.class, readiness.elapsed, readiness.exited, exitCode); err != nil {
+			t.Log("private startup summary could not be written")
+		}
+		t.Fatalf("disposable Server did not become ready: %s", readiness.class)
+	}
+	if err := capture.recordStartup("ready", readiness.elapsed, false, nil); err != nil {
+		s.stop(t)
+		t.Fatal("private startup summary could not be written")
+	}
+	if s.unit != "" {
+		pid, err := jointSystemctl(ctx, "show", s.unit, "--property=MainPID", "--value")
+		if err != nil {
+			s.stop(t)
+			t.Fatal("cannot observe limited Server PID")
+		}
+		s.pid, err = strconv.Atoi(strings.TrimSpace(pid))
+		if err != nil || s.pid <= 0 {
+			s.stop(t)
+			t.Fatal("limited Server PID missing")
+		}
+		group, err := jointSystemctl(ctx, "show", s.unit, "--property=ControlGroup", "--value")
+		if err != nil {
+			s.stop(t)
+			t.Fatal("cannot observe Server cgroup")
+		}
+		s.cgroup = filepath.Join("/sys/fs/cgroup", strings.TrimSpace(group))
+		s.limits["mode"] = "systemd-cgroup-v2"
+		for _, name := range []string{"cpu.max", "memory.max", "memory.swap.max", "cpuset.cpus.effective"} {
+			raw, err := os.ReadFile(filepath.Join(s.cgroup, name))
+			if err != nil {
+				s.stop(t)
+				t.Fatalf("resource control %s missing", name)
+			}
+			s.limits[name] = strings.TrimSpace(string(raw))
+		}
+		if s.limits["cpu.max"] != "200000 100000" || s.limits["memory.max"] != "2147483648" || s.limits["memory.swap.max"] != "0" || s.limits["cpuset.cpus.effective"] != "0-1" {
+			s.stop(t)
+			t.Fatal("requested CPU/memory/swap/cpuset controls did not take effect")
+		}
+	}
+}
+
+func (s *jointServer) stop(t *testing.T) bool {
+	t.Helper()
+	defer func() {
+		s.capture.close()
+		s.capture = nil
+	}()
+	if s.cmd == nil {
+		return true
+	}
+	if s.unit != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		_, _ = jointSystemctl(ctx, "stop", s.unit)
+		cancel()
+	} else if runtime.GOOS == "windows" {
+		_ = s.cmd.Process.Kill()
+	} else {
+		_ = s.cmd.Process.Signal(syscall.SIGTERM)
+	}
+	select {
+	case <-s.done:
+	case <-time.After(20 * time.Second):
+		s.stopCommand()
+		_ = s.cmd.Process.Kill()
+		<-s.done
+	}
+	s.stopCommand()
+	s.cmd = nil
+	if s.unit == "" {
+		t.Logf("owned Server process exited: pid=%d", s.pid)
+		s.pid = 0
+		return true
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	state, err := jointSystemctl(ctx, "show", s.unit, "--property=LoadState,ActiveState,MainPID")
+	if !jointUnitStopped(state) || (err != nil && !strings.Contains(state, "LoadState=not-found")) {
+		t.Errorf("cannot prove owned Server unit exited: %s", s.unit)
+		return false
+	}
+	if s.cgroup != "" {
+		if filepath.Base(s.cgroup) != s.unit+".service" || !strings.HasPrefix(s.cgroup, "/sys/fs/cgroup/") {
+			t.Error("cannot verify an unexpected Server cgroup path")
+			return false
+		}
+		if err := verifyJointCgroupEmpty(s.cgroup); err != nil {
+			t.Errorf("cannot prove owned Server cgroup emptied: %s", s.unit)
+			return false
+		}
+	}
+	t.Logf("owned Server exited: unit=%s pid=%d cgroup_checked=%t", s.unit, s.pid, s.cgroup != "")
+	s.pid, s.unit, s.cgroup = 0, "", ""
+	return true
+}
+
+func jointUnitStopped(state string) bool {
+	properties := make(map[string]string)
+	for _, line := range strings.Split(state, "\n") {
+		if key, value, ok := strings.Cut(line, "="); ok {
+			properties[key] = value
+		}
+	}
+	active := properties["ActiveState"]
+	return properties["MainPID"] == "0" && (active == "inactive" || active == "failed")
+}
+
+func verifyJointCgroupEmpty(root string) error {
+	return filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if os.IsNotExist(err) {
+			return nil // systemd can remove the empty group during the walk.
+		}
+		if err != nil {
+			return err
+		}
+		if entry.Name() != "cgroup.procs" {
+			return nil
+		}
+		body, err := os.ReadFile(path)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if strings.TrimSpace(string(body)) != "" {
+			return errors.New("owned cgroup has live processes")
+		}
+		return nil
+	})
+}
+
+func jointSystemctl(ctx context.Context, args ...string) (string, error) {
+	bounded, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	raw, err := exec.CommandContext(bounded, "systemctl", args...).Output()
+	return string(raw), err
+}
+
+func (s *jointServer) rssBytes() int64 {
+	if runtime.GOOS != "linux" || s.pid <= 0 {
+		return 0
+	}
+	raw, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", s.pid))
+	if err != nil {
+		return 0
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 3 && fields[0] == "VmRSS:" {
+			value, _ := strconv.ParseInt(fields[1], 10, 64)
+			return value * 1024
+		}
+	}
+	return 0
+}
+func (s *jointServer) cpuMicros() uint64 {
+	if s.cgroup == "" {
+		return 0
+	}
+	raw, err := os.ReadFile(filepath.Join(s.cgroup, "cpu.stat"))
+	if err != nil {
+		return 0
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && fields[0] == "usage_usec" {
+			value, _ := strconv.ParseUint(fields[1], 10, 64)
+			return value
+		}
+	}
+	return 0
+}
