@@ -133,6 +133,11 @@ func (s *Store) RetainHistory(ctx context.Context, now time.Time, policy Retenti
 		batch.RollupsDeleted += n
 		batch.More = batch.More || n == historyPruneRows
 	}
+	pendingHours, err := refreshLatencyHistoryHours(ctx, tx, latencyHourBatch)
+	if err != nil {
+		return batch, err
+	}
+	batch.More = batch.More || pendingHours
 	if err = tx.Commit(); err != nil {
 		// database/sql marks Tx done even when SQLite rejects COMMIT (for
 		// example, a deferred constraint). Tx.Rollback then cannot clean up

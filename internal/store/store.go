@@ -933,7 +933,8 @@ func (s *Store) latencyHistoryRange(ctx context.Context, nodeID string, start, e
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.historyQueryDB().QueryContext(ctx, latencyHistoryQuery, args...)
+	query, args := latencyHistoryReadQuery(start, end, bucketSeconds, args)
+	rows, err := s.historyQueryDB().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

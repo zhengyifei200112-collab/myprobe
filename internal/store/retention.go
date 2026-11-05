@@ -107,6 +107,9 @@ func (s *Store) applyRetentionStatements(ctx context.Context, now time.Time, pol
 	if _, err := pruneHTTPHistory(ctx, tx, now); err != nil {
 		return err
 	}
+	if _, err := refreshLatencyHistoryHours(ctx, tx, -1); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
