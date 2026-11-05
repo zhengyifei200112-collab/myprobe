@@ -54,6 +54,7 @@ jobs:
           go test -race ./internal/agentclient -run '^TestNetworkProbe' -count=1
           go test -race ./internal/agentclient -run '^TestNetwork(Delivery|ResultDelivery)' -count=1
           go test -race ./internal/agentclient -run '^TestClientObservation' -count=1
+          go test -race ./internal/agentclient -run '^Test(Joint|ReportObserver|ReportReconciliation|EnvelopeTrace)' -count=1
           go test -race ./internal/agentclient ./internal/agentgateway ./internal/store ./internal/alerts -run '^Test(ActualAgentContact|Heartbeat|AgentContact|AgentHello|HTTPHello|PublicFreshness|OfflineUsesContact)' -count=1
           python3 scripts/native-network-evidence-test.py
           go test -race ./internal/diagnostics -count=1
@@ -138,6 +139,8 @@ jobs:
           shellcheck scripts/run-backup-enospc.sh
           sh -n scripts/run-network-evidence-loss.sh
           shellcheck scripts/run-network-evidence-loss.sh
+          sh -n scripts/run-joint-load.sh
+          shellcheck scripts/run-joint-load.sh
           bash scripts/install_test.sh
           bash install.sh --help >/dev/null
 
@@ -249,6 +252,13 @@ jobs:
         run: |
           go test -c ./internal/agentclient -o "${RUNNER_TEMP}/myprobe-network-evidence.test"
           sudo sh scripts/run-network-evidence-loss.sh "${RUNNER_TEMP}/myprobe-network-evidence.test"
+
+      - name: Verify real Server startup failure evidence
+        run: |
+          go build -o "${RUNNER_TEMP}/myprobe-startup-evidence-server" ./cmd/server
+          export MYPROBE_TEST_LOAD_SERVER_BINARY="${RUNNER_TEMP}/myprobe-startup-evidence-server"
+          cd internal/agentclient
+          "${RUNNER_TEMP}/myprobe-network-evidence.test" -test.run='^TestJointStartupFailureEvidence$' -test.timeout=45s -test.count=1 -test.v
 
       - name: Preserve failed native database fixtures
         if: failure()
