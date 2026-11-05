@@ -4,6 +4,11 @@ Status: implemented on the feature branch; release availability depends on merge
 and release. Transactional, Agent and browser checks are recorded below. Final PR
 readiness additionally requires CI for the latest commit.
 
+Target changes modify only added and removed assignments. Unchanged targets keep
+their schedule epochs and active probe tasks through add, remove and replace
+operations. The existing transaction still rolls back assignment changes when
+revision checks or auditing fail.
+
 ## User flow
 
 In the node administration page, expand batch management. Search by name or tag,
@@ -46,6 +51,10 @@ changes, not tokens, notification secrets, passwords or actual infrastructure IP
 Preview creation prunes expired unapplied records and applied records older than
 30 days. At most 100 pending previews per user are allowed. The retention period
 defines the replay window; after deletion the client must create a new preview.
+Cleanup compares exact UTC nanosecond keys so variable timestamp fractions cannot
+remove a valid preview or retain an expired one. Pending expiry is inclusive;
+applied-result retention is strictly older than thirty days. See
+[preview retention](NODE_PREVIEW_RETENTION.md) for boundary and recovery checks.
 These operational records are not part of configuration export, but encrypted full
 database backups retain them and the revisions.
 

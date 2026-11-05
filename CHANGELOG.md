@@ -90,6 +90,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Preserve unchanged network target assignments and their active probe tasks during node batches. Compare preview expiry and replay retention at exact UTC nanosecond boundaries.
+
 - Retain at most32 immutable completed network-result envelopes until exact current-socket application ACK or original task expiry. Retry unchanged results after loss/reconnect without re-executing probes, and reject unsupported-channel replay, overflow and late shutdown completion.
 
 - HTTP scheduler diagnostics measure start delay from the original tick while

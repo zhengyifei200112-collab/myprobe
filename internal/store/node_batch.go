@@ -170,7 +170,17 @@ func (s *Store) PreviewNodeBatch(ctx context.Context, userID string, request Nod
 	}
 	defer tx.Rollback()
 	// A write first obtains the SQLite writer reservation before reading snapshots.
-	if _, err = tx.ExecContext(ctx, `DELETE FROM node_batch_previews WHERE (applied_at IS NULL AND expires_at < ?) OR (applied_at IS NOT NULL AND applied_at < ?)`, formatTime(now), formatTime(now.Add(-30*24*time.Hour))); err != nil {
+	// Stored UTC RFC3339Nano values have variable fractional width: ".5Z" does
+	// not sort chronologically against "Z" or ".500000001Z". Compare padded
+	// nanosecond keys without rewriting historical rows or rounding to SQL time
+	// precision. Expiry is inclusive, matching ApplyNodeBatch's !Before check;
+	// applied results remain until strictly older than the 30-day cutoff.
+	orderKey := func(value time.Time) string {
+		return strings.ReplaceAll(value.UTC().Format("2006-01-02T15:04:05.000000000"), ".", "")
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM node_batch_previews WHERE
+		(applied_at IS NULL AND substr(replace(rtrim(expires_at,'Z'),'.','') || '000000000',1,28) <= ?)
+		OR (applied_at IS NOT NULL AND substr(replace(rtrim(applied_at,'Z'),'.','') || '000000000',1,28) < ?)`, orderKey(now), orderKey(now.Add(-30*24*time.Hour))); err != nil {
 		return preview, err
 	}
 	var pending int
@@ -332,10 +342,26 @@ func (s *Store) ApplyNodeBatch(ctx context.Context, userID, previewID, key strin
 			return NodeBatchResult{}, &BatchConflict{NodeIDs: []string{item.NodeID}}
 		}
 		if !reflect.DeepEqual(item.Before.TargetIDs, item.After.TargetIDs) {
-			if _, err = tx.ExecContext(ctx, `DELETE FROM node_targets WHERE node_id=?`, item.NodeID); err != nil {
-				return NodeBatchResult{}, err
+			before, after := map[string]bool{}, map[string]bool{}
+			for _, id := range item.Before.TargetIDs {
+				before[id] = true
 			}
 			for _, id := range item.After.TargetIDs {
+				after[id] = true
+			}
+			// Keep unchanged assignments in place: their network schedule epochs
+			// and active tasks must not restart when another target is added.
+			for _, id := range item.Before.TargetIDs {
+				if !after[id] {
+					if _, err = tx.ExecContext(ctx, `DELETE FROM node_targets WHERE node_id=? AND target_id=?`, item.NodeID, id); err != nil {
+						return NodeBatchResult{}, err
+					}
+				}
+			}
+			for _, id := range item.After.TargetIDs {
+				if before[id] {
+					continue
+				}
 				if _, err = tx.ExecContext(ctx, `INSERT INTO node_targets(node_id,target_id) VALUES(?,?)`, item.NodeID, id); err != nil {
 					return NodeBatchResult{}, err
 				}
