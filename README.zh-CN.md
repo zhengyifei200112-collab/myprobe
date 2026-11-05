@@ -157,6 +157,8 @@ TLS；请在 HTTPS 反代可用或明确接受直接 HTTP 风险后再设置。�
 先设置 `MYPROBE_BACKUP_PASSPHRASE_FILE` 为独立口令文件的服务端路径。每份文件
 的隔离恢复演练结果与任务历史分别展示；完整恢复须保留原始口令和应用密钥。
 目录权限、容器挂载、调度/重启及验收范围见 [定时备份说明](docs/SCHEDULED_BACKUPS.md)。
+手动完整备份与恢复上传最长处理15分钟；反向代理需允许相应传输时间，
+详见[数据库传输期限](docs/BACKUP_TRANSFER_TIMEOUTS.md)。
 
 “系统健康 → 节点诊断”可查看采样设置确认与最后成功入库通道。旧 Agent 不支持确认时明确标注不可用；历史确认与当前连接分开。见 [Agent 运行证据](docs/AGENT_RUNTIME_EVIDENCE.md)。
 
