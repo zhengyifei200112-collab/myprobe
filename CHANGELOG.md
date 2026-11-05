@@ -7,6 +7,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Retained latency hour summaries
+
+- Reduce retained latency reads for long history windows with weighted hour
+  summaries, transactionally invalidated source hours and bounded refresh.
+  Migration 052 backfills existing retained history and adds summary storage.
+
 ### Joint runtime and startup evidence
 
 - Server startup logs include restore, database open, initial retention, and listener phases with elapsed times for completed phases.

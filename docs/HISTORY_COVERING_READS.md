@@ -1,5 +1,8 @@
 # Retained latency history covering reads
 
+Complete interior hours now use [weighted hour summaries](LATENCY_HISTORY_HOURS.md).
+This covering source query still serves pending hours and boundary buckets.
+
 Current main integration adds the original050/051 index migrations after existing047; all existing SQL bytes remain unchanged. Required personal-use native scope is5→20 and same-source20×24h. Historical component timings do not accept the current main; frozen6d2297d20-node30d P95=2513.201ms remains failed, with24h not started.
 
 
