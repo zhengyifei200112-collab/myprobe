@@ -20,6 +20,7 @@ import (
 type jointHistorySeed struct {
 	BacklogHours                                                                    int
 	LastLatencyID                                                                   int64
+	LatencyHourRows                                                                 int64
 	Mode                                                                            string
 	Anchor, SeedFinishedAt                                                          time.Time
 	SeedSeconds                                                                     float64
@@ -120,6 +121,11 @@ func seedJointHistory(t *testing.T, ctx context.Context, path string, database *
 		}
 		t.Logf("dense history seeded %d-second layer: %d metric/traffic and %d latency buckets", layer.seconds, len(ids)*layer.rows, len(ids)*layer.rows*3)
 	}
+	result.LatencyHourRows, err = seedJointLatencyHours(ctx, tx)
+	if err != nil || result.LatencyHourRows == 0 {
+		t.Fatal("seed derived latency hours", err)
+	}
+	t.Logf("dense history seeded %d derived latency hours", result.LatencyHourRows)
 	if err := tx.Commit(); err != nil {
 		t.Fatal(err)
 	}

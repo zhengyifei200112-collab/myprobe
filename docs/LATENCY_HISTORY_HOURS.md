@@ -76,3 +76,9 @@ for both narrow and wider ranges.
 
 The final-source 5-to-20-node short workload and 20-node 24-hour run remain the
 capacity acceptance gates.
+
+The SQL-generated dense-year fixture initializes hour summaries with this
+migration's original backfill statement inside its seed transaction. Its
+derived row count and setup time are recorded. The measured workload starts
+after this generated state is complete. Startup retention and any selected
+source-data backlog continue through the normal Server path.

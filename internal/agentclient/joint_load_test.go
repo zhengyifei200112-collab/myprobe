@@ -310,7 +310,7 @@ func TestJointRuntimeLoad(t *testing.T) {
 		result.Limitations[3] = "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports"
 	}
 	result.SourceSHA256 = make(map[string]string)
-	for _, path := range []string{"internal/agentclient/joint_load_api_trace_test.go", "internal/agentclient/joint_load_trace_test.go", "internal/agentclient/joint_load_trace_validation_test.go", "internal/agentclient/client_observation.go", "internal/agentclient/client_observation_test.go", "internal/agentclient/client_observation_transport_test.go", "scripts/check-joint-api-trace.cjs"} {
+	for _, path := range []string{"internal/agentclient/joint_load_history_hours_test.go", "internal/store/migrations/052_latency_history_hours.sql", "internal/agentclient/joint_load_api_trace_test.go", "internal/agentclient/joint_load_trace_test.go", "internal/agentclient/joint_load_trace_validation_test.go", "internal/agentclient/client_observation.go", "internal/agentclient/client_observation_test.go", "internal/agentclient/client_observation_transport_test.go", "scripts/check-joint-api-trace.cjs"} {
 		raw, err := os.ReadFile(filepath.Join("../..", filepath.FromSlash(path)))
 		if err != nil {
 			t.Fatal("load trace source unavailable for provenance")
