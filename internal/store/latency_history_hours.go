@@ -9,7 +9,7 @@ import (
 const latencyHourBatch = 128
 
 const alignedLatencyRollup = `(strftime('%Y-%m-%dT%H:%M:%SZ',bucket_at)=bucket_at
-	AND unixepoch(bucket_at)%bucket_seconds=0)`
+	AND unixepoch(bucket_at)>=0 AND unixepoch(bucket_at)%bucket_seconds=0)`
 
 // Refresh only the selected pending hours while this transaction owns the
 // writer. Readers continue using each pending hour's exact source buckets.

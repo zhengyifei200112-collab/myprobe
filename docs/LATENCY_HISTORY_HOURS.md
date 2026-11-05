@@ -4,6 +4,8 @@ Long history windows now read weighted hour summaries for complete interior
 hours. This reduces the retained bucket values read for the 30-day and one-year
 views. Raw samples, partial boundary hours, and legacy timestamps that are
 noncanonical or unaligned keep the existing source query rules.
+Buckets predating the Unix epoch also use the source path, so migration
+backfill cannot fold a negative timestamp into the first supported hour.
 
 Migration 052 builds the summary from existing retained buckets and creates the
 invalidation triggers in the same migration transaction. Each summary stores

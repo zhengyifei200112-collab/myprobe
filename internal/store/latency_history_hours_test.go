@@ -25,7 +25,7 @@ func rebuildLatencyHours(t *testing.T, s *Store, limit int) bool {
 	return more
 }
 
-func TestLatencyHoursWindowsInvalidationAndRollback(t *testing.T) {
+func TestLatencyHistoryHoursWindowsInvalidationAndRollback(t *testing.T) {
 	s, node, target := historyFixture(t)
 	ctx := context.Background()
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -95,13 +95,18 @@ func TestLatencyHoursWindowsInvalidationAndRollback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, query := range []string{"PRAGMA recursive_triggers=OFF",
-		"INSERT OR REPLACE INTO latency_rollups VALUES('" + node.ID + "','" + target.ID + "','tcping',60,'" + formatTime(base) + "',7,3,2,31)",
-		"PRAGMA recursive_triggers=ON"} {
-		if _, err := conn.ExecContext(ctx, query); err != nil {
-			conn.Close()
-			t.Fatal(err)
-		}
+	if _, err := conn.ExecContext(ctx, "PRAGMA recursive_triggers=OFF"); err != nil {
+		conn.Close()
+		t.Fatal(err)
+	}
+	if _, err := conn.ExecContext(ctx, "INSERT OR REPLACE INTO latency_rollups VALUES(?,?,'tcping',60,?,7,3,2,31)",
+		node.ID, target.ID, formatTime(base)); err != nil {
+		conn.Close()
+		t.Fatal(err)
+	}
+	if _, err := conn.ExecContext(ctx, "PRAGMA recursive_triggers=ON"); err != nil {
+		conn.Close()
+		t.Fatal(err)
 	}
 	conn.Close()
 	assertCount(t, s, "SELECT COUNT(*) FROM latency_history_hours_dirty", 1)
@@ -150,7 +155,7 @@ func TestLatencyHoursWindowsInvalidationAndRollback(t *testing.T) {
 	assertCount(t, s, "SELECT COUNT(*) FROM latency_history_hours_dirty", 0)
 }
 
-func TestLatencyHoursMigrationBackfillRollbackAndPlans(t *testing.T) {
+func TestLatencyHistoryHoursMigrationBackfillRollbackAndPlans(t *testing.T) {
 	s, node, target := historyFixture(t)
 	ctx := context.Background()
 	for _, name := range []string{"latency_history_hours_insert", "latency_history_hours_delete",
@@ -172,6 +177,12 @@ func TestLatencyHoursMigrationBackfillRollbackAndPlans(t *testing.T) {
 		node.ID, target.ID); err != nil {
 		t.Fatal(err)
 	}
+	for index, at := range []string{"1969-12-31T23:59:00Z", "1970-01-01T00:00:00Z"} {
+		if _, err := s.db.Exec("INSERT INTO latency_rollups VALUES(?,?,'tcping',60,?,7,3,2,?)",
+			node.ID, target.ID, at, 5+index*10); err != nil {
+			t.Fatal(err)
+		}
+	}
 	before := historyRows(t, s, "latency_rollups")
 	if _, err := s.db.Exec("CREATE TRIGGER reject052 BEFORE INSERT ON schema_migrations WHEN NEW.version='052_latency_history_hours.sql' BEGIN SELECT RAISE(ABORT,'synthetic receipt failure'); END"); err != nil {
 		t.Fatal(err)
@@ -191,7 +202,8 @@ func TestLatencyHoursMigrationBackfillRollbackAndPlans(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	assertCount(t, s, "SELECT COUNT(*) FROM latency_history_hours", 1)
+	assertCount(t, s, "SELECT COUNT(*) FROM latency_history_hours", 2)
+	assertCount(t, s, "SELECT latency_sum FROM latency_history_hours WHERE hour_unix=0", 15)
 	assertCount(t, s, "SELECT COUNT(*) FROM latency_history_hours_dirty", 0)
 	if !reflect.DeepEqual(before, historyRows(t, s, "latency_rollups")) {
 		t.Fatal("backfill changed source buckets")
@@ -223,7 +235,7 @@ func TestLatencyHoursMigrationBackfillRollbackAndPlans(t *testing.T) {
 	}
 }
 
-func TestLatencyHoursBoundedRetentionAndRefreshFailure(t *testing.T) {
+func TestLatencyHistoryHoursBoundedRetentionAndRefreshFailure(t *testing.T) {
 	s, node, target := historyFixture(t)
 	ctx := context.Background()
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -259,4 +271,26 @@ func TestLatencyHoursBoundedRetentionAndRefreshFailure(t *testing.T) {
 	}
 	assertCount(t, s, "SELECT COUNT(*) FROM latency_history_hours", latencyHourBatch+1)
 	assertCount(t, s, "SELECT COUNT(*) FROM latency_history_hours_dirty", 0)
+}
+
+func TestLatencyHistoryHoursExcludeBucketsBeforeUnixEpoch(t *testing.T) {
+	s, node, target := historyFixture(t)
+	ctx := context.Background()
+	for index, at := range []string{"1969-12-31T23:59:00Z", "1970-01-01T00:00:00Z"} {
+		if _, err := s.db.Exec("INSERT INTO latency_rollups VALUES(?,?,'tcping',60,?,7,3,2,?)",
+			node.ID, target.ID, at, 5+index*10); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rebuildLatencyHours(t, s, -1)
+	start := time.Unix(0, 0).UTC()
+	args, err := historyQueryArgs(node.ID, start, start.Add(2*time.Hour), 3600, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := previousLatencyPoints(t, s, args)
+	got, err := s.LatencyHistoryRange(ctx, node.ID, start, start.Add(2*time.Hour), 3600)
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatal("pre-epoch retained bucket entered supported history window", got, want, err)
+	}
 }
