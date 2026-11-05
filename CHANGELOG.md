@@ -92,6 +92,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Preserve unchanged network target assignments and their active probe tasks during node batches. Compare preview expiry and replay retention at exact UTC nanosecond boundaries.
 
+- Give authenticated database backup/restore transfers a bounded 15-minute
+  transport and processing budget so slow transfers can return their result.
+  Preserve earlier request deadlines and stop archive reads after cancellation.
 - Retain at most32 immutable completed network-result envelopes until exact current-socket application ACK or original task expiry. Retry unchanged results after loss/reconnect without re-executing probes, and reject unsupported-channel replay, overflow and late shutdown completion.
 
 - HTTP scheduler diagnostics measure start delay from the original tick while
