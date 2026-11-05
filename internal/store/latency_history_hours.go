@@ -67,14 +67,16 @@ const latencyHourHistoryQuery = `WITH target_series AS MATERIALIZED (
 	SUM(sample_count),SUM(success_count),SUM(latency_count),SUM(latency_sum)
 	FROM target_series CROSS JOIN retained_kinds CROSS JOIN latency_rollups INDEXED BY idx_latency_rollups_history_cover
 	WHERE node_id=:node AND target_id=series_target AND kind=series_kind AND ` + historyNodeScope + `
-	AND ` + historyRollupBounds + ` AND bucket_at<:hours_start_text AND ` + alignedLatencyRollup + `
+	AND bucket_seconds IN (60,300) AND bucket_at>=:rollup_start AND bucket_at<:hours_start_text
+	AND unixepoch(bucket_at)+bucket_seconds<=:end_second AND ` + alignedLatencyRollup + `
 	GROUP BY bucket,series_index,kind
 	UNION ALL
 	SELECT (unixepoch(substr(bucket_at,1,19)||'Z')/:bucket)*:bucket AS bucket,series_index,kind,
 	SUM(sample_count),SUM(success_count),SUM(latency_count),SUM(latency_sum)
 	FROM target_series CROSS JOIN retained_kinds CROSS JOIN latency_rollups INDEXED BY idx_latency_rollups_history_cover
 	WHERE node_id=:node AND target_id=series_target AND kind=series_kind AND ` + historyNodeScope + `
-	AND ` + historyRollupBounds + ` AND bucket_at>=:hours_end_text AND ` + alignedLatencyRollup + `
+	AND bucket_seconds IN (60,300) AND bucket_at>=:hours_end_text AND bucket_at<:scan_end
+	AND unixepoch(bucket_at)+bucket_seconds<=:end_second AND ` + alignedLatencyRollup + `
 	GROUP BY bucket,series_index,kind
 	UNION ALL
 	SELECT (unixepoch(substr(bucket_at,1,19)||'Z')/:bucket)*:bucket AS bucket,series_index,latency_rollups.kind,
@@ -84,7 +86,7 @@ const latencyHourHistoryQuery = `WITH target_series AS MATERIALIZED (
 	WHERE d.node_id=:node AND d.target_id=series_target AND d.kind=series_kind
 	AND d.hour_unix>=:hours_start AND d.hour_unix<:hours_end
 	AND latency_rollups.node_id=d.node_id AND latency_rollups.target_id=d.target_id AND latency_rollups.kind=d.kind
-	AND ` + historyNodeScope + ` AND ` + historyRollupBounds + `
+	AND ` + historyNodeScope + ` AND bucket_seconds IN (60,300)
 	AND bucket_at>=strftime('%Y-%m-%dT%H:%M:%SZ',d.hour_unix,'unixepoch')
 	AND bucket_at<strftime('%Y-%m-%dT%H:%M:%SZ',d.hour_unix+3600,'unixepoch')
 	AND ` + alignedLatencyRollup + `

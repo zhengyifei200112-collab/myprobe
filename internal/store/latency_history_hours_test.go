@@ -2,7 +2,10 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -292,5 +295,82 @@ func TestLatencyHistoryHoursExcludeBucketsBeforeUnixEpoch(t *testing.T) {
 	got, err := s.LatencyHistoryRange(ctx, node.ID, start, start.Add(2*time.Hour), 3600)
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatal("pre-epoch retained bucket entered supported history window", got, want, err)
+	}
+}
+
+func TestLatencyHistoryHoursSeekActualEdgeBounds(t *testing.T) {
+	s, node, _ := historyFixture(t)
+	start := time.Date(2026, 1, 1, 0, 0, 5, 0, time.UTC)
+	end := start.Add(30 * 24 * time.Hour)
+	args, err := historyQueryArgs(node.ID, start, end, 3600, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query, args := latencyHistoryReadQuery(start, end, 3600, args)
+	var root int
+	if err := s.db.QueryRow("SELECT rootpage FROM sqlite_master WHERE name='idx_latency_rollups_history_cover'").Scan(&root); err != nil {
+		t.Fatal(err)
+	}
+	// EXPLAIN QUERY PLAN prints the same pair of question marks even when
+	// SQLite seeks the entire month and filters an hour boundary afterwards.
+	// Track the actual bound operands in the pinned SQLite VM program.
+	names := map[string]int{}
+	parameters := map[int]string{}
+	for _, match := range regexp.MustCompile(":([a-z_]+)").FindAllStringSubmatch(query, -1) {
+		name := match[1]
+		if names[name] == 0 {
+			index := len(names) + 1
+			names[name], parameters[index] = index, name
+		}
+	}
+	rows, err := s.db.Query("EXPLAIN "+query, args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	registers := map[int]string{}
+	lower, upper := map[int]string{}, map[int]string{}
+	cursors := map[int]bool{}
+	for rows.Next() {
+		var address, p1, p2, p3, p5 int
+		var opcode string
+		var p4, comment sql.NullString
+		if err := rows.Scan(&address, &opcode, &p1, &p2, &p3, &p4, &p5, &comment); err != nil {
+			t.Fatal(err)
+		}
+		switch opcode {
+		case "OpenRead":
+			cursors[p1] = p2 == root
+		case "Variable":
+			registers[p2] = parameters[p1]
+		case "Function":
+			registers[p3] = "computed"
+		case "SeekGE", "SeekGT", "IdxGE", "IdxGT":
+			if !cursors[p1] {
+				continue
+			}
+			count, err := strconv.Atoi(p4.String)
+			if err != nil || count != 5 {
+				t.Fatal("unexpected source time seek", opcode, p4)
+			}
+			bound := registers[p3+count-1]
+			if opcode == "SeekGE" || opcode == "SeekGT" {
+				lower[p1] = bound
+			} else {
+				upper[p1] = bound
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	bounds := map[string]bool{}
+	for cursor, begin := range lower {
+		bounds[begin+"/"+upper[cursor]] = true
+	}
+	for _, want := range []string{"rollup_start/hours_start_text", "hours_end_text/scan_end", "computed/computed"} {
+		if !bounds[want] {
+			t.Fatalf("edge or pending-hour query scans wider bounds: need %s got %v", want, bounds)
+		}
 	}
 }

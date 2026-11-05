@@ -26,6 +26,9 @@ hours. Both sources and the pending markers come from one SQLite statement
 snapshot. A reader cannot observe a newly changed bucket together with its
 previous summary. The pending source query seeks by node, target, captured kind,
 retention tier and hour bounds.
+Each source branch supplies a single lower and upper index bound. Adding a
+second wider date range lets SQLite seek that wider range and filter the hour
+afterwards, which keeps the cold-read cost even when summaries are available.
 
 The existing bounded retention transaction rebuilds at most 128 pending
 node/target/kind/hour groups, then removes those markers. Remaining markers make
@@ -67,6 +70,9 @@ delete triggers disabled, moved source buckets, source deletion, transaction
 rollback and parent cascades. Migration tests cover populated backfill, receipt
 failure rollback and repeated opening. Query-plan checks require bounded seeks
 through summary, pending and compatibility paths.
+The VM-plan regression also checks which parameters feed the actual time seek
+for each source branch, since the high-level plan prints identical placeholders
+for both narrow and wider ranges.
 
 The final-source 5-to-20-node short workload and 20-node 24-hour run remain the
 capacity acceptance gates.
