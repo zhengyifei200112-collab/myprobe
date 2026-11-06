@@ -14,7 +14,10 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
    page.on('pageerror', e => errors.push(e.message));
    page.on('request', r => { const u = new URL(r.url()); if (u.pathname.includes('/network-quality')) calls.push(u.pathname); });
    page.on('response', async r => { if (new URL(r.url()).pathname.endsWith('/network-quality/series') && r.status() === 200) series.push(await r.json()); });
-   await page.goto(base); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'dashboard viewport overflow'); await page.getByRole('button', { name: '网络质量', exact: true }).click();
+   await page.goto(base); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'dashboard viewport overflow');
+   const entry = page.getByRole('button', { name: '网络质量', exact: true });
+   const entryVisibility = await require('./network-quality-entry-visibility.cjs')(entry);
+   await entry.click();
    const dialog = page.getByRole('dialog', { name: '网络质量对比' }); await dialog.waitFor();
    const compare = dialog.getByRole('button', { name: '比较', exact: true });
    await dialog.locator('.quality-result-heading').waitFor(); await compare.waitFor({ state: 'visible' }); await assertEnabled(compare);
@@ -86,7 +89,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs/promises'), 
    await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'hidden' });
    assert.equal(await page.getByRole('button', { name: '网络质量', exact: true }).evaluate(el => el === document.activeElement), true, 'focus returns to entry');
    assert.deepEqual(errors, []);
-   evidence.views.push({ theme, width, nodes: 8, api_mode: 'time_series', requests_per_explicit_node_change: 2, canvas: true, mixed_legacy_and_native_evidence: true, partial_packet_loss_pct: 50, unknown_history_preserved: true, errors: [] });
+   evidence.views.push({ theme, width, entry_visibility: entryVisibility, nodes: 8, api_mode: 'time_series', requests_per_explicit_node_change: 2, canvas: true, mixed_legacy_and_native_evidence: true, partial_packet_loss_pct: 50, unknown_history_preserved: true, errors: [] });
    await context.close();
   }
   // Authentication roles use the same real backend; no payload interception.

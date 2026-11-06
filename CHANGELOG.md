@@ -90,6 +90,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Keep the network-quality comparison entry visible on narrow dashboard headers
+  with an icon when mobile styles hide button text; retain its accessible name.
+
 - Match cached reports against the existing nanosecond capture key, preventing
   duplicate history when retained UTC timestamp text has trailing fractional zeros.
   Preserve original timestamps and reject conflicting payloads for the same instant.
