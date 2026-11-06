@@ -90,6 +90,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Preserve unchanged network target assignments and their active probe tasks during node batches. Compare preview expiry and replay retention at exact UTC nanosecond boundaries.
+
 - Give authenticated database backup/restore transfers a bounded 15-minute
   transport and processing budget so slow transfers can return their result.
   Preserve earlier request deadlines and stop archive reads after cancellation.

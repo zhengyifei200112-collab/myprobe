@@ -8,12 +8,14 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	protocol "github.com/zhengyifei200112-collab/myprobe/internal/protocol/v1"
 )
 
 func batchFixture(t *testing.T) (*Store, string, []string) {
 	t.Helper()
 	ctx := context.Background()
-	s, err := Open(ctx, filepath.Join(t.TempDir(), "batch.db"))
+	s, err := Open(ctx, filepath.Join(httpFixtureDir(t), "batch.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,6 +33,68 @@ func batchFixture(t *testing.T) (*Store, string, []string) {
 		ids = append(ids, node.ID)
 	}
 	return s, user.ID, ids
+}
+
+func TestNodeBatchPreservesUnchangedNetworkEpochsAndTask(t *testing.T) {
+	s, user, nodes := batchFixture(t)
+	ctx := context.Background()
+	createTarget := func(name string) Target {
+		t.Helper()
+		target, err := s.CreateTarget(ctx, CreateTargetParams{Name: name, Kind: "ping", Host: "example.test", IntervalSeconds: 60, TimeoutMS: 1000})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return target
+	}
+	a, b := createTarget("Retained target"), createTarget("Changed target")
+	if err := s.AssignTarget(ctx, nodes[0], a.ID); err != nil {
+		t.Fatal(err)
+	}
+	var original string
+	var start int64
+	if err := s.db.QueryRow(`SELECT id,starts_at FROM network_schedule_epochs WHERE node_id=? AND target_id=? AND ends_at IS NULL`, nodes[0], a.ID).Scan(&original, &start); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(start, 0).UTC().Add(100 * time.Millisecond)
+	task, err := s.ClaimNetworkTask(ctx, original, now.Truncate(time.Second), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, scenario := range []struct {
+		mode, key string
+		ids       []string
+	}{
+		{"add", "retained-target-add", []string{b.ID}},
+		{"remove", "retained-target-remove", []string{b.ID}},
+		{"replace", "retained-target-replace-add", []string{a.ID, b.ID}},
+		{"replace", "retained-target-replace-remove", []string{a.ID}},
+	} {
+		preview, err := s.PreviewNodeBatch(ctx, user, NodeBatchRequest{NodeIDs: []string{nodes[0]}, Targets: &BatchTargets{Mode: scenario.mode, IDs: scenario.ids}}, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.ApplyNodeBatch(ctx, user, preview.ID, scenario.key, now); err != nil {
+			t.Fatal(err)
+		}
+		var epoch, lease, state string
+		if err := s.db.QueryRow(`SELECT id FROM network_schedule_epochs WHERE node_id=? AND target_id=? AND ends_at IS NULL`, nodes[0], a.ID).Scan(&epoch); err != nil || epoch != original {
+			t.Fatalf("%s restarted retained epoch: %v", scenario.key, err)
+		}
+		if err := s.db.QueryRow(`SELECT lease_token,state FROM network_probe_tasks WHERE id=? AND epoch_id=?`, task.Task.ID, original).Scan(&lease, &state); err != nil || lease != task.LeaseToken || state != "sending" {
+			t.Fatalf("%s changed active task: %v", scenario.key, err)
+		}
+	}
+	result := protocol.LatencyResult{TaskID: task.Task.ID, TargetID: a.ID, Success: true, LatencyMS: 10, CompletedAt: now.Add(time.Second)}
+	if accepted, err := s.AcceptNetworkResult(ctx, nodes[0], protocol.TaskKindPing, result, now.Add(time.Second)); err != nil || !accepted {
+		t.Fatalf("retained task result rejected: %v", err)
+	}
+	if accepted, err := s.AcceptNetworkResult(ctx, nodes[0], protocol.TaskKindPing, result, now.Add(2*time.Second)); err != nil || accepted {
+		t.Fatalf("retained task replay not idempotent: %v", err)
+	}
+	assertCount(t, s, `SELECT COUNT(*) FROM network_schedule_epochs`, 3)
+	assertCount(t, s, `SELECT COUNT(*) FROM network_schedule_epochs WHERE ends_at IS NULL`, 1)
+	assertCount(t, s, `SELECT COUNT(*) FROM network_probe_tasks WHERE state='completed'`, 1)
+	assertCount(t, s, `SELECT COUNT(*) FROM latency_samples`, 1)
 }
 func TestNodeBatchAtomicApplyReplayAndRestart(t *testing.T) {
 	s, user, ids := batchFixture(t)
