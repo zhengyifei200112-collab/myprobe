@@ -1,10 +1,10 @@
 # Incident acknowledgement contract
 
-Roadmap ACK-01 / ALT-03. Implementation in progress on
-`feature/incident-acknowledgement`, stacked on maintenance PR #55. It reuses the
+Roadmap ACK-01 / ALT-03. Acknowledgement is integrated in main and reuses the
 incident/outbox state machine. Acknowledgement, silence and recovery are independent.
-This contract covers acknowledgement; silence/combinations/aggregation remain
-separate work packages. No merge or deployment is included.
+This contract covers acknowledgement; silence/combinations and aggregation have
+separate contracts. Integration does not imply release, deployment or complete
+acceptance; see [development status](DEVELOPMENT_STATUS.md).
 
 ## Behavior
 

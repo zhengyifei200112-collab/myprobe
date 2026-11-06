@@ -55,8 +55,9 @@ smaller metric/latency means but no traffic improvement; this motivated removing
 the redundant traffic sort. That result remains a failure with its original
 synthetic corpus preserved.
 
-Updated-candidate component comparisons and fresh five/fifty-node runs remain
-required. A component speedup or green CI cannot certify the strict 50-node
-capacity gate, continuous 24-hour stability, physical 2 GiB SSD hardware, real
-provider delivery or release. See [scope](SELF_USE_CAPACITY.md) and
-[previous indexed reads](SCOPED_HISTORY_READS.md).
+Current-source validation follows the [20-node acceptance scope](DEVELOPMENT_STATUS.md)
+and [joint runtime procedure](JOINT_RUNTIME_LOAD.md): five-to-twenty short checks,
+then a same-source twenty-node continuous 24-hour run. Historical fifty-node
+investigations are optional context, not a required rerun. Component speedups or
+green CI do not certify steady memory, physical 2 GiB SSD hardware, real provider
+delivery or release. See also [previous indexed reads](SCOPED_HISTORY_READS.md).

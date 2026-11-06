@@ -1,12 +1,14 @@
-# Latency history aggregation
+# Historical latency aggregation investigation
 
 Current integration scope: personal use around15 nodes, required5→20 short test and same-source20×24h. The historical50-node investigations below are retained context, not a new workload or current acceptance. The original6d2297d20-node30d P95 failure remains unresolved; no threshold or native success is changed by these query improvements. Current-source complete tests and integration evidence are required.
 
 
 The following records the earlier aggregation and access-order investigation.
-The current candidate's scoped seeks and bounded overlapping reads are described
-in [Scoped history reads](SCOPED_HISTORY_READS.md); the retained native 50-node
-thirty-day SLO failure remains unresolved until that candidate is verified.
+Main's subsequent read behavior is described in
+[scoped history reads](SCOPED_HISTORY_READS.md) and
+[weighted latency hour summaries](LATENCY_HISTORY_HOURS.md). The retained native
+50-node thirty-day SLO failure remains a failure of its original source, not a
+current-main capacity result.
 
 The native 50-node progression failed before the actual Agent/browser measurement:
 the first one-year history request exceeded the fixture's existing 10-second HTTP
@@ -72,12 +74,13 @@ weighted expectations independently check failures, successful null durations,
 unrelated nodes, empty ranges, target sorting/renaming and cancellation. Existing
 history boundary, privacy and index-plan tests remain required.
 
-After local baseline and exact-source CI, run the uninstrumented Server against
-a separately hash-verified copy with the original 30-second readiness and
-10-second HTTP gates. Then repeat the actual 50-node/five-browser progression
-and its SLO/report accounting checks. Start the 100-node/24-hour run only after
-that progression passes. Retain failures instead of changing gates or reporting
-a warm request as cold acceptance.
+The historical first-read probe used the original 30-second readiness and
+10-second HTTP gates on a separately hash-verified copy. Current mandatory
+progression is five-to-twenty nodes followed by the same-source twenty-node
+24-hour run, under the unchanged current SLO/accounting standards in the
+[joint procedure](JOINT_RUNTIME_LOAD.md). Fifty/hundred-node investigations are
+optional; retain their failure records rather than scheduling them as prerequisites
+or reporting a warm request as cold acceptance.
 
 ## Cold access follow-up
 
@@ -102,7 +105,7 @@ Short windows retain selective date access to avoid broad index traversal. New
 weighted/privacy/boundary tests exercise both paths, including exactly thirty days,
 one nanosecond longer and one year.
 
-The [fresh first-node HTTP evidence](evidence/latency-first-node-http-native-2026-10-18.json)
+The [historical first-node HTTP evidence](evidence/latency-first-node-http-native-2026-10-18.json)
 records the actual uninstrumented `84e27cd` Server on another hash-verified copy:
 2.42-second readiness, thirty-day response in 2.88 seconds and one-year response
 in 5.40 seconds, within the original 30-second/10-second budgets. All 713/727
@@ -113,8 +116,9 @@ source build; terminal exit was normal, artifacts rehashed and owned cgroup empt
 
 That probe disables HTTP task dispatch to isolate the first selected node's reads,
 while retaining default history retention. It is not the steady thirty-day
-HTTP-p95 gate or all fifty nodes. The full native Agent/five-browser progression
-and its SLO/accounting checks remain required before the 100-node continuous run
-starts. The original failure, aggregation-only cold failure, and all comparison
+HTTP-p95 gate or all fifty nodes. Current required SLO/accounting and same-source
+twenty-node continuity follow [development status](DEVELOPMENT_STATUS.md); a
+hundred-node run is not a mandatory continuation. The original failure,
+aggregation-only cold failure, and all comparison
 results remain retained. Physical host memory is about 12 GB; the controlled
 test unit was capped at 2 GiB, rather than a physically 2 GiB host.

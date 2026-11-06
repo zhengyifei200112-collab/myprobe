@@ -1,9 +1,9 @@
 # Incident silence and suppression combination contract
 
-Roadmap SIL-01/SIL-02, implemented and unreleased on `feature/incident-silence`,
-draft PR #57 stacked on acknowledgement PR #56. This adds incident-scoped notification silence
-to the existing state machine/outbox. It does not replace maintenance or condition
-state. No merge/deployment is included. Notification aggregation remains separate.
+Roadmap SIL-01/SIL-02, integrated in main. Incident-scoped notification silence
+uses the existing state machine/outbox and does not replace maintenance or condition
+state. Notification aggregation remains a separate contract. Code integration does
+not imply release/deployment; see [development status](DEVELOPMENT_STATUS.md).
 
 ## Behavior
 
@@ -145,9 +145,9 @@ Opt in with `MYPROBE_TEST_SILENCE_BROWSER=1` and a resolvable `PLAYWRIGHT_MODULE
 then run `go test ./internal/httpapi -run '^TestLiveIncidentSilenceBrowser$' -count=1 -v`.
 The fixture uses Edge headless, an isolated database and a loopback receiver.
 
-Local Store/API/alerts tests, frontend installation/build, vet, command build and
-diff checks pass. The whole-suite known Windows collector path failure remains
+Historical feature-branch checks: local Store/API/alerts tests, frontend build,
+vet, command build and diff checks passed. At that time the Windows collector path failure remained
 isolated in PR #47; npm reports the existing five advisories and chart chunk size
-warning. No dependency changes are included. Release integration, migration
-reconciliation across the unmerged stack, retention/capacity gates and owner
-approval remain pending. Aggregation and M3–M5 retain their original roadmap scope.
+warning. No dependency changes are included. These are historical dependency/branch observations, not a current main audit.
+Final release, retention/capacity and complete M3–M5 acceptance remain separate
+gates; current integration state is recorded in the development-status index.
