@@ -90,6 +90,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Reject unsupported database migration histories before staging or activating a
+  restore, and before opening an existing database for writes. Preserve supported
+  older upgrades and avoid echoing untrusted migration names in errors.
+
 - Keep the network-quality comparison entry visible on narrow dashboard headers
   with an icon when mobile styles hide button text; retain its accessible name.
 

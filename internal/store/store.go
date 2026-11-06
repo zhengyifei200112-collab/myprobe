@@ -49,6 +49,9 @@ func OpenWithOptions(ctx context.Context, path string, options OpenOptions) (*St
 	if path == "" {
 		return nil, errors.New("database path is required")
 	}
+	if err := validateExistingMigrationHistory(ctx, path); err != nil {
+		return nil, err
+	}
 	if path != ":memory:" {
 		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 			return nil, fmt.Errorf("create database directory: %w", err)
@@ -100,6 +103,9 @@ func (s *Store) DatabasePath() string { return s.path }
 func (s *Store) Health(ctx context.Context) error { return s.db.PingContext(ctx) }
 
 func (s *Store) Migrate(ctx context.Context) error {
+	if err := validateMigrationHistory(ctx, s.db); err != nil {
+		return err
+	}
 	entries, err := fs.ReadDir(migrations, "migrations")
 	if err != nil {
 		return fmt.Errorf("read migrations: %w", err)
