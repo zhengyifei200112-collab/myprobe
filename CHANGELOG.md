@@ -90,6 +90,10 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Match cached reports against the existing nanosecond capture key, preventing
+  duplicate history when retained UTC timestamp text has trailing fractional zeros.
+  Preserve original timestamps and reject conflicting payloads for the same instant.
+
 - Give authenticated database backup/restore transfers a bounded 15-minute
   transport and processing budget so slow transfers can return their result.
   Preserve earlier request deadlines and stop archive reads after cancellation.

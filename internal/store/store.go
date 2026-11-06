@@ -325,7 +325,7 @@ func (s *Store) saveReport(ctx context.Context, nodeID string, report protocol.R
 	// A distinct late capture must remain in history. Deduplicate only exact
 	// replays; reject a different payload using an already stored capture time.
 	var stored string
-	err = tx.QueryRowContext(ctx, "SELECT report_json FROM metric_samples WHERE node_id=? AND captured_at=? ORDER BY id DESC LIMIT 1", nodeID, formatTime(report.CapturedAt)).Scan(&stored)
+	err = tx.QueryRowContext(ctx, "SELECT report_json FROM metric_samples WHERE node_id=? AND captured_sort_ns=? ORDER BY id DESC LIMIT 1", nodeID, formatCapturedTime(report.CapturedAt)).Scan(&stored)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
