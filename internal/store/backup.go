@@ -39,6 +39,9 @@ func ValidateDatabaseFile(ctx context.Context, path string) error {
 		return err
 	}
 	defer db.Close()
+	if err := validateMigrationHistory(ctx, db); err != nil {
+		return err
+	}
 	var integrity string
 	if err := db.QueryRowContext(ctx, `PRAGMA quick_check`).Scan(&integrity); err != nil {
 		return fmt.Errorf("check backup integrity: %w", err)
