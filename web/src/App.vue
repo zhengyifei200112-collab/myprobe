@@ -351,7 +351,10 @@ onBeforeUnmount(() => {
             </span>
             {{ themeAction }}
           </button>
-          <button class="soft-button quality-entry" type="button" :disabled="!nodes.length" @click="comparisonOpen = true">网络质量</button><a class="soft-button admin-link" href="/admin"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M9 3h4v10H9M7 5l3 3-3 3M10 8H2" /></svg></span>后台</a>
+          <button class="soft-button quality-entry" type="button" aria-label="网络质量" title="网络质量对比" :disabled="!nodes.length" @click="comparisonOpen = true">
+            <span class="button-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 11.5 6 7.5l3 2L14 4.5M10.5 4.5H14V8" /></svg></span>
+            网络质量
+          </button><a class="soft-button admin-link" href="/admin"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M9 3h4v10H9M7 5l3 3-3 3M10 8H2" /></svg></span>后台</a>
         </div>
       </div>
     </header>
