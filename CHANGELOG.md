@@ -90,6 +90,9 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Match cached reports against the existing nanosecond capture key, preventing
+  duplicate history when retained UTC timestamp text has trailing fractional zeros.
+  Preserve original timestamps and reject conflicting payloads for the same instant.
 - Preserve unchanged network target assignments and their active probe tasks during node batches. Compare preview expiry and replay retention at exact UTC nanosecond boundaries.
 
 - Give authenticated database backup/restore transfers a bounded 15-minute

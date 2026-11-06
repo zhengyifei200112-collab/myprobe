@@ -60,7 +60,7 @@ jobs:
           go test -race ./internal/diagnostics -count=1
           go test -race ./internal/releasecheck -count=1
           go test -race ./internal/store ./internal/httpapi -run 'History|Traffic|Covering|CanceledQuery|Subsecond|CapturedSort' -count=1
-          go test -race ./internal/store -run '^Test(WriterReservation|ReportSurvivesWriterBusyTimeout)' -count=1
+          go test -race ./internal/store -run '^Test(WriterReservation|ReportSurvivesWriterBusyTimeout|ReportReplayUsesCaptureInstant|CachedReplayDeduplicates)' -count=1
           go test -race ./internal/store -run '^TestRetentionSurvivesWriterBusyTimeout$' -count=1
           go test -race ./internal/store ./internal/httpapi -run '^Test(NodeBatch|BatchAPI)' -count=1
           go test -race ./internal/httpapi -run '^TestReleaseStatusAdminContract$' -count=1
