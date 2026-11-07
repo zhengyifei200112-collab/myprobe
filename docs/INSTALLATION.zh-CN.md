@@ -21,8 +21,9 @@ MyProbe 提供一键安装、Docker、Release 二进制和源码构建四种受�
 | Release 二进制 | 非 systemd、Windows、macOS Agent 或自定义服务管理 | 校验后替换二进制 |
 | 源码构建 | 开发、代码审计和定制 | 从已审查的提交重新构建 |
 
-一键脚本、预构建镜像和二进制都依赖 GitHub Release。仓库发布首个版本标签之前，
-请使用 Docker 本地构建或源码构建。
+一键脚本、预构建镜像和二进制都依赖所选 GitHub Release 的实际工件。main 的文档和
+功能可能领先正式版本；需要尚未发布的实现时，从已审查的提交本地构建，并按
+[开发状态与验收范围](DEVELOPMENT_STATUS.md)核对待完成的发布门槛。
 
 ## 一键安装 Server
 

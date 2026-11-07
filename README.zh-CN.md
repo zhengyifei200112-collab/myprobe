@@ -9,6 +9,8 @@ Server 与轻量级 Go Agent，配套克制、清晰、响应式的 Apple-inspir
 项目功能范围与验收证据记录在
 [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md)，Agent 与 Server 之间的版本化协议
 记录在 [`docs/PROTOCOL.md`](docs/PROTOCOL.md)。
+[开发状态与验收范围](docs/DEVELOPMENT_STATUS.md)区分主线实现、正式发布、部署与验收；
+安装旧版 Release 时，以所选标签对应的文档和工件为准。
 
 ## 主要功能
 
@@ -62,8 +64,8 @@ deploy                     Docker 与 systemd 部署资料
 ## 快速部署
 
 Linux + systemd 环境推荐使用一键安装脚本。脚本会自动识别 amd64/arm64、下载最新
-GitHub Release、校验 SHA-256、写入安全权限的配置并启用 systemd 服务。首次正式
-Release 发布后可使用：
+GitHub Release、校验 SHA-256、写入安全权限的配置并启用 systemd 服务。
+确认所选正式 Release 含有对应工件后使用：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zhengyifei200112-collab/myprobe/main/install.sh -o install.sh
@@ -345,8 +347,9 @@ PR，在自动检查通过并获得仓库所有者确认后 Squash Merge，随�
 公开面板刷新后可查看完整新顺序。接口限制和验证记录见
 [节点排序说明](docs/NODE_ORDERING.md)。
 
-### 开发中的事件与投递队列
+### 故障事件与通知处理
 
-incident-outbox 分支正在实现独立故障事件、可靠通知队列和每次尝试诊断。
-操作方式及升级边界见 [故障事件与通知投递](docs/ALERT_OPERATIONS.zh-CN.md)。
-该批功能尚未发布，维护窗口、静默、范围策略与聚合通知仍在后续路线中。
+main 已集成独立故障事件、可靠投递队列、每次尝试诊断，以及范围策略、维护窗口、
+知悉、限时静默和聚合通知。操作方式及升级边界见
+[故障事件与通知投递](docs/ALERT_OPERATIONS.zh-CN.md)。
+主线实现不等于所选正式 Release 已包含，也不代表公网渠道、容量和全部路线验收已完成。

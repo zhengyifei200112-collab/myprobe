@@ -35,6 +35,11 @@ deploy                     container and service deployment files
 
 ## Development status
 
+The [current development status and acceptance scope](docs/DEVELOPMENT_STATUS.md)
+distinguish features present in main from release artifacts, deployment and final
+acceptance. Follow the documentation for the selected release tag when installing
+a released version.
+
 The previous `myprobe-test` repository was an incomplete prototype and is not used as
 the implementation base. This repository uses an independently documented protocol and
 a testable vertical architecture.

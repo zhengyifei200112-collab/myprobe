@@ -1,7 +1,9 @@
-# Notification aggregation (AGG-01, in development)
+# Notification aggregation (AGG-01)
 
-`feature/notification-aggregation` is stacked on silence PR #57. This work is
-unreleased. Aggregation changes transport, not incident identity: every event
+Aggregation is integrated in main with the incident/silence state machine.
+Release/deployment and final acceptance are separate; see
+[development status](DEVELOPMENT_STATUS.md). Aggregation changes transport,
+not incident identity: every event
 keeps its logical delivery, repeat clock, cancellation causes and attempt history.
 
 ## Queue contract

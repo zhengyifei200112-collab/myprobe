@@ -1,21 +1,23 @@
 # MyProbe 产品升级与 Apple-inspired 重构规格
 
-> 本文档是 MyProbe 产品升级的唯一主规格（Source of Truth）。
+> 本文档保留原产品重构的需求和安全边界。当前实现合同见 [产品规格](PRODUCT_SPEC.md)，
+> 当前集成与验收口径见 [开发状态](DEVELOPMENT_STATUS.md)；下文阶段指令按制定时点理解。
 >
 > 执行者必须先完整阅读本文档，再开始任何操作。若本文档与临时聊天指令冲突，以用户最新明确指令为准；如发现重大风险、关键信息缺失或无法安全回滚，应暂停并汇报，不得自行冒险推进。
 
-> 实施状态（2026-09-14）：Phase 1–11 已在 `feature/myprobe-product-redesign`
-> 分支完成并部署验证，当前通过 PR #39 等待仓库所有者审阅和合并。下文保留最初的
-> 分阶段执行文本，作为需求与安全边界的版本化历史依据。
+> 历史实施记录：Phase 1–11 的产品重构已通过 PR #39 合入 main。原分支部署记录
+> 不证明后续 main 已在生产部署。下文保留原分阶段文本，不应重新作为现役 Phase 1 待办执行。
+
+下文域名均为需要替换的文档示例，不代表真实站点、DNS 或当前部署状态。
 
 ## 文档信息
 
 - 项目：MyProbe Server Monitor
-- 正式域名目标：`https://probe.20011008.xyz`
+- 正式域名目标：`https://probe.example.com`
 - 推荐工作分支：`feature/myprobe-product-redesign`
 - 备选工作分支：`ui/apple-redesign`
-- 当前执行入口：仅执行 **Phase 1：项目审计**
-- 当前阶段禁止事项：未完成审计前，不得进行大规模修改、数据库迁移、部署切换或关键配置覆盖
+- 原计划执行入口（历史）：**Phase 1：项目审计**；当前状态见上方开发状态索引。
+- 原阶段边界（历史）：未完成审计前，不得进行大规模修改、数据库迁移、部署切换或关键配置覆盖。现役操作仍遵循 AGENTS.md 及用户当前授权。
 
 ---
 
@@ -760,7 +762,7 @@ CPU：{{metric.cpu}}
 OAuth Callback 建议：
 
 ```text
-https://probe.20011008.xyz/auth/github/callback
+https://probe.example.com/auth/github/callback
 ```
 
 具体路径根据实际路由设计。配置 GitHub OAuth App 时应使用最终确认的准确 Callback URL。
@@ -829,14 +831,14 @@ GitHub OAuth 必须：
 当前项目主要通过 `IP:PORT` 访问。最终主要访问地址为：
 
 ```text
-https://probe.20011008.xyz
+https://probe.example.com
 ```
 
 切换必须渐进验证，不得在域名刚配置后立即关闭原入口。
 
 ## 四十三、Cloudflare DNS
 
-域名 `20011008.xyz` 使用 Cloudflare 管理。
+域名 `example.com` 使用 Cloudflare 管理。
 
 目标 DNS：
 
@@ -851,10 +853,10 @@ https://probe.20011008.xyz
 
 ## 四十四、Cloudflare 权限原则
 
-如果当前环境已存在安全可用、权限足够的 Cloudflare API Token，可以帮助配置 `probe.20011008.xyz`，但：
+如果当前环境已存在安全可用、权限足够的 Cloudflare API Token，可以帮助配置 `probe.example.com`，但：
 
 - 仅修改目标 DNS 记录。
-- 不影响 `20011008.xyz` 的其他 DNS 记录。
+- 不影响 `example.com` 的其他 DNS 记录。
 - 不修改无关设置。
 - 不在命令、输出、日志或 Git 中泄露 Token。
 
@@ -882,7 +884,7 @@ Internet
   ↓
 Cloudflare
   ↓
-probe.20011008.xyz
+probe.example.com
   ↓
 Nginx / Caddy
   ↓
@@ -908,7 +910,7 @@ MyProbe
 
 最终要求：
 
-- `https://probe.20011008.xyz` 正常工作。
+- `https://probe.example.com` 正常工作。
 - HTTP 自动跳转 HTTPS。
 - Cloudflare SSL 优先使用 `Full (strict)`。
 - 禁止使用 `Flexible`。
@@ -1186,7 +1188,7 @@ UI 改造原则上不改变数据库。
 
 配置和验证：
 
-- `probe.20011008.xyz`
+- `probe.example.com`
 - Cloudflare
 - Nginx / Caddy
 - HTTPS
@@ -1218,7 +1220,7 @@ UI 改造原则上不改变数据库。
 
 ### 访问与部署
 
-- [ ] `https://probe.20011008.xyz` 正常访问
+- [ ] `https://probe.example.com` 正常访问
 - [ ] HTTP 自动跳转 HTTPS
 - [ ] Cloudflare Proxy 正常
 - [ ] SSL Mode 为 Full (strict)
@@ -1379,7 +1381,7 @@ UI 改造原则上不改变数据库。
 【访问】
 
 正式网址：
-https://probe.20011008.xyz
+https://probe.example.com
 
 应用内部监听：
 反向代理：

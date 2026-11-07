@@ -1,5 +1,9 @@
 # MyProbe product specification
 
+The [development-status index](DEVELOPMENT_STATUS.md) distinguishes main code,
+released artifacts, deployment and final acceptance. Historical module notes do
+not override that index or the contracts for the selected release tag.
+
 ## Product principles
 
 1. Provide a calm, information-first Apple-inspired monitoring experience without
@@ -31,7 +35,7 @@ scoped discovery, at most eight observers and 2000 aligned points per node. The 
 family/count projections require current-source protocol, native, browser and race checks.
 Final 20-node performance, same-source24h, reference hardware and recovery remain open.
 
-Scoped alert-policy inheritance (ALT-02) is in development. Its internal resolver
+Scoped alert-policy inheritance (ALT-02) is integrated in main. Its internal resolver
 and revisioned persistence support global, tag and explicit-node scopes, conflict
 validation and snapshot-based effective-policy previews. Each runtime tick maps
 legacy rules and applies policies atomically before incident evaluation. Management
@@ -202,17 +206,17 @@ excluded from v1 to keep the agent attack surface small.
 
 ## Incident delivery development
 
-The incident-outbox branch adds persisted pending/firing/resolved incidents,
+The incident/outbox implementation in main provides pending/firing/resolved incidents,
 independent recovery windows, stale observation handling, transactional delivery
 jobs, leased workers, bounded retries and per-attempt diagnostics. Administrator
 APIs and the notification center expose incident state separately from delivery
 status. Protocol payloads remain compatible; SQLite migration 015 imports legacy
 active state without mass resending successful notifications.
 
-This work remains in development, not released. Evidence and remaining gates are
-in [INCIDENT_DELIVERY.md](INCIDENT_DELIVERY.md). Scoped policy inheritance,
-maintenance/acknowledgement/silence and aggregation remain later M2 tasks; this
-foundation must not be presented as completion of the full roadmap.
+Code integration does not imply release or complete acceptance. Evidence and
+remaining gates are in [INCIDENT_DELIVERY.md](INCIDENT_DELIVERY.md). Scoped policy
+inheritance, maintenance/acknowledgement/silence and aggregation are separately
+integrated in main; this foundation does not complete the full roadmap.
 
 ## Incident acknowledgement development
 
@@ -266,7 +270,7 @@ and incident selection. Real receiver/browser acceptance covers both themes and
 360/768/1440 px. Release integration and full capacity remain pending; no public fields change.
 See [INCIDENT_SILENCE.md](INCIDENT_SILENCE.md) for semantics and acceptance gates.
 
-## Notification aggregation foundation (AGG-01/ALT-05, in development)
+## Notification aggregation foundation (AGG-01/ALT-05)
 
 Migration 030 retains logical event deliveries and adds bounded transport groups,
 immutable send attempts and exact per-event links. Explicit policy
@@ -289,28 +293,29 @@ local rendering failures are known unsent and complete atomically without receip
 Telegram/Discord require valid message confirmation and honor body/header delays.
 Migration 032 captures new groups' private template time across timezone-changing
 restore; old groups keep their legacy behavior and require a stable timezone while
-draining. Live account/client acceptance, shared-channel rate backpressure,
-broader administrative races, release integration and retention/capacity remain
-pending. See [NOTIFICATION_AGGREGATION.md](NOTIFICATION_AGGREGATION.md).
+draining. Shared-channel rate backpressure is integrated as described below.
+Live account/client acceptance, broader administrative races, final release and
+retention/capacity remain separate gates. See
+[NOTIFICATION_AGGREGATION.md](NOTIFICATION_AGGREGATION.md).
 
 Restart/full restore preserve window and transport identity. Actual late results
 after takeover refine historical attempts without altering current jobs or clocks.
 Final destination snapshots are private; their configuration version separates
 changed retries. Older editors omit the field without disabling an existing
 setting; an explicit zero disables it. These queue/receiver checks do not replace
-release integration or complete AGG-01/ALT-05. Non-aggregate/service links and
-M3–M5 remain in the original roadmap.
+release or complete AGG-01/ALT-05. Non-aggregate and service notification links
+are separately integrated; complete M3–M5 acceptance remains in the original scope.
 
-### 通知渠道共享等待补充（开发分支，迁移 033）
+### 通知渠道共享等待补充（迁移 033）
 
 渠道维度持久保存 Provider 等待期限，覆盖聚合、单事件与手工测试；自身任务期限与渠道期限同时满足才允许发送。等待中的任务不占领取批次和发送预算；领取后发现等待则原子返还预算，保留唯一历史序号与分页诊断。配置版本隔离旧响应，并发结果只延长等待。更换配置清除等待，改名和启用状态保留等待。授权后正在发送的请求仍可能完成，不承诺 Provider 全局限速或恰好一次。
 
 仅管理员接口新增渠道期限与尝试序号，历史默认每页 25 条、最多 100 条；渠道版本和发送授权不公开。管理界面区分五次发送预算与不限于五条的历史，并提示到期仍需满足其他发送条件。迁移、重启/恢复、真实本地 HTTP 并发及明暗主题三宽度浏览器均需验收。该功能属于 AGG-01/ALT-05 的持续开发，不代表整条路线已发布。
 
-### 单事件通知返回原事件（开发分支）
+### 单事件通知返回原事件
 
-新单事件任务将事件地址固定到入库正文，故障、重复提醒和恢复共享原事件身份。Webhook 默认 JSON 增加 `incident_path`，自定义 Body 支持 `{{incident.url}}`；Telegram/Discord/SMTP 提供格式化入口。地址来自已验证的通知 origin，没有 origin 则提供相对路径；入口要求管理员登录并显示事件当前状态。旧任务保持原正文，新任务的重试、重启和完整恢复保持地址。无数据库迁移、公开节点或 Agent 协议变更。实际本地 Webhook 与浏览器登录、各渠道本地报文、完整恢复和生命周期已验收；M3 服务通知、公网账号/客户端展示及发布集成继续待实施。
+新单事件任务将事件地址固定到入库正文，故障、重复提醒和恢复共享原事件身份。Webhook 默认 JSON 增加 `incident_path`，自定义 Body 支持 `{{incident.url}}`；Telegram/Discord/SMTP 提供格式化入口。地址来自已验证的通知 origin，没有 origin 则提供相对路径；入口要求管理员登录并显示事件当前状态。旧任务保持原正文，新任务的重试、重启和完整恢复保持地址。无数据库迁移、公开节点或 Agent 协议变更。历史本地 Webhook、浏览器登录、各渠道本地报文、完整恢复和生命周期证据保留原范围；M3 服务通知已有独立集成，公网账号/客户端展示、完整路线验收与发布仍须分别完成。
 
-### 管理变更后的回执权限（开发分支）
+### 管理变更后的回执权限
 
 单事件与聚合的当前租约在结果写回事务内重查当前事件、规则、策略范围与渠道。管理变更使任务失效时，逻辑任务取消，实际尝试历史保留；不恢复重试或推进失效事件的提醒时钟，不依赖下一次评估先运行。部分有效成员继续正常完成，全部失效的组不再延长共享等待。维护/静默动作与技术事件状态仍沿用既有语义。真实本地接收端覆盖八类操作、四类响应及配置替换，事务故障与单事件租约/replay另行验证；没有迁移或 API/Agent 变更，完整容量、更多竞争及发布集成继续保留。
