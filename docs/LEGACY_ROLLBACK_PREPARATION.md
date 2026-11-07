@@ -9,6 +9,11 @@ This prepares an old restore point for use with its matching old application. It
 does not downgrade a newer database, recover an incomplete WAL snapshot, change
 retention policy or preserve writes after that restore point.
 
+Schema 013 is a specific original deployment baseline. The formal `v0.2.1` tag
+contains migrations 001–010, not 001–013; this preparer deliberately rejects that
+older input. Restore a v0.2.1 recovery point using its matching application and
+consistent backup. Do not add migration receipts just to pass this command.
+
 ## Operator procedure
 
 1. Keep the original consistent backup, its trusted SHA-256, matching old Server
@@ -73,7 +78,7 @@ contents; retain it privately unless screened for publication.
   existing destinations are rejected. The caller must ensure the source is closed
   and stable in an operator-controlled directory; file checks do not stop another
   application from opening a live database.
-- Require exactly the released migration names 001–013, once each. Unknown,
+- Require exactly the original schema-013 migration names 001–013, once each. Unknown,
   missing, duplicate, null/nontext and oversized receipts are rejected with a fixed
   error. This is a compatibility check, not semantic validation of arbitrarily
   edited tables or a migration ledger rewritten to conceal a newer schema.
@@ -90,7 +95,7 @@ contents; retain it privately unless screened for publication.
   Publication does not replace independently durable backup storage: retain and
   verify the receipt and file after interruptions or storage failures.
 
-Package tests construct synthetic databases from all released migrations 001–013.
+Package tests construct synthetic databases from the original schema-013 migrations 001–013.
 They verify exact source/content preservation, binary values and report bytes,
 closed WAL input, exclusive publication and re-preparation; refusal covers wrong
 hashes, live WAL, unsupported/incomplete/malformed migration histories, conflicting
