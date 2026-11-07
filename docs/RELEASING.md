@@ -26,8 +26,51 @@ git push origin vX.Y.Z
 ```
 
 The Release workflow builds Server binaries for Linux and Windows, Agent binaries for
-Linux, Windows, and macOS, generates SHA-256 checksums, publishes a GitHub Release, and
-pushes versioned plus `latest` Server and Agent images to GitHub Container Registry.
+Linux, Windows, and macOS, and the offline rollback preparer for Linux and Windows.
+It requires an annotated tag whose exact checkout is on `main`. Tag jobs are
+serialized without cancelling an in-flight publication.
+
+`scripts/publish-release.py plan` verifies the source and any retained candidate.
+A matching complete candidate or published release can skip rebuilding; otherwise
+the workflow builds all eleven programs and `SHA256SUMS`. Publication then:
+
+1. Validates the full local inventory and creates or reuses a draft.
+2. Builds and pushes both versioned Server/Agent images, pulls them back and checks
+   image content IDs. Nothing is pushed as `latest` during this preparation.
+3. Records `release-manifest.json` with the exact source, Go toolchain, asset hashes
+   and sizes, image content IDs and content-addressed registry references.
+4. Uploads only missing assets. Existing bytes must match; no existing release
+   asset is deleted or overwritten. Every payload is downloaded and hashed before
+   the candidate is made public.
+5. Publishes the complete candidate, then promotes `latest` images only if this is
+   the current stable latest release. Prereleases and older stable releases do not
+   move the stable latest pointers.
+
+The release contains thirteen files: eleven programs, `SHA256SUMS`, and
+`release-manifest.json`. These checks bind the distribution bytes and image
+content to the candidate; they do not replace platform/runtime acceptance.
+
+## Interrupted publication and retries
+
+Rerun the same workflow/tag for a transient failure. A matching partial draft
+retains existing assets and uploads missing ones; different rebuilt bytes,
+unexpected assets, incompatible manifests and unknown API outcomes stop the job
+without replacing original assets. A published release is verified and reused,
+so retrying a failed latest promotion does not rebuild or re-upload its payloads.
+An older published release without this manifest cannot be rewritten by this path.
+
+Do not delete a retained draft or reuse a tag merely to make a failing job green.
+Inspect its original artifacts and source first. If the original build cannot be
+reproduced, keep its evidence and prepare a separately approved new version.
+The workflow does not automatically delete failed drafts or versioned image tags.
+
+GitHub and the registry do not share an atomic transaction. Failed preparation
+can leave a private draft and public staging versioned image tags; these are not
+an announced complete release. A failure while promoting the two `latest` image
+tags can leave them temporarily different even though the versioned release is
+complete. Retry promotion only while GitHub still selects this stable release;
+deployments should pin an approved version or registry digest.
+
 Verify the checksums, Server health check, absence of a Server health check on the Agent
 image, Agent Ping support, Linux host-metric Compose path, one-click clean install, and
 upgrade from the previous release before announcing it. The installer and new container

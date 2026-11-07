@@ -8,15 +8,28 @@ permissions:
   contents: write
   packages: write
 
+concurrency:
+  group: myprobe-release
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Inspect exact tag and retained candidate
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/publish-release.py plan --output "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
+        if: steps.plan.outputs.needs_build == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -24,12 +37,14 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Set up Go
+        if: steps.plan.outputs.needs_build == 'true'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.x'
           cache-dependency-path: go.sum
 
       - name: Build release assets
+        if: steps.plan.outputs.needs_build == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -52,28 +67,7 @@ jobs:
           done
           (cd dist && sha256sum myprobe-* > SHA256SUMS)
 
-      - name: Publish GitHub release
+      - name: Verify candidate images and assets before publication
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes --title "$GITHUB_REF_NAME"
-          gh release upload "$GITHUB_REF_NAME" dist/* --clobber
-
-      - name: Publish server and Agent container images
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          server_image="ghcr.io/${GITHUB_REPOSITORY,,}"
-          agent_image="${server_image}-agent"
-          version="${GITHUB_REF_NAME#v}"
-          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-          docker build --target server --build-arg "VERSION=$GITHUB_REF_NAME" --tag "$server_image:$GITHUB_REF_NAME" --tag "$server_image:$version" --tag "$server_image:latest" .
-          docker build --target agent --build-arg "VERSION=$GITHUB_REF_NAME" --tag "$agent_image:$GITHUB_REF_NAME" --tag "$agent_image:$version" --tag "$agent_image:latest" .
-          for image in "$server_image" "$agent_image"; do
-            docker push "$image:$GITHUB_REF_NAME"
-            docker push "$image:$version"
-            docker push "$image:latest"
-          done
+        run: python3 scripts/publish-release.py publish

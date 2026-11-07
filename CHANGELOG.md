@@ -7,6 +7,17 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Release publication
+
+- Keep candidates as drafts until all eleven program assets, checksums and both
+  versioned container images have been verified. Add a source/asset/image manifest.
+- Resume matching partial drafts without replacing existing assets; published
+  releases are verified and reused. Upload conflicts and unknown outcomes retain
+  the existing bytes. Publication uses no destructive asset clobber.
+- Promote stable `latest` images only after the complete release is public;
+  prereleases and older stable versions do not replace the current stable latest.
+  A failed latest promotion can be retried without rebuilding or republishing.
+
 ### Offline legacy rollback preparation
 
 - Add an offline `rollback-prepare` command and Linux amd64/arm64 and Windows
