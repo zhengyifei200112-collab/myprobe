@@ -1,10 +1,10 @@
 # Alert maintenance implementation contract
 
-Status: implementation in progress; management preview/create/cancel/list, browser
-UI and notification suppression exist. Real browser and local-channel runtime
-tests cover the main lifecycle; additional release integration remains necessary.
-Roadmap task ALT-03. This branch depends on scoped-policy PR #54 and
-uses it as a stacked base; it must not duplicate incident or policy state machines.
+Status: management preview/create/cancel/list, browser UI and notification
+suppression are integrated in main with scoped policies. Roadmap task ALT-03;
+this reuses the incident/policy state machines. Historical module tests do not
+replace final release or capacity gates; see
+[development status](DEVELOPMENT_STATUS.md).
 
 Storage foundation: migration 024 adds windows, frozen node membership and a writer
 reservation. Create validates all member IDs atomically, at most 100 members and
@@ -383,9 +383,9 @@ firing/recovery in-window; first recovery after an observation gap; pending job;
 leased-but-unsent job; network already started; application downtime spanning the
 window; policy edits during maintenance; concurrent create/cancel; full DB restore.
 
-Maintenance does not yet alter HTTP availability denominators. That is a separate
-service-monitor integration contract: retain raw observations, report excluded
-maintenance duration explicitly, and do not label existing success rate as SLA.
+The separately integrated [HTTP maintenance statistics](HTTP_MAINTENANCE_STATISTICS.md)
+provide a maintenance-excluded planned-slot denominator alongside raw observations.
+They preserve the raw basis and do not turn the result into continuous-time SLA.
 
 ## Release boundaries
 

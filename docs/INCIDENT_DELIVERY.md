@@ -1,9 +1,11 @@
 # Incident state and durable notification delivery (M2 / ALT-01, ALT-04)
 
-Status: implemented on the feature branch, awaiting final PR checks and review;
-not merged or released. This is ALT-01/ALT-04, not completion of all M2–M5 work.
+Status: incident state and durable delivery are integrated in main. Merge,
+release, deployment and full acceptance remain distinct; see
+[development status](DEVELOPMENT_STATUS.md). This is ALT-01/ALT-04, not completion
+of all M2–M5 work.
 
-Current acceptance summary (2026-10-03): state, migration, queue, worker, provider,
+Historical acceptance summary (2026-10-03): state, migration, queue, worker, provider,
 API and restore tests pass; real-server incident browsing and synthetic delivery
 browser regressions pass; all six 360/768/1440 light/dark detail screenshots were
 visually inspected. Fresh dependency install and frontend build pass. Full Windows
@@ -21,8 +23,8 @@ The existing engine combines condition state and notification attempts in
 `alert_states`. It skips evaluation when a channel is disabled or encryption is
 unavailable, and evaluates then sends before persisting the result. A crash in that
 window cannot be distinguished from an unsent notification. This change establishes
-one persisted incident state machine and a separate transactional outbox. Scoped
-policies, maintenance and aggregation remain the next M2 tasks.
+one persisted incident state machine and a separate transactional outbox. Scoped policies, maintenance and aggregation are now separately integrated;
+follow their current contracts and the development-status index.
 
 ## State contract
 

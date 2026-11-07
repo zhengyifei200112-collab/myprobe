@@ -1,13 +1,11 @@
 # Scoped alert policies (ALT-02)
 
-Status: implementation in progress. The resolver, transactional storage, management
-APIs/UI and runtime evaluation are integrated on this branch. Each evaluation tick
+Status: scoped-policy resolution, persistence, management APIs/UI, runtime
+evaluation and configuration transfer are integrated in main. Each evaluation tick
 atomically maps legacy rules and synchronizes selected policies before reconciling
-incidents. This branch started from main and now
-includes incident/outbox dependency commit `99d08aa` from PR #50 for integration.
-The GitHub PR remains unmerged; review this policy branch against that dependency.
-Release gates still include extended live API/browser coverage, configuration transfer,
-complete upgrade/restore coverage and measured capacity. This is not released.
+incidents. This does not establish release/deployment or complete roadmap acceptance;
+see [development status](DEVELOPMENT_STATUS.md). The incremental notes below retain
+their original evidence boundaries; the export-only/import-pending stage is historical.
 
 ## Contract
 
@@ -258,7 +256,7 @@ management closure and restarting the evaluator without duplicate notifications.
 
 ## Administrator API
 
-### Portable policy bundle (export implemented; import pending)
+### Early portable-policy export stage (historical)
 
 `GET /api/v1/admin/alert-policies/export` downloads authenticated, no-store JSON
 with `format: "myprobe-alert-policies"`, `version: 1`, and a `policies` array. This
@@ -267,15 +265,16 @@ is separate from the node configuration snapshot version. Each item includes
 kind, typed rule configuration and cooldown. Source node IDs and template ID are
 references, not automatically valid destination objects. Import must explicitly
 map those references, validate the complete batch and commit atomically; it is
-not yet implemented. No destination overwrite semantics are implied by source IDs.
+not yet implemented at that stage. The current preview/apply workflow is described
+later in this document. No destination overwrite semantics are implied by source IDs.
 
 Export excludes channel names/credentials, policy revisions/timestamps, execution
 bindings, events and queued jobs. Configuration uses a field whitelist; unsupported
 legacy fields reject the whole export rather than silently dropping semantics.
 Persisted omitted recovery duration and explicit zero remain distinct. Empty
 exports contain an empty array. Tests cover authenticated download/cache behavior,
-reference preservation, recovery representation and excluded fields. The page
-download control and import preview/apply workflow remain outstanding.
+reference preservation, recovery representation and excluded fields. The page download control and import workflow were outstanding at that stage;
+they are implemented by the later integration notes below.
 
 The Store now provides `CreateAlertPolicies` for atomic create-only batches of
 1–1000 definitions (also subject to the total 1000-policy limit). It acquires one
@@ -310,8 +309,9 @@ competing database connections, rollback, digest conflicts and reopen/deletion.
 The ledger retains at most 10000 requests and then rejects new imports; records
 are not silently expired, since expiration could allow an old request to create
 duplicates. This is an internal commit primitive, not a public import endpoint.
-Service-level digest/replay handling, HTTP preview/apply and UI are still required.
-Reconcile migration numbering with other unmerged feature branches before release.
+This primitive was subsequently integrated with service-level digest/replay handling,
+HTTP preview/apply and UI below. Use the current forward application migrations;
+do not renumber or edit released migrations.
 
 `web/src/admin-api.ts` provides typed create/update/delete/read/list and effective
 preview clients. Scope types distinguish global, explicit-node and tag selectors;
@@ -455,7 +455,8 @@ Run with `MYPROBE_TEST_RELEASE_UPGRADE=1 go test ./internal/store -run
 history. The CI release-upgrade step fetches only the pinned commit and enables
 this test explicitly; ordinary local test runs still skip it. This proves the released SQL
 schema path, not execution of the released binary, old-Agent compatibility or
-convergence with migrations on other unmerged branches.
+compatibility with arbitrary experimental-branch layouts; see
+[restore compatibility](RESTORE_COMPATIBILITY.md).
 
 Import batches reuse a transaction-local policy snapshot, appending each validated
 write before checking the next item. The writer reservation, reference validation,
