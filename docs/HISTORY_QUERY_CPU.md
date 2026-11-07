@@ -38,6 +38,13 @@ SQLite by exact instant, timestamp spelling and original row ID, and folds each
 adjacent delta directly into its output bucket. It retains only adjacent counters
 and the result buckets in Go. Additive retained rows are folded as they arrive.
 
+The indexed path checks the parsed counter order while scanning. If a legacy
+numeric zone or comma decimal spelling disagrees with that UTC index order, it
+discards its bounded partial buckets and rescans the same snapshot with an exact
+whole-second/fraction/zone ordering. This preserves the previous parsed-time and
+spelling tie behavior without restoring a full Go counter buffer. Whole seconds
+and fractions are separated before SQLite conversion to avoid fractional rounding.
+
 Both scans share one read transaction, preserving the original single-snapshot
 semantics while retention atomically moves raw rows into retained buckets. A
 concurrent move must not omit or count traffic twice. Counter resets, duplicate

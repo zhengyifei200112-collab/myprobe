@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -146,6 +147,23 @@ const trafficHistoryRangeQuery = `SELECT captured_at,net_rx_total,net_tx_total
 		WHERE node_id=:node AND ` + historyNodeScope + ` AND ` + historyRawBounds + `
 		ORDER BY captured_sort_ns,captured_at,id`
 
+// The indexed key is the persisted UTC spelling. Preserve the earlier Go
+// comparator for legacy rows with a numeric zone or comma decimal separator.
+// Split whole seconds and the fraction before converting, avoiding SQLite's
+// fractional-second rounding. Numeric offsets are applied with integer math.
+const trafficHistoryLegacyOrderQuery = `SELECT captured_at,net_rx_total,net_tx_total
+		FROM metric_samples INDEXED BY idx_metric_samples_history_cover
+		WHERE node_id=:node AND ` + historyNodeScope + ` AND ` + historyRawBounds + `
+		ORDER BY unixepoch(substr(captured_at,1,19)||'Z')-
+			CASE WHEN substr(captured_at,-1)='Z' THEN 0 ELSE
+				(CASE WHEN substr(captured_at,-6,1)='-' THEN -1 ELSE 1 END)*
+				(CAST(substr(captured_at,-5,2) AS INTEGER)*3600+CAST(substr(captured_at,-2,2) AS INTEGER)*60) END,
+			substr(CASE WHEN substr(captured_at,20,1) IN ('.',',') THEN
+				substr(captured_at,21,length(captured_at)-20-CASE WHEN substr(captured_at,-1)='Z' THEN 1 ELSE 6 END)
+				ELSE '' END||'000000000',1,9),captured_at,id`
+
+var errTrafficCounterOrder = errors.New("traffic counter scan is not in parsed timestamp order")
+
 const trafficHistoryRollupQuery = `SELECT bucket_at,rx_bytes,tx_bytes
 		FROM traffic_rollups
 		WHERE node_id=:node AND ` + historyNodeScope + ` AND ` + historyRollupBounds
@@ -163,7 +181,14 @@ func (s *Store) trafficHistoryRange(ctx context.Context, nodeID string, start, e
 	}
 	defer read.Rollback()
 	deltas := make(map[int64]trafficSample)
-	if err := accumulateTrafficCounters(ctx, read, args, bucketSeconds, deltas); err != nil {
+	if err := accumulateTrafficCounters(ctx, read, trafficHistoryRangeQuery, args, bucketSeconds, deltas); errors.Is(err, errTrafficCounterOrder) {
+		// Nothing has been returned. Discard only the bounded partial buckets
+		// and rescan the same snapshot in exact legacy order.
+		deltas = make(map[int64]trafficSample)
+		if err := accumulateTrafficCounters(ctx, read, trafficHistoryLegacyOrderQuery, args, bucketSeconds, deltas); err != nil {
+			return nil, err
+		}
+	} else if err != nil {
 		return nil, err
 	}
 	if err := accumulateTrafficRollups(ctx, read, args, bucketSeconds, deltas); err != nil {
@@ -175,13 +200,14 @@ func (s *Store) trafficHistoryRange(ctx context.Context, nodeID string, start, e
 	return trafficHistoryPoints(deltas), nil
 }
 
-func accumulateTrafficCounters(ctx context.Context, read *sql.Tx, args []any, bucketSeconds int, deltas map[int64]trafficSample) error {
-	rows, err := read.QueryContext(ctx, trafficHistoryRangeQuery, args...)
+func accumulateTrafficCounters(ctx context.Context, read *sql.Tx, query string, args []any, bucketSeconds int, deltas map[int64]trafficSample) error {
+	rows, err := read.QueryContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	var previous trafficSample
+	var previousSpelling string
 	hasPrevious := false
 	for rows.Next() {
 		var raw string
@@ -195,9 +221,13 @@ func accumulateTrafficCounters(ctx context.Context, read *sql.Tx, args []any, bu
 		}
 		current := trafficSample{at: at, rx: uint64(max(rx, 0)), tx: uint64(max(tx, 0))}
 		if hasPrevious {
+			if current.at.Before(previous.at) || current.at.Equal(previous.at) && strings.Compare(raw, previousSpelling) < 0 {
+				return errTrafficCounterOrder
+			}
 			addTrafficHistoryDelta(deltas, current.at, counterDelta(previous.rx, current.rx), counterDelta(previous.tx, current.tx), bucketSeconds)
 		}
 		previous, hasPrevious = current, true
+		previousSpelling = raw
 	}
 	if err := rows.Err(); err != nil {
 		return err
