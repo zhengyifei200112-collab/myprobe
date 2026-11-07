@@ -7,6 +7,15 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Offline legacy rollback preparation
+
+- Add an offline `rollback-prepare` command and Linux amd64/arm64 and Windows
+  amd64 release assets. It prepares a separate, verified schema-013 backup with
+  three history lookup indexes, retaining the original file and stored content.
+  It rejects incomplete or unexpected migration histories and never replaces an
+  existing destination. This prepares an old restore point; it does not downgrade
+  a newer application database or preserve subsequent writes.
+
 ### Retained latency hour summaries
 
 - Reduce retained latency reads for long history windows with weighted hour

@@ -65,6 +65,12 @@ theme-safe structured badges, validated external links, and server-sanitized adv
 HTML. The feature-by-feature implementation and evidence matrix is maintained in the
 product specification.
 
+For a rollback to schema 013, the offline
+[`rollback-prepare` operator procedure](docs/LEGACY_ROLLBACK_PREPARATION.md)
+prepares a separate copy of a closed legacy backup with verified content and
+additive history indexes. Keep the matching old application and original secrets
+with that backup, and rehearse the old application before switching production.
+
 ## Batch node configuration
 
 The node administration page supports selecting up to 100 nodes across pages,

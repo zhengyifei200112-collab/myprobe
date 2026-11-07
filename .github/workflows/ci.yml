@@ -66,6 +66,7 @@ jobs:
           go test -race ./internal/httpapi -run '^TestReleaseStatusAdminContract$' -count=1
           go test -race ./internal/store ./internal/httpapi ./internal/agentgateway -run 'Diagnostic|Export' -count=1
           go test -race ./internal/backup -count=1
+          go test -race ./internal/rollbackprep ./cmd/rollback-prepare -count=1
           go test -race ./internal/store ./internal/alerts ./internal/httpapi -run '^Test(ScheduledBackup|SystemNotification|IdleSystem)' -count=1
 
           go test -race ./internal/agentclient -run '^Test(Sampling|ReportPeriod|LegacySampling|HTTPFallback|ActualAgent|InvalidManaged|CollectionInterval|ReportingUses|WelcomeApplies)' -count=1
