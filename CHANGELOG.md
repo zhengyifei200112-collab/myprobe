@@ -7,6 +7,14 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Traffic history memory
+
+- Read historical traffic counters in exact chronological order and accumulate
+  graph buckets as rows arrive, avoiding complete raw-counter buffers and copies.
+- Keep raw and retained traffic scans in one read snapshot so concurrent retention
+  cannot omit or double-count traffic. Preserve reset handling, equivalent
+  timestamp spellings, visibility, cancellation and existing billing behavior.
+
 ### Release publication
 
 - Keep candidates as drafts until all eleven program assets, checksums and both

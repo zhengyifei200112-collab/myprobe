@@ -30,11 +30,27 @@ key or assumed stable across statements. Public ID/kind tie ordering is explicit
 Raw and retained kinds, target enumeration, successful-without-duration cases
 and weighted sums/counts retain their existing semantics.
 
-Traffic reads omit the database-wide text sort before the existing exact-time
-counter accounting. Go sorts raw counters once by instant, timestamp spelling
-and original row ID, including equal instants, duplicate spellings and resets.
-Additive retained traffic needs no input sort. A regression reverses unordered
-SQLite scans while checking independently calculated raw/reset/retained totals.
+Earlier traffic CPU work replaced a database-wide text sort with an exact-time
+Go sort. Subsequent bounded memory observations found that loading, sorting and
+copying every raw counter made temporary allocations grow with input density,
+even for a fixed sixty-point result. The range reader now orders counters in
+SQLite by exact instant, timestamp spelling and original row ID, and folds each
+adjacent delta directly into its output bucket. It retains only adjacent counters
+and the result buckets in Go. Additive retained rows are folded as they arrive.
+
+Both scans share one read transaction, preserving the original single-snapshot
+semantics while retention atomically moves raw rows into retained buckets. A
+concurrent move must not omit or count traffic twice. Counter resets, duplicate
+spellings, exact nanosecond bounds, complete retained buckets and hidden-node
+scope retain their original behavior. Cancellation closes the rows and snapshot;
+file readers still close when returned to the zero-idle pool. Inclusive billing
+queries keep their existing accounting path.
+
+Local allocation observations distinguish heap allocations, heap after an
+explicit diagnostic GC, anonymous RSS and file-backed RSS with mmap enabled and
+disabled. Explicit GC is an observation intervention, not a production fix or
+capacity criterion. These component results do not establish the cause of an
+earlier full-run RSS trend or replace final-source continuous acceptance.
 
 Existing node/target/kind/tier/time index seeks, exact raw nanosecond bounds and
 complete-retention-bucket policy stay in place. The shared four connections,

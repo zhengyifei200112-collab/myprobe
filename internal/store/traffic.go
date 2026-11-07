@@ -1,13 +1,10 @@
 package store
 
 import (
-	"cmp"
 	"context"
 	"database/sql"
 	"errors"
-	"slices"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -142,10 +139,14 @@ func (s *Store) AdminTrafficHistoryRange(ctx context.Context, nodeID string, sta
 	return s.trafficHistoryRange(ctx, nodeID, start, end, bucketSeconds, true)
 }
 
-const trafficHistoryRangeQuery = `SELECT 0,captured_at,net_rx_total,net_tx_total,id
+// Keep the old exact-instant, timestamp-spelling and row-ID counter order in
+// SQLite. Only adjacent counters and final buckets need to remain in Go memory.
+const trafficHistoryRangeQuery = `SELECT captured_at,net_rx_total,net_tx_total
 		FROM metric_samples INDEXED BY idx_metric_samples_history_cover
 		WHERE node_id=:node AND ` + historyNodeScope + ` AND ` + historyRawBounds + `
-		UNION ALL SELECT 1,bucket_at,rx_bytes,tx_bytes,0
+		ORDER BY captured_sort_ns,captured_at,id`
+
+const trafficHistoryRollupQuery = `SELECT bucket_at,rx_bytes,tx_bytes
 		FROM traffic_rollups
 		WHERE node_id=:node AND ` + historyNodeScope + ` AND ` + historyRollupBounds
 
@@ -154,57 +155,87 @@ func (s *Store) trafficHistoryRange(ctx context.Context, nodeID string, start, e
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.historyQueryDB().QueryContext(ctx, trafficHistoryRangeQuery, args...)
+	// Retention moves counters into rollups atomically. Both scans must see one
+	// snapshot so a concurrent retention commit cannot lose or count them twice.
+	read, err := s.historyQueryDB().BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	type counterSample struct {
-		trafficSample
-		captured string
-		id       int64
+	defer read.Rollback()
+	deltas := make(map[int64]trafficSample)
+	if err := accumulateTrafficCounters(ctx, read, args, bucketSeconds, deltas); err != nil {
+		return nil, err
 	}
-	var samples []counterSample
-	var rollups []trafficSample
+	if err := accumulateTrafficRollups(ctx, read, args, bucketSeconds, deltas); err != nil {
+		return nil, err
+	}
+	if err := read.Commit(); err != nil {
+		return nil, err
+	}
+	return trafficHistoryPoints(deltas), nil
+}
+
+func accumulateTrafficCounters(ctx context.Context, read *sql.Tx, args []any, bucketSeconds int, deltas map[int64]trafficSample) error {
+	rows, err := read.QueryContext(ctx, trafficHistoryRangeQuery, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	var previous trafficSample
+	hasPrevious := false
 	for rows.Next() {
-		var isRollup int
 		var raw string
-		var rx, tx, id int64
-		if err := rows.Scan(&isRollup, &raw, &rx, &tx, &id); err != nil {
-			return nil, err
+		var rx, tx int64
+		if err := rows.Scan(&raw, &rx, &tx); err != nil {
+			return err
 		}
 		at, err := parseTime(raw)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		item := trafficSample{at: at, rx: uint64(max(rx, 0)), tx: uint64(max(tx, 0))}
-		if isRollup == 1 {
-			rollups = append(rollups, item)
-		} else {
-			samples = append(samples, counterSample{trafficSample: item, captured: raw, id: id})
+		current := trafficSample{at: at, rx: uint64(max(rx, 0)), tx: uint64(max(tx, 0))}
+		if hasPrevious {
+			addTrafficHistoryDelta(deltas, current.at, counterDelta(previous.rx, current.rx), counterDelta(previous.tx, current.tx), bucketSeconds)
 		}
+		previous, hasPrevious = current, true
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return err
 	}
-	// Sort counters once, by exact time. Retain the previous SQL text ordering
-	// for equal instants with different timestamp spellings. Identical spellings
-	// retain the original indexed row-ID order even if the scan is reversed.
-	// Rollups are additive and need no input sort.
-	slices.SortStableFunc(samples, func(a, b counterSample) int {
-		if order := a.at.Compare(b.at); order != 0 {
-			return order
-		}
-		if order := strings.Compare(a.captured, b.captured); order != 0 {
-			return order
-		}
-		return cmp.Compare(a.id, b.id)
-	})
-	counters := make([]trafficSample, len(samples))
-	for index, sample := range samples {
-		counters[index] = sample.trafficSample
+	return rows.Close()
+}
+
+func accumulateTrafficRollups(ctx context.Context, read *sql.Tx, args []any, bucketSeconds int, deltas map[int64]trafficSample) error {
+	rows, err := read.QueryContext(ctx, trafficHistoryRollupQuery, args...)
+	if err != nil {
+		return err
 	}
-	return aggregateTrafficHistory(counters, rollups, bucketSeconds), nil
+	defer rows.Close()
+	for rows.Next() {
+		var raw string
+		var rx, tx int64
+		if err := rows.Scan(&raw, &rx, &tx); err != nil {
+			return err
+		}
+		at, err := parseTime(raw)
+		if err != nil {
+			return err
+		}
+		addTrafficHistoryDelta(deltas, at, uint64(max(rx, 0)), uint64(max(tx, 0)), bucketSeconds)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	return rows.Close()
+}
+
+func addTrafficHistoryDelta(deltas map[int64]trafficSample, at time.Time, rx, tx uint64, bucketSeconds int) {
+	bucket := at.Unix() / int64(bucketSeconds) * int64(bucketSeconds)
+	item := deltas[bucket]
+	item.at = time.Unix(bucket, 0).UTC()
+	item.rx += rx
+	item.tx += tx
+	deltas[bucket] = item
 }
 
 func aggregateTrafficHistory(samples, rollups []trafficSample, bucketSeconds int) []TrafficHistoryPoint {
@@ -232,6 +263,10 @@ func aggregateTrafficHistory(samples, rollups []trafficSample, bucketSeconds int
 			previous = current
 		}
 	}
+	return trafficHistoryPoints(deltas)
+}
+
+func trafficHistoryPoints(deltas map[int64]trafficSample) []TrafficHistoryPoint {
 	buckets := make([]int64, 0, len(deltas))
 	for bucket := range deltas {
 		buckets = append(buckets, bucket)
