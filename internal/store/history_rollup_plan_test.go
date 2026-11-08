@@ -21,7 +21,7 @@ func TestHistoryRollupSourcesSeekBothTimeBounds(t *testing.T) {
 	for _, item := range []struct{ table, query, bounds string }{
 		{"metric_rollups", metricHistoryQuery, "node_id=? AND bucket_seconds=? AND bucket_at>? AND bucket_at<?"},
 		{"latency_rollups", latencyHistoryQuery, "node_id=? AND target_id=? AND kind=? AND bucket_seconds=? AND bucket_at>? AND bucket_at<?"},
-		{"traffic_rollups", trafficHistoryRangeQuery, "node_id=? AND bucket_seconds=? AND bucket_at>? AND bucket_at<?"},
+		{"traffic_rollups", trafficHistoryRollupQuery, "node_id=? AND bucket_seconds=? AND bucket_at>? AND bucket_at<?"},
 	} {
 		t.Run(item.table, func(t *testing.T) {
 			rows, err := s.db.Query(`EXPLAIN QUERY PLAN `+item.query, args...)
