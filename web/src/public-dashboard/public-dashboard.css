@@ -144,7 +144,7 @@
 }
 
 @media (min-width: 1800px) {
-  .app-shell .node-grid.compact { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .app-shell .node-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (max-width: 1099px) {

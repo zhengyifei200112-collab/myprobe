@@ -28,6 +28,10 @@ const os = require('node:os');
     nodes[0].report = undefined;
     nodes[1].online = false;
     nodes[2].stale = true;
+    nodes[99].latency.push(
+      { target_id: 'target-b', name: 'A longer secondary network target', kind: 'ping', success: false, error_class: 'timeout', latency_ms: 0, updated_at: now.toISOString() },
+      { target_id: 'target-c', name: 'Test target C', kind: 'ping', success: true, latency_ms: 42, updated_at: now.toISOString() },
+    );
     const payload = { nodes, server_time: now.toISOString() };
     await page.route('**/api/v1/public/nodes', route => route.fulfill({ json: payload }));
     await page.route('**/api/v1/public/nodes/*/history?*', route => route.fulfill({ json: { range: '1h', bucket_seconds: 60, metrics: [], latency: [], traffic: [] } }));
@@ -82,10 +86,38 @@ const os = require('node:os');
         assert.ok(await page.getByRole('button', { name: '清空筛选', exact: true }).evaluate(el => parseFloat(getComputedStyle(el).fontSize) >= 12), 'mobile action must have visible text');
       }
     }
+    await page.getByLabel('显示方式', { exact: true }).selectOption('cards');
+    await page.getByRole('button', { name: '切换到详情显示模式', exact: true }).click();
+    await page.getByLabel('搜索节点', { exact: true }).fill('Node 099');
+    const detailed = page.locator('.public-node-card--detailed');
+    assert.equal(await detailed.count(), 1);
+    for (const theme of ['light', 'dark']) for (const width of [360, 768, 1440, 1920]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'detailed cards must fit the viewport');
+      assert.equal(await detailed.locator('.public-node-card__latency-grid > div').count(), 3);
+      assert.ok(await detailed.locator('h3').evaluate(el => Number(getComputedStyle(el).fontWeight) >= 600), 'node name stays prominent');
+      assert.ok(await detailed.locator('strong, b, dd, button, .ds-status, .ds-badge').evaluateAll(elements => elements.every(el => Number(getComputedStyle(el).fontWeight) === 400)), 'card details use regular weight');
+      assert.ok(await detailed.locator('.public-node-card__rates strong').evaluateAll(elements => elements.every(el => el.scrollWidth <= el.clientWidth + 1)), 'both transfer rates must remain readable');
+      if (width >= 1440) {
+        assert.equal(await page.locator('.node-grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), width >= 1800 ? 4 : 3);
+        const box = await detailed.boundingBox();
+        assert.ok(box.height < 400 && box.height < box.width, `routine details must fit a horizontal rectangle at ${width}px: ${JSON.stringify(box)}`);
+        assert.ok(box.width < width / 2, 'filtered detailed card retains the multi-column card size');
+      }
+      await detailed.getByText('更多信息', { exact: true }).click();
+      await detailed.getByText('公网 IP', { exact: true }).waitFor();
+      await detailed.locator('summary').focus();
+      await page.keyboard.press('Enter');
+      assert.equal(await detailed.locator('details').getAttribute('open'), null);
+      await detailed.screenshot({ path: path.join(process.env.QA_OUTPUT_DIR || os.tmpdir(), `myprobe-detailed-${theme}-${width}.png`) });
+    }
+    await page.getByRole('button', { name: '切换到简洁显示模式', exact: true }).click();
+    assert.equal(await page.locator('.public-node-card--detailed').count(), 0);
     wire.close();
     await page.getByText('实时连接中断，正在重连', { exact: true }).waitFor();
     assert.ok(await page.getByText('等待接入', { exact: true }).count());
     assert.deepEqual(errors, []);
-    console.log('PASS: 100-node discovery, URL reload, missing data, throttled ordering, pointer/keyboard freeze, reconnect semantics and 12 viewport/theme/view screenshots');
+    console.log('PASS: 100-node discovery, URL reload, ordering, reconnect; 12 overview and 8 detailed-card views; three/four columns, readable rates, three latency results and keyboard disclosure');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
