@@ -100,7 +100,7 @@ const os = require('node:os');
       if (width >= 1440) {
         assert.equal(await page.locator('.node-grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), width >= 1800 ? 4 : 3);
         const box = await detailed.boundingBox();
-        assert.ok(box.height < 480, 'routine details must not become a tall column');
+        assert.ok(box.height < 400 && box.height < box.width, `routine details must fit a horizontal rectangle at ${width}px: ${JSON.stringify(box)}`);
         assert.ok(box.width < width / 2, 'filtered detailed card retains the multi-column card size');
       }
       await detailed.getByText('更多信息', { exact: true }).click();

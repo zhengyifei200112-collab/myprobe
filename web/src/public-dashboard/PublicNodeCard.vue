@@ -170,11 +170,12 @@ function countryCode(code: string) {
           </dl>
           <p>{{ osName(item) }}</p>
           <p>{{ item.node.traffic_reset_day ? `每月 ${item.node.traffic_reset_day} 日重置` : '自然月重置' }}<template v-if="expiryDate(item)"> · {{ expiryDate(item) }}</template></p>
+          <p>{{ item.report?.captured_at ? `最近采样 ${lastReport(item)}` : '暂无上报数据' }}</p>
         </div>
       </details>
 
       <footer class="public-node-card__footer">
-        <span>{{ item.report?.captured_at ? `最近采样 ${lastReport(item)}` : '暂无上报数据' }}</span>
+        <span v-if="displayMode === 'compact'">{{ item.report?.captured_at ? `最近采样 ${lastReport(item)}` : '暂无上报数据' }}</span>
         <button type="button" :aria-label="`查看 ${item.node.name} 的历史数据`" @click="$emit('open')">
           查看历史
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg>
@@ -271,7 +272,11 @@ function countryCode(code: string) {
 
 /* Detailed cards keep routine metrics together; secondary facts remain expandable. */
 .public-node-card__connection-group { display: contents; }
-.public-node-card--detailed .public-node-card__inner { --metric-grid-gap: var(--space-3); padding: var(--space-4); gap: var(--space-3); }
+.public-node-card--detailed .public-node-card__inner { --metric-grid-gap: var(--space-3); padding: var(--space-3); grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1); line-height: 1.35; }
+.public-node-card--detailed .public-node-card__inner > * { grid-column: 1 / -1; }
+.public-node-card--detailed .public-node-card__inner > .public-node-card__more { grid-column: 1; }
+.public-node-card--detailed .public-node-card__inner > .public-node-card__more[open] { grid-column: 1 / -1; }
+.public-node-card--detailed .public-node-card__inner > .public-node-card__footer { grid-column: 2; padding: 0; justify-content: flex-end; border: 0; }
 .public-node-card--detailed .public-node-card__identity { gap: var(--space-2); }
 .public-node-card--detailed .public-node-card__identity h3 { font-size: var(--font-size-md); }
 .public-node-card--detailed .public-node-card__identity > div > span { display: none; }
@@ -282,7 +287,7 @@ function countryCode(code: string) {
 .public-node-card--detailed .public-node-card__commercial { gap: var(--space-2); font-size: .6875rem; }
 .public-node-card--detailed .public-node-card__resources > div > span { margin-bottom: var(--space-1); }
 .public-node-card--detailed .public-node-card__resources small { display: block; margin-top: var(--space-1); color: var(--text-tertiary); font-size: .6875rem; white-space: nowrap; }
-.public-node-card--detailed .public-node-card__connection-group { display: grid; grid-template-columns: .85fr 1.7fr; gap: var(--space-3); align-items: start; }
+.public-node-card--detailed .public-node-card__connection-group { display: grid; grid-template-columns: .85fr 1.7fr; gap: var(--space-2); align-items: start; }
 .public-node-card--detailed .public-node-card__details { display: contents; }
 .public-node-card--detailed .public-node-card__network { padding: var(--space-2); grid-template-columns: 1fr; gap: 0; border: 0; border-radius: var(--radius-control); background: var(--surface-secondary); }
 .public-node-card--detailed .public-node-card__network > div:first-child { display: none; }
@@ -297,15 +302,15 @@ function countryCode(code: string) {
 .public-node-card--detailed .public-node-card__traffic strong > span { display: block; color: inherit; white-space: nowrap; }
 .public-node-card--detailed .public-node-card__latency { grid-column: 1 / -1; padding-top: 0; border: 0; }
 .public-node-card--detailed .public-node-card__latency header { display: none; }
-.public-node-card--detailed .public-node-card__latency-grid { margin-top: 0; grid-template-columns: 1fr; gap: var(--space-1); }
+.public-node-card--detailed .public-node-card__latency-grid { margin-top: 0; grid-template-columns: 1fr; gap: .125rem; }
 .public-node-card--detailed .public-node-card__latency-grid > div { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
 .public-node-card--detailed .public-node-card__latency-grid span { flex: 1; }
 .public-node-card--detailed .public-node-card__latency-grid strong { flex: 0 0 auto; }
 .public-node-card--detailed .custom-display { grid-column: 1 / -1; }
 .public-node-card__more { min-width: 0; color: var(--text-secondary); font-size: var(--font-size-xs); }
-.public-node-card__more summary { width: fit-content; padding: var(--space-1) 0; cursor: pointer; }
+.public-node-card__more summary { width: fit-content; padding: .125rem 0; cursor: pointer; }
 .public-node-card__more-body { padding-top: var(--space-3); display: grid; gap: var(--space-3); }
 .public-node-card__more-body p { margin: 0; font-size: var(--font-size-xs); }
 .public-node-card--detailed .public-node-card__footer { padding-top: var(--space-2); }
-.public-node-card--detailed .public-node-card__footer button { min-height: 1.75rem; }
+.public-node-card--detailed .public-node-card__footer button { min-height: 1.5rem; }
 </style>
