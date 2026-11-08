@@ -313,4 +313,7 @@ function countryCode(code: string) {
 .public-node-card__more-body p { margin: 0; font-size: var(--font-size-xs); }
 .public-node-card--detailed .public-node-card__footer { padding-top: var(--space-2); }
 .public-node-card--detailed .public-node-card__footer button { min-height: 1.5rem; }
+.public-node-card :is(strong, b, dd, button, .custom-badge, .custom-links a),
+.public-node-card :deep(.ds-status),
+.public-node-card :deep(.ds-badge) { font-weight: 400; }
 </style>

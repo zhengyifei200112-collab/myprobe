@@ -96,6 +96,8 @@ const os = require('node:os');
       await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'detailed cards must fit the viewport');
       assert.equal(await detailed.locator('.public-node-card__latency-grid > div').count(), 3);
+      assert.ok(await detailed.locator('h3').evaluate(el => Number(getComputedStyle(el).fontWeight) >= 600), 'node name stays prominent');
+      assert.ok(await detailed.locator('strong, b, dd, button, .ds-status, .ds-badge').evaluateAll(elements => elements.every(el => Number(getComputedStyle(el).fontWeight) === 400)), 'card details use regular weight');
       assert.ok(await detailed.locator('.public-node-card__rates strong').evaluateAll(elements => elements.every(el => el.scrollWidth <= el.clientWidth + 1)), 'both transfer rates must remain readable');
       if (width >= 1440) {
         assert.equal(await page.locator('.node-grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), width >= 1800 ? 4 : 3);

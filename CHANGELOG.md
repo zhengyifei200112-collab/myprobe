@@ -12,6 +12,8 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Keep expanded dashboard nodes in compact rectangular cards, showing resource
   capacity, traffic and recent latency together. Secondary facts remain available
   under “更多信息”; desktop layouts show three or four cards per row.
+- Reserve bold text for node names; metrics, status, pricing and card actions use
+  regular weight so routine details do not compete with the title.
 
 ### Traffic history memory
 
