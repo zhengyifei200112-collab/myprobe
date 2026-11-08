@@ -9,6 +9,7 @@ export function aggregateNode(item: PublicNode) {
 
   return {
     diskTotal,
+    diskUsed,
     diskPercent: diskTotal ? diskUsed / diskTotal * 100 : 0,
     rxRate: networks.reduce((sum, network) => sum + network.rx_bytes_per_second, 0),
     txRate: networks.reduce((sum, network) => sum + network.tx_bytes_per_second, 0),

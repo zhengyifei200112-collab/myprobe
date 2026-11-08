@@ -81,8 +81,12 @@ function countryCode(code: string) {
       </header>
 
       <section class="public-node-card__health" :aria-label="healthTitle">
-        <strong>{{ healthTitle }}</strong>
+        <strong v-if="displayMode !== 'detailed' || healthTitle !== '运行正常'">{{ healthTitle }}</strong>
         <p>{{ healthDescription }}</p><p v-if="reasons.length" class="public-node-card__attention">{{ reasons.join(' · ') }}</p>
+        <section v-if="displayMode === 'detailed'" class="public-node-card__commercial" aria-label="服务信息">
+          <DsBadge tone="accent">{{ price(item) }}<template v-if="item.node.billing_cycle">/{{ item.node.billing_cycle }}</template></DsBadge>
+          <span :class="{ overdue: item.commercial?.expired }">{{ expiry(item) }}</span>
+        </section>
       </section>
 
       <div v-if="!item.online" class="public-node-card__offline" role="status">
@@ -90,7 +94,7 @@ function countryCode(code: string) {
         <strong>{{ lastContact(item) }}</strong>
       </div>
 
-      <dl class="public-node-card__facts">
+      <dl v-if="displayMode === 'compact'" class="public-node-card__facts">
         <div><dt>公网 IP</dt><dd class="ds-tabular">{{ maskedIP(item.report?.public_ip) }}</dd></div>
         <div><dt>在线时长</dt><dd>{{ formatUptime(item.report?.uptime_seconds) }}</dd></div>
         <div><dt>本月流量</dt><dd class="ds-tabular">{{ formatBytes((item.traffic?.tx_bytes || 0) + (item.traffic?.rx_bytes || 0)) }}</dd></div>
@@ -100,17 +104,21 @@ function countryCode(code: string) {
         <div>
           <span><b>CPU</b><strong class="ds-tabular">{{ item.report ? percent(item.report.cpu.usage_percent) : '—' }}</strong></span>
           <DsProgress :value="item.report?.cpu.usage_percent" label="CPU 使用率" :tone="resourceTone(item.report?.cpu.usage_percent)" />
+          <small v-if="displayMode === 'detailed'">{{ item.report?.cpu.logical_cores || '—' }} 核</small>
         </div>
         <div>
           <span><b>内存</b><strong class="ds-tabular">{{ item.report ? percent(item.report.memory.usage_percent) : '—' }}</strong></span>
           <DsProgress :value="item.report?.memory.usage_percent" label="内存使用率" :tone="resourceTone(item.report?.memory.usage_percent)" />
+          <small v-if="displayMode === 'detailed'">{{ formatBytes(item.report?.memory.used_bytes || 0) }} / {{ formatBytes(item.report?.memory.total_bytes || 0) }}</small>
         </div>
         <div>
           <span><b>磁盘</b><strong class="ds-tabular">{{ item.report ? percent(metrics.diskPercent) : '—' }}</strong></span>
           <DsProgress :value="metrics.diskPercent" label="磁盘使用率" :tone="resourceTone(metrics.diskPercent)" />
+          <small v-if="displayMode === 'detailed'">{{ formatBytes(metrics.diskUsed) }} / {{ formatBytes(metrics.diskTotal) }}</small>
         </div>
       </section>
 
+      <div class="public-node-card__connection-group">
       <section class="public-node-card__network" aria-label="网络实时速率">
         <div><span>网络实时速率</span><small>{{ item.node.traffic_reset_day ? `每月 ${item.node.traffic_reset_day} 日重置` : '自然月重置' }}</small></div>
         <div class="public-node-card__rates">
@@ -120,14 +128,9 @@ function countryCode(code: string) {
       </section>
 
       <div v-if="displayMode === 'detailed'" class="public-node-card__details">
-        <dl class="public-node-card__hardware" aria-label="硬件概况">
-          <div><dt>处理器</dt><dd>{{ item.report?.cpu.logical_cores || '—' }} 核</dd></div>
-          <div><dt>内存容量</dt><dd>{{ formatBytesInUnit(item.report?.memory.total_bytes || 0, capacityUnit) }}</dd></div>
-          <div><dt>磁盘容量</dt><dd>{{ formatBytesInUnit(metrics.diskTotal, capacityUnit) }}</dd></div>
-        </dl>
         <section class="public-node-card__traffic" aria-label="流量详情">
-          <div><span>{{ item.node.use_since_boot ? '开机累计' : '累计流量' }}</span><strong>↑ {{ formatBytesInUnit(metrics.txTotal, totalUnit) }} · ↓ {{ formatBytesInUnit(metrics.rxTotal, totalUnit) }}</strong></div>
-          <div><span>本周期</span><strong>↑ {{ formatBytesInUnit(item.traffic?.tx_bytes || 0, cycleUnit) }} · ↓ {{ formatBytesInUnit(item.traffic?.rx_bytes || 0, cycleUnit) }}</strong></div>
+          <div><span>{{ item.node.use_since_boot ? '开机累计' : '累计流量' }}</span><strong><span>↑ {{ formatBytesInUnit(metrics.txTotal, totalUnit) }}</span><span>↓ {{ formatBytesInUnit(metrics.rxTotal, totalUnit) }}</span></strong></div>
+          <div><span>本周期</span><strong><span>↑ {{ formatBytesInUnit(item.traffic?.tx_bytes || 0, cycleUnit) }}</span><span>↓ {{ formatBytesInUnit(item.traffic?.rx_bytes || 0, cycleUnit) }}</span></strong></div>
         </section>
 
         <section class="public-node-card__latency" aria-label="网络延迟">
@@ -143,19 +146,32 @@ function countryCode(code: string) {
             </div>
           </div>
         </section>
-
-        <section class="public-node-card__commercial" aria-label="服务信息">
-          <DsBadge tone="accent">{{ price(item) }}<template v-if="item.node.billing_cycle">/{{ item.node.billing_cycle }}</template></DsBadge>
-          <span :class="{ overdue: item.commercial?.expired }">{{ expiry(item) }}</span>
-          <span v-if="expiryDate(item)">{{ expiryDate(item) }}</span>
-        </section>
-
         <div v-if="item.node.custom_badges?.length || item.node.custom_links?.length || item.node.custom_html" class="custom-display">
           <div v-if="item.node.custom_badges?.length" class="custom-badges"><span v-for="badge in item.node.custom_badges" :key="`${badge.label}-${badge.color}`" :class="`custom-badge ${badge.color}`">{{ badge.label }}</span></div>
           <div v-if="item.node.custom_links?.length" class="custom-links"><a v-for="link in item.node.custom_links" :key="link.url" :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.label }}</a></div>
           <div v-if="item.node.custom_html" class="custom-html" v-html="item.node.custom_html"></div>
         </div>
       </div>
+
+      </div>
+
+      <details v-if="displayMode === 'detailed'" class="public-node-card__more">
+        <summary>更多信息</summary>
+        <div class="public-node-card__more-body">
+          <dl class="public-node-card__facts">
+            <div><dt>公网 IP</dt><dd class="ds-tabular">{{ maskedIP(item.report?.public_ip) }}</dd></div>
+            <div><dt>在线时长</dt><dd>{{ formatUptime(item.report?.uptime_seconds) }}</dd></div>
+            <div><dt>本月流量</dt><dd class="ds-tabular">{{ formatBytes((item.traffic?.tx_bytes || 0) + (item.traffic?.rx_bytes || 0)) }}</dd></div>
+          </dl>
+          <dl class="public-node-card__hardware" aria-label="硬件概况">
+            <div><dt>处理器</dt><dd>{{ item.report?.cpu.logical_cores || '—' }} 核</dd></div>
+            <div><dt>内存容量</dt><dd>{{ formatBytesInUnit(item.report?.memory.total_bytes || 0, capacityUnit) }}</dd></div>
+            <div><dt>磁盘容量</dt><dd>{{ formatBytesInUnit(metrics.diskTotal, capacityUnit) }}</dd></div>
+          </dl>
+          <p>{{ osName(item) }}</p>
+          <p>{{ item.node.traffic_reset_day ? `每月 ${item.node.traffic_reset_day} 日重置` : '自然月重置' }}<template v-if="expiryDate(item)"> · {{ expiryDate(item) }}</template></p>
+        </div>
+      </details>
 
       <footer class="public-node-card__footer">
         <span>{{ item.report?.captured_at ? `最近采样 ${lastReport(item)}` : '暂无上报数据' }}</span>
@@ -252,4 +268,44 @@ function countryCode(code: string) {
   .public-node-card__latency-grid { grid-template-columns: 1fr; }
   .public-node-card__footer { align-items: flex-start; }
 }
+
+/* Detailed cards keep routine metrics together; secondary facts remain expandable. */
+.public-node-card__connection-group { display: contents; }
+.public-node-card--detailed .public-node-card__inner { --metric-grid-gap: var(--space-3); padding: var(--space-4); gap: var(--space-3); }
+.public-node-card--detailed .public-node-card__identity { gap: var(--space-2); }
+.public-node-card--detailed .public-node-card__identity h3 { font-size: var(--font-size-md); }
+.public-node-card--detailed .public-node-card__identity > div > span { display: none; }
+.public-node-card--detailed .public-node-card__flag { width: 1.75rem; height: 1.35rem; }
+.public-node-card--detailed .public-node-card__health { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.public-node-card--detailed .public-node-card__health strong,
+.public-node-card--detailed .public-node-card__health p { font-size: var(--font-size-xs); }
+.public-node-card--detailed .public-node-card__commercial { gap: var(--space-2); font-size: .6875rem; }
+.public-node-card--detailed .public-node-card__resources > div > span { margin-bottom: var(--space-1); }
+.public-node-card--detailed .public-node-card__resources small { display: block; margin-top: var(--space-1); color: var(--text-tertiary); font-size: .6875rem; white-space: nowrap; }
+.public-node-card--detailed .public-node-card__connection-group { display: grid; grid-template-columns: .85fr 1.7fr; gap: var(--space-3); align-items: start; }
+.public-node-card--detailed .public-node-card__details { display: contents; }
+.public-node-card--detailed .public-node-card__network { padding: var(--space-2); grid-template-columns: 1fr; gap: 0; border: 0; border-radius: var(--radius-control); background: var(--surface-secondary); }
+.public-node-card--detailed .public-node-card__network > div:first-child { display: none; }
+.public-node-card--detailed .public-node-card__rates { display: grid; grid-template-columns: 1fr; gap: var(--space-1); }
+.public-node-card--detailed .public-node-card__rates > span { display: flex; gap: var(--space-1); }
+.public-node-card--detailed .public-node-card__rates small { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.public-node-card--detailed .public-node-card__rates strong { font-size: .6875rem; }
+.public-node-card--detailed .public-node-card__traffic { padding: var(--space-2); gap: var(--space-2); }
+.public-node-card--detailed .public-node-card__traffic span,
+.public-node-card--detailed .public-node-card__traffic strong { font-size: .6875rem; }
+.public-node-card--detailed .public-node-card__traffic strong { white-space: normal; }
+.public-node-card--detailed .public-node-card__traffic strong > span { display: block; color: inherit; white-space: nowrap; }
+.public-node-card--detailed .public-node-card__latency { grid-column: 1 / -1; padding-top: 0; border: 0; }
+.public-node-card--detailed .public-node-card__latency header { display: none; }
+.public-node-card--detailed .public-node-card__latency-grid { margin-top: 0; grid-template-columns: 1fr; gap: var(--space-1); }
+.public-node-card--detailed .public-node-card__latency-grid > div { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.public-node-card--detailed .public-node-card__latency-grid span { flex: 1; }
+.public-node-card--detailed .public-node-card__latency-grid strong { flex: 0 0 auto; }
+.public-node-card--detailed .custom-display { grid-column: 1 / -1; }
+.public-node-card__more { min-width: 0; color: var(--text-secondary); font-size: var(--font-size-xs); }
+.public-node-card__more summary { width: fit-content; padding: var(--space-1) 0; cursor: pointer; }
+.public-node-card__more-body { padding-top: var(--space-3); display: grid; gap: var(--space-3); }
+.public-node-card__more-body p { margin: 0; font-size: var(--font-size-xs); }
+.public-node-card--detailed .public-node-card__footer { padding-top: var(--space-2); }
+.public-node-card--detailed .public-node-card__footer button { min-height: 1.75rem; }
 </style>

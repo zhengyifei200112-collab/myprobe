@@ -7,6 +7,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Dashboard node details
+
+- Keep expanded dashboard nodes in compact rectangular cards, showing resource
+  capacity, traffic and recent latency together. Secondary facts remain available
+  under “更多信息”; desktop layouts show three or four cards per row.
+
 ### Traffic history memory
 
 - Read historical traffic counters in exact chronological order and accumulate

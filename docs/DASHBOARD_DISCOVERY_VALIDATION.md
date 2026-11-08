@@ -5,6 +5,14 @@ development roadmap (PR #44). Other M1 tasks and M2–M5 remain outstanding.
 
 ## Automated checks
 
+Detailed dashboard cards use the same three-column desktop grid (four columns
+from 1800 px) as compact cards. CPU cores and memory/disk usage and capacity sit
+below the resource bars; rates, traffic and up to three recent latency results
+remain visible. “更多信息” expands masked IP, uptime, monthly traffic, hardware,
+OS, reset date and expiry date. This disclosure keeps keyboard-native behavior
+and does not issue an extra request. Small screens retain one column. No trend
+series or packet-loss values are inferred from a latest-result response.
+
 - `npm --prefix web test`: 100-node intersection, expiry boundaries, stale/waiting
   distinctions, missing values, deterministic ties, target isolation and URL rules.
 - `npm --prefix web run build`: TypeScript/Vue checks and embedded frontend build.
