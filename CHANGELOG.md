@@ -7,6 +7,15 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### History reader memory budget
+
+- Limit each 64-bit Linux history reader to 256 MiB of mapped database address
+  space, for at most 512 MiB across the two-reader pool. Larger database regions
+  continue using buffered reads; the existing mmap opt-out remains available.
+- Keep queries, data formats, visibility and reader closure unchanged. The lower
+  mapping limit reduces active working ranges, while final-source performance
+  and long-run memory remain subject to their existing acceptance checks.
+
 ### Dashboard node details
 
 - Keep expanded dashboard nodes in compact rectangular cards, showing resource
