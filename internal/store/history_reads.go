@@ -15,7 +15,11 @@ type OpenOptions struct {
 }
 
 const historyReadConnections = 2
-const historyReadMmapBytes int64 = 2147418112
+
+// Bound each active reader's mapped address range independently of DB growth.
+// The two-reader pool can map at most 512 MiB of DB pages in total; pages beyond
+// this range use buffered reads. This does not cap other process allocations.
+const historyReadMmapBytes int64 = 256 << 20
 
 func openHistoryReadDB(path string, options OpenOptions) (*sql.DB, error) {
 	if path == ":memory:" {

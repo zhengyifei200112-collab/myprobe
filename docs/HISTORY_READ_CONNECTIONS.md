@@ -27,7 +27,9 @@ that a history request has no filesystem writes.
 ## Mapped reads and operational control
 
 `MYPROBE_HISTORY_MMAP_ENABLED` defaults to `true`. On 64-bit Linux only, each file
-history connection requests a mapping limit of 2,147,418,112 bytes. SQLite maps
+history connection requests a mapping limit of 256 MiB (268,435,456 bytes),
+so the two-reader pool can map at most 512 MiB of database address ranges.
+SQLite maps
 the beginning of the file, up to that limit; larger files continue using buffered
 reads beyond the mapped range. This is an address-space limit, not a reservation
 of that much RAM or a limit on total process memory. Resident mapped pages,
@@ -35,6 +37,18 @@ sorting, Go allocations and the main pool still consume memory. The two-reader
 budget and closing mappings between queries bound reader lifetimes; actual
 Server RSS, aggregate cgroup memory and long-running trends must still pass
 their existing acceptance gates.
+
+The smaller limit replaces the previous roughly 2 GiB allowance per reader.
+Closing readers already releases mappings; the limit also bounds the working
+range while both queries are active. This is a resource policy, not a claim that
+long-run memory has passed or that every query becomes faster. A read-only
+synthetic component with 20 nodes and fixed 30-day/year windows compared four
+policies, verifying 320 corresponding complete results. With the 256 MiB limit,
+sampled query-process RSS peaked at 65.7 MiB, compared with 97.7 MiB for the old
+limit; warm 30-day nearest-rank P95 was 1561 ms versus 859 ms. Cases shared the
+kernel cache and ran sequentially under a one-CPU allowance; these measurements
+do not certify HTTP latency, concurrent live reporting or same-source 24-hour
+stability. The existing native performance and steady-memory gates remain.
 
 Set `MYPROBE_HISTORY_MMAP_ENABLED=false` and restart the Server to keep buffered
 reads. The read-only pool and its two-connection limit remain. Compose forwards
