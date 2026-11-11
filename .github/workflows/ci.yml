@@ -181,6 +181,7 @@ jobs:
 
       - name: Build exact embedded frontend
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           npm --prefix web ci
           npm --prefix web run build
           git diff --exit-code -- internal/webui/dist
