@@ -221,7 +221,7 @@ Semantic Versioning, and forward-only database migrations. Start with
 should also read [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) and
 [`docs/RELEASING.md`](docs/RELEASING.md).
 
-### Incident delivery work in progress
+### Incident delivery and Agent diagnostics
 
 Private node diagnostics additionally distinguish expected sampling settings,
 Agent application acknowledgements and the actual last accepted report transport.
@@ -229,10 +229,10 @@ Collection and reporting run independently; optional v2 capability negotiation
 preserves released v1 Agents. See [Agent runtime evidence](docs/AGENT_RUNTIME_EVIDENCE.md)
 for bounded sampling semantics, compatibility and remaining release gates.
 
-The incident-outbox branch adds independent fault incidents, durable delivery jobs
-and per-attempt diagnostics. See the [Chinese operations guide](docs/ALERT_OPERATIONS.zh-CN.md)
-and [implementation evidence](docs/INCIDENT_DELIVERY.md). This work is not released;
-scoped policies, maintenance, silence and aggregation have dependent development
-branches with separate integration/release gates. Aggregate management and
-authenticated links are documented in
-[NOTIFICATION_AGGREGATION.md](docs/NOTIFICATION_AGGREGATION.md).
+Main includes fault incidents, a durable notification queue, and per-attempt delivery
+diagnostics. Operators can apply scoped policies, schedule maintenance, acknowledge or
+silence an incident, and configure notification aggregation. The guides cover those
+workflows, including authenticated links from notifications back to the incident.
+[Chinese operations guide](docs/ALERT_OPERATIONS.zh-CN.md) ·
+[Incident delivery](docs/INCIDENT_DELIVERY.md) ·
+[Aggregation and notification links](docs/NOTIFICATION_AGGREGATION.md)
