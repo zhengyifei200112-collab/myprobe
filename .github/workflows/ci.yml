@@ -138,8 +138,7 @@ jobs:
       - name: Validate installer
         shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes shellcheck
+          shellcheck --version
           bash -n install.sh scripts/install_test.sh
           shellcheck install.sh scripts/install_test.sh
           sh -n scripts/run-backup-enospc.sh
@@ -163,6 +162,10 @@ jobs:
   network-comparison-browser:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    container:
+      # The image supplies the browsers and system dependencies for this client version.
+      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
+      options: --shm-size=512m
     steps:
       - name: Check out exact comparison source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -188,17 +191,13 @@ jobs:
           go-version: '1.26.x'
           cache-dependency-path: go.sum
 
-      - name: Install pinned browser fixture runtime
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/myprobe-browsers
+      - name: Install pinned Playwright client
         run: |
           npm install --prefix "${RUNNER_TEMP}/myprobe-browser" --no-save playwright@1.62.1
-          node "${RUNNER_TEMP}/myprobe-browser/node_modules/playwright/cli.js" install --with-deps --only-shell chromium
 
       - name: Verify real scoped comparison and six theme and viewport flows
         env:
           PLAYWRIGHT_MODULE: ${{ runner.temp }}/myprobe-browser/node_modules/playwright
-          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/myprobe-browsers
           MYPROBE_TEST_NETWORK_QUALITY_BROWSER: '1'
           MYPROBE_TEST_DIAGNOSTIC_EXPORT: '1'
           MYPROBE_TEST_RELEASE_BROWSER: '1'
