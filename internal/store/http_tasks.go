@@ -19,18 +19,54 @@ func (s *Store) CreateHTTPTask(ctx context.Context, serviceID, nodeID string, sc
 	if err != nil {
 		return httpcheck.Task{}, err
 	}
+	return insertHTTPTask(ctx, s.db, v, nodeID, scheduledAt, now)
+}
+
+// CreateHTTPDispatchTask starts the live task window after acquiring SQLite's
+// writer. Database contention must not consume the Agent's execution timeout.
+func (s *Store) CreateHTTPDispatchTask(ctx context.Context, serviceID, nodeID string, scheduledAt time.Time) (httpcheck.Task, error) {
+	v, err := s.HTTPService(ctx, serviceID)
+	if err != nil {
+		return httpcheck.Task{}, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return httpcheck.Task{}, err
+	}
+	defer tx.Rollback()
+	if err := reserveWriter(ctx, func() error {
+		_, err := tx.ExecContext(ctx, "UPDATE http_services SET revision=revision WHERE id=?", serviceID)
+		return err
+	}); err != nil {
+		return httpcheck.Task{}, err
+	}
+	task, err := insertHTTPTask(ctx, tx, v, nodeID, scheduledAt, time.Now().UTC())
+	if err != nil {
+		return httpcheck.Task{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return httpcheck.Task{}, err
+	}
+	return task, nil
+}
+
+// The conditional insert rechecks the snapshot revision and assignment after
+// any writer wait, including concurrent service edits, deletion and cancellation.
+func insertHTTPTask(ctx context.Context, writer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}, v HTTPService, nodeID string, scheduledAt, now time.Time) (httpcheck.Task, error) {
 	if scheduledAt.Before(v.UpdatedAt) {
 		return httpcheck.Task{}, ErrHTTPTaskRejected
 	}
 	task := httpcheck.Task{ID: randomID(), ServiceID: v.ID, Revision: uint64(v.Revision), ScheduledAt: scheduledAt.UTC(), ExpiresAt: now.UTC().Add(time.Duration(v.Spec.TimeoutMS) * time.Millisecond), Spec: v.Spec}
-	if err = task.Validate(now); err != nil {
+	if err := task.Validate(now); err != nil {
 		return httpcheck.Task{}, err
 	}
 	body, err := json.Marshal(task)
 	if err != nil {
 		return httpcheck.Task{}, err
 	}
-	result, err := s.db.ExecContext(ctx, `INSERT INTO http_tasks(id,service_id,node_id,revision,scheduled_at,expires_at,task_json)
+	result, err := writer.ExecContext(ctx, `INSERT INTO http_tasks(id,service_id,node_id,revision,scheduled_at,expires_at,task_json)
 		SELECT ?,s.id,?,s.revision,?,?,? FROM http_services s
 		WHERE s.id=? AND s.revision=? AND s.enabled=1
 		AND EXISTS(SELECT 1 FROM http_service_nodes a WHERE a.service_id=s.id AND a.node_id=?)
