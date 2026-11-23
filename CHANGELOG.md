@@ -7,6 +7,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### HTTP task dispatch deadlines
+
+- Start a live HTTP task's execution window after acquiring the SQLite writer,
+  so a busy database does not expire a short check before it reaches the Agent.
+- Recheck service revision and node assignment before committing the task.
+
+
 ### History reader memory budget
 
 - Limit each 64-bit Linux history reader to 256 MiB of mapped database address

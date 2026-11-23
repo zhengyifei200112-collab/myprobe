@@ -590,3 +590,14 @@ duplicate/out-of-order results and old-Agent capability behavior. Statistics mus
 keep success, failure, expected slots, missing slots and maintenance exclusions
 distinct; an empty denominator is null. Full implementation needs API/protocol,
 forward-only schema, configuration export, backup/restore, docs and UI acceptance.
+
+## Task deadlines under write contention
+
+Live dispatch acquires SQLite's writer before starting the task execution window.
+The task snapshot and its stored expiry use that same timestamp. The existing
+five-second schedule window still bounds the dispatch call. A canceled or
+superseded service assignment cannot commit a new task. A task that has already
+been sent retains its original deadline and receipt grace.
+
+The Store's explicit-time CreateHTTPTask entry point remains available for
+historical fixtures and supplied timestamps.

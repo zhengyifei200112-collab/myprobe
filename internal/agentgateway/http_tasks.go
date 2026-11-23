@@ -60,7 +60,7 @@ func (g *Gateway) DispatchHTTP(ctx context.Context, nodeID, serviceID string, sc
 	if len(session.httpPending) >= 4 {
 		return ErrHTTPBusy
 	}
-	task, err := g.store.CreateHTTPTask(ctx, serviceID, nodeID, scheduledAt, now)
+	task, err := g.store.CreateHTTPDispatchTask(ctx, serviceID, nodeID, scheduledAt)
 	if err != nil {
 		return err
 	}
