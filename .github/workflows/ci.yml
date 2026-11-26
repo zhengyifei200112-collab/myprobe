@@ -44,6 +44,7 @@ jobs:
 
       - name: Test and vet
         run: |
+          node --test scripts/review-joint-gc-trace.test.cjs
           export MYPROBE_HTTP_TEST_DIR="$RUNNER_TEMP/myprobe-test-fixtures/http"
           export MYPROBE_NETWORK_TEST_DIR="$RUNNER_TEMP/myprobe-test-fixtures/network"
           printf 'MYPROBE_HTTP_TEST_DIR=%s\nMYPROBE_NETWORK_TEST_DIR=%s\n' "$MYPROBE_HTTP_TEST_DIR" "$MYPROBE_NETWORK_TEST_DIR" >> "$GITHUB_ENV"
