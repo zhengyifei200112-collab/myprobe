@@ -7,6 +7,12 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Canceled Gateway writes
+
+- Let a canceled or expired write return while waiting for the session writer,
+  and avoid passing that stale queued operation to a still-usable WebSocket.
+- Preserve normal v1/v2 writes and the original dispatch deadline.
+
 ### Completed network probe delivery
 
 - Retain an already generated network probe result when its task connection is
