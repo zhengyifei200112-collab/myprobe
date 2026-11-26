@@ -77,7 +77,11 @@ func (c *Client) enqueueNetworkTaskResult(ctx context.Context, task check.Task, 
 		}
 	}
 	class := ""
-	if d.stopped || ctx.Err() != nil {
+	// A valid completed result belongs to the Run-owned delivery queue once
+	// generation begins. Its connection/task context can be canceled during
+	// encoding; keep the result for a replacement connection. Run shutdown
+	// still rejects late workers and clears its pending queue.
+	if d.stopped {
 		class = "canceled"
 	} else if len(d.pending) >= networkResultCapacity {
 		class = "capacity"

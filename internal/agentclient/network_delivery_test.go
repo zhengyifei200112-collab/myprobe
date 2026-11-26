@@ -2,6 +2,7 @@ package agentclient
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -23,6 +24,39 @@ func networkPendingCount(client *Client) int {
 	client.networkResults.mu.Lock()
 	defer client.networkResults.mu.Unlock()
 	return len(client.networkResults.pending)
+}
+
+func TestNetworkDeliveryRetainsCompletedResultWhenTaskContextCancelsDuringAdmission(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var rejected bool
+	client := &Client{observeEnvelope: func(event clientEnvelopeEvent) {
+		if event.Phase == "generated" {
+			// The probe has completed while its connection context is still live.
+			// Replacing that connection can cancel it before queue admission ends.
+			cancel()
+		}
+		if event.Phase == "local_rejected" {
+			rejected = true
+		}
+	}}
+	task, result := networkDeliveryFixture(time.Now().Add(time.Minute))
+	client.enqueueNetworkTaskResult(ctx, task, result)
+	if ctx.Err() == nil || rejected || networkPendingCount(client) != 1 {
+		t.Fatal("connection cancellation discarded an already generated, valid result")
+	}
+	connection := new(websocket.Conn)
+	item, expired, _ := client.networkResults.next(time.Now(), connection)
+	if item == nil || len(expired) != 0 || item.envelope.Sequence != 1 {
+		t.Fatal("completed result was not available to the replacement connection")
+	}
+	var queued check.Result
+	if err := json.Unmarshal(item.envelope.Payload, &queued); err != nil || queued.TaskID != result.TaskID || !queued.CompletedAt.Equal(result.CompletedAt) {
+		t.Fatal("queue changed the completed probe result")
+	}
+	if item, expired, _ := client.networkResults.next(task.ExpiresAt, connection); item != nil || len(expired) != 1 || networkPendingCount(client) != 0 {
+		t.Fatal("retaining a completed result extended its original task deadline")
+	}
 }
 
 func TestNetworkDeliveryCapacityKeepsAnExplicitRejectedSequence(t *testing.T) {
