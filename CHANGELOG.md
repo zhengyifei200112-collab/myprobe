@@ -7,6 +7,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Completed network probe delivery
+
+- Retain an already generated network probe result when its task connection is
+  canceled during queue admission, so it remains eligible for delivery after
+  reconnection until the original task deadline.
+- Keep early cancellation, queue capacity, shutdown and ACK fencing unchanged.
+
 ### HTTP task dispatch deadlines
 
 - Start a live HTTP task's execution window after acquiring the SQLite writer,
