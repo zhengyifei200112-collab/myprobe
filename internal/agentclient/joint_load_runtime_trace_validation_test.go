@@ -96,13 +96,18 @@ func TestJointRuntimeGCTraceChild(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		runtime.GC()
 	}
+	// GC returns before its background worker necessarily finishes printing.
+	// Stay alive until the parent has observed three complete trace lines.
+	if _, err := io.ReadFull(os.Stdin, make([]byte, 1)); err != nil {
+		t.Fatal("runtime trace parent did not release the owned child")
+	}
 }
 
 func TestJointRuntimeGCTraceActualRuntime(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("private capture requires POSIX permissions")
 	}
-	dir := t.TempDir()
+	dir := httpFixtureDir(t)
 	if err := os.Chmod(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -116,9 +121,42 @@ func TestJointRuntimeGCTraceActualRuntime(t *testing.T) {
 	command := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestJointRuntimeGCTraceChild$", "-test.count=1")
 	command.Env = jointRuntimeGCEnvironment(append(os.Environ(), "MYPROBE_TEST_RUNTIME_GC_CHILD=1"), true)
 	command.Stdout, command.Stderr = io.Discard, capture
-	if err := command.Run(); err != nil {
+	input, err := command.StdinPipe()
+	if err != nil {
 		capture.close()
-		t.Fatal("owned runtime trace child failed")
+		t.Fatal(err)
+	}
+	defer input.Close()
+	if err := command.Start(); err != nil {
+		capture.close()
+		t.Fatal("owned runtime trace child did not start")
+	}
+	defer func() {
+		if command.ProcessState == nil {
+			command.Process.Kill()
+			command.Wait()
+		}
+		capture.close()
+	}()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	complete := regexp.MustCompile(`(?m)^gc [0-9]+ @[^\n]*\n`)
+	for {
+		raw, err := os.ReadFile(capture.file.Name())
+		if err == nil && len(complete.FindAll(raw, -1)) >= 3 && bytes.HasSuffix(raw, []byte{'\n'}) {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("owned runtime did not finish three GC trace lines")
+		case <-ticker.C:
+		}
+	}
+	if _, err := input.Write([]byte{1}); err != nil {
+		t.Fatal("owned runtime trace child could not be released")
+	}
+	if err := command.Wait(); err != nil {
+		t.Fatal("owned runtime trace child did not finish")
 	}
 	capture.bindProcess(command.Process.Pid, "")
 	if err := capture.close(); err != nil {
@@ -133,9 +171,10 @@ func TestJointRuntimeGCTraceActualRuntime(t *testing.T) {
 	}
 	if node, err := exec.LookPath("node"); err == nil {
 		review := exec.CommandContext(ctx, node, filepath.Join("../..", "scripts", "review-joint-gc-trace.cjs"), capture.file.Name())
-		output, err := review.Output()
+		output, err := review.CombinedOutput()
 		if err != nil {
-			t.Fatal("GC reviewer rejected the actual owned runtime output")
+			// The reviewer emits only its fixed rejection classifications here.
+			t.Fatalf("GC reviewer rejected owned runtime output: %s", output)
 		}
 		var summary struct {
 			InputVerified        bool `json:"input_verified"`
