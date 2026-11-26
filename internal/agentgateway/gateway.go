@@ -71,12 +71,40 @@ type agentSession struct {
 }
 
 func (s *agentSession) write(ctx context.Context, envelope protocol.Envelope) error {
-	s.writeMu.Lock()
+	if err := s.lockWriter(ctx); err != nil {
+		return err
+	}
 	defer s.writeMu.Unlock()
+	// Cancellation can race with acquiring the lock. Do not pass a stale queued
+	// operation to the socket: the websocket writer can close it on cancellation.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if s.version == protocolv2.Version {
 		envelope.Version = protocolv2.Version
 	}
 	return wsjson.Write(ctx, s.connection, envelope)
+}
+
+func (s *agentSession) lockWriter(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.writeMu.TryLock() {
+		return nil
+	}
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if s.writeMu.TryLock() {
+				return nil
+			}
+		}
+	}
 }
 
 type pendingTask struct {

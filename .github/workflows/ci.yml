@@ -52,7 +52,7 @@ jobs:
           go test -race ./internal/store -run '^TestCertificateHistory' -count=1
           go vet ./...
           go build ./cmd/...
-          go test -race ./internal/store ./internal/scheduler ./internal/agentgateway -run '^TestNetwork' -count=1
+          go test -race ./internal/store ./internal/scheduler ./internal/agentgateway -run '^Test(Network|AgentSessionWrite)' -count=1
           go test -race ./internal/httpapi -run '^TestNetworkQuality' -count=1
           go test -race ./internal/networkquality -count=1
           go test -race ./internal/protocol/networkcheck -count=1
