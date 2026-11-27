@@ -107,7 +107,21 @@ func (s *Store) SaveHTTPResult(ctx context.Context, nodeID string, value httpche
 	if err != nil {
 		return err
 	}
-	result, err := s.db.ExecContext(ctx, `UPDATE http_tasks SET result_json=?,received_at=?
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	// Retry only the first writer reservation of this fresh transaction. The
+	// task validation above used the immutable stored task outside the transaction;
+	// the conditional write below rechecks current service state and assignment.
+	if err := reserveWriter(ctx, func() error {
+		_, err := tx.ExecContext(ctx, "UPDATE http_services SET revision=revision WHERE id=?", task.ServiceID)
+		return err
+	}); err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, `UPDATE http_tasks SET result_json=?,received_at=?
 		WHERE id=? AND node_id=? AND result_json IS NULL
 		AND EXISTS(SELECT 1 FROM http_services s JOIN http_service_nodes a ON a.service_id=s.id
 		WHERE s.id=http_tasks.service_id AND s.revision=http_tasks.revision AND s.enabled=1 AND a.node_id=http_tasks.node_id)`, string(encoded), formatTime(now), task.ID, nodeID)
@@ -121,5 +135,5 @@ func (s *Store) SaveHTTPResult(ctx context.Context, nodeID string, value httpche
 	if count != 1 {
 		return ErrHTTPTaskRejected
 	}
-	return nil
+	return tx.Commit()
 }

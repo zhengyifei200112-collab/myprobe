@@ -7,6 +7,13 @@ use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### HTTP result writer contention
+
+- Keep a valid completed HTTP probe result eligible while transient SQLite writer
+  contention clears, using the existing bounded writer reservation policy.
+- Recheck current service revision, enablement and node assignment before storing
+  only the first result; preserve caller cancellation and the original receipt time.
+
 ### Canceled Gateway writes
 
 - Let a canceled or expired write return while waiting for the session writer,
