@@ -32,6 +32,11 @@ type jointServer struct {
 
 func (s *jointServer) start(t *testing.T, ctx context.Context, base string) {
 	t.Helper()
+	traceGC, err := jointRuntimeGCTraceSettings(os.Getenv("MYPROBE_TEST_LOAD_PROCESS_LOG_DIR"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverEnv := jointRuntimeGCEnvironment(s.env, traceGC)
 	childCtx, stop := context.WithCancel(ctx)
 	s.stopCommand = stop
 	s.limits = map[string]string{"mode": "unrestricted"}
@@ -46,7 +51,7 @@ func (s *jointServer) start(t *testing.T, ctx context.Context, base string) {
 		if os.Getenv("MYPROBE_TEST_LOAD_NETWORK_NAMESPACE") == "1" {
 			args = append(args, fmt.Sprintf("--property=NetworkNamespacePath=/proc/%d/ns/net", os.Getpid()))
 		}
-		for _, env := range s.env {
+		for _, env := range serverEnv {
 			args = append(args, "--setenv="+env)
 		}
 		args = append(args, s.binary)
@@ -56,11 +61,11 @@ func (s *jointServer) start(t *testing.T, ctx context.Context, base string) {
 	}
 	// Do not inherit the operator's MyProbe production configuration into a fixture.
 	for _, env := range os.Environ() {
-		if !strings.HasPrefix(env, "MYPROBE_") {
+		if !strings.HasPrefix(env, "MYPROBE_") && !(traceGC && strings.HasPrefix(env, "GODEBUG=")) {
 			s.cmd.Env = append(s.cmd.Env, env)
 		}
 	}
-	s.cmd.Env = append(s.cmd.Env, s.env...)
+	s.cmd.Env = append(s.cmd.Env, serverEnv...)
 	s.cmd.WaitDelay = 5 * time.Second
 	s.cmd.Stdout, s.cmd.Stderr = io.Discard, io.Discard
 	capture, err := openJointProcessLog(os.Getenv("MYPROBE_TEST_LOAD_PROCESS_LOG_DIR"))
@@ -144,12 +149,15 @@ func (s *jointServer) start(t *testing.T, ctx context.Context, base string) {
 			t.Fatal("requested CPU/memory/swap/cpuset controls did not take effect")
 		}
 	}
+	s.capture.bindProcess(s.pid, s.unit)
 }
 
 func (s *jointServer) stop(t *testing.T) bool {
 	t.Helper()
 	defer func() {
-		s.capture.close()
+		if err := s.capture.close(); err != nil {
+			t.Error("private process closeout evidence could not be completed")
+		}
 		s.capture = nil
 	}()
 	if s.cmd == nil {

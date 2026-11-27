@@ -310,6 +310,18 @@ func TestJointRuntimeLoad(t *testing.T) {
 		result.Limitations[3] = "test-only observer hop outside Server limits reconciles attempted envelopes, Server ACK and stored reports"
 	}
 	result.SourceSHA256 = make(map[string]string)
+	result.RuntimeGCTrace = os.Getenv("MYPROBE_TEST_LOAD_RUNTIME_GC_TRACE") == "1"
+	if result.RuntimeGCTrace {
+		result.Limitations = append(result.Limitations, "optional Go GC trace enabled for the actual Server; private logs are capped at 32 MiB per process; trace heap values are MiB-granularity diagnostics, not RSS or a stability waiver")
+	}
+	for _, path := range []string{"internal/agentclient/joint_load_runtime_trace_test.go", "internal/agentclient/joint_load_runtime_trace_validation_test.go"} {
+		raw, err := os.ReadFile(filepath.Join("../..", path))
+		if err != nil {
+			t.Fatal("runtime trace source unavailable for provenance")
+		}
+		hash := sha256.Sum256(raw)
+		result.SourceSHA256[path] = hex.EncodeToString(hash[:])
+	}
 	for _, path := range []string{"internal/agentclient/joint_load_history_hours_test.go", "internal/store/migrations/052_latency_history_hours.sql", "internal/agentclient/joint_load_api_trace_test.go", "internal/agentclient/joint_load_trace_test.go", "internal/agentclient/joint_load_trace_validation_test.go", "internal/agentclient/client_observation.go", "internal/agentclient/client_observation_test.go", "internal/agentclient/client_observation_transport_test.go", "scripts/check-joint-api-trace.cjs"} {
 		raw, err := os.ReadFile(filepath.Join("../..", filepath.FromSlash(path)))
 		if err != nil {
@@ -891,6 +903,7 @@ type jointLoadResult struct {
 	ReportTrace                                                                                                                               jointTraceSummary
 	ResourceLimits                                                                                                                            map[string]string
 	ResourceSampleSeconds                                                                                                                     int
+	RuntimeGCTrace                                                                                                                            bool
 	SampledPeakRSSBytes, SampledPeakWALBytes                                                                                                  int64
 	ServerCPUMicroseconds                                                                                                                     uint64
 	APILatency                                                                                                                                map[string]jointLatency
