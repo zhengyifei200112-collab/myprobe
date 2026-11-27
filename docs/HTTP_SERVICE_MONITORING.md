@@ -583,6 +583,17 @@ the explicit execution flag. Retention, expected-slot accounting, restart dispat
 policy and statistical queries are implemented. Deleting a service or node cascades
 its task records, so historical views must explain that deletion removes that data.
 
+Result admission reserves SQLite's writer in a fresh transaction before the
+conditional result write. It uses the existing three-attempt policy for primary
+`SQLITE_BUSY`, retaining each connection's busy timeout and giving caller
+cancellation precedence. Only the initial writer reservation is retried; the
+result mutation and commit are not replayed. Current revision, enablement,
+assignment and the first-result condition are checked after the writer is
+acquired. The original receipt timestamp and task receipt grace do not change.
+An exhausted wait still returns an error and does not acknowledge an unpersisted
+result. This does not add a reconnect result queue or bypass the current-session
+admission fence.
+
 Use local controllable HTTP/TLS servers and injected resolvers/dialers. Cover 200,
 500, GET/HEAD, slow headers/body, redirect loops and address-policy transitions,
 DNS rebinding, overlarge decoded bodies, invalid/expired certificates, cancellation,
