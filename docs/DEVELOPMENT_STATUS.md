@@ -1,7 +1,7 @@
 # 开发状态与验收范围
 
 本页说明仓库文档中的实现状态和验收口径。核对基线为 main
-`c6bc219a3418f199de3e83dc46d2bee71dc9e492`（2026-11-27）；本次整理不改变运行代码。
+`f00292e03e82a50e2cb0aafc2db68b34d5ea865e`（2026-11-27）；本次整理不改变运行代码。
 安装正式版本时，以所选标签对应的源码、文档和
 [Release 工件](https://github.com/zhengyifei200112-collab/myprobe/releases)为准。
 main 的功能说明不能证明旧版 Release 已包含这些功能。
