@@ -40,6 +40,10 @@ distinguish features present in main from release artifacts, deployment and fina
 acceptance. Follow the documentation for the selected release tag when installing
 a released version.
 
+The [full development roadmap](docs/DEVELOPMENT_ROADMAP.zh-CN.md) preserves the
+M1–M5 requirements, task IDs and acceptance gates for personal deployments.
+It describes the required outcomes; the status page records integrated capabilities.
+
 The previous `myprobe-test` repository was an incomplete prototype and is not used as
 the implementation base. This repository uses an independently documented protocol and
 a testable vertical architecture.
